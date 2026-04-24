@@ -69,15 +69,33 @@ const DetailHost: React.FC = () => {
           {title} ({group.length})
         </h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {group.map(p => (
-            <Card key={p.id} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500, fontSize: '15px' }}>{p.nombre_invitado}</span>
-              <Badge 
-                label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
-                status={badgeStatus} 
-              />
-            </Card>
-          ))}
+          {group.map(p => {
+            let timeLabel = '';
+            if (p.respondido_en) {
+              const dateObj = new Date(p.respondido_en);
+              timeLabel = `Respondió ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            } else if (p.creado_en) {
+              const dateObj = new Date(p.creado_en);
+              timeLabel = `Creado ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            } else {
+              timeLabel = 'Pendiente';
+            }
+
+            return (
+              <Card key={p.id} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: 500, fontSize: '15px' }}>{p.nombre_invitado}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginTop: '2px' }}>
+                    {timeLabel}
+                  </span>
+                </div>
+                <Badge 
+                  label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
+                  status={badgeStatus} 
+                />
+              </Card>
+            );
+          })}
         </div>
       </div>
     );

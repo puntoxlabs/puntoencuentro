@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -18,6 +18,8 @@ const AddGuests: React.FC = () => {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -59,6 +61,7 @@ const AddGuests: React.FC = () => {
       await participantesService.addParticipanteIndividual(id!, trimNombre, tokenInvitacion);
       
       setNombre('');
+      setTimeout(() => inputRef.current?.focus(), 0);
       // Refresh list
       const parts = await participantesService.getParticipantesByEncuentro(id!);
       setParticipantes(parts || []);
@@ -77,6 +80,19 @@ const AddGuests: React.FC = () => {
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');
+    }
+  };
+
+  const handleCopyLink = async (token: string, id: string) => {
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const shareUrl = `${baseUrl}/invite/${token}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+      alert('Error al copiar el enlace.');
     }
   };
 
@@ -107,6 +123,7 @@ const AddGuests: React.FC = () => {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
         <div style={{ flex: 1 }}>
           <Input 
+            ref={inputRef}
             placeholder="Nombre del invitado" 
             value={nombre} 
             onChange={(e) => setNombre(e.target.value)} 
@@ -128,9 +145,14 @@ const AddGuests: React.FC = () => {
               <span style={{ fontWeight: 500 }}>{p.nombre_invitado}</span>
               <Badge label="Pendiente" status="pending" />
             </div>
-            <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
-              X
-            </Button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
+                {copiedId === p.id ? 'Copiado' : 'Copiar link'}
+              </Button>
+              <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
+                X
+              </Button>
+            </div>
           </Card>
         ))}
       </div>
