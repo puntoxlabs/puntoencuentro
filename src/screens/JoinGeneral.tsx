@@ -23,6 +23,19 @@ const JoinGeneral: React.FC = () => {
   const [step, setStep] = useState<'name' | 'action' | 'done'>('name');
   const [finalState, setFinalState] = useState<'confirmado' | 'rechazado' | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyVideoLink = async () => {
+    if (!encuentro?.link_virtual) return;
+    try {
+      await navigator.clipboard.writeText(encuentro.link_virtual);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+      alert('Error al copiar el enlace.');
+    }
+  };
 
   useEffect(() => {
     if (public_token) {
@@ -93,9 +106,20 @@ const JoinGeneral: React.FC = () => {
         />
         <Card style={{ marginTop: 'auto' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
-          <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
+          <p style={{ margin: '0 0 12px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
             {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
           </p>
+          {encuentro.modalidad === 'virtual' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+                <strong>Link de videollamada:</strong><br/>
+                <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+              </p>
+              <Button variant="outline" style={{ alignSelf: 'flex-start', padding: '0 12px', height: '32px' }} onClick={handleCopyVideoLink}>
+                {copiedLink ? 'Link copiado' : 'Copiar link'}
+              </Button>
+            </div>
+          )}
         </Card>
       </ScreenContainer>
     );
@@ -122,10 +146,22 @@ const JoinGeneral: React.FC = () => {
           <strong>Modalidad:</strong><br/>
           {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
         </p>
-        <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '15px' }}>
-          <strong>{encuentro.modalidad === 'presencial' ? 'Lugar:' : 'Link:'}</strong><br/>
-          {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
-        </p>
+        {encuentro.modalidad === 'presencial' ? (
+          <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '15px' }}>
+            <strong>Lugar:</strong><br/>
+            {encuentro.lugar_texto}
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '15px' }}>
+              <strong>Link de videollamada:</strong><br/>
+              <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+            </p>
+            <Button variant="outline" style={{ alignSelf: 'flex-start', padding: '0 12px', height: '32px' }} onClick={handleCopyVideoLink}>
+              {copiedLink ? 'Link copiado' : 'Copiar link'}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {step === 'name' ? (
