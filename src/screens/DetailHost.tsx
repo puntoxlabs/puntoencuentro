@@ -17,6 +17,7 @@ const DetailHost: React.FC = () => {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -61,6 +62,20 @@ const DetailHost: React.FC = () => {
   const pendientes = participantes.filter(p => p.estado === 'pendiente');
   const rechazados = participantes.filter(p => p.estado === 'rechazado');
 
+  const handleCopyLink = async (token: string, id: string) => {
+    if (!token) return;
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const shareUrl = `${baseUrl}/invite/${token}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+      alert('Error al copiar el enlace.');
+    }
+  };
+
   const renderParticipantsGroup = (title: string, group: any[], badgeStatus: 'confirmed' | 'pending' | 'rejected') => {
     if (group.length === 0) return null;
     return (
@@ -89,10 +104,17 @@ const DetailHost: React.FC = () => {
                     {timeLabel}
                   </span>
                 </div>
-                <Badge 
-                  label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
-                  status={badgeStatus} 
-                />
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {p.estado === 'pendiente' && p.token_invitacion && (
+                    <Button variant="outline" style={{ padding: '0 8px', height: '28px', fontSize: '12px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
+                      {copiedId === p.id ? 'Copiado' : 'Copiar'}
+                    </Button>
+                  )}
+                  <Badge 
+                    label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
+                    status={badgeStatus} 
+                  />
+                </div>
               </Card>
             );
           })}
