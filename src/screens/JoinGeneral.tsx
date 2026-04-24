@@ -91,16 +91,12 @@ const JoinGeneral: React.FC = () => {
           title={finalState === 'confirmado' ? '¡Listo! Ya confirmaste tu asistencia.' : 'Listo. Avisamos que no vas a asistir.'}
           description={finalState === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
         />
-        <Card style={{ marginTop: 'auto', marginBottom: '24px' }}>
+        <Card style={{ marginTop: 'auto' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
           <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
             {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
           </p>
         </Card>
-        <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
-          <Button fullWidth onClick={() => navigate(`/meet/${encuentro.id}`)}>Ver encuentro</Button>
-          <Button fullWidth variant="outline" onClick={() => { if (window.history.length > 1) window.history.back(); else window.close(); }}>Listo</Button>
-        </div>
       </ScreenContainer>
     );
   }
