@@ -88,8 +88,8 @@ const JoinGeneral: React.FC = () => {
       <ScreenContainer>
         <AppBar title="Respuesta enviada" />
         <EmptyState 
-          title={finalState === 'confirmado' ? '¡Asistencia confirmada!' : 'Marcaste que no podés asistir'}
-          description={`Gracias por confirmar, ${nombre.trim()}.`}
+          title={finalState === 'confirmado' ? '¡Listo! Ya confirmaste tu asistencia.' : 'Listo. Avisamos que no vas a asistir.'}
+          description={finalState === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
         />
         <Card style={{ marginTop: 'auto', marginBottom: '24px' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
@@ -99,7 +99,7 @@ const JoinGeneral: React.FC = () => {
         </Card>
         <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
           <Button fullWidth onClick={() => navigate(`/meet/${encuentro.id}`)}>Ver encuentro</Button>
-          <Button fullWidth variant="outline" onClick={() => navigate('/')}>Volver al inicio</Button>
+          <Button fullWidth variant="outline" onClick={() => { if (window.history.length > 1) window.history.back(); else window.close(); }}>Listo</Button>
         </div>
       </ScreenContainer>
     );
