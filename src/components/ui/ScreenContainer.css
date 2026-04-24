@@ -1,0 +1,10 @@
+.screen-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: var(--spacing-md);
+  max-width: 480px; /* Mobile first standard width constraint */
+  margin: 0 auto;
+  background-color: var(--color-background);
+}

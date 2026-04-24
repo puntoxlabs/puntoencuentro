@@ -1,0 +1,28 @@
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-lg) var(--spacing-md);
+  height: 100%;
+  flex: 1;
+}
+
+.empty-state-icon {
+  color: var(--color-outline-variant);
+  margin-bottom: var(--spacing-md);
+}
+
+.empty-state-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin-bottom: var(--spacing-base);
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  max-width: 280px;
+}

@@ -1,0 +1,36 @@
+.app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 var(--spacing-md);
+  background-color: var(--color-background);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-bar-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.app-bar-back {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-on-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  margin-left: -8px;
+}
+
+.app-bar-placeholder {
+  width: 40px; /* To balance the title center if back button is present */
+}

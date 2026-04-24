@@ -1,0 +1,31 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-family);
+}
+
+.badge-default {
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.badge-pending {
+  background-color: #FFF3CD;
+  color: #856404;
+}
+
+.badge-confirmed {
+  background-color: #D4EDDA;
+  color: #155724;
+}
+
+.badge-rejected {
+  background-color: #F8D7DA;
+  color: #721C24;
+}

@@ -1,0 +1,140 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { AppBar } from '@/components/ui/AppBar';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { encuentrosService } from '@/services/encuentrosService';
+import { participantesService } from '@/services/participantesService';
+import { formatFriendlyDate } from '@/lib/formatDate';
+
+const AddGuests: React.FC = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
+  const [encuentro, setEncuentro] = useState<any>(null);
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [nombre, setNombre] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (id) {
+      loadData();
+    }
+  }, [id]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const enc = await encuentrosService.getEncuentroById(id!);
+      setEncuentro(enc);
+      
+      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      setParticipantes(parts || []);
+    } catch (error) {
+      console.error('Error loading data', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    const trimNombre = nombre.trim();
+    if (!trimNombre) return;
+
+    // Avoid exact duplicates locally
+    const isDuplicate = participantes.some(
+      (p) => p.nombre_invitado.toLowerCase() === trimNombre.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      alert('Ya existe un invitado con ese nombre.');
+      return;
+    }
+
+    try {
+      const tokenInvitacion = crypto.randomUUID();
+      await participantesService.addParticipanteIndividual(id!, trimNombre, tokenInvitacion);
+      
+      setNombre('');
+      // Refresh list
+      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      setParticipantes(parts || []);
+    } catch (error) {
+      console.error('Error adding guest', error);
+      alert('Error al agregar invitado');
+    }
+  };
+
+  const handleDelete = async (partId: string) => {
+    try {
+      await participantesService.deleteParticipante(partId);
+      // Refresh list
+      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      setParticipantes(parts || []);
+    } catch (error) {
+      console.error('Error deleting guest', error);
+      alert('Error al eliminar invitado');
+    }
+  };
+
+  if (loading) return <ScreenContainer><p>Cargando...</p></ScreenContainer>;
+  if (!encuentro) return <ScreenContainer><p>Encuentro no encontrado.</p></ScreenContainer>;
+
+  return (
+    <ScreenContainer>
+      <AppBar title="Agregar Invitados" showBack />
+
+      <Card style={{ marginBottom: '16px' }}>
+        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>{encuentro.titulo}</h3>
+        <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
+          {formatFriendlyDate(encuentro.fecha, encuentro.hora)} • {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+        </p>
+      </Card>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+        <div style={{ flex: 1 }}>
+          <Input 
+            placeholder="Nombre del invitado" 
+            value={nombre} 
+            onChange={(e) => setNombre(e.target.value)} 
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+          />
+        </div>
+        <Button onClick={handleAdd} disabled={!nombre.trim()}>
+          Agregar
+        </Button>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
+          Lista de invitados ({participantes.length})
+        </h4>
+        {participantes.map((p) => (
+          <Card key={p.id} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontWeight: 500 }}>{p.nombre_invitado}</span>
+              <Badge label="Pendiente" status="pending" />
+            </div>
+            <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
+              X
+            </Button>
+          </Card>
+        ))}
+      </div>
+
+      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
+        <Button fullWidth variant="primary" onClick={() => navigate(`/meet/${id}`)}>
+          Ver encuentro
+        </Button>
+        <Button fullWidth variant="outline" onClick={() => navigate('/')}>
+          Volver al inicio
+        </Button>
+      </div>
+    </ScreenContainer>
+  );
+};
+
+export default AddGuests;
