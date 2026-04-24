@@ -143,12 +143,17 @@ const AddGuests: React.FC = () => {
           <Card key={p.id} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span style={{ fontWeight: 500 }}>{p.nombre_invitado}</span>
-              <Badge label="Pendiente" status="pending" />
+              <Badge 
+                label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
+                status={p.estado === 'confirmado' ? 'confirmed' : p.estado === 'rechazado' ? 'rejected' : 'pending'} 
+              />
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
-                {copiedId === p.id ? 'Copiado' : 'Copiar link'}
-              </Button>
+              {p.estado === 'pendiente' && (
+                <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
+                  {copiedId === p.id ? 'Copiado' : 'Copiar link'}
+                </Button>
+              )}
               <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
                 X
               </Button>

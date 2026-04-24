@@ -155,8 +155,8 @@ const DetailHost: React.FC = () => {
         ) : (
           <>
             {renderParticipantsGroup('Confirmados', confirmados, 'confirmed')}
-            {renderParticipantsGroup('Pendientes', pendientes, 'pending')}
             {renderParticipantsGroup('No asisten', rechazados, 'rejected')}
+            {renderParticipantsGroup('Pendientes', pendientes, 'pending')}
           </>
         )}
       </div>
