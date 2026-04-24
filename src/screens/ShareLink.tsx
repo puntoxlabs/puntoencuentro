@@ -59,7 +59,7 @@ const ShareLink: React.FC = () => {
         <AppBar title="Error" showBack />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <p>{error || 'Encuentro no encontrado.'}</p>
-          <Button onClick={() => navigate('/')}>Volver al Inicio</Button>
+          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
         </div>
       </ScreenContainer>
     );
@@ -93,9 +93,14 @@ const ShareLink: React.FC = () => {
         </Button>
       </div>
 
-      <Button fullWidth variant="outline" style={{ marginTop: '24px' }} onClick={() => navigate(`/meet/${id}`)}>
-        Ver encuentro
-      </Button>
+      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
+        <Button fullWidth onClick={() => navigate(`/meet/${id}`)}>
+          Ver encuentro
+        </Button>
+        <Button fullWidth variant="outline" onClick={() => navigate('/')}>
+          Volver al inicio
+        </Button>
+      </div>
     </ScreenContainer>
   );
 };

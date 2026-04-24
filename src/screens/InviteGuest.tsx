@@ -66,6 +66,7 @@ const InviteGuest: React.FC = () => {
         <AppBar title="Invitación" />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <p>{error || 'Invitación no válida.'}</p>
+          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
         </div>
       </ScreenContainer>
     );

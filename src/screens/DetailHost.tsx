@@ -50,7 +50,7 @@ const DetailHost: React.FC = () => {
         <AppBar title="Error" showBack />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <p>{error || 'Encuentro no encontrado.'}</p>
-          <Button onClick={() => navigate('/')}>Volver al Inicio</Button>
+          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
         </div>
       </ScreenContainer>
     );

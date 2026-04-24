@@ -81,7 +81,17 @@ const AddGuests: React.FC = () => {
   };
 
   if (loading) return <ScreenContainer><p>Cargando...</p></ScreenContainer>;
-  if (!encuentro) return <ScreenContainer><p>Encuentro no encontrado.</p></ScreenContainer>;
+  if (!encuentro) {
+    return (
+      <ScreenContainer>
+        <AppBar title="Error" showBack />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <p>Encuentro no encontrado.</p>
+          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
+        </div>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
