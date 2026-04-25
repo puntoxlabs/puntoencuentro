@@ -37,6 +37,25 @@ const JoinGeneral: React.FC = () => {
     }
   };
 
+  const handleShareVideoLink = async () => {
+    if (!encuentro?.link_virtual) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Unite a la videollamada",
+          text: "Entrá a la reunión desde acá 👇",
+          url: encuentro.link_virtual
+        });
+      } else {
+        await handleCopyVideoLink();
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing', err);
+      }
+    }
+  };
+
   useEffect(() => {
     if (public_token) {
       loadData();
@@ -119,9 +138,19 @@ const JoinGeneral: React.FC = () => {
                 <strong>Link de videollamada:</strong><br/>
                 <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
               </p>
-              <Button variant="outline" style={{ alignSelf: 'flex-start', padding: '0 12px', height: '32px' }} onClick={handleCopyVideoLink}>
-                {copiedLink ? 'Link copiado' : 'Copiar link'}
+              
+              <Button fullWidth onClick={() => window.open(encuentro.link_virtual, '_blank', 'noopener,noreferrer')} style={{ marginTop: '4px' }}>
+                Abrir videollamada
               </Button>
+              
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleShareVideoLink}>
+                  {copiedLink ? 'Link copiado' : 'Compartir link'}
+                </Button>
+                <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleCopyVideoLink}>
+                  Copiar link
+                </Button>
+              </div>
             </div>
           )}
         </Card>
@@ -154,9 +183,19 @@ const JoinGeneral: React.FC = () => {
               <strong>Link de videollamada:</strong><br/>
               <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
             </p>
-            <Button variant="outline" style={{ alignSelf: 'flex-start', padding: '0 12px', height: '32px' }} onClick={handleCopyVideoLink}>
-              {copiedLink ? 'Link copiado' : 'Copiar link'}
+
+            <Button fullWidth onClick={() => window.open(encuentro.link_virtual, '_blank', 'noopener,noreferrer')} style={{ marginTop: '4px' }}>
+              Abrir videollamada
             </Button>
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleShareVideoLink}>
+                {copiedLink ? 'Link copiado' : 'Compartir link'}
+              </Button>
+              <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleCopyVideoLink}>
+                Copiar link
+              </Button>
+            </div>
           </div>
         )}
       </Card>

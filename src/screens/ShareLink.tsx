@@ -38,14 +38,24 @@ const ShareLink: React.FC = () => {
 
   const shareUrl = encuentro ? `${window.location.origin}/join/${encuentro.public_token}` : '';
 
-  const handleCopy = async () => {
+  const handleShare = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (navigator.share) {
+        await navigator.share({
+          title: encuentro?.titulo || 'Invitación',
+          text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:',
+          url: shareUrl
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     } catch (err) {
-      console.error('Failed to copy', err);
-      alert('Error al copiar el enlace.');
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing/copying', err);
+        alert('Error al compartir o copiar el enlace.');
+      }
     }
   };
 
@@ -82,14 +92,14 @@ const ShareLink: React.FC = () => {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-on-surface)' }}>
-          Copiá este link y compartilo por WhatsApp o donde quieras
+          Compartí este link para invitar personas al encuentro
         </p>
         <Card style={{ padding: '16px', wordBreak: 'break-all', backgroundColor: 'var(--color-surface-variant)' }}>
           <span style={{ fontSize: '14px', color: 'var(--color-primary)' }}>{shareUrl}</span>
         </Card>
         
-        <Button onClick={handleCopy} variant={copied ? 'secondary' : 'primary'}>
-          {copied ? '¡Copiado!' : 'Copiar link'}
+        <Button onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
+          {copied ? 'Link copiado' : 'Compartir link'}
         </Button>
       </div>
 
