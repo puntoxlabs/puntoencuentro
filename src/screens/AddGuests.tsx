@@ -83,16 +83,28 @@ const AddGuests: React.FC = () => {
     }
   };
 
-  const handleCopyLink = async (token: string, id: string) => {
+  const handleShareLink = async (token: string, id: string) => {
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy', err);
-      alert('Error al copiar el enlace.');
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:',
+          url: shareUrl
+        });
+      } catch (err) {
+        console.error('Error sharing', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy', err);
+        alert('Error al copiar el enlace.');
+      }
     }
   };
 
@@ -150,8 +162,8 @@ const AddGuests: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               {p.estado === 'pendiente' && (
-                <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
-                  {copiedId === p.id ? 'Copiado' : 'Copiar link'}
+                <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleShareLink(p.token_invitacion, p.id)}>
+                  {copiedId === p.id ? 'Link copiado' : 'Compartir invitación'}
                 </Button>
               )}
               <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
