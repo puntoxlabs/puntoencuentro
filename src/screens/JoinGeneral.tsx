@@ -20,7 +20,7 @@ const JoinGeneral: React.FC = () => {
 
   // Form states
   const [nombre, setNombre] = useState('');
-  const [step, setStep] = useState<'name' | 'action' | 'done'>('name');
+  const [step, setStep] = useState<'form' | 'done'>('form');
   const [finalState, setFinalState] = useState<'confirmado' | 'rechazado' | null>(null);
   const [updating, setUpdating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -59,11 +59,6 @@ const JoinGeneral: React.FC = () => {
     }
   };
 
-  const handleContinue = () => {
-    if (nombre.trim()) {
-      setStep('action');
-    }
-  };
 
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
@@ -106,10 +101,19 @@ const JoinGeneral: React.FC = () => {
         />
         <Card style={{ marginTop: 'auto' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
-          <p style={{ margin: '0 0 12px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
             {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
           </p>
-          {encuentro.modalidad === 'virtual' && (
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+            <strong>Modalidad:</strong><br/>
+            {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+          </p>
+          {encuentro.modalidad === 'presencial' ? (
+            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+              <strong>Lugar:</strong><br/>
+              {encuentro.lugar_texto}
+            </p>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
                 <strong>Link de videollamada:</strong><br/>
@@ -129,14 +133,7 @@ const JoinGeneral: React.FC = () => {
     <ScreenContainer>
       <AppBar title="Unirse al Encuentro" />
 
-      {step === 'action' && (
-        <div style={{ padding: '8px 0' }}>
-          <h2 style={{ fontSize: '24px', margin: '0 0 8px 0' }}>¡Hola, {nombre.trim()}!</h2>
-          <p style={{ margin: 0, color: 'var(--color-on-surface-variant)' }}>¿Vas a asistir?</p>
-        </div>
-      )}
-
-      <Card style={{ marginBottom: step === 'action' ? 'auto' : '24px' }}>
+      <Card style={{ marginBottom: '24px' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: '18px' }}>{encuentro.titulo}</h3>
         <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '15px' }}>
           <strong>Fecha y hora:</strong><br/>
@@ -164,32 +161,22 @@ const JoinGeneral: React.FC = () => {
         )}
       </Card>
 
-      {step === 'name' ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <Input 
-            label="¿Cómo te llamás?"
-            placeholder="Ej: Marcos" 
-            value={nombre} 
-            onChange={(e) => setNombre(e.target.value)} 
-          />
-          <Button 
-            fullWidth 
-            onClick={handleContinue} 
-            disabled={!nombre.trim()}
-          >
-            Continuar
-          </Button>
-        </div>
-      ) : (
-        <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
-          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={updating}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <Input 
+          label="¿Cómo te llamás?"
+          placeholder="Ej: Marcos" 
+          value={nombre} 
+          onChange={(e) => setNombre(e.target.value)} 
+        />
+        <div style={{ marginTop: 'auto', display: 'flex', gap: '12px', flexDirection: 'column' }}>
+          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={updating || !nombre.trim()}>
             {updating ? 'Procesando...' : 'Confirmar asistencia'}
           </Button>
-          <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={updating}>
+          <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={updating || !nombre.trim()}>
             {updating ? 'Procesando...' : 'No puedo ir'}
           </Button>
         </div>
-      )}
+      </div>
     </ScreenContainer>
   );
 };

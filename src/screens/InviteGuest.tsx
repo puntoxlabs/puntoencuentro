@@ -16,7 +16,8 @@ const InviteGuest: React.FC = () => {
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [loadingResponse, setLoadingResponse] = useState(false);
+  const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyVideoLink = async () => {
@@ -47,8 +48,12 @@ const InviteGuest: React.FC = () => {
       setParticipante(data);
       // Supabase join returns the related encounter in the singular name based on table definition if we used `encuentros(*)`
       setEncuentro(data.encuentros);
+      
+      if (data.estado !== 'pendiente') {
+        setStep('done');
+      }
     } catch (err) {
-      console.error('Error loading invite', err);
+      console.error('Fetch inicial error:', err);
       setError('No se pudo encontrar la invitación o el enlace es inválido.');
     } finally {
       setLoading(false);
@@ -56,16 +61,23 @@ const InviteGuest: React.FC = () => {
   };
 
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
-    if (!participante) return;
+    if (!participante || loadingResponse) return;
     try {
-      setUpdating(true);
+      setLoadingResponse(true);
       const updated = await participantesService.updateParticipanteEstado(participante.id, estado);
-      setParticipante(updated);
+      
+      if (!updated) {
+        throw new Error("Respuesta vacía al actualizar estado");
+      }
+      
+      // Update local state by merging to prevent losing relations like 'encuentros'
+      setParticipante({ ...participante, ...updated });
+      setStep('done');
     } catch (err) {
-      console.error('Error updating status', err);
-      alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
+      console.error('updateParticipanteEstado error:', err);
+      alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
     } finally {
-      setUpdating(false);
+      setLoadingResponse(false);
     }
   };
 
@@ -86,7 +98,7 @@ const InviteGuest: React.FC = () => {
   }
 
   // Vista de estado final (Ya respondido)
-  if (participante.estado !== 'pendiente') {
+  if (step === 'done' || participante.estado !== 'pendiente') {
     return (
       <ScreenContainer>
         <AppBar title="Respuesta enviada" />
@@ -96,10 +108,19 @@ const InviteGuest: React.FC = () => {
         />
         <Card style={{ marginTop: 'auto' }}>
           <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
-          <p style={{ margin: '0 0 12px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
             {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
           </p>
-          {encuentro.modalidad === 'virtual' && (
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+            <strong>Modalidad:</strong><br/>
+            {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+          </p>
+          {encuentro.modalidad === 'presencial' ? (
+            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+              <strong>Lugar:</strong><br/>
+              {encuentro.lugar_texto}
+            </p>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
                 <strong>Link de videollamada:</strong><br/>
@@ -154,11 +175,11 @@ const InviteGuest: React.FC = () => {
       </Card>
 
       <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
-        <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={updating}>
-          {updating ? 'Procesando...' : 'Confirmar asistencia'}
+        <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={loadingResponse}>
+          {loadingResponse ? 'Procesando...' : 'Confirmar asistencia'}
         </Button>
-        <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={updating}>
-          {updating ? 'Procesando...' : 'No puedo ir'}
+        <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={loadingResponse}>
+          {loadingResponse ? 'Procesando...' : 'No puedo ir'}
         </Button>
       </div>
     </ScreenContainer>

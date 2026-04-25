@@ -73,13 +73,17 @@ const AddGuests: React.FC = () => {
 
   const handleDelete = async (partId: string) => {
     try {
+      // Optimistic update to make it disappear immediately
+      setParticipantes(prev => prev.filter(p => p.id !== partId));
       await participantesService.deleteParticipante(partId);
-      // Refresh list
-      const parts = await participantesService.getParticipantesByEncuentro(id!);
-      setParticipantes(parts || []);
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');
+      // Revert if failed
+      if (id) {
+        const parts = await participantesService.getParticipantesByEncuentro(id);
+        setParticipantes(parts || []);
+      }
     }
   };
 

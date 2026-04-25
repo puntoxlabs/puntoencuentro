@@ -20,9 +20,24 @@ const DetailHost: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
     if (id) {
       loadData();
+      
+      intervalId = setInterval(async () => {
+        try {
+          const parts = await participantesService.getParticipantesByEncuentro(id);
+          setParticipantes(parts || []);
+        } catch (err) {
+          console.error('Error polling participants', err);
+        }
+      }, 10000);
     }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [id]);
 
   const loadData = async () => {
@@ -62,17 +77,30 @@ const DetailHost: React.FC = () => {
   const pendientes = participantes.filter(p => p.estado === 'pendiente');
   const rechazados = participantes.filter(p => p.estado === 'rechazado');
 
-  const handleCopyLink = async (token: string, id: string) => {
+  const handleShareLink = async (token: string, id: string) => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy', err);
-      alert('Error al copiar el enlace.');
+    const shareText = "Te invito a este encuentro 👇 Confirmá si podés asistir:";
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: shareText,
+          url: shareUrl
+        });
+      } catch (err) {
+        console.error('Error sharing', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy', err);
+        alert('Error al copiar el enlace.');
+      }
     }
   };
 
@@ -106,8 +134,8 @@ const DetailHost: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {p.estado === 'pendiente' && p.token_invitacion && (
-                    <Button variant="outline" style={{ padding: '0 8px', height: '28px', fontSize: '12px' }} onClick={() => handleCopyLink(p.token_invitacion, p.id)}>
-                      {copiedId === p.id ? 'Copiado' : 'Copiar'}
+                    <Button variant="outline" style={{ padding: '0 8px', height: '28px', fontSize: '12px' }} onClick={() => handleShareLink(p.token_invitacion, p.id)}>
+                      {copiedId === p.id ? 'Link copiado' : 'Compartir invitación'}
                     </Button>
                   )}
                   <Badge 
