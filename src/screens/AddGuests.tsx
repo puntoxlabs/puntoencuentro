@@ -22,8 +22,39 @@ const AddGuests: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval>;
+    
     if (id) {
       loadData();
+      
+      // Polling cada 10 segundos
+      intervalId = setInterval(async () => {
+        try {
+          const parts = await participantesService.getParticipantesByEncuentro(id);
+          setParticipantes(parts || []);
+        } catch (error) {
+          console.error('Error polling data', error);
+        }
+      }, 10000);
+      
+      // Refrescar al volver a la pestaña
+      const handleVisibilityChange = async () => {
+        if (document.visibilityState === 'visible') {
+          try {
+            const parts = await participantesService.getParticipantesByEncuentro(id);
+            setParticipantes(parts || []);
+          } catch (error) {
+            console.error('Error refreshing on visibility change', error);
+          }
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     }
   }, [id]);
 

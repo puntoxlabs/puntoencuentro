@@ -53,7 +53,7 @@ const InviteGuest: React.FC = () => {
         setStep('done');
       }
     } catch (err) {
-      console.error('Fetch inicial error:', err);
+      console.error('InviteGuest error:', err);
       setError('No se pudo encontrar la invitación o el enlace es inválido.');
     } finally {
       setLoading(false);
@@ -64,17 +64,19 @@ const InviteGuest: React.FC = () => {
     if (!participante || loadingResponse) return;
     try {
       setLoadingResponse(true);
-      const updated = await participantesService.updateParticipanteEstado(participante.id, estado);
+      await participantesService.updateParticipanteEstado(participante.id, estado);
       
-      if (!updated) {
-        throw new Error("Respuesta vacía al actualizar estado");
+      // Refetch full data to ensure relations like 'encuentros' are present
+      const refreshed = await participantesService.getParticipanteByToken(token!);
+      if (!refreshed) {
+        throw new Error("No se pudo obtener el participante actualizado");
       }
       
-      // Update local state by merging to prevent losing relations like 'encuentros'
-      setParticipante({ ...participante, ...updated });
+      setParticipante(refreshed);
+      setEncuentro(refreshed.encuentros);
       setStep('done');
     } catch (err) {
-      console.error('updateParticipanteEstado error:', err);
+      console.error('InviteGuest error:', err);
       alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
     } finally {
       setLoadingResponse(false);
