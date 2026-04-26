@@ -145,6 +145,10 @@ const Home: React.FC = () => {
         <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', opacity: 0.6 }}>
           Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}
         </span>
+        <br/>
+        <span style={{ fontSize: '10px', color: 'var(--color-primary)', fontWeight: 'bold' }}>
+          BUILD_CHECK: 2026-04-26 18:55 - Commit: 1985872
+        </span>
       </div>
     </ScreenContainer>
   );
