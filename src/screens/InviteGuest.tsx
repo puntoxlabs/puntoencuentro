@@ -37,8 +37,12 @@ const InviteGuest: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('token recibido:', token);
     if (token) {
       loadData();
+    } else {
+      setError('Token no proporcionado en la URL.');
+      setLoading(false);
     }
   }, [token]);
 

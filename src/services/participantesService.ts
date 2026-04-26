@@ -52,8 +52,11 @@ export const participantesService = {
   },
 
   async getParticipanteByToken(token: string) {
+    console.log('Token consultado en backend:', token);
     const { data, error } = await supabase
       .rpc('get_participante_seguro', { p_token: token });
+
+    console.log('Resultado de búsqueda en DB:', { data, error });
 
     if (error) {
       console.error('Error fetching participante by token:', error);
