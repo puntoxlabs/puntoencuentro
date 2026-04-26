@@ -5,26 +5,14 @@ import { useWizardStore } from '@/store/wizardStore';
 const Step2Modality: React.FC = () => {
   const { modalidad, setField, nextStep } = useWizardStore();
   const [isNavigating, setIsNavigating] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSelect = (mod: 'presencial' | 'virtual') => {
     if (isNavigating) return;
     
-    setField('modalidad', mod);
     setIsNavigating(true);
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    
-    timeoutRef.current = setTimeout(() => {
-      nextStep();
-    }, 250);
+    setField('modalidad', mod);
+    nextStep();
   };
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '16px' }}>

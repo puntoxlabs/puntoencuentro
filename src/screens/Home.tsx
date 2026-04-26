@@ -140,6 +140,12 @@ const Home: React.FC = () => {
           Crear encuentro
         </Button>
       </div>
+      
+      <div style={{ textAlign: 'center', marginTop: '16px', paddingBottom: '8px' }}>
+        <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', opacity: 0.6 }}>
+          Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}
+        </span>
+      </div>
     </ScreenContainer>
   );
 };

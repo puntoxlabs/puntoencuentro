@@ -10,4 +10,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  define: {
+    __APP_VERSION__: JSON.stringify(new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })),
+  }
 })

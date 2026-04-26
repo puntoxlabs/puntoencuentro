@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
-import { openLink } from '@/lib/openLink';
+import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
 
 const InviteGuest: React.FC = () => {
@@ -143,7 +143,7 @@ const InviteGuest: React.FC = () => {
                     <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
                   </p>
                   
-                  <Button fullWidth onClick={() => openLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
+                  <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
                     {t('open_video_call', 'Abrir videollamada')}
                   </Button>
                   

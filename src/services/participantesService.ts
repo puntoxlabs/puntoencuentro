@@ -82,6 +82,7 @@ export const participantesService = {
 
   async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado') {
     const respondido_en = new Date().toISOString();
+    const token_invitacion = crypto.randomUUID();
     const { data, error } = await supabase
       .from('participantes')
       .insert([{
@@ -89,7 +90,8 @@ export const participantesService = {
         nombre_invitado,
         tipo_invitacion: 'generico',
         estado,
-        respondido_en
+        respondido_en,
+        token_invitacion
       }])
       .select()
       .single();

@@ -5,12 +5,10 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
-import { openLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
 
 const JoinGeneral: React.FC = () => {
@@ -24,22 +22,7 @@ const JoinGeneral: React.FC = () => {
 
   // Form states
   const [nombre, setNombre] = useState('');
-  const [step, setStep] = useState<'form' | 'done'>('form');
-  const [finalState, setFinalState] = useState<'confirmado' | 'rechazado' | null>(null);
   const [loadingResponse, setLoadingResponse] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  const handleCopyVideoLink = async () => {
-    if (!encuentro?.link_virtual) return;
-    try {
-      await navigator.clipboard.writeText(encuentro.link_virtual);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy', err);
-      alert('Error al copiar el enlace.');
-    }
-  };
 
   useEffect(() => {
     if (public_token) {
@@ -54,6 +37,13 @@ const JoinGeneral: React.FC = () => {
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
       
+      // PERSISTENCIA: Check if we already have a token for this encuentro
+      const savedToken = localStorage.getItem(`encuentro_${data.id}_invitacion_token`);
+      if (savedToken) {
+        navigate(`/invite/${savedToken}`, { replace: true });
+        return;
+      }
+
       setEncuentro(data);
     } catch (err) {
       console.error('Error loading encuentro', err);
@@ -63,17 +53,21 @@ const JoinGeneral: React.FC = () => {
     }
   };
 
-
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
-      await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
-      setFinalState(estado);      
-      // Invalidar cache del host si fuera el caso, aunque JoinGeneral es para invitados
-      useHomeStore.getState().invalidateCache();
+      const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
       
-      setStep('done');
+      if (newPart && newPart.token_invitacion) {
+        // Save to localStorage to persist the invitation for this device
+        localStorage.setItem(`encuentro_${encuentro.id}_invitacion_token`, newPart.token_invitacion);
+        
+        useHomeStore.getState().invalidateCache();
+        
+        // Navigate to the individual link
+        navigate(`/invite/${newPart.token_invitacion}`, { replace: true });
+      }
     } catch (err) {
       console.error('Error responding', err);
       alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
@@ -94,62 +88,6 @@ const JoinGeneral: React.FC = () => {
           <p>{error || 'Encuentro no válido.'}</p>
           <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
         </div>
-      </ScreenContainer>
-    );
-  }
-
-  if (step === 'done' && finalState) {
-    return (
-      <ScreenContainer>
-        <AppBar title="Respuesta enviada" />
-        <EmptyState 
-          title={finalState === 'confirmado' ? '¡Listo! Ya confirmaste tu asistencia.' : 'Listo. Avisamos que no vas a asistir.'}
-          description={finalState === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
-        />
-        <Card style={{ marginTop: 'auto' }}>
-          <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
-          {finalState === 'confirmado' && encuentro.modalidad === 'virtual' && (
-            <p style={{ margin: '0 0 12px 0', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 'bold' }}>
-              Ya podés unirte a la videollamada
-            </p>
-          )}
-          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-            {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
-          </p>
-          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
-            <strong>Modalidad:</strong><br/>
-            {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-          </p>
-          {encuentro.modalidad === 'presencial' ? (
-            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
-              <strong>Lugar:</strong><br/>
-              {encuentro.lugar_texto}
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {finalState === 'confirmado' && encuentro.link_virtual ? (
-                <>
-                  <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
-                    <strong>Link de videollamada:</strong><br/>
-                    <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
-                  </p>
-                  
-                  <Button fullWidth onClick={() => openLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
-                    {t('open_video_call', 'Abrir videollamada')}
-                  </Button>
-                  
-                  <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
-                    {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
-                  </Button>
-                </>
-              ) : (
-                <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
-                  {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
-                </p>
-              )}
-            </div>
-          )}
-        </Card>
       </ScreenContainer>
     );
   }

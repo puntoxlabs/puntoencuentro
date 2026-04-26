@@ -10,7 +10,7 @@ import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useDetailStore } from '@/store/detailStore';
 import { useTranslation } from 'react-i18next';
-import { openLink } from '@/lib/openLink';
+import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
 
 const DetailHost: React.FC = () => {
@@ -231,7 +231,7 @@ const DetailHost: React.FC = () => {
               </p>
               {encuentro.link_virtual && (
                 <>
-                  <Button fullWidth onClick={() => openLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
+                  <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
                     {t('open_video_call', 'Abrir videollamada')}
                   </Button>
                   
