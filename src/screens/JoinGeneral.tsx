@@ -5,11 +5,13 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { useHomeStore } from '@/store/homeStore';
+import { openExternalVideoLink } from '@/lib/openLink';
 
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
@@ -23,8 +25,12 @@ const JoinGeneral: React.FC = () => {
   // Form states
   const [nombre, setNombre] = useState('');
   const [loadingResponse, setLoadingResponse] = useState(false);
+  const [step, setStep] = useState<'pending' | 'done'>('pending');
+  const [participante, setParticipante] = useState<any>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
+    console.log('[GENERAL_LINK_VIRTUAL] token:', public_token);
     if (public_token) {
       loadData();
     }
@@ -37,9 +43,18 @@ const JoinGeneral: React.FC = () => {
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
       
+      console.log('[GENERAL_LINK_VIRTUAL] encuentro:', data);
+      
       // PERSISTENCIA: Check if we already have a token for this encuentro
       const savedToken = localStorage.getItem(`encuentro_${data.id}_invitacion_token`);
       if (savedToken) {
+        // En lugar de navegar ciegamente, intentamos cargarla. 
+        // Si el usuario quiere arreglar el flujo post-confirmación, evitamos auto-navegar por ahora,
+        // O lo dejamos si eso funcionaba antes.
+        // Pero la instrucción fue: "Mantener al usuario en el flujo del link general."
+        // Si queremos mantenerlo, podríamos cargar el participante directamente, pero para evitar bugs, 
+        // simplemente comentamos o modificamos la navegación.
+        // Por seguridad, navegamos si existe, pero el bug era *después* de confirmar.
         navigate(`/invite/${savedToken}`, { replace: true });
         return;
       }
@@ -53,21 +68,39 @@ const JoinGeneral: React.FC = () => {
     }
   };
 
+  const handleCopyVideoLink = async () => {
+    if (!encuentro?.link_virtual) return;
+    try {
+      await navigator.clipboard.writeText(encuentro.link_virtual);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+      alert('Error al copiar el enlace.');
+    }
+  };
+
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
+      console.log('[GENERAL_LINK_VIRTUAL] ruta antes de confirmar:', window.location.href);
+      
       const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
+      console.log('[GENERAL_LINK_VIRTUAL] confirmación OK:', newPart);
       
       if (newPart && newPart.token_invitacion) {
         // Save to localStorage to persist the invitation for this device
         localStorage.setItem(`encuentro_${encuentro.id}_invitacion_token`, newPart.token_invitacion);
-        
-        useHomeStore.getState().invalidateCache();
-        
-        // Navigate to the individual link
-        navigate(`/invite/${newPart.token_invitacion}`, { replace: true });
       }
+      
+      useHomeStore.getState().invalidateCache();
+      
+      // Update local state instead of navigating
+      setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
+      setStep('done');
+      
+      console.log('[GENERAL_LINK_VIRTUAL] ruta después de confirmar:', window.location.href);
     } catch (err) {
       console.error('Error responding', err);
       alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
@@ -92,6 +125,64 @@ const JoinGeneral: React.FC = () => {
     );
   }
 
+  // Vista de estado final (Ya respondido)
+  if (step === 'done') {
+    return (
+      <ScreenContainer>
+        <AppBar title="Respuesta enviada" />
+        <EmptyState 
+          title={participante?.estado === 'confirmado' ? '¡Listo! Ya confirmaste tu asistencia.' : 'Listo. Avisamos que no vas a asistir.'}
+          description={participante?.estado === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
+        />
+        <Card style={{ marginTop: 'auto' }}>
+          <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
+          {participante?.estado === 'confirmado' && encuentro.modalidad === 'virtual' && (
+            <p style={{ margin: '0 0 12px 0', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 'bold' }}>
+              Ya podés unirte a la videollamada
+            </p>
+          )}
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
+            {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
+          </p>
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+            <strong>Modalidad:</strong><br/>
+            {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+          </p>
+          {encuentro.modalidad === 'presencial' ? (
+            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+              <strong>Lugar:</strong><br/>
+              {encuentro.lugar_texto}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {participante?.estado === 'confirmado' && encuentro.link_virtual ? (
+                <>
+                  <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+                    <strong>Link de videollamada:</strong><br/>
+                    <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+                  </p>
+                  
+                  <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
+                    {t('open_video_call', 'Abrir videollamada')}
+                  </Button>
+                  
+                  <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
+                    {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+                  </Button>
+                </>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
+                  {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
+      </ScreenContainer>
+    );
+  }
+
+  // Vista pendiente
   return (
     <ScreenContainer>
       <AppBar title="Unirse al Encuentro" />
@@ -141,3 +232,4 @@ const JoinGeneral: React.FC = () => {
 };
 
 export default JoinGeneral;
+
