@@ -66,6 +66,21 @@ export const participantesService = {
     return data;
   },
 
+  async getParticipanteById(id: string) {
+    const { data, error } = await supabase
+      .from('participantes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching participante by id:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
   async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado') {
     const respondido_en = new Date().toISOString();
     const { data, error } = await supabase

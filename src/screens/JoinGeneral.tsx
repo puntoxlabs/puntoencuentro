@@ -30,7 +30,6 @@ const JoinGeneral: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    console.log('[GENERAL_LINK_VIRTUAL] token:', public_token);
     if (public_token) {
       loadData();
     }
@@ -40,26 +39,41 @@ const JoinGeneral: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('[GENERAL_LINK] token:', public_token);
+      
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
       
-      console.log('[GENERAL_LINK_VIRTUAL] encuentro:', data);
-      
-      // PERSISTENCIA: Check if we already have a token for this encuentro
-      const savedToken = localStorage.getItem(`encuentro_${data.id}_invitacion_token`);
-      if (savedToken) {
-        // En lugar de navegar ciegamente, intentamos cargarla. 
-        // Si el usuario quiere arreglar el flujo post-confirmación, evitamos auto-navegar por ahora,
-        // O lo dejamos si eso funcionaba antes.
-        // Pero la instrucción fue: "Mantener al usuario en el flujo del link general."
-        // Si queremos mantenerlo, podríamos cargar el participante directamente, pero para evitar bugs, 
-        // simplemente comentamos o modificamos la navegación.
-        // Por seguridad, navegamos si existe, pero el bug era *después* de confirmar.
-        navigate(`/invite/${savedToken}`, { replace: true });
-        return;
-      }
-
+      console.log('[GENERAL_LINK] encuentro:', data);
       setEncuentro(data);
+      
+      const savedDataStr = localStorage.getItem('encuentros_general');
+      const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
+      const participantId = savedData?.encuentros?.[public_token!]?.participant_id;
+      
+      console.log('[GENERAL_LINK] participant_id local:', participantId || 'null');
+      
+      let estadoUI = 'pending';
+
+      if (participantId) {
+        try {
+          const partData = await participantesService.getParticipanteById(participantId);
+          console.log('[GENERAL_LINK] participante backend:', partData);
+          if (partData && partData.estado === 'confirmado') {
+             setParticipante(partData);
+             setStep('done');
+             estadoUI = 'done';
+          }
+        } catch (err) {
+          console.error('Participant not found or error fetching', err);
+          console.log('[GENERAL_LINK] participante backend:', null);
+        }
+      } else {
+        console.log('[GENERAL_LINK] participante backend:', null);
+      }
+      
+      console.log('[GENERAL_LINK] estado final:', estadoUI);
     } catch (err) {
       console.error('Error loading encuentro', err);
       setError('No se pudo encontrar el encuentro o el enlace es inválido.');
@@ -84,23 +98,27 @@ const JoinGeneral: React.FC = () => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
-      console.log('[GENERAL_LINK_VIRTUAL] ruta antes de confirmar:', window.location.href);
       
       const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
-      console.log('[GENERAL_LINK_VIRTUAL] confirmación OK:', newPart);
       
-      if (newPart && newPart.token_invitacion) {
-        // Save to localStorage to persist the invitation for this device
-        localStorage.setItem(`encuentro_${encuentro.id}_invitacion_token`, newPart.token_invitacion);
+      if (newPart && newPart.id) {
+        const savedDataStr = localStorage.getItem('encuentros_general');
+        const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
+        if (!savedData.encuentros) savedData.encuentros = {};
+        
+        savedData.encuentros[public_token!] = {
+          participant_id: newPart.id
+        };
+        
+        localStorage.setItem('encuentros_general', JSON.stringify(savedData));
       }
       
       useHomeStore.getState().invalidateCache();
       
-      // Update local state instead of navigating
       setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
       setStep('done');
       
-      console.log('[GENERAL_LINK_VIRTUAL] ruta después de confirmar:', window.location.href);
+      console.log('[GENERAL_LINK] estado final:', 'done');
     } catch (err) {
       console.error('Error responding', err);
       alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
