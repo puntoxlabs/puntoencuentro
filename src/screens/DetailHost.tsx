@@ -8,16 +8,25 @@ import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useDetailStore } from '@/store/detailStore';
+import { useTranslation } from 'react-i18next';
+import { openLink } from '@/lib/openLink';
+import throttle from 'lodash/throttle';
 
 const DetailHost: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
-  const [encuentro, setEncuentro] = useState<any>(null);
-  const [participantes, setParticipantes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { getValidCache, setDetailData, setScrollPosition } = useDetailStore();
+  const validCache = getValidCache(id!);
+
+  const [encuentro, setEncuentro] = useState<any>(validCache?.encuentro || null);
+  const [participantes, setParticipantes] = useState<any[]>(validCache?.participantes || []);
+  const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
@@ -25,10 +34,23 @@ const DetailHost: React.FC = () => {
     if (id) {
       loadData();
       
+      if (validCache && validCache.scrollPosition > 0) {
+        requestAnimationFrame(() => {
+          const container = document.getElementById('detail-scroll-container');
+          if (container) {
+            container.scrollTop = validCache.scrollPosition;
+          }
+        });
+      }
+      
       intervalId = setInterval(async () => {
         try {
           const parts = await participantesService.getParticipantesByEncuentro(id);
           setParticipantes(parts || []);
+          const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
+          if (currentEnc) {
+            setDetailData(id, currentEnc, parts || []);
+          }
         } catch (err) {
           console.error('Error polling participants', err);
         }
@@ -42,12 +64,15 @@ const DetailHost: React.FC = () => {
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      if (!useDetailStore.getState().getValidCache(id!)) {
+        setLoading(true);
+      }
       setError(null);
       const enc = await encuentrosService.getEncuentroById(id!);
       setEncuentro(enc);
       const parts = await participantesService.getParticipantesByEncuentro(id!);
       setParticipantes(parts || []);
+      setDetailData(id!, enc, parts || []);
     } catch (err) {
       console.error('Error loading detail', err);
       setError('No se pudo cargar el encuentro.');
@@ -55,6 +80,12 @@ const DetailHost: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
+    if (id) {
+      setScrollPosition(id, e.currentTarget.scrollTop);
+    }
+  }, 200);
 
   if (loading) {
     return <ScreenContainer><p>Cargando detalle...</p></ScreenContainer>;
@@ -72,12 +103,11 @@ const DetailHost: React.FC = () => {
     );
   }
 
-  // Agrupar participantes por estado
   const confirmados = participantes.filter(p => p.estado === 'confirmado');
   const pendientes = participantes.filter(p => p.estado === 'pendiente');
   const rechazados = participantes.filter(p => p.estado === 'rechazado');
 
-  const handleShareLink = async (token: string, id: string) => {
+  const handleShareLink = async (token: string, partId: string) => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
@@ -95,12 +125,24 @@ const DetailHost: React.FC = () => {
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        setCopiedId(id);
+        setCopiedId(partId);
         setTimeout(() => setCopiedId(null), 2000);
       } catch (err) {
         console.error('Failed to copy', err);
         alert('Error al copiar el enlace.');
       }
+    }
+  };
+
+  const handleCopyVideoLink = async () => {
+    if (!encuentro?.link_virtual) return;
+    try {
+      await navigator.clipboard.writeText(encuentro.link_virtual);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+      alert('Error al copiar el enlace.');
     }
   };
 
@@ -155,60 +197,86 @@ const DetailHost: React.FC = () => {
     <ScreenContainer>
       <AppBar title="Detalle del Encuentro" showBack />
       
-      <Card style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '20px' }}>{encuentro.titulo}</h3>
-          <Badge 
-            label={encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)} 
-            status={encuentro.estado === 'activo' ? 'confirmed' : 'default'} 
-          />
-        </div>
-        
-        <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
-          <strong>Fecha y hora:</strong><br/>
-          {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
-        </p>
-        <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
-          <strong>Modalidad:</strong> {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-        </p>
-        <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
-          <strong>{encuentro.modalidad === 'presencial' ? 'Lugar:' : 'Link:'}</strong><br/>
-          {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
-        </p>
-        {encuentro.descripcion && (
-          <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
-            {encuentro.descripcion}
-          </p>
-        )}
-      </Card>
-
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-        {encuentro.tipo_invitacion === 'link_general' && (
-          <Button fullWidth onClick={() => navigate(`/share/${encuentro.id}`)}>
-            Compartir link
-          </Button>
-        )}
-        {encuentro.tipo_invitacion === 'individual' && (
-          <Button fullWidth onClick={() => navigate(`/add-guests/${encuentro.id}`)}>
-            Agregar invitados
-          </Button>
-        )}
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Participantes</h3>
-        
-        {participantes.length === 0 ? (
-          <div style={{ backgroundColor: 'var(--color-surface)', border: '1px dashed var(--color-outline-variant)', borderRadius: 'var(--radius-md)', padding: '24px', textAlign: 'center' }}>
-            <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>Aún no hay participantes en este encuentro.</p>
+      <div 
+        id="detail-scroll-container"
+        onScroll={handleScroll}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingBottom: '16px' }}
+      >
+        <Card style={{ marginBottom: '16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '20px' }}>{encuentro.titulo}</h3>
+            <Badge 
+              label={encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)} 
+              status={encuentro.estado === 'activo' ? 'confirmed' : 'default'} 
+            />
           </div>
-        ) : (
-          <>
-            {renderParticipantsGroup('Confirmados', confirmados, 'confirmed')}
-            {renderParticipantsGroup('No asisten', rechazados, 'rejected')}
-            {renderParticipantsGroup('Pendientes', pendientes, 'pending')}
-          </>
-        )}
+          
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+            <strong>Fecha y hora:</strong><br/>
+            {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
+          </p>
+          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+            <strong>Modalidad:</strong> {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+          </p>
+          {encuentro.modalidad === 'presencial' ? (
+            <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
+              <strong>Lugar:</strong><br/>
+              {encuentro.lugar_texto}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+              <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+                <strong>Link de videollamada:</strong><br/>
+                <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+              </p>
+              {encuentro.link_virtual && (
+                <>
+                  <Button fullWidth onClick={() => openLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
+                    {t('open_video_call', 'Abrir videollamada')}
+                  </Button>
+                  
+                  <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
+                    {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+          {encuentro.descripcion && (
+            <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
+              {encuentro.descripcion}
+            </p>
+          )}
+        </Card>
+
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexShrink: 0 }}>
+          {encuentro.tipo_invitacion === 'link_general' && (
+            <Button fullWidth onClick={() => navigate(`/share/${encuentro.id}`)}>
+              Compartir link
+            </Button>
+          )}
+          {encuentro.tipo_invitacion === 'individual' && (
+            <Button fullWidth onClick={() => navigate(`/add-guests/${encuentro.id}`)}>
+              Agregar invitados
+            </Button>
+          )}
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Participantes</h3>
+          
+          {participantes.length === 0 ? (
+            <div style={{ backgroundColor: 'var(--color-surface)', border: '1px dashed var(--color-outline-variant)', borderRadius: 'var(--radius-md)', padding: '24px', textAlign: 'center' }}>
+              <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>Aún no hay participantes en este encuentro.</p>
+            </div>
+          ) : (
+            <>
+              {renderParticipantsGroup('Confirmados', confirmados, 'confirmed')}
+              {renderParticipantsGroup('No asisten', rechazados, 'rejected')}
+              {renderParticipantsGroup('Pendientes', pendientes, 'pending')}
+            </>
+          )}
+        </div>
       </div>
     </ScreenContainer>
   );

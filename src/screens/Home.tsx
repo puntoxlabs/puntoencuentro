@@ -17,12 +17,13 @@ import throttle from 'lodash/throttle';
 const Home: React.FC = () => {
   const navigate = useNavigate();
   
-  const { encuentros: cachedEncuentros, lastFetch, scrollPosition, setEncuentros, setScrollPosition } = useHomeStore();
+  const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition } = useHomeStore();
   const { reset: resetWizard } = useWizardStore();
   
-  const [encuentros, setLocalEncuentros] = useState<any[]>(cachedEncuentros);
+  const validCache = getValidCache();
+  const [encuentros, setLocalEncuentros] = useState<any[]>(validCache || cachedEncuentros);
   // Solo mostramos loading si no hay caché válido
-  const [loading, setLoading] = useState(lastFetch === 0);
+  const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +45,8 @@ const Home: React.FC = () => {
 
   const loadData = async () => {
     try {
-      if (lastFetch === 0) setLoading(true);
+      const isCacheValid = useHomeStore.getState().getValidCache() !== null;
+      if (!isCacheValid) setLoading(true);
       setError(null);
       const hostId = getHostId();
       const data = await encuentrosService.getEncuentrosByHost(hostId);
