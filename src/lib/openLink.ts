@@ -1,4 +1,14 @@
 export const openLink = async (url: string) => {
+  console.log('[openLink] Recibida URL original:', url);
+  
+  let finalUrl = url.trim();
+  // Ensure the URL is absolute to prevent the browser from treating it as a relative path
+  if (!/^https?:\/\//i.test(finalUrl) && !/^[a-zA-Z0-9]+:\/\//i.test(finalUrl)) {
+    finalUrl = `https://${finalUrl}`;
+  }
+
+  console.log('[openLink] URL enviada a procesar:', finalUrl);
+
   try {
     // 1. Intentar Capacitor
     const Capacitor = (window as any).Capacitor;
@@ -8,7 +18,8 @@ export const openLink = async (url: string) => {
       const App = Capacitor.Plugins?.App;
       if (App && App.openUrl) {
         try {
-          await App.openUrl({ url });
+          console.log('[openLink] Abriendo con Capacitor App.openUrl');
+          await App.openUrl({ url: finalUrl });
           return;
         } catch (err) {
           console.error("Capacitor openUrl error:", err);
@@ -20,15 +31,17 @@ export const openLink = async (url: string) => {
     // 2. Intentar Cordova InAppBrowser
     const cordova = (window as any).cordova;
     if (cordova && cordova.InAppBrowser) {
-      cordova.InAppBrowser.open(url, '_system');
+      console.log('[openLink] Abriendo con Cordova InAppBrowser');
+      cordova.InAppBrowser.open(finalUrl, '_system');
       return;
     }
 
     // 3. Fallback Web
-    fallbackOpen(url);
+    console.log('[openLink] Abriendo con Fallback Web');
+    fallbackOpen(finalUrl);
   } catch (error) {
     console.error("Error global en openLink:", error);
-    fallbackOpen(url);
+    fallbackOpen(finalUrl);
   }
 };
 
