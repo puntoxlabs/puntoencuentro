@@ -53,10 +53,7 @@ export const participantesService = {
 
   async getParticipanteByToken(token: string) {
     const { data, error } = await supabase
-      .from('participantes')
-      .select('*, encuentros(*)')
-      .eq('token_invitacion', token)
-      .single();
+      .rpc('get_participante_seguro', { p_token: token });
 
     if (error) {
       console.error('Error fetching participante by token:', error);

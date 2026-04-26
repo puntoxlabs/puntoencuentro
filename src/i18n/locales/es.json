@@ -2,5 +2,10 @@
   "home": {
     "title": "Mis Encuentros",
     "create_btn": "Crear encuentro"
-  }
+  },
+  "virtual_link_pending": "Confirmá tu asistencia para acceder al enlace de la videollamada.",
+  "open_video_call": "Abrir videollamada",
+  "copy_link": "Copiar link",
+  "link_copied": "Link copiado.",
+  "loading_link": "Cargando enlace..."
 }

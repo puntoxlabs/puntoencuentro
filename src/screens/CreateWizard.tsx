@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -10,13 +10,12 @@ import Step3Location from '@/screens/CreateWizard/Step3Location';
 import Step4InviteType from '@/screens/CreateWizard/Step4InviteType';
 
 const CreateWizard: React.FC = () => {
-  const { step, reset, prevStep } = useWizardStore();
+  const { step, prevStep } = useWizardStore();
   const navigate = useNavigate();
 
-  // Reset wizard state whenever the wizard is mounted fresh
-  useEffect(() => {
-    reset();
-  }, [reset]);
+  // El reset del store ahora se hace explícitamente desde Home al clickear "Crear encuentro",
+  // lo cual permite que si el usuario navega hacia atrás usando el botón "Back" del SO/Browser,
+  // el estado del formulario se conserve.
 
   const handleBack = () => {
     if (step === 1) {

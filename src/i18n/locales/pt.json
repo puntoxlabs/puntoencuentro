@@ -2,5 +2,10 @@
   "home": {
     "title": "Meus Encontros",
     "create_btn": "Criar encontro"
-  }
+  },
+  "virtual_link_pending": "Confirme sua presença para acessar o link da videochamada.",
+  "open_video_call": "Abrir videochamada",
+  "copy_link": "Copiar link",
+  "link_copied": "Link copiado.",
+  "loading_link": "Carregando link..."
 }

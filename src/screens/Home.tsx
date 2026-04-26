@@ -10,21 +10,41 @@ import { Calendar } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useHomeStore } from '@/store/homeStore';
+import { useWizardStore } from '@/store/wizardStore';
+import throttle from 'lodash/throttle';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   
-  const [encuentros, setEncuentros] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { encuentros: cachedEncuentros, lastFetch, scrollPosition, setEncuentros, setScrollPosition } = useHomeStore();
+  const { reset: resetWizard } = useWizardStore();
+  
+  const [encuentros, setLocalEncuentros] = useState<any[]>(cachedEncuentros);
+  // Solo mostramos loading si no hay caché válido
+  const [loading, setLoading] = useState(lastFetch === 0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
+    // Restaurar scroll posponiendo la ejecución al siguiente render frame
+    if (scrollPosition > 0) {
+      requestAnimationFrame(() => {
+        const container = document.getElementById('home-scroll-container');
+        if (container) {
+          container.scrollTop = scrollPosition;
+        }
+      });
+    }
   }, []);
+
+  const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollPosition(e.currentTarget.scrollTop);
+  }, 200);
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      if (lastFetch === 0) setLoading(true);
       setError(null);
       const hostId = getHostId();
       const data = await encuentrosService.getEncuentrosByHost(hostId);
@@ -36,7 +56,8 @@ const Home: React.FC = () => {
         return dateA.getTime() - dateB.getTime();
       });
       
-      setEncuentros(sortedData);
+      setLocalEncuentros(sortedData);
+      setEncuentros(sortedData); // Guardar en store
     } catch (err) {
       console.error('Error loading home data', err);
       setError('Hubo un error al cargar tus encuentros.');
@@ -74,7 +95,11 @@ const Home: React.FC = () => {
     }
 
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+      <div 
+        id="home-scroll-container"
+        onScroll={handleScroll}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}
+      >
         {encuentros.map(enc => (
           <Card key={enc.id} onClick={() => navigate(`/meet/${enc.id}`)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -106,7 +131,10 @@ const Home: React.FC = () => {
       {renderContent()}
 
       <div style={{ marginTop: '16px' }}>
-        <Button fullWidth variant="primary" onClick={() => navigate('/create')}>
+        <Button fullWidth variant="primary" onClick={() => {
+          resetWizard();
+          navigate('/create');
+        }}>
           Crear encuentro
         </Button>
       </div>

@@ -2,5 +2,10 @@
   "home": {
     "title": "My Meetings",
     "create_btn": "Create meeting"
-  }
+  },
+  "virtual_link_pending": "Confirm your attendance to access the video call link.",
+  "open_video_call": "Open video call",
+  "copy_link": "Copy link",
+  "link_copied": "Link copied.",
+  "loading_link": "Loading link..."
 }

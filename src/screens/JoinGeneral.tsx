@@ -9,10 +9,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useTranslation } from 'react-i18next';
+import { openLink } from '@/lib/openLink';
+import { useHomeStore } from '@/store/homeStore';
 
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +26,7 @@ const JoinGeneral: React.FC = () => {
   const [nombre, setNombre] = useState('');
   const [step, setStep] = useState<'form' | 'done'>('form');
   const [finalState, setFinalState] = useState<'confirmado' | 'rechazado' | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [loadingResponse, setLoadingResponse] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyVideoLink = async () => {
@@ -34,25 +38,6 @@ const JoinGeneral: React.FC = () => {
     } catch (err) {
       console.error('Failed to copy', err);
       alert('Error al copiar el enlace.');
-    }
-  };
-
-  const handleShareVideoLink = async () => {
-    if (!encuentro?.link_virtual) return;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Unite a la videollamada",
-          text: "Entrá a la reunión desde acá 👇",
-          url: encuentro.link_virtual
-        });
-      } else {
-        await handleCopyVideoLink();
-      }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('Error sharing', err);
-      }
     }
   };
 
@@ -82,15 +67,18 @@ const JoinGeneral: React.FC = () => {
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
     try {
-      setUpdating(true);
+      setLoadingResponse(true);
       await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
-      setFinalState(estado);
+      setFinalState(estado);      
+      // Invalidar cache del host si fuera el caso, aunque JoinGeneral es para invitados
+      useHomeStore.getState().invalidateCache();
+      
       setStep('done');
     } catch (err) {
       console.error('Error responding', err);
       alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
     } finally {
-      setUpdating(false);
+      setLoadingResponse(false);
     }
   };
 
@@ -119,7 +107,12 @@ const JoinGeneral: React.FC = () => {
           description={finalState === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
         />
         <Card style={{ marginTop: 'auto' }}>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
+          <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
+          {finalState === 'confirmado' && encuentro.modalidad === 'virtual' && (
+            <p style={{ margin: '0 0 12px 0', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 'bold' }}>
+              Ya podés unirte a la videollamada
+            </p>
+          )}
           <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
             {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
           </p>
@@ -134,23 +127,26 @@ const JoinGeneral: React.FC = () => {
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
-                <strong>Link de videollamada:</strong><br/>
-                <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
-              </p>
-              
-              <Button fullWidth onClick={() => window.open(encuentro.link_virtual, '_blank', 'noopener,noreferrer')} style={{ marginTop: '4px' }}>
-                Abrir videollamada
-              </Button>
-              
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleShareVideoLink}>
-                  {copiedLink ? 'Link copiado' : 'Compartir link'}
-                </Button>
-                <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleCopyVideoLink}>
-                  Copiar link
-                </Button>
-              </div>
+              {finalState === 'confirmado' && encuentro.link_virtual ? (
+                <>
+                  <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
+                    <strong>Link de videollamada:</strong><br/>
+                    <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+                  </p>
+                  
+                  <Button fullWidth onClick={() => openLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
+                    {t('open_video_call', 'Abrir videollamada')}
+                  </Button>
+                  
+                  <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
+                    {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+                  </Button>
+                </>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
+                  {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
+                </p>
+              )}
             </div>
           )}
         </Card>
@@ -179,23 +175,9 @@ const JoinGeneral: React.FC = () => {
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '15px' }}>
-              <strong>Link de videollamada:</strong><br/>
-              <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
+            <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '15px', fontStyle: 'italic' }}>
+              {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
             </p>
-
-            <Button fullWidth onClick={() => window.open(encuentro.link_virtual, '_blank', 'noopener,noreferrer')} style={{ marginTop: '4px' }}>
-              Abrir videollamada
-            </Button>
-            
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleShareVideoLink}>
-                {copiedLink ? 'Link copiado' : 'Compartir link'}
-              </Button>
-              <Button style={{ flex: '1 1 auto' }} variant="outline" onClick={handleCopyVideoLink}>
-                Copiar link
-              </Button>
-            </div>
           </div>
         )}
       </Card>
@@ -208,12 +190,12 @@ const JoinGeneral: React.FC = () => {
           onChange={(e) => setNombre(e.target.value)} 
         />
         <div style={{ marginTop: 'auto', display: 'flex', gap: '12px', flexDirection: 'column' }}>
-          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={updating || !nombre.trim()}>
-            {updating ? 'Procesando...' : 'Confirmar asistencia'}
-          </Button>
-          <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={updating || !nombre.trim()}>
-            {updating ? 'Procesando...' : 'No puedo ir'}
-          </Button>
+          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
+          {loadingResponse ? t('loading_link', 'Cargando enlace...') : 'Confirmar asistencia'}
+        </Button>
+        <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={!nombre.trim() || loadingResponse}>
+          {loadingResponse ? 'Procesando...' : 'No puedo ir'}
+        </Button>
         </div>
       </div>
     </ScreenContainer>
