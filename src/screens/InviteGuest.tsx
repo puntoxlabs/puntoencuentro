@@ -37,7 +37,7 @@ const InviteGuest: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log('token recibido:', token);
+    console.log('[INVITE] token inicial:', token);
     if (token) {
       loadData();
     } else {
@@ -54,7 +54,6 @@ const InviteGuest: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       
       setParticipante(data);
-      // Supabase join returns the related encounter in the singular name based on table definition if we used `encuentros(*)`
       setEncuentro(data.encuentros);
       
       if (data.estado !== 'pendiente') {
@@ -72,20 +71,26 @@ const InviteGuest: React.FC = () => {
     if (!participante || loadingResponse) return;
     try {
       setLoadingResponse(true);
-      await participantesService.updateParticipanteEstado(participante.id, estado);
+      console.log('[INVITE] confirmando token:', token);
       
-      // Invalidate cache in Home
+      const response = await participantesService.updateParticipanteEstado(participante.id, estado);
+      console.log('[INVITE] respuesta confirmación:', response);
+      
+      // Invalidate cache in Home just in case
       useHomeStore.getState().invalidateCache();
 
-      // Refetch full data to ensure relations like 'encuentros' are present and link_virtual is unhidden by RPC
+      // Ensure we explicitly use the exact same token from the URL to refetch
       const refreshed = await participantesService.getParticipanteByToken(token!);
-      if (!refreshed) {
-        throw new Error("No se pudo obtener el participante actualizado");
+      
+      if (!refreshed || !refreshed.encuentros) {
+        throw new Error("No se pudo obtener el participante actualizado después de confirmar.");
       }
       
       setParticipante(refreshed);
       setEncuentro(refreshed.encuentros);
       setStep('done');
+      
+      console.log('[INVITE] ruta post-confirmación:', window.location.href);
     } catch (err) {
       console.error('InviteGuest error:', err);
       alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
