@@ -54,7 +54,17 @@ const InviteGuest: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       
       setParticipante(data);
-      setEncuentro(data.encuentros);
+      
+      let enc = data.encuentros;
+      if (!enc && data.encuentro_id) {
+        try {
+          const { encuentrosService } = await import('@/services/encuentrosService');
+          enc = await encuentrosService.getEncuentroById(data.encuentro_id);
+        } catch (e) {
+          console.error("Error fetching fallback encuentro", e);
+        }
+      }
+      setEncuentro(enc);
       
       if (data.estado !== 'pendiente') {
         setStep('done');
@@ -82,12 +92,23 @@ const InviteGuest: React.FC = () => {
       // Ensure we explicitly use the exact same token from the URL to refetch
       const refreshed = await participantesService.getParticipanteByToken(token!);
       
-      if (!refreshed || !refreshed.encuentros) {
-        throw new Error("No se pudo obtener el participante actualizado después de confirmar.");
+      
+      let refEnc = refreshed.encuentros;
+      if (!refEnc && refreshed.encuentro_id) {
+        try {
+          const { encuentrosService } = await import('@/services/encuentrosService');
+          refEnc = await encuentrosService.getEncuentroById(refreshed.encuentro_id);
+        } catch (e) {
+          console.error("Error fetching fallback encuentro in refresh", e);
+        }
+      }
+
+      if (!refEnc) {
+        throw new Error("No se pudo obtener el participante actualizado o su encuentro después de confirmar.");
       }
       
       setParticipante(refreshed);
-      setEncuentro(refreshed.encuentros);
+      setEncuentro(refEnc);
       setStep('done');
       
       console.log('[INVITE] ruta post-confirmación:', window.location.href);

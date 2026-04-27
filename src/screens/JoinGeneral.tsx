@@ -50,27 +50,39 @@ const JoinGeneral: React.FC = () => {
       
       const savedDataStr = localStorage.getItem('encuentros_general');
       const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
-      const participantId = savedData?.encuentros?.[public_token!]?.participant_id;
+      const participantData = savedData?.encuentros?.[public_token!];
       
-      console.log('[GENERAL_LINK] participant_id local:', participantId || 'null');
+      const participantId = participantData?.participant_id;
+      const participantToken = participantData?.token_invitacion;
+      
+      console.log('[GENERAL_LINK] token local:', participantToken, 'id local:', participantId);
       
       let estadoUI = 'pending';
 
-      if (participantId) {
+      if (participantToken) {
         try {
-          const partData = await participantesService.getParticipanteById(participantId);
-          console.log('[GENERAL_LINK] participante backend:', partData);
+          const partData = await participantesService.getParticipanteByToken(participantToken);
+          console.log('[GENERAL_LINK] participante backend token:', partData);
           if (partData && partData.estado === 'confirmado') {
              setParticipante(partData);
              setStep('done');
              estadoUI = 'done';
           }
         } catch (err) {
-          console.error('Participant not found or error fetching', err);
-          console.log('[GENERAL_LINK] participante backend:', null);
+          console.error('Participant not found by token', err);
         }
-      } else {
-        console.log('[GENERAL_LINK] participante backend:', null);
+      } else if (participantId) {
+        try {
+          const partData = await participantesService.getParticipanteById(participantId);
+          console.log('[GENERAL_LINK] participante backend id:', partData);
+          if (partData && partData.estado === 'confirmado') {
+             setParticipante(partData);
+             setStep('done');
+             estadoUI = 'done';
+          }
+        } catch (err) {
+          console.error('Participant not found by id', err);
+        }
       }
       
       console.log('[GENERAL_LINK] estado final:', estadoUI);
@@ -107,7 +119,8 @@ const JoinGeneral: React.FC = () => {
         if (!savedData.encuentros) savedData.encuentros = {};
         
         savedData.encuentros[public_token!] = {
-          participant_id: newPart.id
+          participant_id: newPart.id,
+          token_invitacion: newPart.token_invitacion
         };
         
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));

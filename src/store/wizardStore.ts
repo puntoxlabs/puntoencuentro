@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface WizardState {
   step: number;
@@ -16,28 +17,37 @@ interface WizardState {
   reset: () => void;
 }
 
-export const useWizardStore = create<WizardState>((set) => ({
-  step: 1,
-  titulo: '',
-  fecha: '',
-  hora: '',
-  descripcion: '',
-  modalidad: null,
-  lugar_texto: '',
-  link_virtual: '',
-  tipo_invitacion: null,
-  setField: (field, value) => set({ [field]: value }),
-  nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
-  prevStep: () => set((state) => ({ step: state.step > 1 ? state.step - 1 : state.step })),
-  reset: () => set({
-    step: 1,
-    titulo: '',
-    fecha: '',
-    hora: '',
-    descripcion: '',
-    modalidad: null,
-    lugar_texto: '',
-    link_virtual: '',
-    tipo_invitacion: null,
-  }),
-}));
+export const useWizardStore = create<WizardState>()(
+  persist(
+    (set) => ({
+      step: 1,
+      titulo: '',
+      fecha: '',
+      hora: '',
+      descripcion: '',
+      modalidad: null,
+      lugar_texto: '',
+      link_virtual: '',
+      tipo_invitacion: null,
+      setField: (field, value) => set({ [field]: value }),
+      nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
+      prevStep: () => set((state) => ({ step: state.step > 1 ? state.step - 1 : state.step })),
+      reset: () => set({
+        step: 1,
+        titulo: '',
+        fecha: '',
+        hora: '',
+        descripcion: '',
+        modalidad: null,
+        lugar_texto: '',
+        link_virtual: '',
+        tipo_invitacion: null,
+      }),
+    }),
+    {
+      name: 'wizard-storage',
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);
+
