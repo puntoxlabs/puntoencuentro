@@ -11,6 +11,7 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { useHomeStore } from '@/store/homeStore';
 import { openExternalVideoLink } from '@/lib/openLink';
+import { getThemeStyle } from '@/lib/themes';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -128,7 +129,7 @@ const JoinGeneral: React.FC = () => {
   );
 
   if (step === 'done') return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
       <EmptyState
         title={participante?.estado === 'confirmado' ? '¡Todo listo!' : 'Gracias por responder.'}
@@ -159,7 +160,7 @@ const JoinGeneral: React.FC = () => {
   );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
       <div style={{ ...eventCard, marginTop: 20 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Te invitan a</p>
@@ -185,12 +186,17 @@ const JoinGeneral: React.FC = () => {
           placeholder="Ej: Marcos"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && nombre.trim() && !loadingResponse) handleResponse('confirmado'); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              document.getElementById('btn-confirmar')?.focus();
+            }
+          }}
         />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
-        <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
+        <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
           {loadingResponse ? t('loading_link', 'Cargando…') : 'Confirmar asistencia'}
         </Button>
         <button

@@ -5,6 +5,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { getThemeStyle } from '@/lib/themes';
 
 const ShareLink: React.FC = () => {
   const { id } = useParams();
@@ -68,7 +69,7 @@ const ShareLink: React.FC = () => {
   );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Compartir invitación" showBack />
 
       {/* Event summary */}

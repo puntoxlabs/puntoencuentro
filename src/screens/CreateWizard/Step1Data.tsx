@@ -1,10 +1,12 @@
 import React from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { ThemePicker } from '@/components/ui/ThemePicker';
 import { useWizardStore } from '@/store/wizardStore';
+import type { ThemeId } from '@/lib/themes';
 
 const Step1Data: React.FC = () => {
-  const { titulo, fecha, hora, descripcion, setField, nextStep } = useWizardStore();
+  const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
   const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '';
 
   return (
@@ -39,6 +41,10 @@ const Step1Data: React.FC = () => {
           onChange={(e) => setField('descripcion', e.target.value)}
           placeholder="Agregá más detalles…"
         />
+        <ThemePicker
+          value={(tema || 'blue') as ThemeId}
+          onChange={(t) => setField('tema', t)}
+        />
       </div>
 
       <div style={{ paddingTop: 24 }}>
@@ -51,3 +57,4 @@ const Step1Data: React.FC = () => {
 };
 
 export default Step1Data;
+

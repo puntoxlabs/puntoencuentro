@@ -11,6 +11,7 @@ interface WizardState {
   lugar_texto: string;
   link_virtual: string;
   tipo_invitacion: 'individual' | 'link_general' | null;
+  tema: string;
   setField: (field: string, value: any) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -29,6 +30,7 @@ export const useWizardStore = create<WizardState>()(
       lugar_texto: '',
       link_virtual: '',
       tipo_invitacion: null,
+      tema: 'blue',
       setField: (field, value) => set({ [field]: value }),
       nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
       prevStep: () => set((state) => ({ step: state.step > 1 ? state.step - 1 : state.step })),
@@ -42,6 +44,7 @@ export const useWizardStore = create<WizardState>()(
         lugar_texto: '',
         link_virtual: '',
         tipo_invitacion: null,
+        tema: 'blue',
       }),
     }),
     {

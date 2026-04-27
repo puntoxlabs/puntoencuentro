@@ -9,6 +9,7 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
+import { getThemeStyle } from '@/lib/themes';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -121,7 +122,7 @@ const InviteGuest: React.FC = () => {
   );
 
   if (step === 'done' || participante.estado !== 'pendiente') return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
       <EmptyState
         title={participante.estado === 'confirmado' ? '¡Todo listo!' : 'Gracias por responder.'}
@@ -152,7 +153,7 @@ const InviteGuest: React.FC = () => {
   );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
 
       <div style={{ padding: '20px 0 4px 0' }}>

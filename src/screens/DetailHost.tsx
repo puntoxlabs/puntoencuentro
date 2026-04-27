@@ -11,6 +11,7 @@ import { useDetailStore } from '@/store/detailStore';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
+import { getThemeStyle } from '@/lib/themes';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -181,7 +182,7 @@ const DetailHost: React.FC = () => {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Detalle" showBack />
 
       <div

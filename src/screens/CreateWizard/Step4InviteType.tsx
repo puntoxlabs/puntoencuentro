@@ -33,7 +33,8 @@ const Step4InviteType: React.FC = () => {
         lugar_texto: wizardData.lugar_texto,
         link_virtual: wizardData.link_virtual,
         tipo_invitacion: tipo,
-        host_id: hostId
+        host_id: hostId,
+        tema: wizardData.tema || 'blue',
       });
       if (tipo === 'individual') {
         navigate(`/add-guests/${newEncuentro.id}`);

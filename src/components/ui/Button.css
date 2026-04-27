@@ -26,16 +26,16 @@
 .btn-primary {
   background-color: var(--color-primary);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(26, 86, 240, 0.28);
+  box-shadow: 0 4px 14px var(--color-primary-shadow, rgba(0,0,0,0.18));
 }
 .btn-primary:hover:not(:disabled) {
   background-color: var(--color-primary-dark);
-  box-shadow: 0 6px 20px rgba(26, 86, 240, 0.36);
+  box-shadow: 0 6px 20px var(--color-primary-shadow, rgba(0,0,0,0.22));
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled) {
   transform: translateY(0px);
-  box-shadow: 0 2px 8px rgba(26, 86, 240, 0.2);
+  box-shadow: 0 2px 8px var(--color-primary-shadow, rgba(0,0,0,0.14));
 }
 
 /* SECONDARY */

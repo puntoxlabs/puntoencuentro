@@ -10,6 +10,7 @@ export interface CreateEncuentroDTO {
   link_virtual?: string;
   tipo_invitacion: 'individual' | 'link_general';
   host_id: string;
+  tema?: string;
 }
 
 export const encuentrosService = {
