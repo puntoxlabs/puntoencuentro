@@ -1,35 +1,38 @@
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-base);
+  gap: 6px;
   width: 100%;
 }
 
 .input-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-on-surface-variant);
+  letter-spacing: 0.02em;
 }
 
 .input-field {
-  height: 56px;
+  height: 52px;
   padding: 0 16px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1.5px solid var(--color-outline-variant);
   border-radius: var(--radius-md);
   font-family: var(--font-family);
   font-size: 16px;
   color: var(--color-on-surface);
   background-color: var(--color-surface);
   outline: none;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  width: 100%;
 }
 
 .input-field::placeholder {
-  color: var(--color-outline-variant);
+  color: #B0B3C6;
 }
 
 .input-field:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(26, 86, 240, 0.12);
 }
 
 .input-error {

@@ -2,30 +2,36 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 24px;
+  height: 22px;
   padding: 0 10px;
   border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   font-family: var(--font-family);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .badge-default {
-  background-color: var(--color-surface-variant);
-  color: var(--color-on-surface-variant);
+  background-color: #EAEDF5;
+  color: #52566B;
 }
 
 .badge-pending {
   background-color: #FFF3CD;
-  color: #856404;
+  color: #7D5A00;
+  border: 1px solid rgba(125, 90, 0, 0.15);
 }
 
 .badge-confirmed {
-  background-color: #D4EDDA;
-  color: #155724;
+  background-color: #D1F5E0;
+  color: #0F6B35;
+  border: 1px solid rgba(15, 107, 53, 0.12);
 }
 
 .badge-rejected {
-  background-color: #F8D7DA;
-  color: #721C24;
+  background-color: #FFE4E4;
+  color: #B01C1C;
+  border: 1px solid rgba(176, 28, 28, 0.12);
 }

@@ -4,7 +4,6 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
@@ -13,254 +12,203 @@ import { useTranslation } from 'react-i18next';
 import { useHomeStore } from '@/store/homeStore';
 import { openExternalVideoLink } from '@/lib/openLink';
 
+const metaRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8,
+  fontSize: 15, color: 'var(--color-on-surface-variant)', marginBottom: 10,
+};
+const metaIcon: React.CSSProperties = { fontSize: 17, width: 22, textAlign: 'center', flexShrink: 0 };
+const eventCard: React.CSSProperties = {
+  background: '#fff', borderRadius: 20, padding: '20px',
+  border: '1px solid rgba(0,0,0,0.06)',
+  boxShadow: '0 2px 10px rgba(0,0,0,0.06)', marginBottom: 24,
+};
+const linkBox: React.CSSProperties = {
+  background: 'var(--color-primary-container)', borderRadius: 12,
+  padding: '10px 14px', marginBottom: 12,
+  wordBreak: 'break-all', fontSize: 14,
+  color: 'var(--color-primary-dark)', fontWeight: 500,
+};
+
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Form states
   const [nombre, setNombre] = useState('');
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [participante, setParticipante] = useState<any>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  useEffect(() => {
-    if (public_token) {
-      loadData();
-    }
-  }, [public_token]);
+  useEffect(() => { if (public_token) loadData(); }, [public_token]);
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
+      setLoading(true); setError(null);
       console.log('[GENERAL_LINK] token:', public_token);
-      
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
-      
       console.log('[GENERAL_LINK] encuentro:', data);
       setEncuentro(data);
-      
       const savedDataStr = localStorage.getItem('encuentros_general');
       const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
       const participantData = savedData?.encuentros?.[public_token!];
-      
       const participantId = participantData?.participant_id;
       const participantToken = participantData?.token_invitacion;
-      
       console.log('[GENERAL_LINK] token local:', participantToken, 'id local:', participantId);
-      
       let estadoUI = 'pending';
-
       if (participantToken) {
         try {
           const partData = await participantesService.getParticipanteByToken(participantToken);
           console.log('[GENERAL_LINK] participante backend token:', partData);
-          if (partData && partData.estado === 'confirmado') {
-             setParticipante(partData);
-             setStep('done');
-             estadoUI = 'done';
-          }
-        } catch (err) {
-          console.error('Participant not found by token', err);
-        }
+          if (partData && partData.estado === 'confirmado') { setParticipante(partData); setStep('done'); estadoUI = 'done'; }
+        } catch (err) { console.error('Participant not found by token', err); }
       } else if (participantId) {
         try {
           const partData = await participantesService.getParticipanteById(participantId);
           console.log('[GENERAL_LINK] participante backend id:', partData);
-          if (partData && partData.estado === 'confirmado') {
-             setParticipante(partData);
-             setStep('done');
-             estadoUI = 'done';
-          }
-        } catch (err) {
-          console.error('Participant not found by id', err);
-        }
+          if (partData && partData.estado === 'confirmado') { setParticipante(partData); setStep('done'); estadoUI = 'done'; }
+        } catch (err) { console.error('Participant not found by id', err); }
       }
-      
       console.log('[GENERAL_LINK] estado final:', estadoUI);
     } catch (err) {
       console.error('Error loading encuentro', err);
       setError('No se pudo encontrar el encuentro o el enlace es inválido.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleCopyVideoLink = async () => {
     if (!encuentro?.link_virtual) return;
     try {
       await navigator.clipboard.writeText(encuentro.link_virtual);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy', err);
-      alert('Error al copiar el enlace.');
-    }
+      setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
   };
 
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
-      
       const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
-      
       if (newPart && newPart.id) {
         const savedDataStr = localStorage.getItem('encuentros_general');
         const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
         if (!savedData.encuentros) savedData.encuentros = {};
-        
-        savedData.encuentros[public_token!] = {
-          participant_id: newPart.id,
-          token_invitacion: newPart.token_invitacion
-        };
-        
+        savedData.encuentros[public_token!] = { participant_id: newPart.id, token_invitacion: newPart.token_invitacion };
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));
       }
-      
       useHomeStore.getState().invalidateCache();
-      
       setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
       setStep('done');
-      
       console.log('[GENERAL_LINK] estado final:', 'done');
     } catch (err) {
       console.error('Error responding', err);
       alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
-    } finally {
-      setLoadingResponse(false);
-    }
+    } finally { setLoadingResponse(false); }
   };
 
-  if (loading) {
-    return <ScreenContainer><p>Cargando encuentro...</p></ScreenContainer>;
-  }
-
-  if (error || !encuentro) {
-    return (
-      <ScreenContainer>
-        <AppBar title="Encuentro" />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <p>{error || 'Encuentro no válido.'}</p>
-          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
-        </div>
-      </ScreenContainer>
-    );
-  }
-
-  // Vista de estado final (Ya respondido)
-  if (step === 'done') {
-    return (
-      <ScreenContainer>
-        <AppBar title="Respuesta enviada" />
-        <EmptyState 
-          title={participante?.estado === 'confirmado' ? '¡Listo! Ya confirmaste tu asistencia.' : 'Listo. Avisamos que no vas a asistir.'}
-          description={participante?.estado === 'confirmado' ? 'No necesitás hacer nada más.' : 'Gracias por responder.'}
-        />
-        <Card style={{ marginTop: 'auto' }}>
-          <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{encuentro.titulo}</h4>
-          {participante?.estado === 'confirmado' && encuentro.modalidad === 'virtual' && (
-            <p style={{ margin: '0 0 12px 0', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 'bold' }}>
-              Ya podés unirte a la videollamada
-            </p>
-          )}
-          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-            {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
-          </p>
-          <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '14px' }}>
-            <strong>Modalidad:</strong><br/>
-            {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-          </p>
-          {encuentro.modalidad === 'presencial' ? (
-            <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
-              <strong>Lugar:</strong><br/>
-              {encuentro.lugar_texto}
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {participante?.estado === 'confirmado' && encuentro.link_virtual ? (
-                <>
-                  <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '14px' }}>
-                    <strong>Link de videollamada:</strong><br/>
-                    <span style={{ wordBreak: 'break-all' }}>{encuentro.link_virtual}</span>
-                  </p>
-                  
-                  <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)} style={{ marginTop: '4px' }}>
-                    {t('open_video_call', 'Abrir videollamada')}
-                  </Button>
-                  
-                  <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
-                    {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
-                  </Button>
-                </>
-              ) : (
-                <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', fontStyle: 'italic' }}>
-                  {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
-                </p>
-              )}
-            </div>
-          )}
-        </Card>
-      </ScreenContainer>
-    );
-  }
-
-  // Vista pendiente
-  return (
+  if (loading) return (
     <ScreenContainer>
-      <AppBar title="Unirse al Encuentro" />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>Cargando encuentro…</p>
+      </div>
+    </ScreenContainer>
+  );
 
-      <Card style={{ marginBottom: '24px' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '18px' }}>{encuentro.titulo}</h3>
-        <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '15px' }}>
-          <strong>Fecha y hora:</strong><br/>
-          {formatFriendlyDate(encuentro.fecha, encuentro.hora)}
-        </p>
-        <p style={{ margin: '0 0 8px 0', color: 'var(--color-on-surface)', fontSize: '15px' }}>
-          <strong>Modalidad:</strong><br/>
-          {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-        </p>
-        {encuentro.modalidad === 'presencial' ? (
-          <p style={{ margin: 0, color: 'var(--color-on-surface)', fontSize: '15px' }}>
-            <strong>Lugar:</strong><br/>
-            {encuentro.lugar_texto}
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '15px', fontStyle: 'italic' }}>
-              {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
-            </p>
+  if (error || !encuentro) return (
+    <ScreenContainer>
+      <AppBar title="Encuentro" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <p style={{ textAlign: 'center' }}>{error || 'Encuentro no válido.'}</p>
+        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+      </div>
+    </ScreenContainer>
+  );
+
+  if (step === 'done') return (
+    <ScreenContainer>
+      <AppBar title="Respuesta enviada" />
+      <EmptyState
+        title={participante?.estado === 'confirmado' ? '¡Todo listo!' : 'Gracias por responder.'}
+        description={participante?.estado === 'confirmado' ? 'Ya confirmaste tu asistencia.' : 'Avisamos que no vas a asistir.'}
+      />
+      <div style={{ ...eventCard, marginTop: 'auto' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro</p>
+        <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{encuentro.titulo}</h4>
+        {participante?.estado === 'confirmado' && encuentro.modalidad === 'virtual' && (
+          <p style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700, marginBottom: 12 }}>🎉 Ya podés unirte a la videollamada</p>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+          <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
+          <div style={metaRow}>
+            <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
+            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+          </div>
+        </div>
+        {encuentro.modalidad === 'virtual' && participante?.estado === 'confirmado' && encuentro.link_virtual && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={linkBox}>{encuentro.link_virtual}</div>
+            <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>{t('open_video_call', 'Abrir videollamada')}</Button>
+            <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>{copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}</Button>
           </div>
         )}
-      </Card>
+      </div>
+    </ScreenContainer>
+  );
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <Input 
-          label="¿Cómo te llamás?"
-          placeholder="Ej: Marcos" 
-          value={nombre} 
-          onChange={(e) => setNombre(e.target.value)} 
-        />
-        <div style={{ marginTop: 'auto', display: 'flex', gap: '12px', flexDirection: 'column' }}>
-          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
-          {loadingResponse ? t('loading_link', 'Cargando enlace...') : 'Confirmar asistencia'}
-        </Button>
-        <Button fullWidth variant="outline" onClick={() => handleResponse('rechazado')} disabled={!nombre.trim() || loadingResponse}>
-          {loadingResponse ? 'Procesando...' : 'No puedo ir'}
-        </Button>
+  return (
+    <ScreenContainer>
+      <AppBar title="Invitación" />
+      <div style={{ ...eventCard, marginTop: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Te invitan a</p>
+        <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16, lineHeight: 1.15 }}>{encuentro.titulo}</h2>
+        <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
+        {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
+          <div style={metaRow}><span style={metaIcon}>📍</span><span>{encuentro.lugar_texto}</span></div>
+        )}
+        <div style={metaRow}>
+          <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '🤝' : '💻'}</span>
+          <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
         </div>
+        {encuentro.modalidad === 'virtual' && (
+          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-on-surface-variant)', fontStyle: 'italic' }}>
+            {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
+          </p>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <Input
+          label="¿Cómo te llamás?"
+          placeholder="Ej: Marcos"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && nombre.trim() && !loadingResponse) handleResponse('confirmado'); }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
+        <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
+          {loadingResponse ? t('loading_link', 'Cargando…') : 'Confirmar asistencia'}
+        </Button>
+        <button
+          onClick={() => handleResponse('rechazado')}
+          disabled={!nombre.trim() || loadingResponse}
+          style={{
+            background: 'none', border: 'none',
+            color: !nombre.trim() || loadingResponse ? 'var(--color-outline-variant)' : 'var(--color-on-surface-variant)',
+            fontSize: 15, fontFamily: 'var(--font-family)', fontWeight: 500,
+            cursor: !nombre.trim() || loadingResponse ? 'not-allowed' : 'pointer',
+            padding: '10px 0', textAlign: 'center', width: '100%',
+          }}
+        >
+          {loadingResponse ? 'Procesando…' : 'No puedo ir'}
+        </button>
       </div>
     </ScreenContainer>
   );
 };
 
 export default JoinGeneral;
-

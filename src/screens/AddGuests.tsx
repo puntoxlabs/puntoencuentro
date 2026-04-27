@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
@@ -13,7 +11,6 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 const AddGuests: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
   const [encuentro, setEncuentro] = useState<any>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [nombre, setNombre] = useState('');
@@ -23,38 +20,24 @@ const AddGuests: React.FC = () => {
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
-    
     if (id) {
       loadData();
-      
-      // Polling cada 10 segundos
       intervalId = setInterval(async () => {
         try {
           const parts = await participantesService.getParticipantesByEncuentro(id);
           setParticipantes(parts || []);
-        } catch (error) {
-          console.error('Error polling data', error);
-        }
+        } catch (error) { console.error('Error polling data', error); }
       }, 10000);
-      
-      // Refrescar al volver a la pestaña
       const handleVisibilityChange = async () => {
         if (document.visibilityState === 'visible') {
           try {
             const parts = await participantesService.getParticipantesByEncuentro(id);
             setParticipantes(parts || []);
-          } catch (error) {
-            console.error('Error refreshing on visibility change', error);
-          }
+          } catch (error) { console.error('Error refreshing on visibility change', error); }
         }
       };
-      
       document.addEventListener('visibilitychange', handleVisibilityChange);
-      
-      return () => {
-        if (intervalId) clearInterval(intervalId);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
+      return () => { if (intervalId) clearInterval(intervalId); document.removeEventListener('visibilitychange', handleVisibilityChange); };
     }
   }, [id]);
 
@@ -63,153 +46,185 @@ const AddGuests: React.FC = () => {
       setLoading(true);
       const enc = await encuentrosService.getEncuentroById(id!);
       setEncuentro(enc);
-      
       const parts = await participantesService.getParticipantesByEncuentro(id!);
       setParticipantes(parts || []);
-    } catch (error) {
-      console.error('Error loading data', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error('Error loading data', error); } finally { setLoading(false); }
   };
 
   const handleAdd = async () => {
     const trimNombre = nombre.trim();
     if (!trimNombre) return;
-
-    // Avoid exact duplicates locally
-    const isDuplicate = participantes.some(
-      (p) => p.nombre_invitado.toLowerCase() === trimNombre.toLowerCase()
-    );
-
-    if (isDuplicate) {
-      alert('Ya existe un invitado con ese nombre.');
-      return;
-    }
-
+    const isDuplicate = participantes.some(p => p.nombre_invitado.toLowerCase() === trimNombre.toLowerCase());
+    if (isDuplicate) { alert('Ya existe un invitado con ese nombre.'); return; }
     try {
       const tokenInvitacion = crypto.randomUUID();
       await participantesService.addParticipanteIndividual(id!, trimNombre, tokenInvitacion);
-      
       setNombre('');
       setTimeout(() => inputRef.current?.focus(), 0);
-      // Refresh list
       const parts = await participantesService.getParticipantesByEncuentro(id!);
       setParticipantes(parts || []);
-    } catch (error) {
-      console.error('Error adding guest', error);
-      alert('Error al agregar invitado');
-    }
+    } catch (error) { console.error('Error adding guest', error); alert('Error al agregar invitado'); }
   };
 
   const handleDelete = async (partId: string) => {
     try {
-      // Optimistic update to make it disappear immediately
       setParticipantes(prev => prev.filter(p => p.id !== partId));
       await participantesService.deleteParticipante(partId);
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');
-      // Revert if failed
-      if (id) {
-        const parts = await participantesService.getParticipantesByEncuentro(id);
-        setParticipantes(parts || []);
-      }
+      if (id) { const parts = await participantesService.getParticipantesByEncuentro(id); setParticipantes(parts || []); }
     }
   };
 
-  const handleShareLink = async (token: string, id: string) => {
+  const handleShareLink = async (token: string, pid: string) => {
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    
     if (navigator.share) {
-      try {
-        await navigator.share({
-          text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:',
-          url: shareUrl
-        });
-      } catch (err) {
-        console.error('Error sharing', err);
-      }
+      try { await navigator.share({ text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:', url: shareUrl }); }
+      catch (err) { console.error('Error sharing', err); }
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-      } catch (err) {
-        console.error('Failed to copy', err);
-        alert('Error al copiar el enlace.');
-      }
+        setCopiedId(pid); setTimeout(() => setCopiedId(null), 2000);
+      } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
     }
   };
 
-  if (loading) return <ScreenContainer><p>Cargando...</p></ScreenContainer>;
-  if (!encuentro) {
-    return (
-      <ScreenContainer>
-        <AppBar title="Error" showBack />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <p>Encuentro no encontrado.</p>
-          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
-        </div>
-      </ScreenContainer>
-    );
-  }
+  if (loading) return (
+    <ScreenContainer>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>Cargando…</p>
+      </div>
+    </ScreenContainer>
+  );
+
+  if (!encuentro) return (
+    <ScreenContainer>
+      <AppBar title="Error" showBack />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <p>Encuentro no encontrado.</p>
+        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+      </div>
+    </ScreenContainer>
+  );
 
   return (
     <ScreenContainer>
       <AppBar title="Agregar Invitados" showBack />
 
-      <Card style={{ marginBottom: '16px' }}>
-        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>{encuentro.titulo}</h3>
-        <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-          {formatFriendlyDate(encuentro.fecha, encuentro.hora)} • {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+      {/* Event mini-card */}
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: '14px 16px',
+        border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        marginTop: 16, marginBottom: 20,
+      }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{encuentro.titulo}</h3>
+        <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0 }}>
+          📅 {formatFriendlyDate(encuentro.fecha, encuentro.hora)} · {encuentro.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
         </p>
-      </Card>
-
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-        <div style={{ flex: 1 }}>
-          <Input 
-            ref={inputRef}
-            placeholder="Nombre del invitado" 
-            value={nombre} 
-            onChange={(e) => setNombre(e.target.value)} 
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
-          />
-        </div>
-        <Button onClick={handleAdd} disabled={!nombre.trim()}>
-          Agregar
-        </Button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
-          Lista de invitados ({participantes.length})
+      {/* Inline input + add */}
+      <div style={{
+        display: 'flex', gap: 0,
+        background: '#fff', borderRadius: 12,
+        border: '1.5px solid var(--color-outline-variant)',
+        overflow: 'hidden', marginBottom: 24,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+      }}>
+        <input
+          ref={inputRef}
+          value={nombre}
+          onChange={e => setNombre(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+          placeholder="Nombre del invitado"
+          style={{
+            flex: 1, border: 'none', outline: 'none',
+            padding: '0 16px', height: 52, fontSize: 16,
+            fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
+            background: 'transparent',
+          }}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={!nombre.trim()}
+          style={{
+            background: nombre.trim() ? 'var(--color-primary)' : 'var(--color-surface-variant)',
+            color: nombre.trim() ? '#fff' : 'var(--color-on-surface-variant)',
+            border: 'none', cursor: nombre.trim() ? 'pointer' : 'not-allowed',
+            padding: '0 18px', fontFamily: 'var(--font-family)',
+            fontWeight: 700, fontSize: 14, transition: 'all 0.18s',
+            flexShrink: 0,
+          }}
+        >
+          + Agregar
+        </button>
+      </div>
+
+      {/* Guest list */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+          Invitados · {participantes.length}
         </h4>
-        {participantes.map((p) => (
-          <Card key={p.id} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontWeight: 500 }}>{p.nombre_invitado}</span>
-              <Badge 
-                label={p.estado.charAt(0).toUpperCase() + p.estado.slice(1)} 
-                status={p.estado === 'confirmado' ? 'confirmed' : p.estado === 'rechazado' ? 'rejected' : 'pending'} 
+
+        {participantes.length === 0 && (
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: '24px',
+            border: '1.5px dashed var(--color-outline-variant)', textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', margin: 0 }}>
+              Todavía no hay invitados. ¡Agregá el primero!
+            </p>
+          </div>
+        )}
+
+        {participantes.map(p => (
+          <div key={p.id} style={{
+            background: '#fff', borderRadius: 14, padding: '14px 16px',
+            border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>{p.nombre_invitado}</span>
+              <Badge
+                label={p.estado === 'pendiente' ? 'Pendiente' : p.estado === 'confirmado' ? 'Confirmado' : 'No asiste'}
+                status={p.estado === 'confirmado' ? 'confirmed' : p.estado === 'rechazado' ? 'rejected' : 'pending'}
               />
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {p.estado === 'pendiente' && (
-                <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleShareLink(p.token_invitacion, p.id)}>
-                  {copiedId === p.id ? 'Link copiado' : 'Compartir invitación'}
-                </Button>
+                <button
+                  onClick={() => handleShareLink(p.token_invitacion, p.id)}
+                  style={{
+                    background: copiedId === p.id ? 'var(--color-primary-container)' : 'transparent',
+                    border: `1.5px solid ${copiedId === p.id ? 'var(--color-primary)' : 'var(--color-outline-variant)'}`,
+                    borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+                    fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
+                    color: copiedId === p.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {copiedId === p.id ? '✓ Copiado' : 'Compartir'}
+                </button>
               )}
-              <Button variant="outline" style={{ padding: '0 12px', height: '32px' }} onClick={() => handleDelete(p.id)}>
-                X
-              </Button>
+              <button
+                onClick={() => handleDelete(p.id)}
+                style={{
+                  background: 'transparent', border: '1.5px solid var(--color-outline-variant)',
+                  borderRadius: 8, width: 34, height: 34, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--color-on-surface-variant)', fontSize: 14, transition: 'all 0.15s',
+                }}
+              >
+                ✕
+              </button>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
-      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24 }}>
         <Button fullWidth variant="primary" onClick={() => navigate(`/meet/${id}`)}>
           Ver encuentro
         </Button>

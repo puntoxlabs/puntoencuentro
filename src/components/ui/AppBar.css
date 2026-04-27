@@ -2,16 +2,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
-  padding: 0 var(--spacing-md);
+  height: 60px;
+  padding: 0 20px;
   background-color: var(--color-background);
   position: sticky;
   top: 0;
   z-index: 10;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .app-bar-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--color-on-surface);
   margin: 0;
@@ -23,14 +24,20 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--color-on-surface);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  margin-left: -8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color 0.15s ease;
+}
+
+.app-bar-back:hover {
+  background-color: var(--color-primary-container);
 }
 
 .app-bar-placeholder {
-  width: 40px; /* To balance the title center if back button is present */
+  width: 36px;
 }

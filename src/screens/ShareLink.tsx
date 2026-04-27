@@ -3,37 +3,28 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { encuentrosService } from '@/services/encuentrosService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 
 const ShareLink: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      loadData();
-    }
-  }, [id]);
+  useEffect(() => { if (id) loadData(); }, [id]);
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       const enc = await encuentrosService.getEncuentroById(id!);
       setEncuentro(enc);
     } catch (err) {
       console.error('Error loading data', err);
       setError('No se pudo cargar el encuentro.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const shareUrl = encuentro ? `${window.location.origin}/join/${encuentro.public_token}` : '';
@@ -48,8 +39,7 @@ const ShareLink: React.FC = () => {
         });
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setCopied(true); setTimeout(() => setCopied(false), 2000);
       }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
@@ -59,56 +49,68 @@ const ShareLink: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return <ScreenContainer><p>Cargando...</p></ScreenContainer>;
-  }
+  if (loading) return (
+    <ScreenContainer>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>Cargando…</p>
+      </div>
+    </ScreenContainer>
+  );
 
-  if (error || !encuentro) {
-    return (
-      <ScreenContainer>
-        <AppBar title="Error" showBack />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <p>{error || 'Encuentro no encontrado.'}</p>
-          <Button onClick={() => navigate('/')} variant="outline" style={{ marginTop: '16px' }}>Volver al inicio</Button>
-        </div>
-      </ScreenContainer>
-    );
-  }
+  if (error || !encuentro) return (
+    <ScreenContainer>
+      <AppBar title="Error" showBack />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <p>{error || 'Encuentro no encontrado.'}</p>
+        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+      </div>
+    </ScreenContainer>
+  );
 
   return (
     <ScreenContainer>
-      <AppBar title="Compartir Enlace" showBack />
+      <AppBar title="Compartir invitación" showBack />
 
-      <Card style={{ marginBottom: '24px' }}>
-        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>{encuentro.titulo}</h3>
-        <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px', marginBottom: '8px' }}>
-          {formatFriendlyDate(encuentro.fecha, encuentro.hora)} • {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
+      {/* Event summary */}
+      <div style={{
+        background: '#fff', borderRadius: 20, padding: '20px',
+        border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+        marginTop: 20, marginBottom: 24,
+      }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+          Encuentro
         </p>
-        <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-          <strong>{encuentro.modalidad === 'presencial' ? 'Lugar:' : 'Link:'}</strong>{' '}
-          {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
-        </p>
-      </Card>
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-on-surface)' }}>
-          Compartí este link para invitar personas al encuentro
-        </p>
-        <Card style={{ padding: '16px', wordBreak: 'break-all', backgroundColor: 'var(--color-surface-variant)' }}>
-          <span style={{ fontSize: '14px', color: 'var(--color-primary)' }}>{shareUrl}</span>
-        </Card>
-        
-        <Button onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
-          {copied ? 'Link copiado' : 'Compartir link'}
-        </Button>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>{encuentro.titulo}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 6 }}>
+          <span>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+          <span>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
+          <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+        </div>
       </div>
 
-      <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexDirection: 'column' }}>
-        <Button fullWidth onClick={() => navigate(`/meet/${id}`)}>
-          Ver encuentro
+      {/* Share section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-on-surface-variant)', margin: 0 }}>
+          Enlace de invitación
+        </p>
+        <div style={{
+          background: 'var(--color-primary-container)',
+          borderRadius: 12, padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ flex: 1, fontSize: 13, color: 'var(--color-primary-dark)', fontWeight: 500, wordBreak: 'break-all' }}>
+            {shareUrl}
+          </span>
+        </div>
+
+        <Button fullWidth onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
+          {copied ? '✓ Link copiado' : 'Compartir invitación'}
         </Button>
-        <Button fullWidth variant="outline" onClick={() => navigate('/')}>
-          Volver al inicio
+
+        <Button fullWidth variant="outline" onClick={() => navigate(`/meet/${id}`)}>
+          Ver encuentro
         </Button>
       </div>
     </ScreenContainer>

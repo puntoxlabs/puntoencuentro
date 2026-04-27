@@ -1,33 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --color-primary: #2F6BFF;
-  --color-primary-dark: #0051DF;
-  --color-primary-container: #DAE3F4;
-  --color-on-primary-container: #000318;
-  
+  /* Primary — more intense blue for better contrast */
+  --color-primary: #1A56F0;
+  --color-primary-dark: #0B3FCC;
+  --color-primary-container: #E0EBFF;
+  --color-on-primary-container: #001050;
+
+  /* Surfaces */
   --color-surface: #FFFFFF;
-  --color-background: #FAF8FF;
-  --color-surface-variant: #E1E1EE;
-  
-  --color-on-surface: #191B24;
-  --color-on-surface-variant: #434655;
-  --color-outline: #737687;
-  --color-outline-variant: #C3C5D8;
-  
-  --color-error: #BA1A1A;
+  --color-background: #F4F6FC;
+  --color-surface-variant: #EEF1F9;
+
+  /* Text */
+  --color-on-surface: #0F1120;
+  --color-on-surface-variant: #52566B;
+  --color-outline: #6B6F83;
+  --color-outline-variant: #C8CADB;
+
+  --color-error: #C0392B;
 
   --font-family: 'Manrope', sans-serif;
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.75rem; /* 12px */
-  --radius-lg: 1rem; /* 16px */
+  --radius-sm: 0.25rem;   /* 4px  */
+  --radius-md: 0.75rem;   /* 12px */
+  --radius-lg: 1rem;      /* 16px */
+  --radius-xl: 1.25rem;   /* 20px */
   --radius-pill: 9999px;
 
   --spacing-base: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Button height standard */
+  --btn-height: 54px;
 }
 
 * {
@@ -46,8 +54,10 @@ body {
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-on-surface);
   margin-bottom: var(--spacing-sm);
+  line-height: 1.25;
 }
 
 p {
   color: var(--color-on-surface-variant);
+  line-height: 1.5;
 }

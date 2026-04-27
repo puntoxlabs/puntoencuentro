@@ -9,20 +9,17 @@ import Step2Modality from '@/screens/CreateWizard/Step2Modality';
 import Step3Location from '@/screens/CreateWizard/Step3Location';
 import Step4InviteType from '@/screens/CreateWizard/Step4InviteType';
 
+const TOTAL_STEPS = 4;
+
+const stepTitles = ['Nuevo encuentro', 'Modalidad', 'Lugar', 'Invitación'];
+
 const CreateWizard: React.FC = () => {
   const { step, prevStep } = useWizardStore();
   const navigate = useNavigate();
 
-  // El reset del store ahora se hace explícitamente desde Home al clickear "Crear encuentro",
-  // lo cual permite que si el usuario navega hacia atrás usando el botón "Back" del SO/Browser,
-  // el estado del formulario se conserve.
-
   const handleBack = () => {
-    if (step === 1) {
-      navigate(-1);
-    } else {
-      prevStep();
-    }
+    if (step === 1) navigate(-1);
+    else prevStep();
   };
 
   const renderStep = () => {
@@ -35,14 +32,28 @@ const CreateWizard: React.FC = () => {
     }
   };
 
+  const progress = (step / TOTAL_STEPS) * 100;
+
   return (
     <ScreenContainer>
-      <AppBar 
-        title={`Crear Encuentro (Paso ${step}/4)`} 
-        showBack={true} 
-        onBack={handleBack}
-      />
-      
+      <AppBar title={stepTitles[step - 1]} showBack={true} onBack={handleBack} />
+
+      {/* Progress bar */}
+      <div style={{ height: 3, background: 'var(--color-outline-variant)', borderRadius: 99, marginBottom: 24, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${progress}%`,
+          background: 'var(--color-primary)',
+          borderRadius: 99,
+          transition: 'width 0.35s ease',
+        }} />
+      </div>
+
+      {/* Step counter */}
+      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: 8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        Paso {step} de {TOTAL_STEPS}
+      </p>
+
       {renderStep()}
     </ScreenContainer>
   );

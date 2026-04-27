@@ -1,9 +1,9 @@
 .card {
   background-color: var(--color-surface);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-md);
-  border: 1px solid var(--color-outline-variant);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .card-clickable {
@@ -13,5 +13,10 @@
 
 .card-clickable:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.04);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
+}
+
+.card-clickable:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
