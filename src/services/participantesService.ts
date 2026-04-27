@@ -53,10 +53,24 @@ export const participantesService = {
 
   async getParticipanteByToken(token: string) {
     console.log('Token consultado en backend:', token);
+    
+    // Intentamos consulta directa primero para obtener la relación anidada
+    const directResult = await supabase
+      .from('participantes')
+      .select('*, encuentros(*)')
+      .eq('token_invitacion', token)
+      .single();
+      
+    if (!directResult.error && directResult.data) {
+       console.log('Resultado de búsqueda directa en DB:', directResult);
+       return directResult.data;
+    }
+
+    // Si la directa falla (por RLS u otro motivo), usamos el RPC como fallback
     const { data, error } = await supabase
       .rpc('get_participante_seguro', { p_token: token });
 
-    console.log('Resultado de búsqueda en DB:', { data, error });
+    console.log('Resultado de búsqueda RPC en DB:', { data, error });
 
     if (error) {
       console.error('Error fetching participante by token:', error);

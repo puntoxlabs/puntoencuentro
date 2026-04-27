@@ -50,7 +50,14 @@ const InviteGuest: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('[INDIVIDUAL_INVITE] url completa:', window.location.href);
+      console.log('[INDIVIDUAL_INVITE] token leído:', token);
+      
       const data = await participantesService.getParticipanteByToken(token!);
+      
+      console.log('[INDIVIDUAL_INVITE] invitación encontrada:', data);
+      
       if (!data) throw new Error("No encontrado");
       
       setParticipante(data);
@@ -71,6 +78,7 @@ const InviteGuest: React.FC = () => {
       }
     } catch (err) {
       console.error('InviteGuest error:', err);
+      console.log('[INDIVIDUAL_INVITE] error backend:', err);
       setError('No se pudo encontrar la invitación o el enlace es inválido.');
     } finally {
       setLoading(false);
