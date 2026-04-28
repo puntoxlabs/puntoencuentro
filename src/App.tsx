@@ -7,6 +7,7 @@ import AddGuests from '@/screens/AddGuests';
 import ShareLink from '@/screens/ShareLink';
 import InviteGuest from '@/screens/InviteGuest';
 import JoinGeneral from '@/screens/JoinGeneral';
+import CancelSummary from '@/screens/CancelSummary';
 import { getHostId } from '@/lib/auth';
 
 const App: React.FC = () => {
@@ -25,6 +26,7 @@ const App: React.FC = () => {
         <Route path="/share/:id" element={<ShareLink />} />
         <Route path="/invite/:token" element={<InviteGuest />} />
         <Route path="/join/:public_token" element={<JoinGeneral />} />
+        <Route path="/cancel-summary/:id" element={<CancelSummary />} />
       </Routes>
     </BrowserRouter>
   );

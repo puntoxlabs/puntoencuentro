@@ -72,5 +72,21 @@ export const encuentrosService = {
     }
 
     return data;
-  }
+  },
+
+  async cancelarEncuentro(id: string) {
+    const { data, error } = await supabase
+      .from('encuentros')
+      .update({ estado: 'cancelado' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error cancelling encuentro:', error);
+      throw error;
+    }
+
+    return data;
+  },
 };

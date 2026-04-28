@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
+import { useHomeStore } from '@/store/homeStore';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -38,6 +39,10 @@ const DetailHost: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [fromCancelled, setFromCancelled] = useState<any>(null);
+  const [copiedNewShare, setCopiedNewShare] = useState(false);
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
@@ -57,6 +62,17 @@ const DetailHost: React.FC = () => {
           if (currentEnc) setDetailData(id, currentEnc, parts || []);
         } catch (err) { console.error('Error polling participants', err); }
       }, 10000);
+      // Check if this is a new encounter created from cancellation
+      const refStr = sessionStorage.getItem('cancel_reference');
+      if (refStr) {
+        try {
+          const ref = JSON.parse(refStr);
+          if (ref.newId === id) {
+            setFromCancelled(ref);
+            sessionStorage.removeItem('cancel_reference');
+          }
+        } catch (e) { console.error('Error reading cancel_reference', e); }
+      }
     }
     return () => { if (intervalId) clearInterval(intervalId); };
   }, [id]);
@@ -79,6 +95,38 @@ const DetailHost: React.FC = () => {
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     if (id) setScrollPosition(id, e.currentTarget.scrollTop);
   }, 200);
+
+  const handleCancelEncuentro = async () => {
+    if (!id || cancelling) return;
+    try {
+      setCancelling(true);
+      await encuentrosService.cancelarEncuentro(id);
+      useHomeStore.getState().invalidateCache();
+      setEncuentro((prev: any) => ({ ...prev, estado: 'cancelado' }));
+      setShowCancelModal(false);
+      navigate(`/cancel-summary/${id}`);
+    } catch (err) {
+      console.error('Error cancelling encuentro:', err);
+      alert('Hubo un error al cancelar el encuentro. Intentá de nuevo.');
+    } finally { setCancelling(false); }
+  };
+
+  const handleShareNewEncuentro = async () => {
+    if (!encuentro || !fromCancelled) return;
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const newLink = encuentro.public_token
+      ? `${baseUrl}/join/${encuentro.public_token}`
+      : `${baseUrl}/meet/${encuentro.id}`;
+    const msg = `El encuentro fue actualizado:\n\n❌ Anterior: ${fromCancelled.oldTitulo} – ${fromCancelled.oldFecha}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nUnite acá:\n${newLink}`;
+    if (navigator.share) {
+      try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
+    } else {
+      try {
+        await navigator.clipboard.writeText(msg);
+        setCopiedNewShare(true); setTimeout(() => setCopiedNewShare(false), 2000);
+      } catch { alert('Error al copiar el mensaje.'); }
+    }
+  };
 
   if (loading) return (
     <ScreenContainer>
@@ -181,8 +229,42 @@ const DetailHost: React.FC = () => {
     );
   };
 
+  const cancelModal = showCancelModal ? (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: '24px 24px 0 0',
+        padding: '28px 24px 40px', width: '100%', maxWidth: 480,
+        boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
+      }}>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>¿Cancelar este encuentro?</h3>
+        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24 }}>
+          El encuentro quedará marcado como cancelado. Esta acción no se puede deshacer.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button
+            id="btn-confirmar-cancelacion"
+            fullWidth
+            variant="primary"
+            onClick={handleCancelEncuentro}
+            disabled={cancelling}
+          >
+            {cancelling ? 'Cancelando…' : 'Sí, cancelar encuentro'}
+          </Button>
+          <Button fullWidth variant="outline" onClick={() => setShowCancelModal(false)} disabled={cancelling}>
+            Volver
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
+      {cancelModal}
       <AppBar title="Detalle" showBack />
 
       <div
@@ -199,8 +281,8 @@ const DetailHost: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, flex: 1, marginRight: 10 }}>{encuentro.titulo}</h2>
             <Badge
-              label={encuentro.estado === 'activo' ? 'Activo' : encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)}
-              status={encuentro.estado === 'activo' ? 'confirmed' : 'default'}
+              label={encuentro.estado === 'activo' ? 'Activo' : encuentro.estado === 'cancelado' ? 'Cancelado' : encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)}
+              status={encuentro.estado === 'activo' ? 'confirmed' : encuentro.estado === 'cancelado' ? 'rejected' : 'default'}
             />
           </div>
 
@@ -229,19 +311,78 @@ const DetailHost: React.FC = () => {
           )}
         </div>
 
-        {/* Action button */}
-        <div style={{ marginBottom: 24, flexShrink: 0 }}>
-          {encuentro.tipo_invitacion === 'link_general' && (
+        {/* Action buttons */}
+        <div style={{ marginBottom: 24, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {encuentro.estado !== 'cancelado' && encuentro.tipo_invitacion === 'link_general' && (
             <Button fullWidth onClick={() => navigate(`/share/${encuentro.id}`)}>
               🔗 Compartir link de invitación
             </Button>
           )}
-          {encuentro.tipo_invitacion === 'individual' && (
+          {encuentro.estado !== 'cancelado' && encuentro.tipo_invitacion === 'individual' && (
             <Button fullWidth onClick={() => navigate(`/add-guests/${encuentro.id}`)}>
               + Agregar invitados
             </Button>
           )}
+          {encuentro.estado !== 'cancelado' && (
+            <button
+              id="btn-cancelar-encuentro"
+              onClick={() => setShowCancelModal(true)}
+              style={{
+                background: 'none', border: '1.5px solid rgba(220,38,38,0.35)',
+                borderRadius: 12, padding: '12px 16px', cursor: 'pointer',
+                fontFamily: 'var(--font-family)', fontSize: 14, fontWeight: 600,
+                color: '#DC2626', width: '100%', textAlign: 'center',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(220,38,38,0.05)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              Cancelar encuentro
+            </button>
+          )}
+          {encuentro.estado === 'cancelado' && (
+            <Button fullWidth variant="outline" onClick={() => navigate(`/cancel-summary/${encuentro.id}`)}>
+              Ver detalle de cancelación
+            </Button>
+          )}
         </div>
+
+        {/* Banner: nuevo encuentro creado desde cancelación */}
+        {fromCancelled && (
+          <div style={{
+            background: 'var(--color-primary-container)',
+            border: '1px solid var(--color-primary)',
+            borderRadius: 16, padding: '16px',
+            marginBottom: 16, flexShrink: 0,
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Referencia del encuentro anterior</p>
+            <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>
+              ❌ {fromCancelled.oldTitulo} – {fromCancelled.oldFecha}
+            </p>
+            {fromCancelled.participantes && fromCancelled.participantes.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {fromCancelled.participantes
+                  .filter((p: any) => fromCancelled.tipoInvitacion === 'individual' || p.estado === 'confirmado')
+                  .map((p: any, i: number) => {
+                    const s = p.estado === 'confirmado' ? 'confirmed' : p.estado === 'rechazado' ? 'rejected' : 'pending';
+                    const l = p.estado === 'confirmado' ? 'Confirmado' : p.estado === 'rechazado' ? 'No asiste' : 'Pendiente';
+                    return (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.7)', borderRadius: 8, padding: '6px 10px' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{p.nombre_invitado}</span>
+                        <Badge label={l} status={s as any} />
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', fontStyle: 'italic', marginBottom: 12 }}>Sin participantes registrados en el encuentro anterior.</p>
+            )}
+            <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>Recordá compartir el nuevo encuentro con estas personas o con el mismo grupo.</p>
+            <Button fullWidth onClick={handleShareNewEncuentro}>
+              {copiedNewShare ? '✓ Copiado' : '📤 Compartir nuevo encuentro'}
+            </Button>
+          </div>
+        )}
 
         {/* Participants */}
         <div>

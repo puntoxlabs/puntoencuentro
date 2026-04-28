@@ -36,6 +36,16 @@ const Step4InviteType: React.FC = () => {
         host_id: hostId,
         tema: wizardData.tema || 'blue',
       });
+      // Update cancel_reference with the new encounter id if coming from cancellation
+      const cancelRefStr = sessionStorage.getItem('cancel_reference');
+      if (cancelRefStr) {
+        try {
+          const ref = JSON.parse(cancelRefStr);
+          ref.newId = newEncuentro.id;
+          sessionStorage.setItem('cancel_reference', JSON.stringify(ref));
+        } catch (e) { console.error('Error updating cancel_reference', e); }
+      }
+
       if (tipo === 'individual') {
         navigate(`/add-guests/${newEncuentro.id}`);
       } else {

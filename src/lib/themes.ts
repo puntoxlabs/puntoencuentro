@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-export type ThemeId = 'blue' | 'green' | 'orange' | 'purple';
+export type ThemeId = 'blue' | 'green' | 'orange' | 'purple' | 'pink' | 'yellow';
 
 export interface Theme {
   id: ThemeId;
@@ -68,6 +68,32 @@ export const themes: Record<ThemeId, Theme> = {
     backgroundTint: '#F5F0FF',
     primaryShadow: 'rgba(107,63,160,0.20)',
     primaryFocusRing: 'rgba(107,63,160,0.12)',
+  },
+  pink: {
+    id: 'pink',
+    label: 'Pasión',
+    emoji: '🩷',
+    description: 'Vibrante y expresivo',
+    primary: '#E91E63',
+    primaryDark: '#C2185B',
+    primaryContainer: '#FCE4EC',
+    onPrimaryContainer: '#4A0020',
+    backgroundTint: '#FFF5F8',
+    primaryShadow: 'rgba(233,30,99,0.20)',
+    primaryFocusRing: 'rgba(233,30,99,0.12)',
+  },
+  yellow: {
+    id: 'yellow',
+    label: 'Alegría',
+    emoji: '🌟',
+    description: 'Cálido y luminoso',
+    primary: '#F59E0B',
+    primaryDark: '#D97706',
+    primaryContainer: '#FEF3C7',
+    onPrimaryContainer: '#451A00',
+    backgroundTint: '#FFFBEB',
+    primaryShadow: 'rgba(245,158,11,0.20)',
+    primaryFocusRing: 'rgba(245,158,11,0.12)',
   },
 };
 
