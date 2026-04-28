@@ -75,18 +75,27 @@ export const encuentrosService = {
   },
 
   async cancelarEncuentro(id: string) {
+    console.log('[CANCEL] Iniciando cancelación. encuentroId:', id);
+    console.log('[CANCEL] Payload:', { estado: 'cancelado' });
+
     const { data, error } = await supabase
       .from('encuentros')
       .update({ estado: 'cancelado' })
       .eq('id', id)
-      .select()
-      .single();
+      .select();
 
     if (error) {
-      console.error('Error cancelling encuentro:', error);
+      console.error('[CANCEL] Error al cancelar encuentro:');
+      console.error('  encuentroId:', id);
+      console.error('  error.code:', error.code);
+      console.error('  error.message:', error.message);
+      console.error('  error.details:', error.details);
+      console.error('  error.hint:', error.hint);
+      console.error('  error completo:', JSON.stringify(error));
       throw error;
     }
 
-    return data;
+    console.log('[CANCEL] Cancelación exitosa. Resultado:', data);
+    return data?.[0] ?? null;
   },
 };

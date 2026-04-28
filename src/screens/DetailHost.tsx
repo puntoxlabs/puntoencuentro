@@ -105,9 +105,15 @@ const DetailHost: React.FC = () => {
       setEncuentro((prev: any) => ({ ...prev, estado: 'cancelado' }));
       setShowCancelModal(false);
       navigate(`/cancel-summary/${id}`);
-    } catch (err) {
-      console.error('Error cancelling encuentro:', err);
-      alert('Hubo un error al cancelar el encuentro. Intentá de nuevo.');
+    } catch (err: any) {
+      console.error('[CANCEL] Error en handleCancelEncuentro:');
+      console.error('  encuentroId:', id);
+      console.error('  err.message:', err?.message);
+      console.error('  err.code:', err?.code);
+      console.error('  err.hint:', err?.hint);
+      console.error('  err completo:', JSON.stringify(err));
+      const msg = err?.message || JSON.stringify(err) || 'Error desconocido';
+      alert(`Error al cancelar: ${msg}`);
     } finally { setCancelling(false); }
   };
 
