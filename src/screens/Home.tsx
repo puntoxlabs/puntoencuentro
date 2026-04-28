@@ -13,6 +13,13 @@ import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
 import throttle from 'lodash/throttle';
 
+/** Devuelve true si la fecha+hora del encuentro ya pasó */
+function isEncuentroPasado(enc: any): boolean {
+  if (!enc.fecha || !enc.hora) return false;
+  const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
+  return fechaHora < new Date();
+}
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition } = useHomeStore();
@@ -56,6 +63,69 @@ const Home: React.FC = () => {
     } finally { setLoading(false); }
   };
 
+  const renderCard = (enc: any, isPast: boolean) => {
+    const isCancelled = enc.estado === 'cancelado';
+    const cardOpacity = isPast ? 0.6 : 1;
+
+    let badgeLabel: string;
+    let badgeStatus: 'confirmed' | 'rejected' | 'default' | 'pending';
+
+    if (isCancelled) {
+      badgeLabel = 'Cancelado';
+      badgeStatus = 'rejected';
+    } else if (isPast) {
+      badgeLabel = 'Finalizado';
+      badgeStatus = 'default';
+    } else {
+      badgeLabel = 'Activo';
+      badgeStatus = 'confirmed';
+    }
+
+    return (
+      <div
+        key={enc.id}
+        onClick={() => navigate(`/meet/${enc.id}`)}
+        style={{
+          background: isPast ? '#f8f8f8' : '#fff',
+          borderRadius: 16,
+          padding: '16px',
+          border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: isPast ? 'none' : '0 2px 8px rgba(0,0,0,0.05)',
+          cursor: 'pointer',
+          transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+          opacity: cardOpacity,
+        }}
+        onMouseEnter={e => {
+          if (!isPast) {
+            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.09)';
+          }
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLDivElement).style.transform = '';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = isPast ? 'none' : '0 2px 8px rgba(0,0,0,0.05)';
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <h3 style={{
+            margin: 0, fontSize: 17, fontWeight: 700, flex: 1, marginRight: 8,
+            color: isPast ? 'var(--color-on-surface-variant)' : 'inherit',
+          }}>
+            {enc.titulo}
+          </h3>
+          <Badge label={badgeLabel} status={badgeStatus} />
+        </div>
+        <p style={{ margin: '0 0 10px 0', fontSize: 13, color: 'var(--color-on-surface-variant)' }}>
+          📅 {formatFriendlyDate(enc.fecha, enc.hora)}
+        </p>
+        <Badge
+          label={enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
+          status="default"
+        />
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (loading) return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -78,41 +148,45 @@ const Home: React.FC = () => {
       />
     );
 
+    // Separar: activos/futuros vs pasados (incluyendo cancelados pasados)
+    const proximos = encuentros.filter(enc => enc.estado !== 'cancelado' && !isEncuentroPasado(enc));
+    const pasados = encuentros.filter(enc => enc.estado === 'cancelado' || isEncuentroPasado(enc));
+
     return (
       <div
         id="home-scroll-container"
         onScroll={handleScroll}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}
       >
-        {encuentros.map(enc => (
-          <div
-            key={enc.id}
-            onClick={() => navigate(`/meet/${enc.id}`)}
-            style={{
-              background: '#fff', borderRadius: 16, padding: '16px',
-              border: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              cursor: 'pointer', transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 20px rgba(0,0,0,0.09)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'; }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, flex: 1, marginRight: 8 }}>{enc.titulo}</h3>
-              <Badge
-                label={enc.estado === 'activo' ? 'Activo' : enc.estado.charAt(0).toUpperCase() + enc.estado.slice(1)}
-                status={enc.estado === 'activo' ? 'confirmed' : 'default'}
-              />
-            </div>
-            <p style={{ margin: '0 0 10px 0', fontSize: 13, color: 'var(--color-on-surface-variant)' }}>
-              📅 {formatFriendlyDate(enc.fecha, enc.hora)}
-            </p>
-            <Badge
-              label={enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
-              status="default"
-            />
+        {/* Encuentros próximos */}
+        {proximos.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {proximos.map(enc => renderCard(enc, false))}
           </div>
-        ))}
+        )}
+
+        {proximos.length === 0 && pasados.length > 0 && (
+          <EmptyState
+            icon={<Calendar size={32} />}
+            title="No tenés encuentros próximos"
+            description="Creá uno nuevo para organizar tu próxima reunión."
+          />
+        )}
+
+        {/* Encuentros pasados */}
+        {pasados.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: proximos.length > 0 ? 8 : 0 }}>
+            <p style={{
+              fontSize: 11, fontWeight: 700,
+              color: 'var(--color-on-surface-variant)',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              margin: '4px 0 4px 2px',
+            }}>
+              Encuentros pasados
+            </p>
+            {pasados.map(enc => renderCard(enc, true))}
+          </div>
+        )}
       </div>
     );
   };

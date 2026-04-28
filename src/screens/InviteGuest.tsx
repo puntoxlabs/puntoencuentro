@@ -121,6 +121,42 @@ const InviteGuest: React.FC = () => {
     </ScreenContainer>
   );
 
+  // Encuentro cancelado — bloquear confirmación
+  if (encuentro?.estado === 'cancelado') return (
+    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
+      <AppBar title="Encuentro cancelado" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0, padding: '20px 0' }}>
+        <div style={{
+          background: 'rgba(220,38,38,0.08)', borderRadius: 16, padding: '16px',
+          border: '1px solid rgba(220,38,38,0.2)', marginBottom: 24,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span style={{ fontSize: 24 }}>❌</span>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#B91C1C' }}>Este encuentro fue cancelado</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 2 }}>
+              El organizador canceló este encuentro.
+            </p>
+          </div>
+        </div>
+        <div style={{ ...eventCard }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro</p>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>{encuentro.titulo}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
+            <span>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+            <span>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
+            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+          </div>
+        </div>
+        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 24, fontStyle: 'italic' }}>
+          No es necesario confirmar asistencia.
+        </p>
+      </div>
+    </ScreenContainer>
+  );
+
   if (step === 'done' || participante.estado !== 'pendiente') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
