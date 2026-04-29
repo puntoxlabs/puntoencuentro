@@ -7,9 +7,10 @@ interface AppBarProps {
   title: string;
   showBack?: boolean;
   onBack?: () => void;
+  rightAction?: React.ReactNode;
 }
 
-export const AppBar: React.FC<AppBarProps> = ({ title, showBack = false, onBack }) => {
+export const AppBar: React.FC<AppBarProps> = ({ title, showBack = false, onBack, rightAction }) => {
   const navigate = useNavigate();
 
   const handleBack = () => {
@@ -22,13 +23,19 @@ export const AppBar: React.FC<AppBarProps> = ({ title, showBack = false, onBack 
 
   return (
     <header className="app-bar">
-      {showBack && (
+      {showBack ? (
         <button className="app-bar-back" onClick={handleBack} aria-label="Atrás">
           <ArrowLeft size={24} />
         </button>
+      ) : (
+        <div style={{ width: 36 }} />
       )}
       <h1 className="app-bar-title">{title}</h1>
-      <div className="app-bar-placeholder" />
+      {rightAction ? (
+        <div className="app-bar-right">{rightAction}</div>
+      ) : (
+        <div className="app-bar-placeholder" />
+      )}
     </header>
   );
 };

@@ -41,3 +41,10 @@
 .app-bar-placeholder {
   width: 36px;
 }
+
+.app-bar-right {
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -4,7 +4,8 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar } from 'lucide-react';
+import { Calendar, Sliders } from 'lucide-react';
+import { FilterSheet } from '@/components/ui/FilterSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { formatFriendlyDate } from '@/lib/formatDate';
@@ -216,7 +217,7 @@ const PastCard: React.FC<{
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 const Home: React.FC = () => {
   const navigate = useNavigate();
-  const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition } = useHomeStore();
+  const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
   const detailCache = useDetailStore(s => s.cache);
@@ -224,6 +225,7 @@ const Home: React.FC = () => {
   const [encuentros, setLocalEncuentros] = useState<any[]>(validCache || cachedEncuentros);
   const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -279,9 +281,45 @@ const Home: React.FC = () => {
       </div>
     );
 
-    // Separar: activos/futuros vs pasados (incluyendo cancelados)
-    const proximos = encuentros.filter(enc => enc.estado !== 'cancelado' && !isEncuentroPasado(enc));
-    const pasados = encuentros.filter(enc => enc.estado === 'cancelado' || isEncuentroPasado(enc));
+    const getClasificacion = (enc: any) => {
+      if (enc.estado === 'cancelado') return 'cancelled';
+      if (isEncuentroPasado(enc)) return 'finished';
+      return 'active';
+    };
+
+    const filtered = (encuentros || []).filter(enc => {
+      const cls = getClasificacion(enc);
+      if (filterStatus === 'all') return true;
+      return cls === filterStatus;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'date_upcoming') {
+        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
+        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
+        return dateA - dateB;
+      }
+      if (sortBy === 'date_distant') {
+        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
+        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
+        return dateB - dateA;
+      }
+      if (sortBy === 'name_asc') {
+        return (a.titulo || '').localeCompare(b.titulo || '');
+      }
+      if (sortBy === 'name_desc') {
+        return (b.titulo || '').localeCompare(a.titulo || '');
+      }
+      return 0;
+    });
+
+    const proximos = filterStatus === 'all'
+      ? sorted.filter(enc => getClasificacion(enc) === 'active')
+      : (filterStatus === 'active' ? sorted : []);
+
+    const pasados = filterStatus === 'all'
+      ? sorted.filter(enc => getClasificacion(enc) !== 'active')
+      : (filterStatus === 'finished' || filterStatus === 'cancelled' ? sorted : []);
 
     // Estado vacío total
     if (encuentros.length === 0) return (
@@ -415,10 +453,27 @@ const Home: React.FC = () => {
 
   return (
     <ScreenContainer style={{ background: '#F4F6FB' }}>
-      <AppBar title="Mis Encuentros" />
+      <AppBar 
+        title="Mis Encuentros" 
+        rightAction={
+          <button
+            onClick={() => setIsFilterOpen(true)}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '50%',
+              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
+            }}
+          >
+            <Sliders size={20} />
+          </button>
+        }
+      />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
         {renderContent()}
       </div>
+      
+      <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       
       {/* Botón crear — siempre visible en el fold */}
       {!loading && encuentros.length > 0 && (
