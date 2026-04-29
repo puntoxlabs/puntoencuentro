@@ -98,4 +98,19 @@ export const encuentrosService = {
     console.log('[CANCEL] Cancelación exitosa. Resultado:', data[0]);
     return data[0];
   },
+
+  async deleteEncuentro(id: string) {
+    const { data, error } = await supabase
+      .from('encuentros')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error("[DELETE ERROR FULL]", error);
+      alert(error.message || JSON.stringify(error));
+      throw error;
+    }
+    return data;
+  },
 };

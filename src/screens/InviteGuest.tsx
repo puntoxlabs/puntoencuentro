@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -30,7 +30,6 @@ const linkBox: React.CSSProperties = {
 
 const InviteGuest: React.FC = () => {
   const { token } = useParams();
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const [participante, setParticipante] = useState<any>(null);
   const [encuentro, setEncuentro] = useState<any>(null);
@@ -115,9 +114,11 @@ const InviteGuest: React.FC = () => {
   if (error || !participante || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Invitación" />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <p style={{ textAlign: 'center' }}>{error || 'Invitación no válida.'}</p>
-        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 20px' }}>
+        <span style={{ fontSize: 40 }}>❌</span>
+        <p style={{ textAlign: 'center', fontSize: 16, fontWeight: 600, color: '#374151', margin: 0 }}>
+          Este encuentro ya no está disponible
+        </p>
       </div>
     </ScreenContainer>
   );

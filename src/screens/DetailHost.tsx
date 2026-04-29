@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
+import { MoreVertical } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
@@ -36,6 +37,9 @@ const DetailHost: React.FC = () => {
   const [cancelling, setCancelling] = useState(false);
   const [fromCancelled, setFromCancelled] = useState<any>(null);
   const [copiedNewShare, setCopiedNewShare] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
@@ -108,6 +112,20 @@ const DetailHost: React.FC = () => {
       console.error('[DetailHost] Error cancelando encuentro:', err);
       alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
     } finally { setCancelling(false); }
+  };
+
+  const handleDeleteEncuentro = async () => {
+    if (!id) return;
+    try {
+      setIsDeleting(true);
+      await encuentrosService.deleteEncuentro(id);
+      useHomeStore.getState().invalidateCache();
+      setShowDeleteModal(false);
+      navigate('/');
+    } catch (err: any) {
+      console.error('[DetailHost] Error eliminando encuentro:', err);
+      alert(`Error al eliminar: ${err?.message || 'Error desconocido'}`);
+    } finally { setIsDeleting(false); }
   };
 
   const handleShareNewEncuentro = async () => {
@@ -249,6 +267,45 @@ const DetailHost: React.FC = () => {
     );
   };
 
+  const getDeleteModalMessage = () => {
+    let msg = '';
+    if (participantes.length > 0) {
+      msg += 'Este encuentro ya fue compartido. Las personas invitadas perderán acceso. ';
+    }
+    if (badge.label.includes('Activo') || badge.label.includes('En curso') || badge.label.includes('Listo') || badge.label.includes('Empieza')) {
+      msg += 'Este encuentro está activo o próximo a realizarse. ';
+    }
+    msg += '¿Querés eliminarlo?';
+    return msg;
+  };
+
+  const deleteModal = showDeleteModal ? (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: '24px 24px 0 0',
+        padding: '28px 24px 40px', width: '100%', maxWidth: 480,
+        boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
+      }}>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>¿Eliminar encuentro?</h3>
+        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24 }}>
+          {getDeleteModalMessage()}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button fullWidth variant="primary" style={{ background: '#DC2626', color: '#fff' }} onClick={handleDeleteEncuentro} disabled={isDeleting}>
+            {isDeleting ? 'Eliminando…' : 'Eliminar'}
+          </Button>
+          <Button fullWidth variant="outline" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const cancelModal = showCancelModal ? (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 100,
@@ -279,7 +336,51 @@ const DetailHost: React.FC = () => {
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       {cancelModal}
-      <AppBar title="" showBack />
+      {deleteModal}
+      <AppBar
+        title=""
+        showBack
+        rightAction={
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowContextMenu(!showContextMenu)}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: '50%',
+                color: '#111827'
+              }}
+            >
+              <MoreVertical size={20} />
+            </button>
+            {showContextMenu && (
+              <>
+                <div
+                  onClick={() => setShowContextMenu(false)}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }}
+                />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                  background: '#fff', border: '1px solid rgba(0,0,0,0.08)',
+                  borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                  zIndex: 100, width: 140, padding: '4px 0'
+                }}>
+                  <button
+                    onClick={() => { setShowContextMenu(false); setShowDeleteModal(true); }}
+                    style={{
+                      width: '100%', padding: '12px 16px', border: 'none',
+                      background: 'transparent', color: '#DC2626', fontWeight: 600,
+                      fontSize: 14, textAlign: 'left', cursor: 'pointer'
+                    }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        }
+      />
 
       <div
         id="detail-scroll-container"
