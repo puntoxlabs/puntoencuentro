@@ -415,16 +415,22 @@ const Home: React.FC = () => {
                 fontSize: 22, fontWeight: 800, textAlign: 'center',
                 margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
               }}>
-                Todavía no tenés encuentros<br />programados 👇
+                {encuentros.length === 0 ? (
+                  <>Todavía no tenés encuentros<br />programados 👇</>
+                ) : (
+                  <>No tenés encuentros próximos</>
+                )}
               </h2>
-              <Button
-                variant="primary"
-                fullWidth
-                style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
-                onClick={() => { resetWizard(); navigate('/create'); }}
-              >
-                + Crear encuentro
-              </Button>
+              {encuentros.length === 0 && (
+                <Button
+                  variant="primary"
+                  fullWidth
+                  style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
+                  onClick={() => { resetWizard(); navigate('/create'); }}
+                >
+                  + Crear encuentro
+                </Button>
+              )}
             </div>
           )
         ) : (
