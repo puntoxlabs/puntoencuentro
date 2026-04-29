@@ -267,17 +267,38 @@ const DetailHost: React.FC = () => {
     );
   };
 
-  const getDeleteModalMessage = () => {
-    let msg = '';
+  const getDeleteConfig = () => {
+    if (isCancelado) {
+      return {
+        title: '¿Eliminar este encuentro?',
+        desc: 'Este encuentro fue cancelado. Al eliminarlo, desaparecerá de tu historial.'
+      };
+    }
+    if (isFinalizado) {
+      return {
+        title: '¿Eliminar del historial?',
+        desc: 'Este encuentro ya finalizó. Al eliminarlo, dejará de aparecer en tu historial. Esta acción no se puede deshacer.'
+      };
+    }
+    
+    // Activo o Próximo
+    let desc = 'Este encuentro está programado o en curso. ';
     if (participantes.length > 0) {
-      msg += 'Este encuentro ya fue compartido. Las personas invitadas perderán acceso. ';
+      desc = 'Este encuentro fue compartido. Las personas invitadas perderán acceso. ' + desc + '¿Querés eliminarlo?';
+      return {
+        title: '¿Querés eliminar este encuentro?',
+        desc
+      };
+    } else {
+      desc += 'Esta acción no se puede deshacer.';
+      return {
+        title: '¿Querés eliminar este encuentro?',
+        desc
+      };
     }
-    if (badge.label.includes('Activo') || badge.label.includes('En curso') || badge.label.includes('Listo') || badge.label.includes('Empieza')) {
-      msg += 'Este encuentro está activo o próximo a realizarse. ';
-    }
-    msg += '¿Querés eliminarlo?';
-    return msg;
   };
+
+  const delConfig = getDeleteConfig();
 
   const deleteModal = showDeleteModal ? (
     <div style={{
@@ -290,9 +311,9 @@ const DetailHost: React.FC = () => {
         padding: '28px 24px 40px', width: '100%', maxWidth: 480,
         boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
       }}>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>¿Eliminar encuentro?</h3>
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{delConfig.title}</h3>
         <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24 }}>
-          {getDeleteModalMessage()}
+          {delConfig.desc}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Button fullWidth variant="primary" style={{ background: '#DC2626', color: '#fff' }} onClick={handleDeleteEncuentro} disabled={isDeleting}>
