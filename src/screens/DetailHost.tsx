@@ -14,6 +14,13 @@ import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
 import { useHomeStore } from '@/store/homeStore';
 
+/** Devuelve true si la fecha+hora del encuentro ya pasó */
+function isEncuentroPasado(enc: any): boolean {
+  if (!enc?.fecha || !enc?.hora) return false;
+  const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
+  return fechaHora < new Date();
+}
+
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
   fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 10,
@@ -156,6 +163,10 @@ const DetailHost: React.FC = () => {
   const pendientes  = participantes.filter(p => p.estado === 'pendiente');
   const rechazados  = participantes.filter(p => p.estado === 'rechazado');
 
+  const isCancelado  = encuentro.estado === 'cancelado';
+  const isFinalizado = !isCancelado && isEncuentroPasado(encuentro);
+  const isReadOnly   = isFinalizado; // vista solo lectura para finalizados
+
   const handleShareLink = async (token: string, partId: string) => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -287,10 +298,24 @@ const DetailHost: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, flex: 1, marginRight: 10 }}>{encuentro.titulo}</h2>
             <Badge
-              label={encuentro.estado === 'activo' ? 'Activo' : encuentro.estado === 'cancelado' ? 'Cancelado' : encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)}
-              status={encuentro.estado === 'activo' ? 'confirmed' : encuentro.estado === 'cancelado' ? 'rejected' : 'default'}
+              label={isFinalizado ? 'Finalizado' : encuentro.estado === 'activo' ? 'Activo' : encuentro.estado === 'cancelado' ? 'Cancelado' : encuentro.estado.charAt(0).toUpperCase() + encuentro.estado.slice(1)}
+              status={isFinalizado ? 'default' : encuentro.estado === 'activo' ? 'confirmed' : encuentro.estado === 'cancelado' ? 'rejected' : 'default'}
             />
           </div>
+
+          {/* Banner solo lectura para finalizados */}
+          {isReadOnly && (
+            <div style={{
+              background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 14px',
+              marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
+              border: '1px solid rgba(0,0,0,0.08)',
+            }}>
+              <span style={{ fontSize: 16 }}>🔒</span>
+              <span style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', fontWeight: 500 }}>
+                Este encuentro ya finalizó. No se puede modificar.
+              </span>
+            </div>
+          )}
 
           <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
           <div style={metaRow}>
@@ -298,16 +323,23 @@ const DetailHost: React.FC = () => {
             <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
           </div>
 
+          {/* Link virtual: solo texto si es solo lectura, interactivo si no */}
           {encuentro.modalidad === 'virtual' && encuentro.link_virtual && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={linkBox}>{encuentro.link_virtual}</div>
-              <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
-                {t('open_video_call', 'Abrir videollamada')}
-              </Button>
-              <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
-                {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
-              </Button>
-            </div>
+            isReadOnly ? (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ ...linkBox, cursor: 'default', userSelect: 'text' }}>{encuentro.link_virtual}</div>
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={linkBox}>{encuentro.link_virtual}</div>
+                <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
+                  {t('open_video_call', 'Abrir videollamada')}
+                </Button>
+                <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>
+                  {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+                </Button>
+              </div>
+            )
           )}
 
           {encuentro.descripcion && (
@@ -317,41 +349,43 @@ const DetailHost: React.FC = () => {
           )}
         </div>
 
-        {/* Action buttons */}
-        <div style={{ marginBottom: 24, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {encuentro.estado !== 'cancelado' && encuentro.tipo_invitacion === 'link_general' && (
-            <Button fullWidth onClick={() => navigate(`/share/${encuentro.id}`)}>
-              🔗 Compartir link de invitación
-            </Button>
-          )}
-          {encuentro.estado !== 'cancelado' && encuentro.tipo_invitacion === 'individual' && (
-            <Button fullWidth onClick={() => navigate(`/add-guests/${encuentro.id}`)}>
-              + Agregar invitados
-            </Button>
-          )}
-          {encuentro.estado !== 'cancelado' && (
-            <button
-              id="btn-cancelar-encuentro"
-              onClick={() => setShowCancelModal(true)}
-              style={{
-                background: 'none', border: '1.5px solid rgba(220,38,38,0.35)',
-                borderRadius: 12, padding: '12px 16px', cursor: 'pointer',
-                fontFamily: 'var(--font-family)', fontSize: 14, fontWeight: 600,
-                color: '#DC2626', width: '100%', textAlign: 'center',
-                transition: 'background 0.15s ease',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(220,38,38,0.05)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              Cancelar encuentro
-            </button>
-          )}
-          {encuentro.estado === 'cancelado' && (
-            <Button fullWidth variant="outline" onClick={() => navigate(`/cancel-summary/${encuentro.id}`)}>
-              Ver detalle de cancelación
-            </Button>
-          )}
-        </div>
+        {/* Action buttons — ocultos en modo solo lectura (finalizados) */}
+        {!isReadOnly && (
+          <div style={{ marginBottom: 24, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {!isCancelado && encuentro.tipo_invitacion === 'link_general' && (
+              <Button fullWidth onClick={() => navigate(`/share/${encuentro.id}`)}>
+                🔗 Compartir link de invitación
+              </Button>
+            )}
+            {!isCancelado && encuentro.tipo_invitacion === 'individual' && (
+              <Button fullWidth onClick={() => navigate(`/add-guests/${encuentro.id}`)}>
+                + Agregar invitados
+              </Button>
+            )}
+            {!isCancelado && (
+              <button
+                id="btn-cancelar-encuentro"
+                onClick={() => setShowCancelModal(true)}
+                style={{
+                  background: 'none', border: '1.5px solid rgba(220,38,38,0.35)',
+                  borderRadius: 12, padding: '12px 16px', cursor: 'pointer',
+                  fontFamily: 'var(--font-family)', fontSize: 14, fontWeight: 600,
+                  color: '#DC2626', width: '100%', textAlign: 'center',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(220,38,38,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Cancelar encuentro
+              </button>
+            )}
+            {isCancelado && (
+              <Button fullWidth variant="outline" onClick={() => navigate(`/cancel-summary/${encuentro.id}`)}>
+                Ver detalle de cancelación
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Banner: nuevo encuentro creado desde cancelación */}
         {fromCancelled && (

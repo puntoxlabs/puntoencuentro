@@ -128,43 +128,57 @@ const JoinGeneral: React.FC = () => {
     </ScreenContainer>
   );
 
-  // Encuentro cancelado — bloquear confirmación
+  // Encuentro cancelado — mostrar info sin permitir interacción
   if (encuentro?.estado === 'cancelado') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
-      <AppBar title="Encuentro cancelado" />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0, padding: '20px 0' }}>
+      <AppBar title="Encuentro" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
+
+        {/* Banner destacado */}
         <div style={{
-          background: 'rgba(220,38,38,0.08)', borderRadius: 16, padding: '16px',
-          border: '1px solid rgba(220,38,38,0.2)', marginBottom: 24,
-          display: 'flex', alignItems: 'center', gap: 12,
+          background: '#B91C1C',
+          borderRadius: 16, padding: '18px 20px',
+          marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 14,
         }}>
-          <span style={{ fontSize: 24 }}>❌</span>
+          <span style={{ fontSize: 28, lineHeight: 1 }}>❌</span>
           <div>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#B91C1C' }}>Este encuentro fue cancelado</p>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 2 }}>
-              El organizador canceló este encuentro.
+            <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#fff' }}>Encuentro cancelado</p>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>
+              El organizador canceló este encuentro
             </p>
           </div>
         </div>
+
+        {/* Detalle del encuentro (solo lectura) */}
         <div style={{
           background: '#fff', borderRadius: 20, padding: '20px',
-          border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
         }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>{encuentro.titulo}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
             <span>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
             <span>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
             <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
           </div>
+          {encuentro.modalidad === 'virtual' && encuentro.link_virtual && (
+            <div style={{
+              background: 'var(--color-primary-container)', borderRadius: 10, padding: '8px 12px',
+              fontSize: 13, color: 'var(--color-on-surface-variant)', wordBreak: 'break-all',
+              marginTop: 4, userSelect: 'text',
+            }}>
+              {encuentro.link_virtual}
+            </div>
+          )}
         </div>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 24, fontStyle: 'italic' }}>
-          No es necesario confirmar asistencia.
-        </p>
+
       </div>
     </ScreenContainer>
   );
+
 
   if (step === 'done') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
