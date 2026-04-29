@@ -225,6 +225,7 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
   const totalProximos = (encuentros || []).filter(enc => enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
   const totalPasados = (encuentros || []).filter(enc => enc.estado === 'cancelado' || isEncuentroPasado(enc)).length;
@@ -361,81 +362,73 @@ const Home: React.FC = () => {
       </div>
     );
 
-    const hasNoPending = proximos.length === 0 && pasados.length > 0;
+    const slideClass = activeTab === 'upcoming' ? 'slide-from-left' : 'slide-from-right';
 
     return (
       <div
+        key={activeTab}
         id="home-scroll-container"
         onScroll={handleScroll}
+        className={slideClass}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingBottom: 80, paddingTop: 16 }}
       >
-        {/* Header de contadores con Chips */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-          <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-             <span style={{ fontSize: 15 }}>🗓️</span>
-             <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Próximos: <span style={{ color: 'var(--color-primary)' }}>{proximos.length}</span></span>
-          </div>
-          <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-             <span style={{ fontSize: 15 }}>🕒</span>
-             <span style={{ fontSize: 13, fontWeight: 700, color: '#6B7280' }}>Anteriores: {pasados.length}</span>
-          </div>
-        </div>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes slideFromLeft {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideFromRight {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          .slide-from-left { animation: slideFromLeft 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+          .slide-from-right { animation: slideFromRight 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+        `}} />
 
-        {/* Encuentros próximos */}
-        {proximos.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: pasados.length > 0 ? 36 : 0 }}>
-            {proximos.map(enc => (
-              <ActiveCard
-                key={enc.id}
-                enc={enc}
-                onClick={() => navigate(`/meet/${enc.id}`)}
-                participantesCache={detailCache[enc.id]?.participantes ?? null}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Banner "sin próximos" cuando hay historial */}
-        {hasNoPending && (
-          <div style={{
-            background: '#fff',
-            borderLeft: '4px solid var(--color-primary)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            borderRadius: 16,
-            padding: '20px',
-            marginBottom: 36,
-            display: 'flex', alignItems: 'center', gap: 16,
-          }}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, background: 'var(--color-primary-container)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-               <Calendar size={22} color="var(--color-primary)" />
+        {activeTab === 'upcoming' ? (
+          proximos.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {proximos.map(enc => (
+                <ActiveCard
+                  key={enc.id}
+                  enc={enc}
+                  onClick={() => navigate(`/meet/${enc.id}`)}
+                  participantesCache={detailCache[enc.id]?.participantes ?? null}
+                />
+              ))}
             </div>
-            <div>
-              <p style={{ margin: 0, fontWeight: 800, fontSize: 15, color: '#111827' }}>
-                No tenés encuentros próximos
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-                Repetí uno anterior o creá uno nuevo
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Encuentros anteriores */}
-        {pasados.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {/* Separador con título */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <p style={{
-                fontSize: 13, fontWeight: 800,
-                color: '#6B7280',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                margin: 0, whiteSpace: 'nowrap',
+          ) : (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              padding: '40px 20px',
+            }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: 28,
+                background: 'var(--color-primary-container)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 24,
               }}>
-                Tus encuentros anteriores
-              </p>
-              <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
+                <Calendar size={32} color="var(--color-primary)" />
+              </div>
+              <h2 style={{
+                fontSize: 22, fontWeight: 800, textAlign: 'center',
+                margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
+              }}>
+                Todavía no tenés encuentros<br />programados 👇
+              </h2>
+              <Button
+                variant="primary"
+                fullWidth
+                style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
+                onClick={() => { resetWizard(); navigate('/create'); }}
+              >
+                + Crear encuentro
+              </Button>
             </div>
-
+          )
+        ) : (
+          pasados.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {pasados.map(enc => (
                 <PastCard
@@ -447,7 +440,14 @@ const Home: React.FC = () => {
                 />
               ))}
             </div>
-          </div>
+          ) : (
+            <div style={{
+              textAlign: 'center', padding: '60px 20px', color: '#6B7280',
+              fontSize: 15, fontWeight: 600
+            }}>
+              No hay encuentros anteriores
+            </div>
+          )
         )}
       </div>
     );
@@ -496,6 +496,69 @@ const Home: React.FC = () => {
           <Sliders size={20} />
         </button>
       </header>
+
+      {/* Segmented Control Toggle */}
+      {!loading && encuentros.length > 0 && (
+        <div style={{ padding: '16px 20px 0 20px', background: '#F4F6FB' }}>
+          <div style={{
+            background: '#E8EDF8',
+            borderRadius: 14,
+            padding: 4,
+            display: 'flex',
+            gap: 4
+          }}>
+            <button
+              onClick={() => setActiveTab('upcoming')}
+              style={{
+                flex: 1,
+                padding: '10px 0',
+                borderRadius: 11,
+                border: 'none',
+                background: activeTab === 'upcoming' ? '#fff' : 'transparent',
+                color: activeTab === 'upcoming' ? '#111827' : '#6B7280',
+                fontWeight: activeTab === 'upcoming' ? 700 : 600,
+                fontSize: 14,
+                cursor: 'pointer',
+                boxShadow: activeTab === 'upcoming' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.2s ease',
+                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6
+              }}
+            >
+              <span>Próximos</span>
+              <span style={{
+                background: activeTab === 'upcoming' ? 'var(--color-primary-container)' : '#DCE4F2',
+                color: activeTab === 'upcoming' ? 'var(--color-primary)' : '#6B7280',
+                padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700
+              }}>{totalProximos}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('past')}
+              style={{
+                flex: 1,
+                padding: '10px 0',
+                borderRadius: 11,
+                border: 'none',
+                background: activeTab === 'past' ? '#fff' : 'transparent',
+                color: activeTab === 'past' ? '#111827' : '#6B7280',
+                fontWeight: activeTab === 'past' ? 700 : 600,
+                fontSize: 14,
+                cursor: 'pointer',
+                boxShadow: activeTab === 'past' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.2s ease',
+                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6
+              }}
+            >
+              <span>Anteriores</span>
+              <span style={{
+                background: activeTab === 'past' ? 'var(--color-primary-container)' : '#DCE4F2',
+                color: activeTab === 'past' ? 'var(--color-primary)' : '#6B7280',
+                padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700
+              }}>{totalPasados}</span>
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
         {renderContent()}
       </div>
