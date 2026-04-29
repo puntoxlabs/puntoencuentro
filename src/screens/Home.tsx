@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Calendar, Sliders, Plus } from 'lucide-react';
@@ -226,6 +225,9 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  const totalProximos = (encuentros || []).filter(enc => enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
+  const totalPasados = (encuentros || []).filter(enc => enc.estado === 'cancelado' || isEncuentroPasado(enc)).length;
 
   useEffect(() => {
     loadData();
@@ -453,23 +455,47 @@ const Home: React.FC = () => {
 
   return (
     <ScreenContainer style={{ background: '#F4F6FB' }}>
-      <AppBar 
-        title="Mis Encuentros" 
-        subtitle="Organizá y gestioná tus encuentros" 
-        rightAction={
-          <button
-            onClick={() => setIsFilterOpen(true)}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, borderRadius: '50%',
-              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
-            }}
-          >
-            <Sliders size={20} />
-          </button>
-        }
-      />
+      <header style={{
+        background: '#F3F7FF',
+        borderBottom: '1px solid #E5E7EB',
+        padding: '20px 16px 16px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '20px',
+            fontWeight: 700,
+            color: '#111827',
+            letterSpacing: '-0.3px',
+            margin: 0
+          }}>
+            Tus encuentros
+          </h1>
+          <p style={{
+            fontSize: '13px',
+            color: '#6B7280',
+            margin: '4px 0 0 0'
+          }}>
+            {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsFilterOpen(true)}
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 36, height: 36, borderRadius: '50%',
+            color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : '#111827'
+          }}
+        >
+          <Sliders size={20} />
+        </button>
+      </header>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
         {renderContent()}
       </div>
