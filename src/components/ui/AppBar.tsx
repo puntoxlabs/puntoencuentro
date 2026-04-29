@@ -5,12 +5,13 @@ import './AppBar.css';
 
 interface AppBarProps {
   title: string;
+  subtitle?: string;
   showBack?: boolean;
   onBack?: () => void;
   rightAction?: React.ReactNode;
 }
 
-export const AppBar: React.FC<AppBarProps> = ({ title, showBack = false, onBack, rightAction }) => {
+export const AppBar: React.FC<AppBarProps> = ({ title, subtitle, showBack = false, onBack, rightAction }) => {
   const navigate = useNavigate();
 
   const handleBack = () => {
@@ -30,7 +31,12 @@ export const AppBar: React.FC<AppBarProps> = ({ title, showBack = false, onBack,
       ) : (
         <div style={{ width: 36 }} />
       )}
-      <h1 className="app-bar-title">{title}</h1>
+      
+      <div className="app-bar-center">
+        <h1 className="app-bar-title">{title}</h1>
+        {subtitle && <p className="app-bar-subtitle">{subtitle}</p>}
+      </div>
+
       {rightAction ? (
         <div className="app-bar-right">{rightAction}</div>
       ) : (

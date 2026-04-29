@@ -455,6 +455,7 @@ const Home: React.FC = () => {
     <ScreenContainer style={{ background: '#F4F6FB' }}>
       <AppBar 
         title="Mis Encuentros" 
+        subtitle="Organizá y gestioná tus encuentros" 
         rightAction={
           <button
             onClick={() => setIsFilterOpen(true)}
