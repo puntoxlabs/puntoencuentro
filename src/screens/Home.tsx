@@ -4,7 +4,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Sliders } from 'lucide-react';
+import { Calendar, Sliders, Plus } from 'lucide-react';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
@@ -365,7 +365,7 @@ const Home: React.FC = () => {
       <div
         id="home-scroll-container"
         onScroll={handleScroll}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingBottom: 24, paddingTop: 16 }}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingBottom: 80, paddingTop: 16 }}
       >
         {/* Header de contadores con Chips */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
@@ -476,13 +476,29 @@ const Home: React.FC = () => {
       
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       
-      {/* Botón crear — siempre visible en el fold */}
+      {/* FAB Botón Crear */}
       {!loading && encuentros.length > 0 && (
-        <div style={{ padding: '16px 20px', background: '#F4F6FB', borderTop: '1px solid rgba(0,0,0,0.03)' }}>
-          <Button fullWidth variant="primary" style={{ height: 56, fontSize: 16, fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} onClick={() => { resetWizard(); navigate('/create'); }}>
-            + Crear encuentro
-          </Button>
-        </div>
+        <button
+          onClick={() => { resetWizard(); navigate('/create'); }}
+          style={{
+            position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+            height: 56, borderRadius: 28, padding: '0 24px',
+            background: 'var(--color-primary)', color: '#fff',
+            border: 'none', cursor: 'pointer',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            transition: 'transform 0.2s ease',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+          }}
+        >
+          <Plus size={24} />
+          <span style={{ fontSize: 16, fontWeight: 700 }}>Crear</span>
+        </button>
       )}
       {!loading && (
         <div style={{ textAlign: 'center', paddingBottom: 12, background: '#F4F6FB' }}>
