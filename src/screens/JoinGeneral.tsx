@@ -132,7 +132,7 @@ const JoinGeneral: React.FC = () => {
   // Encuentro cancelado — mostrar info sin permitir interacción
   if (encuentro?.estado?.toLowerCase() === 'cancelado') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
-      <AppBar title="Encuentro cancelado" />
+      <AppBar title="Detalle del encuentro" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
 
         {/* Banner destacado */}
