@@ -100,16 +100,20 @@ export const encuentrosService = {
   },
 
   async deleteEncuentro(id: string) {
+    console.log('[DELETE] encuentroId:', id);
+
     const { data, error } = await supabase
       .from('encuentros')
       .delete()
       .eq('id', id)
       .select();
 
-    if (error) {
-      console.error("[DELETE ERROR FULL]", error);
-      alert(error.message || JSON.stringify(error));
-      throw error;
+    console.log('[DELETE] data:', data);
+    console.log('[DELETE] error:', error);
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('DELETE ejecutado pero no eliminó filas. Revisar RLS o id.');
     }
     return data;
   },

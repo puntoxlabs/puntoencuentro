@@ -119,6 +119,7 @@ const DetailHost: React.FC = () => {
     try {
       setIsDeleting(true);
       await encuentrosService.deleteEncuentro(id);
+      useHomeStore.setState(state => ({ encuentros: state.encuentros.filter(e => e.id !== id) }));
       useHomeStore.getState().invalidateCache();
       setShowDeleteModal(false);
       navigate('/');
