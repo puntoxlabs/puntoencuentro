@@ -84,13 +84,15 @@ export const encuentrosService = {
       .select();
 
     if (error) {
-      console.error('[CANCEL] Error al cancelar encuentro:', error);
+      console.error("[CANCEL ERROR FULL]", error);
+      alert(error.message || JSON.stringify(error));
       throw error;
     }
 
     if (!data || data.length === 0) {
-      console.error('[CANCEL] No se pudo cancelar el encuentro. No se actualizó ningún registro.');
-      throw new Error('No se pudo cancelar. Verifique los permisos o si el encuentro existe.');
+      console.error("[CANCEL ERROR FULL]", "No se actualizó ningún registro (data vacío)");
+      alert("Error Supabase: No se modificaron filas. Verifique permisos RLS para UPDATE en la tabla 'encuentros'.");
+      throw new Error("No se pudo cancelar. Verifique los permisos o si el encuentro existe.");
     }
 
     console.log('[CANCEL] Cancelación exitosa. Resultado:', data[0]);
