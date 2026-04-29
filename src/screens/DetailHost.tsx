@@ -94,11 +94,18 @@ const DetailHost: React.FC = () => {
     try {
       setCancelling(true);
       await encuentrosService.cancelarEncuentro(id);
+      
+      // Refetch obligatorio para asegurar datos reales de Supabase
+      const updatedEnc = await encuentrosService.getEncuentroById(id);
+      
       useHomeStore.getState().invalidateCache();
-      setEncuentro((prev: any) => ({ ...prev, estado: 'cancelado' }));
+      setEncuentro(updatedEnc);
+      useDetailStore.getState().setDetailData(id, updatedEnc, participantes);
+      
       setShowCancelModal(false);
       navigate(`/cancel-summary/${id}`);
     } catch (err: any) {
+      console.error('[DetailHost] Error cancelando encuentro:', err);
       alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
     } finally { setCancelling(false); }
   };

@@ -76,8 +76,7 @@ export const encuentrosService = {
 
   async cancelarEncuentro(id: string) {
     console.log('[CANCEL] Iniciando cancelación. encuentroId:', id);
-    console.log('[CANCEL] Payload:', { estado: 'cancelado' });
-
+    
     const { data, error } = await supabase
       .from('encuentros')
       .update({ estado: 'cancelado' })
@@ -85,17 +84,16 @@ export const encuentrosService = {
       .select();
 
     if (error) {
-      console.error('[CANCEL] Error al cancelar encuentro:');
-      console.error('  encuentroId:', id);
-      console.error('  error.code:', error.code);
-      console.error('  error.message:', error.message);
-      console.error('  error.details:', error.details);
-      console.error('  error.hint:', error.hint);
-      console.error('  error completo:', JSON.stringify(error));
+      console.error('[CANCEL] Error al cancelar encuentro:', error);
       throw error;
     }
 
-    console.log('[CANCEL] Cancelación exitosa. Resultado:', data);
-    return data?.[0] ?? null;
+    if (!data || data.length === 0) {
+      console.error('[CANCEL] No se pudo cancelar el encuentro. No se actualizó ningún registro.');
+      throw new Error('No se pudo cancelar. Verifique los permisos o si el encuentro existe.');
+    }
+
+    console.log('[CANCEL] Cancelación exitosa. Resultado:', data[0]);
+    return data[0];
   },
 };

@@ -63,12 +63,13 @@ const InviteGuest: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       setParticipante(data);
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
-      if (!enc && data.encuentro_id) {
+      if ((!enc || !enc.estado) && data.encuentro_id) {
         try {
           const { encuentrosService } = await import('@/services/encuentrosService');
           enc = await encuentrosService.getEncuentroById(data.encuentro_id);
         } catch (e) { console.error("Error fetching fallback encuentro", e); }
       }
+      console.log("Estado encuentro:", enc?.estado);
       setEncuentro(enc);
       if (data.estado !== 'pendiente') setStep('done');
     } catch (err) {

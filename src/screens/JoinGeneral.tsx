@@ -52,6 +52,7 @@ const JoinGeneral: React.FC = () => {
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
       console.log('[GENERAL_LINK] encuentro:', data);
+      console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
       const savedDataStr = localStorage.getItem('encuentros_general');
       const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
