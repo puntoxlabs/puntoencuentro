@@ -2,13 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useDetailStore } from '@/store/detailStore';
-import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
@@ -25,7 +23,6 @@ function isEncuentroPasado(enc: any): boolean {
 const DetailHost: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { getValidCache, setDetailData, setScrollPosition } = useDetailStore();
   const validCache = getValidCache(id!);
 
