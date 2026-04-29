@@ -129,9 +129,9 @@ const JoinGeneral: React.FC = () => {
   );
 
   // Encuentro cancelado — mostrar info sin permitir interacción
-  if (encuentro?.estado === 'cancelado') return (
+  if (encuentro?.estado?.toLowerCase() === 'cancelado') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
-      <AppBar title="Encuentro" />
+      <AppBar title="Encuentro cancelado" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
 
         {/* Banner destacado */}
@@ -144,9 +144,6 @@ const JoinGeneral: React.FC = () => {
           <span style={{ fontSize: 28, lineHeight: 1 }}>❌</span>
           <div>
             <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#fff' }}>Encuentro cancelado</p>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>
-              El organizador canceló este encuentro
-            </p>
           </div>
         </div>
 
@@ -155,6 +152,7 @@ const JoinGeneral: React.FC = () => {
           background: '#fff', borderRadius: 20, padding: '20px',
           border: '1px solid rgba(0,0,0,0.06)',
           boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom: 20,
         }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>{encuentro.titulo}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
@@ -174,6 +172,10 @@ const JoinGeneral: React.FC = () => {
             </div>
           )}
         </div>
+
+        <p style={{ margin: 0, fontSize: 15, color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
+          El organizador canceló este encuentro. No es posible unirse.
+        </p>
 
       </div>
     </ScreenContainer>
