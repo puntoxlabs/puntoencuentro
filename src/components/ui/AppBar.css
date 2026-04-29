@@ -4,20 +4,21 @@
   justify-content: space-between;
   height: 60px;
   padding: 0 20px;
-  background-color: var(--color-background);
+  background: linear-gradient(180deg, #F8FAFF 0%, #FFFFFF 100%);
   position: sticky;
   top: 0;
   z-index: 10;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .app-bar-title {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   color: var(--color-on-surface);
   margin: 0;
   flex: 1;
   text-align: center;
+  letter-spacing: -0.3px;
 }
 
 .app-bar-back {
