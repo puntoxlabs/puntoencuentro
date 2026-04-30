@@ -169,6 +169,18 @@ const ShareLink: React.FC = () => {
         <Button fullWidth variant="outline" onClick={() => navigate(`/meet/${id}`)}>
           Ver encuentro
         </Button>
+
+        <button
+          onClick={() => navigate('/', { replace: true })}
+          style={{
+            background: 'none', border: 'none',
+            color: 'var(--color-on-surface-variant)', fontSize: 13, fontWeight: 500,
+            padding: '10px', cursor: 'pointer', opacity: 0.7,
+            marginTop: 4, width: 'fit-content', alignSelf: 'center'
+          }}
+        >
+          Ir al inicio
+        </button>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

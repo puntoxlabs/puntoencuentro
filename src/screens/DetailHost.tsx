@@ -388,6 +388,17 @@ const DetailHost: React.FC = () => {
                   zIndex: 100, width: 140, padding: '4px 0'
                 }}>
                   <button
+                    onClick={() => { setShowContextMenu(false); navigate('/', { replace: true }); }}
+                    style={{
+                      width: '100%', padding: '12px 16px', border: 'none',
+                      background: 'transparent', color: '#111827', fontWeight: 600,
+                      fontSize: 14, textAlign: 'left', cursor: 'pointer',
+                      borderBottom: '1px solid rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    Ir al inicio
+                  </button>
+                  <button
                     onClick={() => { setShowContextMenu(false); setShowDeleteModal(true); }}
                     style={{
                       width: '100%', padding: '12px 16px', border: 'none',
