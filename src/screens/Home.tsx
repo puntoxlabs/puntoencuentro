@@ -13,14 +13,19 @@ import { useWizardStore } from '@/store/wizardStore';
 import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
-import throttle from 'lodash/throttle';
+import { throttle } from 'lodash';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó */
 function isEncuentroPasado(enc: any): boolean {
-  if (!enc.fecha || !enc.hora) return false;
-  const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
-  fechaHora.setHours(fechaHora.getHours() + 2); // 2 hours grace period like DetailHost
-  return fechaHora < new Date();
+  if (!enc || !enc.fecha || !enc.hora) return false;
+  try {
+    const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
+    if (isNaN(fechaHora.getTime())) return false;
+    fechaHora.setHours(fechaHora.getHours() + 2); // 2 hours grace period like DetailHost
+    return fechaHora < new Date();
+  } catch (e) {
+    return false;
+  }
 }
 
 /** Obtiene el color primario del tema del encuentro */
@@ -325,7 +330,7 @@ const Home: React.FC = () => {
       : (filterStatus === 'finished' || filterStatus === 'cancelled' ? sorted : []);
 
     // Estado vacío total
-    if (encuentros.length === 0) return (
+    if (!encuentros || encuentros.length === 0) return (
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',

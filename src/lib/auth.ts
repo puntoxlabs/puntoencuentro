@@ -6,7 +6,11 @@ export const getHostId = (): string => {
   let hostId = localStorage.getItem(HOST_KEY);
   
   if (!hostId) {
-    hostId = crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      hostId = crypto.randomUUID();
+    } else {
+      hostId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
     localStorage.setItem(HOST_KEY, hostId);
   }
   
