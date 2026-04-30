@@ -15,6 +15,7 @@ CREATE TABLE public.encuentros (
     public_token UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'cancelado')),
     tema TEXT NOT NULL DEFAULT 'blue' CHECK (tema IN ('blue', 'green', 'orange', 'purple')),
+    reemplaza_a UUID NULL REFERENCES public.encuentros(id),
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

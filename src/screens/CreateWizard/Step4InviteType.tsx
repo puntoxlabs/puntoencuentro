@@ -31,7 +31,7 @@ const Step4InviteType: React.FC = () => {
     try {
       setLoading(true);
       const hostId = getHostId();
-      const newEncuentro = await encuentrosService.createEncuentro({
+      const payload = {
         titulo: wizardData.titulo,
         descripcion: wizardData.descripcion,
         fecha: wizardData.fecha,
@@ -47,12 +47,16 @@ const Step4InviteType: React.FC = () => {
           if (refStr) {
             try {
               const ref = JSON.parse(refStr);
-              return ref.fromId || null;
+              // Use oldId instead of fromId as defined in CancelSummary.tsx
+              return ref.oldId || ref.fromId || null;
             } catch (e) { return null; }
           }
           return null;
         })(),
-      });
+      };
+
+      console.log('[CREATE PAYLOAD]', payload);
+      const newEncuentro = await encuentrosService.createEncuentro(payload);
       // Update cancel_reference with the new encounter id if coming from cancellation
       const cancelRefStr = sessionStorage.getItem('cancel_reference');
       if (cancelRefStr) {
@@ -68,9 +72,9 @@ const Step4InviteType: React.FC = () => {
       } else {
         navigate(`/share/${newEncuentro.id}`);
       }
-    } catch (error) {
-      console.error(error);
-      alert('Hubo un error al crear el encuentro');
+    } catch (error: any) {
+      console.error('[CREATE ERROR FULL]', error);
+      alert(error?.message || JSON.stringify(error));
     } finally { setLoading(false); }
   };
 
