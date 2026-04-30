@@ -10,6 +10,15 @@ const Step1Data: React.FC = () => {
   const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
 
+  const now = new Date();
+  const localYear = now.getFullYear();
+  const localMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const localDay = String(now.getDate()).padStart(2, '0');
+  const minDate = `${localYear}-${localMonth}-${localDay}`;
+
+  const isToday = fecha === minDate;
+  const minTime = isToday ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : undefined;
+
   const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '';
 
   const handleNext = () => {
@@ -25,8 +34,18 @@ const Step1Data: React.FC = () => {
   const handleFechaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setField('fecha', val);
-    if (val) {
-      setError(validateEncounterDate(val, hora));
+    
+    // Si cambia a una fecha donde la hora actual ya no es válida, validamos
+    const err = validateEncounterDate(val, hora);
+    setError(err);
+
+    // Si la fecha es hoy y no hay hora, o la hora es vieja, podríamos sugerir una
+    if (val === minDate && (!hora || validateEncounterDate(val, hora))) {
+      const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+      nextHour.setMinutes(0);
+      const sugTime = `${String(nextHour.getHours()).padStart(2, '0')}:00`;
+      setField('hora', sugTime);
+      setError(null); // Al sugerir una válida, limpiamos el error
     }
   };
 
@@ -42,7 +61,11 @@ const Step1Data: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}>
       <div style={{ marginBottom: 8 }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>¿Cuándo y dónde?</h2>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 0 }}>Ponele un nombre y una fecha a tu encuentro.</p>
+        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 4 }}>Ponele un nombre y una fecha a tu encuentro.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-primary)', fontSize: 12, fontWeight: 700 }}>
+          <span>✨</span>
+          <span>Solo podés crear encuentros futuros.</span>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 24 }}>
@@ -57,13 +80,20 @@ const Step1Data: React.FC = () => {
           type="date"
           value={fecha}
           onChange={handleFechaChange}
+          min={minDate}
         />
-        <Input
-          label="Hora"
-          type="time"
-          value={hora}
-          onChange={handleHoraChange}
-        />
+        <div style={{ position: 'relative' }}>
+          <Input
+            label="Hora"
+            type="time"
+            value={hora}
+            onChange={handleHoraChange}
+            min={minTime}
+          />
+          <p style={{ fontSize: 11, color: 'var(--color-on-surface-variant)', marginTop: -12, marginBottom: 8, opacity: 0.8 }}>
+            {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
+          </p>
+        </div>
         <Input
           label="Descripción (opcional)"
           value={descripcion}
