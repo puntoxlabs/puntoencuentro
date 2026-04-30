@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
+import { validateEncounterDate } from '@/lib/formatDate';
 
 const optionCard = (selected: boolean, disabled: boolean): React.CSSProperties => ({
   background: selected ? 'var(--color-primary-container)' : '#fff',
@@ -19,8 +20,14 @@ const Step4InviteType: React.FC = () => {
   const { setField, ...wizardData } = useWizardStore();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFinish = async (tipo: 'individual' | 'link_general') => {
+    const validationError = validateEncounterDate(wizardData.fecha, wizardData.hora);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     try {
       setLoading(true);
       const hostId = getHostId();
@@ -83,6 +90,25 @@ const Step4InviteType: React.FC = () => {
           <p style={{ margin: 0, fontSize: 14 }}>Cualquiera con el link puede sumarse</p>
         </div>
       </div>
+      
+      {error && (
+        <div style={{ 
+          marginTop: 20,
+          background: 'var(--color-error-container, #fee2e2)', 
+          color: 'var(--color-error, #dc2626)', 
+          padding: '12px 16px', 
+          borderRadius: 14, 
+          fontSize: 13, 
+          fontWeight: 600,
+          textAlign: 'center',
+          border: '1px solid var(--color-error, #dc2626)'
+        }}>
+          {error}
+          <div style={{ marginTop: 8, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setField('step', 1)}>
+            Volver a corregir fecha y hora
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div style={{ textAlign: 'center', marginTop: 24, color: 'var(--color-primary)', fontSize: 15, fontWeight: 600 }}>

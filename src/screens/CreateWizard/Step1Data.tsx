@@ -1,13 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ThemePicker } from '@/components/ui/ThemePicker';
 import { useWizardStore } from '@/store/wizardStore';
 import type { ThemeId } from '@/lib/themes';
+import { validateEncounterDate } from '@/lib/formatDate';
 
 const Step1Data: React.FC = () => {
   const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
+  const [error, setError] = useState<string | null>(null);
+
   const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '';
+
+  const handleNext = () => {
+    const validationError = validateEncounterDate(fecha, hora);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    nextStep();
+  };
+
+  const handleFechaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setField('fecha', val);
+    if (val) {
+      setError(validateEncounterDate(val, hora));
+    }
+  };
+
+  const handleHoraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setField('hora', val);
+    if (val) {
+      setError(validateEncounterDate(fecha, val));
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}>
@@ -27,13 +56,13 @@ const Step1Data: React.FC = () => {
           label="Fecha"
           type="date"
           value={fecha}
-          onChange={(e) => setField('fecha', e.target.value)}
+          onChange={handleFechaChange}
         />
         <Input
           label="Hora"
           type="time"
           value={hora}
-          onChange={(e) => setField('hora', e.target.value)}
+          onChange={handleHoraChange}
         />
         <Input
           label="Descripción (opcional)"
@@ -48,7 +77,22 @@ const Step1Data: React.FC = () => {
       </div>
 
       <div style={{ paddingTop: 24 }}>
-        <Button fullWidth onClick={nextStep} disabled={!isValid}>
+        {error && (
+          <div style={{ 
+            background: 'var(--color-error-container, #fee2e2)', 
+            color: 'var(--color-error, #dc2626)', 
+            padding: '10px 14px', 
+            borderRadius: 12, 
+            fontSize: 13, 
+            fontWeight: 600, 
+            marginBottom: 16,
+            textAlign: 'center',
+            border: '1px solid var(--color-error, #dc2626)'
+          }}>
+            {error}
+          </div>
+        )}
+        <Button fullWidth onClick={handleNext} disabled={!isValid}>
           Continuar
         </Button>
       </div>
