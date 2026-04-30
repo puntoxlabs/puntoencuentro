@@ -42,6 +42,16 @@ const Step4InviteType: React.FC = () => {
         tipo_invitacion: tipo,
         host_id: hostId,
         tema: wizardData.tema || 'blue',
+        reemplaza_a: (() => {
+          const refStr = sessionStorage.getItem('cancel_reference');
+          if (refStr) {
+            try {
+              const ref = JSON.parse(refStr);
+              return ref.fromId || null;
+            } catch (e) { return null; }
+          }
+          return null;
+        })(),
       });
       // Update cancel_reference with the new encounter id if coming from cancellation
       const cancelRefStr = sessionStorage.getItem('cancel_reference');

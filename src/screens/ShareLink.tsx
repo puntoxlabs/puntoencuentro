@@ -11,6 +11,7 @@ const ShareLink: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [encuentro, setEncuentro] = useState<any>(null);
+  const [anteriorData, setAnteriorData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -22,6 +23,34 @@ const ShareLink: React.FC = () => {
       setLoading(true); setError(null);
       const enc = await encuentrosService.getEncuentroById(id!);
       setEncuentro(enc);
+
+      // 1. Detect replacement from DB
+      if (enc.reemplaza_a) {
+        try {
+          const ant = await encuentrosService.getEncuentroById(enc.reemplaza_a);
+          setAnteriorData(ant);
+        } catch (e) { console.error('Error loading anterior', e); }
+      } 
+      // 2. Fallback: sessionStorage
+      else {
+        const refStr = sessionStorage.getItem('cancel_reference');
+        if (refStr) {
+          try {
+            const ref = JSON.parse(refStr);
+            if (ref.newId === id || ref.fromId) {
+              setAnteriorData({
+                titulo: ref.title,
+                fecha: ref.date,
+                hora: ref.time
+              });
+            }
+          } catch (e) { console.error('Error parsing ref', e); }
+        }
+      }
+
+      // Cleanup session storage after processing
+      sessionStorage.removeItem('cancel_reference');
+
     } catch (err) {
       console.error('Error loading data', err);
       setError('No se pudo cargar el encuentro.');
@@ -32,14 +61,20 @@ const ShareLink: React.FC = () => {
 
   const handleShare = async () => {
     try {
+      let shareText = 'Te invito a este encuentro 👇 Confirmá si podés asistir:';
+      
+      if (anteriorData) {
+        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior: ${anteriorData.titulo} – ${formatFriendlyDate(anteriorData.fecha, anteriorData.hora)}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nNuevo enlace:`;
+      }
+
       if (navigator.share) {
         await navigator.share({
           title: encuentro?.titulo || 'Invitación',
-          text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:',
+          text: shareText,
           url: shareUrl
         });
       } else {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         setCopied(true); setTimeout(() => setCopied(false), 2000);
       }
     } catch (err) {
@@ -72,11 +107,32 @@ const ShareLink: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Compartir invitación" showBack />
 
+      {/* Replacement Banner */}
+      {anteriorData && (
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(10px)',
+          borderRadius: 16,
+          padding: '12px 16px',
+          marginTop: 16,
+          border: '1.5px dashed var(--color-primary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          animation: 'fadeIn 0.5s ease-out'
+        }}>
+          <span style={{ fontSize: 18 }}>✨</span>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-primary-dark)' }}>
+            Este encuentro reemplaza a: <span style={{ fontWeight: 800 }}>{anteriorData.titulo}</span>
+          </p>
+        </div>
+      )}
+
       {/* Event summary */}
       <div style={{
         background: '#fff', borderRadius: 20, padding: '20px',
         border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
-        marginTop: 20, marginBottom: 24,
+        marginTop: anteriorData ? 12 : 20, marginBottom: 24,
       }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
           Encuentro
@@ -114,6 +170,13 @@ const ShareLink: React.FC = () => {
           Ver encuentro
         </Button>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}} />
     </ScreenContainer>
   );
 };

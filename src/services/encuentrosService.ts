@@ -11,6 +11,7 @@ export interface CreateEncuentroDTO {
   tipo_invitacion: 'individual' | 'link_general';
   host_id: string;
   tema?: string;
+  reemplaza_a?: string | null;
 }
 
 export const encuentrosService = {
