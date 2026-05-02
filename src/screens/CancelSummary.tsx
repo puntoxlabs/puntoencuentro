@@ -108,32 +108,6 @@ const CancelSummary: React.FC = () => {
     </ScreenContainer>
   );
 
-  const confirmados = participantes.filter(p => p.estado === 'confirmado');
-  const pendientes = participantes.filter(p => p.estado === 'pendiente');
-  const rechazados = participantes.filter(p => p.estado === 'rechazado');
-  const esIndividual = encuentro.tipo_invitacion === 'individual';
-
-  const renderRow = (p: any, index: number) => {
-    const s = p.estado === 'confirmado' ? 'confirmed' : p.estado === 'rechazado' ? 'rejected' : 'pending';
-    const l = p.estado === 'confirmado' ? 'Confirmado' : p.estado === 'rechazado' ? 'No asiste' : 'Pendiente';
-    return (
-      <div key={`${p.nombre_invitado}-${index}`} style={{
-        background: '#fff', borderRadius: 12, padding: '10px 14px',
-        border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{p.nombre_invitado}</span>
-        <Badge label={l} status={s as any} />
-      </div>
-    );
-  };
-
-  const participantesVisibles = esIndividual
-    ? [...confirmados, ...pendientes, ...rechazados]
-    : confirmados;
-
-  const sinParticipantes = participantesVisibles.length === 0;
-
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Encuentro cancelado" showBack />

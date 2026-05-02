@@ -38,7 +38,7 @@ const Step1Data: React.FC = () => {
     nextStep();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef?: React.RefObject<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef?: React.RefObject<HTMLInputElement | null>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (nextRef && nextRef.current) {
