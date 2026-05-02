@@ -49,7 +49,26 @@ export const useWizardStore = create<WizardState>()(
     }),
     {
       name: 'wizard-storage',
+      version: 1,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Si es una versión antigua, reseteamos para evitar inconsistencias
+          return {
+            step: 1,
+            titulo: '',
+            fecha: '',
+            hora: '',
+            descripcion: '',
+            modalidad: null,
+            lugar_texto: '',
+            link_virtual: '',
+            tipo_invitacion: null,
+            tema: 'blue',
+          };
+        }
+        return persistedState as WizardState;
+      },
     }
   )
 );

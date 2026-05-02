@@ -53,8 +53,17 @@ const JoinGeneral: React.FC = () => {
       console.log('[GENERAL_LINK] encuentro:', data);
       console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
-      const savedDataStr = localStorage.getItem('encuentros_general');
-      const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
+      let savedData = { encuentros: {} };
+      try {
+        const savedDataStr = localStorage.getItem('encuentros_general');
+        if (savedDataStr) {
+          savedData = JSON.parse(savedDataStr);
+        }
+      } catch (e) {
+        console.error('Error parsing encuentros_general from localStorage', e);
+        localStorage.removeItem('encuentros_general');
+      }
+
       const participantData = savedData?.encuentros?.[public_token!];
       const participantId = participantData?.participant_id;
       const participantToken = participantData?.token_invitacion;
@@ -94,8 +103,16 @@ const JoinGeneral: React.FC = () => {
       setLoadingResponse(true);
       const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
       if (newPart && newPart.id) {
-        const savedDataStr = localStorage.getItem('encuentros_general');
-        const savedData = savedDataStr ? JSON.parse(savedDataStr) : { encuentros: {} };
+        let savedData = { encuentros: {} };
+        try {
+          const savedDataStr = localStorage.getItem('encuentros_general');
+          if (savedDataStr) {
+            savedData = JSON.parse(savedDataStr);
+          }
+        } catch (e) {
+          console.error('Error parsing encuentros_general before saving', e);
+        }
+
         if (!savedData.encuentros) savedData.encuentros = {};
         savedData.encuentros[public_token!] = { participant_id: newPart.id, token_invitacion: newPart.token_invitacion };
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));
