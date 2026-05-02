@@ -51,11 +51,12 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
       <div
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0,
+          margin: '0 auto', width: '100%', maxWidth: 520,
           background: '#fff', zIndex: 1000,
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           padding: '24px 20px 30px 20px',
           maxHeight: '85vh', overflowY: 'auto',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.2)',
           display: 'flex', flexDirection: 'column',
           animation: 'slideUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards',
         }}
@@ -95,7 +96,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface-variant)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Filtrar por Estado
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {[
               { id: 'all', label: 'Todos' },
               { id: 'active', label: 'Activos' },
@@ -108,7 +109,8 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({ isOpen, onClose }) => 
                   key={opt.id}
                   onClick={() => setTempStatus(opt.id as any)}
                   style={{
-                    padding: '12px', borderRadius: 12, border: isSelected ? '2px solid var(--color-primary)' : '1px solid rgba(0,0,0,0.08)',
+                    flex: '1 1 auto',
+                    padding: '12px 16px', borderRadius: 12, border: isSelected ? '2px solid var(--color-primary)' : '1px solid rgba(0,0,0,0.08)',
                     background: isSelected ? 'var(--color-primary-container)' : '#fff',
                     color: isSelected ? 'var(--color-primary-dark)' : 'var(--color-on-surface)',
                     fontWeight: isSelected ? 700 : 500, fontSize: 14, cursor: 'pointer',

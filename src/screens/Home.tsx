@@ -585,27 +585,37 @@ const Home: React.FC = () => {
       
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
-        <button
-          onClick={() => { resetWizard(); navigate('/create'); }}
-          style={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 100,
-            height: 56, borderRadius: 28, padding: '0 24px',
-            background: 'var(--color-primary)', color: '#fff',
-            border: 'none', cursor: 'pointer',
-            boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            transition: 'transform 0.2s ease',
-          }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-          }}
-        >
-          <Plus size={24} />
-          <span style={{ fontSize: 16, fontWeight: 700 }}>Crear</span>
-        </button>
+        <div style={{
+          position: 'fixed', bottom: 24, left: 0, right: 0, zIndex: 100,
+          display: 'flex', justifyContent: 'center', pointerEvents: 'none'
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'flex-end',
+            padding: '0 20px'
+          }}>
+            <button
+              onClick={() => { resetWizard(); navigate('/create'); }}
+              style={{
+                pointerEvents: 'auto',
+                height: 56, borderRadius: 28, padding: '0 24px',
+                background: 'var(--color-primary)', color: '#fff',
+                border: 'none', cursor: 'pointer',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'transform 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+              }}
+            >
+              <Plus size={24} />
+              <span style={{ fontSize: 16, fontWeight: 700 }}>Crear</span>
+            </button>
+          </div>
+        </div>
       )}
       {!loading && (
         <div style={{ textAlign: 'center', paddingBottom: 12, background: '#F4F6FB' }}>

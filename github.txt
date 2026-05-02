@@ -1,3 +1,5 @@
 git add .
 git commit -m "mensaje de lo que hiciste"
 git push
+
+npm run dev
