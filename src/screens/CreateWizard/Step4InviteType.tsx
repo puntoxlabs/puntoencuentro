@@ -22,7 +22,12 @@ const Step4InviteType: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFinish = async (tipo: 'individual' | 'link_general') => {
+  const handleFinish = async () => {
+    if (loading) return;
+    if (!wizardData.tipo_invitacion) {
+      setError('Elegí un tipo de invitación');
+      return;
+    }
     const validationError = validateEncounterDate(wizardData.fecha, wizardData.hora);
     if (validationError) {
       setError(validationError);
@@ -39,7 +44,7 @@ const Step4InviteType: React.FC = () => {
         modalidad: wizardData.modalidad as 'presencial' | 'virtual',
         lugar_texto: wizardData.lugar_texto,
         link_virtual: wizardData.link_virtual,
-        tipo_invitacion: tipo,
+        tipo_invitacion: wizardData.tipo_invitacion,
         host_id: hostId,
         tema: wizardData.tema || 'blue',
         reemplaza_a: (() => {
@@ -67,7 +72,7 @@ const Step4InviteType: React.FC = () => {
         } catch (e) { console.error('Error updating cancel_reference', e); }
       }
 
-      if (tipo === 'individual') {
+      if (wizardData.tipo_invitacion === 'individual') {
         navigate(`/add-guests/${newEncuentro.id}`);
       } else {
         navigate(`/share/${newEncuentro.id}`);
@@ -87,8 +92,8 @@ const Step4InviteType: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div
-          style={optionCard(false, loading)}
-          onClick={() => { if (!loading) { setField('tipo_invitacion', 'individual'); handleFinish('individual'); } }}
+          style={optionCard(wizardData.tipo_invitacion === 'individual', loading)}
+          onClick={() => { if (!loading) { setField('tipo_invitacion', 'individual'); setError(null); } }}
         >
           <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
           <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Personas específicas</h4>
@@ -96,8 +101,8 @@ const Step4InviteType: React.FC = () => {
         </div>
 
         <div
-          style={optionCard(false, loading)}
-          onClick={() => { if (!loading) { setField('tipo_invitacion', 'link_general'); handleFinish('link_general'); } }}
+          style={optionCard(wizardData.tipo_invitacion === 'link_general', loading)}
+          onClick={() => { if (!loading) { setField('tipo_invitacion', 'link_general'); setError(null); } }}
         >
           <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
           <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Compartir link</h4>
@@ -129,6 +134,27 @@ const Step4InviteType: React.FC = () => {
           Creando encuentro…
         </div>
       )}
+
+      <div style={{ paddingTop: 24, marginTop: 'auto' }}>
+        <button
+          onClick={handleFinish}
+          disabled={!wizardData.tipo_invitacion || loading}
+          style={{
+            width: '100%',
+            height: 56,
+            borderRadius: 14,
+            background: !wizardData.tipo_invitacion || loading ? 'var(--color-surface-variant)' : 'var(--color-primary)',
+            color: !wizardData.tipo_invitacion || loading ? 'var(--color-on-surface-variant)' : '#fff',
+            fontSize: 16,
+            fontWeight: 700,
+            border: 'none',
+            cursor: !wizardData.tipo_invitacion || loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {loading ? 'Creando…' : 'Crear encuentro'}
+        </button>
+      </div>
     </div>
   );
 };

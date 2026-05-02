@@ -21,7 +21,6 @@ function isEncuentroPasado(enc: any): boolean {
   try {
     const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
     if (isNaN(fechaHora.getTime())) return false;
-    fechaHora.setHours(fechaHora.getHours() + 2); // 2 hours grace period like DetailHost
     return fechaHora < new Date();
   } catch (e) {
     return false;
@@ -329,6 +328,14 @@ const Home: React.FC = () => {
       ? sorted.filter(enc => getClasificacion(enc) !== 'active')
       : (filterStatus === 'finished' || filterStatus === 'cancelled' ? sorted : []);
 
+    if (sortBy === 'date_upcoming') {
+      pasados.sort((a, b) => {
+        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
+        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
+        return dateB - dateA;
+      });
+    }
+
     // Estado vacío total
     if (!encuentros || encuentros.length === 0) return (
       <div style={{
@@ -426,7 +433,7 @@ const Home: React.FC = () => {
                   <>No tenés encuentros próximos</>
                 )}
               </h2>
-              {encuentros.length === 0 && (
+              {(!encuentros || encuentros.length === 0) && (
                 <Button
                   variant="primary"
                   fullWidth
@@ -577,7 +584,7 @@ const Home: React.FC = () => {
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       
       {/* FAB Botón Crear */}
-      {!loading && encuentros.length > 0 && (
+      {!loading && encuentros && encuentros.length > 0 && (
         <button
           onClick={() => { resetWizard(); navigate('/create'); }}
           style={{

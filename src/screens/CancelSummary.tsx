@@ -52,9 +52,7 @@ const CancelSummary: React.FC = () => {
   const handleShareCancel = async () => {
     if (!encuentro) return;
     const shareLink = buildShareLink(encuentro);
-    const confirmadosCount = participantes.filter(p => p.estado === 'confirmado').length;
-    const resumen = confirmadosCount > 0 ? `\nParticipantes confirmados: ${confirmadosCount}` : '';
-    const msg = `Este encuentro fue cancelado:\n\n${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nSi ya habías confirmado o estabas invitado, tené en cuenta que no se realizará.${resumen}\n\nVer estado:\n${shareLink}`;
+    const msg = `Este encuentro fue cancelado.\n\n${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nVer estado:\n${shareLink}`;
 
     if (navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
@@ -158,27 +156,7 @@ const CancelSummary: React.FC = () => {
           </div>
         </div>
 
-        {/* Participants section */}
-        <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
-            {esIndividual ? 'Invitados del encuentro' : 'Participantes registrados'}
-          </h3>
-
-          {sinParticipantes ? (
-            <div style={{
-              background: '#fff', borderRadius: 14, padding: '24px',
-              border: '1.5px dashed var(--color-outline-variant)', textAlign: 'center',
-            }}>
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
-                Aún no hay participantes registrados
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {participantesVisibles.map((p, i) => renderRow(p, i))}
-            </div>
-          )}
-        </div>
+        <div style={{ flex: 1 }}></div>
 
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto', paddingTop: 8 }}>

@@ -64,7 +64,7 @@ const ShareLink: React.FC = () => {
       let shareText = 'Te invito a este encuentro 👇 Confirmá si podés asistir:';
       
       if (anteriorData) {
-        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior: ${anteriorData.titulo} – ${formatFriendlyDate(anteriorData.fecha, anteriorData.hora)}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nNuevo enlace:`;
+        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n❌ Anterior: ${anteriorData.titulo} – ${formatFriendlyDate(anteriorData.fecha, anteriorData.hora)}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\nNuevo enlace:`;
       }
 
       if (navigator.share) {
@@ -170,17 +170,13 @@ const ShareLink: React.FC = () => {
           Ver encuentro
         </Button>
 
-        <button
+        <Button
+          variant="ghost"
           onClick={() => navigate('/', { replace: true })}
-          style={{
-            background: 'none', border: 'none',
-            color: 'var(--color-on-surface-variant)', fontSize: 13, fontWeight: 500,
-            padding: '10px', cursor: 'pointer', opacity: 0.7,
-            marginTop: 4, width: 'fit-content', alignSelf: 'center'
-          }}
+          style={{ color: 'var(--color-on-surface-variant)', marginTop: 4 }}
         >
           Ir al inicio
-        </button>
+        </Button>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

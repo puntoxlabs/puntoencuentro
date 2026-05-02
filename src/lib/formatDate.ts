@@ -42,10 +42,7 @@ export function validateEncounterDate(fecha: string, hora: string): string | nul
   const encounterDateTime = new Date(`${fecha}T${cleanHora}`);
   
   if (encounterDateTime <= now) {
-    if (fecha === localToday) {
-      return "La hora debe ser posterior a la hora actual.";
-    }
-    return "La fecha y hora del encuentro deben ser futuras.";
+    return "La fecha y hora deben ser futuras";
   }
 
   return null;

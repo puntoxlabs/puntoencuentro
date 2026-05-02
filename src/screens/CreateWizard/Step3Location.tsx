@@ -1,15 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useWizardStore } from '@/store/wizardStore';
 
 const Step3Location: React.FC = () => {
   const { modalidad, lugar_texto, link_virtual, setField, nextStep } = useWizardStore();
+  const [isNavigating, setIsNavigating] = useState(false);
   const isPresencial = modalidad === 'presencial';
   const isValid = isPresencial ? lugar_texto.trim() !== '' : link_virtual.trim() !== '';
 
+  const handleNext = () => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    nextStep();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && isValid) nextStep();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isValid) handleNext();
+    }
   };
 
   const handlePaste = async () => {
@@ -87,7 +97,7 @@ const Step3Location: React.FC = () => {
       </div>
 
       <div style={{ paddingTop: 24 }}>
-        <Button fullWidth onClick={nextStep} disabled={!isValid}>
+        <Button fullWidth onClick={handleNext} disabled={!isValid || isNavigating}>
           Continuar
         </Button>
       </div>

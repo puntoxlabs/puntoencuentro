@@ -204,6 +204,9 @@ const InviteGuest: React.FC = () => {
             <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>{copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}</Button>
           </div>
         )}
+        <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16 }}>
+          Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
+        </p>
       </div>
     </ScreenContainer>
   );

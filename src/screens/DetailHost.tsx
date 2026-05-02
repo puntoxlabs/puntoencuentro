@@ -17,7 +17,6 @@ import { useHomeStore } from '@/store/homeStore';
 function isEncuentroPasado(enc: any): boolean {
   if (!enc?.fecha || !enc?.hora) return false;
   const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
-  fechaHora.setHours(fechaHora.getHours() + 2);
   return fechaHora < new Date();
 }
 
@@ -548,22 +547,28 @@ const DetailHost: React.FC = () => {
           )}
         </div>
 
-        {/* 6. CANCELAR ENCUENTRO */}
-        {!isCancelado && !isReadOnly && (
-          <div style={{ marginTop: 'auto', paddingTop: 32, textAlign: 'center' }}>
-            <button
+        {/* 6. ACCIONES INFERIORES */}
+        <div style={{ marginTop: 'auto', paddingTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {!isCancelado && !isReadOnly && (
+            <Button
+              variant="outline"
               onClick={() => setShowCancelModal(true)}
-              style={{
-                background: 'none', border: 'none',
-                color: '#DC2626', fontSize: 14, fontWeight: 600,
-                padding: '12px 24px', cursor: 'pointer',
-                opacity: 0.8
-              }}
+              style={{ borderColor: '#DC2626', color: '#DC2626' }}
+              fullWidth
             >
               Cancelar encuentro
-            </button>
-          </div>
-        )}
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            style={{ color: 'var(--color-on-surface-variant)' }}
+            fullWidth
+          >
+            Ir al inicio
+          </Button>
+        </div>
       </div>
     </ScreenContainer>
   );

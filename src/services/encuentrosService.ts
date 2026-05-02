@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { validateEncounterDate } from '@/lib/formatDate';
 
 export interface CreateEncuentroDTO {
   titulo: string;
@@ -16,6 +17,11 @@ export interface CreateEncuentroDTO {
 
 export const encuentrosService = {
   async createEncuentro(data: CreateEncuentroDTO) {
+    const validationError = validateEncounterDate(data.fecha, data.hora);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+
     const { data: result, error } = await supabase
       .from('encuentros')
       .insert([data])

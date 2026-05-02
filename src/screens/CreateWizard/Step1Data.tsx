@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ThemePicker } from '@/components/ui/ThemePicker';
@@ -9,6 +9,11 @@ import { validateEncounterDate } from '@/lib/formatDate';
 const Step1Data: React.FC = () => {
   const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  const fechaRef = useRef<HTMLInputElement>(null);
+  const horaRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLInputElement>(null);
 
   const now = new Date();
   const localYear = now.getFullYear();
@@ -22,13 +27,26 @@ const Step1Data: React.FC = () => {
   const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '';
 
   const handleNext = () => {
+    if (isNavigating) return;
     const validationError = validateEncounterDate(fecha, hora);
     if (validationError) {
       setError(validationError);
       return;
     }
     setError(null);
+    setIsNavigating(true);
     nextStep();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef?: React.RefObject<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextRef && nextRef.current) {
+        nextRef.current.focus();
+      } else if (isValid && !nextRef) {
+        handleNext();
+      }
+    }
   };
 
   const handleFechaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,6 +91,7 @@ const Step1Data: React.FC = () => {
           label="Nombre del encuentro"
           value={titulo}
           onChange={(e) => setField('titulo', e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e, fechaRef)}
           placeholder="Ej: Cena de fin de año"
         />
         <Input
@@ -80,7 +99,9 @@ const Step1Data: React.FC = () => {
           type="date"
           value={fecha}
           onChange={handleFechaChange}
+          onKeyDown={(e) => handleKeyDown(e, horaRef)}
           min={minDate}
+          ref={fechaRef}
         />
         <div style={{ position: 'relative' }}>
           <Input
@@ -88,7 +109,9 @@ const Step1Data: React.FC = () => {
             type="time"
             value={hora}
             onChange={handleHoraChange}
+            onKeyDown={(e) => handleKeyDown(e, descRef)}
             min={minTime}
+            ref={horaRef}
           />
           <p style={{ fontSize: 11, color: 'var(--color-on-surface-variant)', marginTop: -12, marginBottom: 8, opacity: 0.8 }}>
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
@@ -98,7 +121,9 @@ const Step1Data: React.FC = () => {
           label="Descripción (opcional)"
           value={descripcion}
           onChange={(e) => setField('descripcion', e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e)}
           placeholder="Agregá más detalles…"
+          ref={descRef}
         />
         <ThemePicker
           value={(tema || 'blue') as ThemeId}
@@ -122,7 +147,7 @@ const Step1Data: React.FC = () => {
             {error}
           </div>
         )}
-        <Button fullWidth onClick={handleNext} disabled={!isValid}>
+        <Button fullWidth onClick={handleNext} disabled={!isValid || isNavigating}>
           Continuar
         </Button>
       </div>
