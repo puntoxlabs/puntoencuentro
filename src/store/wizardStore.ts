@@ -50,7 +50,25 @@ export const useWizardStore = create<WizardState>()(
     {
       name: 'wizard-storage',
       version: 1,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => ({
+        getItem: (name) => {
+          try {
+            const val = localStorage.getItem(name);
+            if (val) JSON.parse(val); // test parse
+            return val;
+          } catch (e) {
+            console.warn('wizardStore: Invalid local storage data, clearing...', e);
+            localStorage.removeItem(name);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try { localStorage.setItem(name, value); } catch (e) {}
+        },
+        removeItem: (name) => {
+          try { localStorage.removeItem(name); } catch (e) {}
+        }
+      })),
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
           // Si es una versión antigua, reseteamos para evitar inconsistencias

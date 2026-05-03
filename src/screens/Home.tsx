@@ -29,6 +29,7 @@ function isEncuentroPasado(enc: any): boolean {
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
+  if (!enc) return themes.blue.primary;
   const themeId = enc.tema as ThemeId;
   return (themeId && themes[themeId]) ? themes[themeId].primary : themes.blue.primary;
 }
@@ -231,8 +232,8 @@ const Home: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
-  const totalProximos = (encuentros || []).filter(enc => enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
-  const totalPasados = (encuentros || []).filter(enc => enc.estado === 'cancelado' || isEncuentroPasado(enc)).length;
+  const totalProximos = (encuentros || []).filter(enc => enc && enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
+  const totalPasados = (encuentros || []).filter(enc => enc && (enc.estado === 'cancelado' || isEncuentroPasado(enc))).length;
 
   useEffect(() => {
     loadData();
@@ -255,10 +256,10 @@ const Home: React.FC = () => {
       setError(null);
       const hostId = getHostId();
       const data = await encuentrosService.getEncuentrosByHost(hostId);
-      const sortedData = (data || []).sort((a, b) => {
-        const dateA = new Date(`${a.fecha}T${a.hora}`);
-        const dateB = new Date(`${b.fecha}T${b.hora}`);
-        return dateA.getTime() - dateB.getTime();
+      const sortedData = (data || []).filter(e => e && e.id).sort((a, b) => {
+        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
+        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
+        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
       });
       setLocalEncuentros(sortedData);
       setEncuentros(sortedData);
@@ -295,6 +296,7 @@ const Home: React.FC = () => {
     };
 
     const filtered = (encuentros || []).filter(enc => {
+      if (!enc) return false;
       const cls = getClasificacion(enc);
       if (filterStatus === 'all') return true;
       return cls === filterStatus;
@@ -302,14 +304,14 @@ const Home: React.FC = () => {
 
     const sorted = [...filtered].sort((a, b) => {
       if (sortBy === 'date_upcoming') {
-        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
-        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
-        return dateA - dateB;
+        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
+        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
+        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
       }
       if (sortBy === 'date_distant') {
-        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
-        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
-        return dateB - dateA;
+        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
+        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
+        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
       }
       if (sortBy === 'name_asc') {
         return (a.titulo || '').localeCompare(b.titulo || '');
@@ -330,9 +332,9 @@ const Home: React.FC = () => {
 
     if (sortBy === 'date_upcoming') {
       pasados.sort((a, b) => {
-        const dateA = new Date(`${a.fecha}T${a.hora}`).getTime();
-        const dateB = new Date(`${b.fecha}T${b.hora}`).getTime();
-        return dateB - dateA;
+        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
+        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
+        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
       });
     }
 
