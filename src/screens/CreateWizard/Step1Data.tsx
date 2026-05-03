@@ -13,7 +13,7 @@ const Step1Data: React.FC = () => {
 
   const fechaRef = useRef<HTMLInputElement>(null);
   const horaRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
 
   const now = new Date();
   const localYear = now.getFullYear();
@@ -38,13 +38,11 @@ const Step1Data: React.FC = () => {
     nextStep();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef?: React.RefObject<HTMLInputElement | null>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextRef?: React.RefObject<any>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (nextRef && nextRef.current) {
         nextRef.current.focus();
-      } else if (isValid && !nextRef) {
-        handleNext();
       }
     }
   };
@@ -103,7 +101,7 @@ const Step1Data: React.FC = () => {
           min={minDate}
           ref={fechaRef}
         />
-        <div style={{ position: 'relative' }}>
+        <div>
           <Input
             label="Hora"
             type="time"
@@ -113,18 +111,21 @@ const Step1Data: React.FC = () => {
             min={minTime}
             ref={horaRef}
           />
-          <p style={{ fontSize: 11, color: 'var(--color-on-surface-variant)', marginTop: -12, marginBottom: 8, opacity: 0.8 }}>
+          <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 8, marginBottom: 8 }}>
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
           </p>
         </div>
-        <Input
-          label="Descripción (opcional)"
-          value={descripcion}
-          onChange={(e) => setField('descripcion', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e)}
-          placeholder="Agregá más detalles…"
-          ref={descRef}
-        />
+        <div className="input-group">
+          <label className="input-label">Descripción (opcional)</label>
+          <textarea
+            className="input-field"
+            value={descripcion}
+            onChange={(e) => setField('descripcion', e.target.value)}
+            placeholder="Agregá más detalles…"
+            ref={descRef}
+            style={{ minHeight: '80px', paddingTop: '12px', paddingBottom: '12px', resize: 'vertical' }}
+          />
+        </div>
         <ThemePicker
           value={(tema || 'blue') as ThemeId}
           onChange={(t) => setField('tema', t)}
