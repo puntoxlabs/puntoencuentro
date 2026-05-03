@@ -13,6 +13,10 @@ import { useHomeStore } from '@/store/homeStore';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { getThemeStyle } from '@/lib/themes';
 
+interface SavedData {
+  encuentros: Record<string, { participant_id?: string; token_invitacion?: string }>;
+}
+
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
   fontSize: 15, color: 'var(--color-on-surface-variant)', marginBottom: 10,
@@ -53,7 +57,7 @@ const JoinGeneral: React.FC = () => {
       console.log('[GENERAL_LINK] encuentro:', data);
       console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
-      let savedData = { encuentros: {} };
+      let savedData: SavedData = { encuentros: {} };
       try {
         const savedDataStr = localStorage.getItem('encuentros_general');
         if (savedDataStr) {
@@ -103,7 +107,7 @@ const JoinGeneral: React.FC = () => {
       setLoadingResponse(true);
       const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
       if (newPart && newPart.id) {
-        let savedData = { encuentros: {} };
+        let savedData: SavedData = { encuentros: {} };
         try {
           const savedDataStr = localStorage.getItem('encuentros_general');
           if (savedDataStr) {
