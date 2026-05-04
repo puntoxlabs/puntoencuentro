@@ -2,18 +2,22 @@ import React, { useState, useRef } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ThemePicker } from '@/components/ui/ThemePicker';
+import { TimePicker } from '@/components/ui/TimePicker';
+import type { TimePickerRef } from '@/components/ui/TimePicker';
 import { useWizardStore } from '@/store/wizardStore';
 import type { ThemeId } from '@/lib/themes';
 import { validateEncounterDate } from '@/lib/formatDate';
+import { useTranslation } from 'react-i18next';
 
 const Step1Data: React.FC = () => {
+  const { t } = useTranslation();
   const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
-  const timeInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<TimePickerRef>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   const now = new Date();
@@ -31,7 +35,7 @@ const Step1Data: React.FC = () => {
     if (isNavigating) return;
     const validationError = validateEncounterDate(fecha, hora);
     if (validationError) {
-      setError(validationError);
+      setError(validationError === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : validationError);
       return;
     }
     setError(null);
@@ -45,16 +49,24 @@ const Step1Data: React.FC = () => {
       e.stopPropagation();
       if (nextRef && nextRef.current) {
         const target = nextRef.current;
-        target.focus();
+        if ('focus' in target && typeof target.focus === 'function') {
+          target.focus();
+        }
         
-        // Intentar abrir el selector nativo en mobile (si es date o time)
+        // Intentar abrir picker si existe
         setTimeout(() => {
-          try {
-            if ('showPicker' in target && typeof target.showPicker === 'function') {
-              target.showPicker();
+          if ('openPicker' in target && typeof target.openPicker === 'function') {
+            target.openPicker();
+          } else {
+            try {
+              if ('showPicker' in target && typeof target.showPicker === 'function') {
+                target.showPicker();
+              }
+            } catch (err) {}
+            if ('click' in target && typeof target.click === 'function') {
+               target.click();
             }
-          } catch (err) {}
-          target.click();
+          }
         }, 100);
       }
     }
@@ -79,7 +91,7 @@ const Step1Data: React.FC = () => {
     
     // Si cambia a una fecha donde la hora actual ya no es válida, validamos
     const err = validateEncounterDate(val, hora);
-    setError(err);
+    setError(err === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : err);
 
     // Si la fecha es hoy y no hay hora, o la hora es vieja, podríamos sugerir una
     if (val === minDate && (!hora || validateEncounterDate(val, hora))) {
@@ -95,23 +107,17 @@ const Step1Data: React.FC = () => {
       if (timeInputRef.current) {
         timeInputRef.current.focus();
         setTimeout(() => {
-          try {
-            if ('showPicker' in timeInputRef.current! && typeof timeInputRef.current!.showPicker === 'function') {
-              timeInputRef.current!.showPicker();
-            }
-          } catch (error) {}
-          timeInputRef.current?.click();
+          timeInputRef.current?.openPicker();
         }, 100);
       }
     }
   };
 
-  const handleHoraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+  const handleHoraChange = (val: string) => {
     setField('hora', val);
     if (val) {
       const currentErr = validateEncounterDate(fecha, val);
-      setError(currentErr);
+      setError(currentErr === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : currentErr);
 
       // Auto-avanzar a descripción si la hora es válida
       if (!currentErr) {
@@ -124,19 +130,6 @@ const Step1Data: React.FC = () => {
     }
   };
 
-  const handleHoraFocus = () => {
-    if (timeInputRef.current) {
-      try {
-        if ('showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
-          timeInputRef.current.showPicker();
-        } else {
-          timeInputRef.current.click();
-        }
-      } catch (err) {
-        timeInputRef.current.click();
-      }
-    }
-  };
 
   return (
     <form 
@@ -173,16 +166,14 @@ const Step1Data: React.FC = () => {
           enterKeyHint="next"
         />
         <div>
-          <Input
+          <TimePicker
             label="Hora"
-            type="time"
             value={hora}
             onChange={handleHoraChange}
-            onFocus={handleHoraFocus}
-            onKeyDown={(e) => handleKeyDown(e, descriptionInputRef)}
-            min={minTime}
+            minTime={minTime}
             ref={timeInputRef}
-            enterKeyHint="next"
+            onKeyDown={(e) => handleKeyDown(e, descriptionInputRef)}
+            disabled={!fecha}
           />
           <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 8, marginBottom: 8 }}>
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
