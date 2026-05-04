@@ -158,7 +158,7 @@ const DetailHost: React.FC = () => {
       <AppBar title="Error" showBack />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <p>{error || 'Encuentro no encontrado.'}</p>
-        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );
@@ -465,15 +465,9 @@ const DetailHost: React.FC = () => {
         {/* 2. CTA PRINCIPAL */}
         {!isReadOnly && !isCancelado && (
           <div style={{ marginBottom: 16 }}>
-            {isVirtual ? (
-              <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
-                Unirme a la videollamada
-              </Button>
-            ) : (
-              <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}>
-                Invitar personas
-              </Button>
-            )}
+            <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}>
+              Invitar personas
+            </Button>
           </div>
         )}
 
@@ -498,7 +492,7 @@ const DetailHost: React.FC = () => {
         {!isReadOnly && !isCancelado && isVirtual && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
             <button
-              onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}
+              onClick={() => openExternalVideoLink(encuentro.link_virtual)}
               style={{
                 flex: 1, padding: 12, borderRadius: 10,
                 background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
@@ -506,7 +500,7 @@ const DetailHost: React.FC = () => {
                 transition: 'background 0.15s ease'
               }}
             >
-              Invitar personas
+              Unirme a la videollamada
             </button>
           </div>
         )}
@@ -537,7 +531,11 @@ const DetailHost: React.FC = () => {
           </h3>
 
           {participantes.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 14, color: '#6B7280', fontStyle: 'italic' }}>Aún no hay participantes registrados.</p>
+            <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+              <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Aún no hay invitados</h4>
+              <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace para que tus amigos se sumen al encuentro.</p>
+            </div>
           ) : (
             <>
               {renderParticipantList('Confirmados', confirmados)}
@@ -563,7 +561,7 @@ const DetailHost: React.FC = () => {
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
-            style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}
+            style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}
             fullWidth
           >
             Ir al inicio

@@ -4,7 +4,6 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
@@ -208,10 +207,15 @@ const JoinGeneral: React.FC = () => {
   if (step === 'done') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
-      <EmptyState
-        title={participante?.estado === 'confirmado' ? '¡Todo listo!' : 'Gracias por responder.'}
-        description={participante?.estado === 'confirmado' ? 'Ya confirmaste tu asistencia.' : 'Avisamos que no vas a asistir.'}
-      />
+      <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>{participante?.estado === 'confirmado' ? '🎉' : '👍'}</div>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, lineHeight: 1.2 }}>
+          {participante?.estado === 'confirmado' ? '¡Asistencia confirmada!' : 'Gracias por responder'}
+        </h2>
+        <p style={{ color: 'var(--color-on-surface-variant)', fontSize: 16, margin: 0 }}>
+          {participante?.estado === 'confirmado' ? 'Te esperamos en el encuentro.' : 'Avisamos que no vas a poder asistir.'}
+        </p>
+      </div>
       <div style={{ ...eventCard, marginTop: 'auto' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro</p>
         <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{encuentro.titulo}</h4>
@@ -232,9 +236,11 @@ const JoinGeneral: React.FC = () => {
             <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>{copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}</Button>
           </div>
         )}
-        <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16 }}>
-          Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
-        </p>
+      </div>
+      
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto', paddingBottom: 24 }}>
+        <Button fullWidth variant="outline" onClick={() => window.location.reload()}>Ver encuentro</Button>
+        <Button fullWidth variant="ghost" onClick={() => { window.location.href = '/'; }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );

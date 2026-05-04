@@ -48,15 +48,14 @@ const Step1Data: React.FC = () => {
         target.focus();
         
         // Intentar abrir el selector nativo en mobile (si es date o time)
-        if ('showPicker' in target && typeof target.showPicker === 'function') {
-          setTimeout(() => {
-            try {
+        setTimeout(() => {
+          try {
+            if ('showPicker' in target && typeof target.showPicker === 'function') {
               target.showPicker();
-            } catch (err) {
-              // Ignorar errores si el navegador requiere un click explícito y falla
             }
-          }, 50);
-        }
+          } catch (err) {}
+          target.click();
+        }, 100);
       }
     }
   };
@@ -96,14 +95,13 @@ const Step1Data: React.FC = () => {
       if (timeInputRef.current) {
         timeInputRef.current.focus();
         setTimeout(() => {
-          if (timeInputRef.current && 'showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
-            try {
-              timeInputRef.current.showPicker();
-            } catch (error) {
-              // Ignorar error si el navegador lo bloquea
+          try {
+            if ('showPicker' in timeInputRef.current! && typeof timeInputRef.current!.showPicker === 'function') {
+              timeInputRef.current!.showPicker();
             }
-          }
-        }, 50);
+          } catch (error) {}
+          timeInputRef.current?.click();
+        }, 100);
       }
     }
   };
