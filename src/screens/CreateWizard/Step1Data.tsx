@@ -49,11 +49,13 @@ const Step1Data: React.FC = () => {
         
         // Intentar abrir el selector nativo en mobile (si es date o time)
         if ('showPicker' in target && typeof target.showPicker === 'function') {
-          try {
-            target.showPicker();
-          } catch (err) {
-            // Ignorar errores si el navegador requiere un click explícito y falla
-          }
+          setTimeout(() => {
+            try {
+              target.showPicker();
+            } catch (err) {
+              // Ignorar errores si el navegador requiere un click explícito y falla
+            }
+          }, 50);
         }
       }
     }
@@ -91,18 +93,18 @@ const Step1Data: React.FC = () => {
 
     // Auto-avanzar a hora si la fecha es válida
     if (val && val >= minDate) {
-      setTimeout(() => {
-        if (timeInputRef.current) {
-          timeInputRef.current.focus();
-          if ('showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
+      if (timeInputRef.current) {
+        timeInputRef.current.focus();
+        setTimeout(() => {
+          if (timeInputRef.current && 'showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
             try {
               timeInputRef.current.showPicker();
             } catch (error) {
               // Ignorar error si el navegador lo bloquea
             }
           }
-        }
-      }, 100);
+        }, 50);
+      }
     }
   };
 

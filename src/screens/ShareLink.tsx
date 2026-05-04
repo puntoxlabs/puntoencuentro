@@ -21,15 +21,6 @@ const ShareLink: React.FC = () => {
 
   const isLinkGeneral = encuentro?.tipo_invitacion === 'link_general';
 
-  useEffect(() => {
-    if (isLinkGeneral) {
-      const timer = setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isLinkGeneral, navigate]);
-
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
@@ -126,7 +117,6 @@ const ShareLink: React.FC = () => {
         <div style={{ textAlign: 'center', marginTop: 16, marginBottom: 8, animation: 'fadeIn 0.5s ease-out' }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-primary-dark)', marginBottom: 4 }}>Invitación lista ✔</h2>
           <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', margin: 0 }}>Compartila con quien quieras</p>
-          <p style={{ fontSize: 12, color: 'var(--color-on-surface-variant)', opacity: 0.7, marginTop: 4 }}>Redirigiendo en unos segundos...</p>
         </div>
       )}
 
