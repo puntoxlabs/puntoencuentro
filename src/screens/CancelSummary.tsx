@@ -103,7 +103,7 @@ const CancelSummary: React.FC = () => {
       <AppBar title="Cancelado" showBack />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <p>{error || 'Encuentro no encontrado.'}</p>
-        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );
@@ -139,6 +139,9 @@ const CancelSummary: React.FC = () => {
           </Button>
           <Button fullWidth variant="primary" onClick={handleCreateNew}>
             ✨ Cancelar y crear uno nuevo
+          </Button>
+          <Button fullWidth variant="ghost" onClick={() => navigate('/')} style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>
+            Ir al inicio
           </Button>
         </div>
       </div>

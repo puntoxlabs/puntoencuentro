@@ -104,7 +104,7 @@ const AddGuests: React.FC = () => {
       <AppBar title="Error" showBack />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <p>Encuentro no encontrado.</p>
-        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );
@@ -228,8 +228,8 @@ const AddGuests: React.FC = () => {
         <Button fullWidth variant="primary" onClick={() => navigate(`/meet/${id}`)}>
           Ver encuentro
         </Button>
-        <Button fullWidth variant="outline" onClick={() => navigate('/')}>
-          Volver al inicio
+        <Button fullWidth variant="ghost" onClick={() => navigate('/')} style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>
+          Ir al inicio
         </Button>
       </div>
     </ScreenContainer>

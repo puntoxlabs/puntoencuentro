@@ -15,6 +15,7 @@ const ShareLink: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState(false);
 
   useEffect(() => { if (id) loadData(); }, [id]);
 
@@ -84,9 +85,11 @@ const ShareLink: React.FC = () => {
           text: shareText,
           url: shareUrl
         });
+        setShareFeedback(true);
       } else {
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         setCopied(true); setTimeout(() => setCopied(false), 2000);
+        setShareFeedback(true);
       }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
@@ -109,7 +112,7 @@ const ShareLink: React.FC = () => {
       <AppBar title="Error" showBack />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <p>{error || 'Encuentro no encontrado.'}</p>
-        <Button onClick={() => navigate('/')} variant="outline">Volver al inicio</Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );
@@ -185,6 +188,12 @@ const ShareLink: React.FC = () => {
         <Button fullWidth onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
           {copied ? '✓ Link copiado' : 'Compartir invitación'}
         </Button>
+
+        {shareFeedback && (
+          <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: '4px 0 8px', fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+            Listo. Podés volver al inicio o revisar el encuentro.
+          </p>
+        )}
 
         <Button fullWidth variant="outline" onClick={() => navigate(`/meet/${id}`)}>
           Ver encuentro
