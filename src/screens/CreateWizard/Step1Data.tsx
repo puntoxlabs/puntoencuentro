@@ -88,13 +88,39 @@ const Step1Data: React.FC = () => {
       setField('hora', sugTime);
       setError(null); // Al sugerir una válida, limpiamos el error
     }
+
+    // Auto-avanzar a hora si la fecha es válida
+    if (val && val >= minDate) {
+      setTimeout(() => {
+        if (timeInputRef.current) {
+          timeInputRef.current.focus();
+          if ('showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
+            try {
+              timeInputRef.current.showPicker();
+            } catch (error) {
+              // Ignorar error si el navegador lo bloquea
+            }
+          }
+        }
+      }, 100);
+    }
   };
 
   const handleHoraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setField('hora', val);
     if (val) {
-      setError(validateEncounterDate(fecha, val));
+      const currentErr = validateEncounterDate(fecha, val);
+      setError(currentErr);
+
+      // Auto-avanzar a descripción si la hora es válida
+      if (!currentErr) {
+        setTimeout(() => {
+          if (descriptionInputRef.current) {
+            descriptionInputRef.current.focus();
+          }
+        }, 100);
+      }
     }
   };
 
