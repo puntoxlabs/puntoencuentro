@@ -49,25 +49,21 @@ const Step1Data: React.FC = () => {
       e.stopPropagation();
       if (nextRef && nextRef.current) {
         const target = nextRef.current;
-        if ('focus' in target && typeof target.focus === 'function') {
+
+        // Si el target tiene openPicker (TimePicker custom), abrirlo
+        if ('openPicker' in target && typeof target.openPicker === 'function') {
+          if ('focus' in target && typeof target.focus === 'function') target.focus();
+          setTimeout(() => target.openPicker(), 100);
+        // Si es un input nativo con showPicker (ej: date)
+        } else if ('showPicker' in target && typeof target.showPicker === 'function') {
           target.focus();
+          setTimeout(() => { try { target.showPicker(); } catch (err) {} }, 100);
+        // Si es un textarea u otro elemento: solo scroll, NO focus (evita teclado en Android)
+        } else if (target instanceof HTMLTextAreaElement) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          if ('focus' in target && typeof target.focus === 'function') target.focus();
         }
-        
-        // Intentar abrir picker si existe
-        setTimeout(() => {
-          if ('openPicker' in target && typeof target.openPicker === 'function') {
-            target.openPicker();
-          } else {
-            try {
-              if ('showPicker' in target && typeof target.showPicker === 'function') {
-                target.showPicker();
-              }
-            } catch (err) {}
-            if ('click' in target && typeof target.click === 'function') {
-               target.click();
-            }
-          }
-        }, 100);
       }
     }
   };
@@ -119,12 +115,10 @@ const Step1Data: React.FC = () => {
       const currentErr = validateEncounterDate(fecha, val);
       setError(currentErr === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : currentErr);
 
-      // Auto-avanzar a descripción si la hora es válida
+      // Scroll al campo descripción sin disparar el teclado
       if (!currentErr) {
         setTimeout(() => {
-          if (descriptionInputRef.current) {
-            descriptionInputRef.current.focus();
-          }
+          descriptionInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
       }
     }
