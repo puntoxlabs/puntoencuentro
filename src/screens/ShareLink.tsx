@@ -18,6 +18,17 @@ const ShareLink: React.FC = () => {
 
   useEffect(() => { if (id) loadData(); }, [id]);
 
+  const isLinkGeneral = encuentro?.tipo_invitacion === 'link_general';
+
+  useEffect(() => {
+    if (isLinkGeneral) {
+      const timer = setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLinkGeneral, navigate]);
+
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
@@ -107,6 +118,15 @@ const ShareLink: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Compartir invitación" showBack />
 
+      {/* Success Message for Link General */}
+      {isLinkGeneral && (
+        <div style={{ textAlign: 'center', marginTop: 16, marginBottom: 8, animation: 'fadeIn 0.5s ease-out' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-primary-dark)', marginBottom: 4 }}>Invitación lista ✔</h2>
+          <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', margin: 0 }}>Compartila con quien quieras</p>
+          <p style={{ fontSize: 12, color: 'var(--color-on-surface-variant)', opacity: 0.7, marginTop: 4 }}>Redirigiendo en unos segundos...</p>
+        </div>
+      )}
+
       {/* Replacement Banner */}
       {anteriorData && (
         <div style={{
@@ -171,9 +191,14 @@ const ShareLink: React.FC = () => {
         </Button>
 
         <Button
+          fullWidth
           variant="ghost"
           onClick={() => navigate('/', { replace: true })}
-          style={{ color: 'var(--color-on-surface-variant)', marginTop: 4 }}
+          style={{ 
+            color: 'var(--color-on-surface-variant)', 
+            marginTop: 4,
+            border: '1px solid rgba(0,0,0,0.1)'
+          }}
         >
           Ir al inicio
         </Button>
