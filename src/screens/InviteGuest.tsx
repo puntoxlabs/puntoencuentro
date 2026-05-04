@@ -179,22 +179,28 @@ const InviteGuest: React.FC = () => {
   if (step === 'done' || participante.estado !== 'pendiente') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
-      <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>{participante.estado === 'confirmado' ? '🎉' : '👍'}</div>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, lineHeight: 1.2 }}>
+
+      {/* ===== BLOQUE SUPERIOR: ícono + título ===== */}
+      <div style={{ padding: '36px 24px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 20 }}>
+          {participante.estado === 'confirmado' ? '🎉' : '👍'}
+        </div>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, lineHeight: 1.25, color: '#111827' }}>
           {participante.estado === 'confirmado' ? '¡Asistencia confirmada!' : 'Gracias por responder'}
         </h2>
-        <p style={{ color: 'var(--color-on-surface-variant)', fontSize: 16, margin: 0 }}>
+        <p style={{ color: 'var(--color-on-surface-variant)', fontSize: 15, margin: 0, lineHeight: 1.5 }}>
           {participante.estado === 'confirmado' ? 'Te esperamos en el encuentro.' : 'Avisamos que no vas a poder asistir.'}
         </p>
       </div>
-      <div style={{ ...eventCard, marginTop: 'auto' }}>
+
+      {/* ===== CARD DEL ENCUENTRO ===== */}
+      <div style={{ ...eventCard, margin: '0 0 24px', padding: '16px 20px' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro</p>
         <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{encuentro.titulo}</h4>
         {participante.estado === 'confirmado' && encuentro.modalidad === 'virtual' && (
           <p style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700, marginBottom: 12 }}>🎉 Ya podés unirte a la videollamada</p>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
           <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
           <div style={metaRow}>
             <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
@@ -208,7 +214,7 @@ const InviteGuest: React.FC = () => {
             <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>{copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}</Button>
           </div>
         )}
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16, lineHeight: 1.55, margin: '16px 0 0' }}>
           Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
         </p>
       </div>

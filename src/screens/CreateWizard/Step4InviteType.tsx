@@ -22,9 +22,10 @@ const Step4InviteType: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFinish = async () => {
+  const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
     if (loading) return;
-    if (!wizardData.tipo_invitacion) {
+    const tipo: 'individual' | 'link_general' = tipoOverride || wizardData.tipo_invitacion as 'individual' | 'link_general';
+    if (!tipo) {
       setError('Elegí un tipo de invitación');
       return;
     }
@@ -44,7 +45,7 @@ const Step4InviteType: React.FC = () => {
         modalidad: wizardData.modalidad as 'presencial' | 'virtual',
         lugar_texto: wizardData.lugar_texto,
         link_virtual: wizardData.link_virtual,
-        tipo_invitacion: wizardData.tipo_invitacion,
+        tipo_invitacion: tipo,
         host_id: hostId,
         tema: wizardData.tema || 'blue',
         reemplaza_a: (() => {
@@ -52,7 +53,6 @@ const Step4InviteType: React.FC = () => {
           if (refStr) {
             try {
               const ref = JSON.parse(refStr);
-              // Use oldId instead of fromId as defined in CancelSummary.tsx
               return ref.oldId || ref.fromId || null;
             } catch (e) { return null; }
           }
@@ -62,7 +62,6 @@ const Step4InviteType: React.FC = () => {
 
       console.log('[CREATE PAYLOAD]', payload);
       const newEncuentro = await encuentrosService.createEncuentro(payload);
-      // Update cancel_reference with the new encounter id if coming from cancellation
       const cancelRefStr = sessionStorage.getItem('cancel_reference');
       if (cancelRefStr) {
         try {
@@ -72,7 +71,7 @@ const Step4InviteType: React.FC = () => {
         } catch (e) { console.error('Error updating cancel_reference', e); }
       }
 
-      if (wizardData.tipo_invitacion === 'individual') {
+      if (tipo === 'individual') {
         navigate(`/add-guests/${newEncuentro.id}`);
       } else {
         navigate(`/share/${newEncuentro.id}`);
@@ -93,7 +92,12 @@ const Step4InviteType: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div
           style={optionCard(wizardData.tipo_invitacion === 'individual', loading)}
-          onClick={() => { if (!loading) { setField('tipo_invitacion', 'individual'); setError(null); } }}
+          onClick={async () => {
+            if (loading) return;
+            setField('tipo_invitacion', 'individual');
+            setError(null);
+            await handleFinish('individual');
+          }}
         >
           <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
           <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Personas específicas</h4>
@@ -102,7 +106,12 @@ const Step4InviteType: React.FC = () => {
 
         <div
           style={optionCard(wizardData.tipo_invitacion === 'link_general', loading)}
-          onClick={() => { if (!loading) { setField('tipo_invitacion', 'link_general'); setError(null); } }}
+          onClick={async () => {
+            if (loading) return;
+            setField('tipo_invitacion', 'link_general');
+            setError(null);
+            await handleFinish('link_general');
+          }}
         >
           <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
           <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Compartir link</h4>
@@ -134,27 +143,6 @@ const Step4InviteType: React.FC = () => {
           Creando encuentro…
         </div>
       )}
-
-      <div style={{ paddingTop: 24, marginTop: 'auto' }}>
-        <button
-          onClick={handleFinish}
-          disabled={!wizardData.tipo_invitacion || loading}
-          style={{
-            width: '100%',
-            height: 56,
-            borderRadius: 14,
-            background: !wizardData.tipo_invitacion || loading ? 'var(--color-surface-variant)' : 'var(--color-primary)',
-            color: !wizardData.tipo_invitacion || loading ? 'var(--color-on-surface-variant)' : '#fff',
-            fontSize: 16,
-            fontWeight: 700,
-            border: 'none',
-            cursor: !wizardData.tipo_invitacion || loading ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          {loading ? 'Creando…' : 'Crear encuentro'}
-        </button>
-      </div>
     </div>
   );
 };
