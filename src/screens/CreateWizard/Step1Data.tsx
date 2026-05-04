@@ -11,10 +11,10 @@ const Step1Data: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const nameRef = useRef<HTMLInputElement>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
-  const timeRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   const now = new Date();
   const localYear = now.getFullYear();
@@ -44,7 +44,17 @@ const Step1Data: React.FC = () => {
       e.preventDefault();
       e.stopPropagation();
       if (nextRef && nextRef.current) {
-        nextRef.current.focus();
+        const target = nextRef.current;
+        target.focus();
+        
+        // Intentar abrir el selector nativo en mobile (si es date o time)
+        if ('showPicker' in target && typeof target.showPicker === 'function') {
+          try {
+            target.showPicker();
+          } catch (err) {
+            // Ignorar errores si el navegador requiere un click explícito y falla
+          }
+        }
       }
     }
   };
@@ -89,7 +99,10 @@ const Step1Data: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}>
+    <form 
+      onSubmit={(e) => e.preventDefault()}
+      style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}
+    >
       <div style={{ marginBottom: 8 }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>¿Cuándo y dónde?</h2>
         <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 4 }}>Ponele un nombre y una fecha a tu encuentro.</p>
@@ -104,18 +117,20 @@ const Step1Data: React.FC = () => {
           label="Nombre del encuentro"
           value={titulo}
           onChange={(e) => setField('titulo', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, dateRef)}
+          onKeyDown={(e) => handleKeyDown(e, dateInputRef)}
           placeholder="Ej: Cena de fin de año"
-          ref={nameRef}
+          ref={nameInputRef}
+          enterKeyHint="next"
         />
         <Input
           label="Fecha"
           type="date"
           value={fecha}
           onChange={handleFechaChange}
-          onKeyDown={(e) => handleKeyDown(e, timeRef)}
+          onKeyDown={(e) => handleKeyDown(e, timeInputRef)}
           min={minDate}
-          ref={dateRef}
+          ref={dateInputRef}
+          enterKeyHint="next"
         />
         <div>
           <Input
@@ -123,9 +138,10 @@ const Step1Data: React.FC = () => {
             type="time"
             value={hora}
             onChange={handleHoraChange}
-            onKeyDown={(e) => handleKeyDown(e, descriptionRef)}
+            onKeyDown={(e) => handleKeyDown(e, descriptionInputRef)}
             min={minTime}
-            ref={timeRef}
+            ref={timeInputRef}
+            enterKeyHint="next"
           />
           <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 8, marginBottom: 8 }}>
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
@@ -139,8 +155,9 @@ const Step1Data: React.FC = () => {
             onChange={(e) => setField('descripcion', e.target.value)}
             onKeyDown={handleDescriptionKeyDown}
             placeholder="Agregá más detalles…"
-            ref={descriptionRef}
+            ref={descriptionInputRef}
             style={{ minHeight: '80px', paddingTop: '12px', paddingBottom: '12px', resize: 'vertical' }}
+            enterKeyHint="done"
           />
         </div>
         <ThemePicker
@@ -169,7 +186,7 @@ const Step1Data: React.FC = () => {
           Continuar
         </Button>
       </div>
-    </div>
+    </form>
   );
 };
 
