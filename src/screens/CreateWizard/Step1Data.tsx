@@ -126,6 +126,20 @@ const Step1Data: React.FC = () => {
     }
   };
 
+  const handleHoraFocus = () => {
+    if (timeInputRef.current) {
+      try {
+        if ('showPicker' in timeInputRef.current && typeof timeInputRef.current.showPicker === 'function') {
+          timeInputRef.current.showPicker();
+        } else {
+          timeInputRef.current.click();
+        }
+      } catch (err) {
+        timeInputRef.current.click();
+      }
+    }
+  };
+
   return (
     <form 
       onSubmit={(e) => e.preventDefault()}
@@ -166,6 +180,7 @@ const Step1Data: React.FC = () => {
             type="time"
             value={hora}
             onChange={handleHoraChange}
+            onFocus={handleHoraFocus}
             onKeyDown={(e) => handleKeyDown(e, descriptionInputRef)}
             min={minTime}
             ref={timeInputRef}

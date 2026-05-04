@@ -162,19 +162,6 @@ const ShareLink: React.FC = () => {
 
       {/* Share section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-on-surface-variant)', margin: 0 }}>
-          Enlace de invitación
-        </p>
-        <div style={{
-          background: 'var(--color-primary-container)',
-          borderRadius: 12, padding: '12px 16px',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ flex: 1, fontSize: 13, color: 'var(--color-primary-dark)', fontWeight: 500, wordBreak: 'break-all' }}>
-            {shareUrl}
-          </span>
-        </div>
-
         <Button fullWidth onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
           {copied ? '✓ Link copiado' : 'Compartir invitación'}
         </Button>
