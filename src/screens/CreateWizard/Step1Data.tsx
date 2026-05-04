@@ -11,9 +11,10 @@ const Step1Data: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const fechaRef = useRef<HTMLInputElement>(null);
-  const horaRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLTextAreaElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
+  const timeRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const now = new Date();
   const localYear = now.getFullYear();
@@ -41,9 +42,23 @@ const Step1Data: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextRef?: React.RefObject<any>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (nextRef && nextRef.current) {
         nextRef.current.focus();
       }
+    }
+  };
+
+  const handleDescriptionKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isValid && !isNavigating) {
+          handleNext();
+        }
+      }
+      // If it's just Enter without Ctrl/Meta, we don't preventDefault, allowing the newline
     }
   };
 
@@ -89,17 +104,18 @@ const Step1Data: React.FC = () => {
           label="Nombre del encuentro"
           value={titulo}
           onChange={(e) => setField('titulo', e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, fechaRef)}
+          onKeyDown={(e) => handleKeyDown(e, dateRef)}
           placeholder="Ej: Cena de fin de año"
+          ref={nameRef}
         />
         <Input
           label="Fecha"
           type="date"
           value={fecha}
           onChange={handleFechaChange}
-          onKeyDown={(e) => handleKeyDown(e, horaRef)}
+          onKeyDown={(e) => handleKeyDown(e, timeRef)}
           min={minDate}
-          ref={fechaRef}
+          ref={dateRef}
         />
         <div>
           <Input
@@ -107,9 +123,9 @@ const Step1Data: React.FC = () => {
             type="time"
             value={hora}
             onChange={handleHoraChange}
-            onKeyDown={(e) => handleKeyDown(e, descRef)}
+            onKeyDown={(e) => handleKeyDown(e, descriptionRef)}
             min={minTime}
-            ref={horaRef}
+            ref={timeRef}
           />
           <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 8, marginBottom: 8 }}>
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
@@ -121,8 +137,9 @@ const Step1Data: React.FC = () => {
             className="input-field"
             value={descripcion}
             onChange={(e) => setField('descripcion', e.target.value)}
+            onKeyDown={handleDescriptionKeyDown}
             placeholder="Agregá más detalles…"
-            ref={descRef}
+            ref={descriptionRef}
             style={{ minHeight: '80px', paddingTop: '12px', paddingBottom: '12px', resize: 'vertical' }}
           />
         </div>
