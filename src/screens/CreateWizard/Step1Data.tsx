@@ -56,19 +56,33 @@ const Step1Data: React.FC = () => {
         if ('openPicker' in target && typeof target.openPicker === 'function') {
           if ('focus' in target && typeof target.focus === 'function') target.focus();
           setTimeout(() => target.openPicker(), 100);
-        // Si es un input nativo con showPicker (ej: date)
-        } else if ('showPicker' in target && typeof target.showPicker === 'function') {
+
+        // Si es un input de tipo date: en desktop intentar showPicker(), en mobile solo focus
+        } else if (target instanceof HTMLInputElement && target.type === 'date') {
           target.focus();
-          setTimeout(() => { try { target.showPicker(); } catch (err) {} }, 100);
+          const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (!isMobile && 'showPicker' in target && typeof (target as any).showPicker === 'function') {
+            // Pequeño delay para que el foco se asiente antes de abrir el picker
+            setTimeout(() => {
+              try {
+                (target as any).showPicker();
+              } catch {
+                // showPicker puede lanzar en algunos navegadores — ignorar silenciosamente
+              }
+            }, 120);
+          }
+
         // Si es un textarea u otro elemento: solo scroll, NO focus (evita teclado en Android)
         } else if (target instanceof HTMLTextAreaElement) {
           target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
         } else {
           if ('focus' in target && typeof target.focus === 'function') target.focus();
         }
       }
     }
   };
+
 
   const handleDescriptionKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {

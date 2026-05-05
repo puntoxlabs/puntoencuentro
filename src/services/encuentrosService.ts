@@ -51,6 +51,31 @@ export const encuentrosService = {
     return data;
   },
 
+  async getEncuentrosByHostIds(host_ids: string[]) {
+    // Filtrar ids vacíos/null y deduplicar
+    const ids = [...new Set(host_ids.filter(Boolean))];
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('encuentros')
+      .select('*')
+      .in('host_id', ids)
+      .order('creado_en', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching encuentros by host ids:', error);
+      throw error;
+    }
+
+    // Deduplicar por id (por si acaso haya solapamiento futuro)
+    const seen = new Set<string>();
+    return (data || []).filter(enc => {
+      if (seen.has(enc.id)) return false;
+      seen.add(enc.id);
+      return true;
+    });
+  },
+
   async getEncuentroById(id: string) {
     const { data, error } = await supabase
       .from('encuentros')

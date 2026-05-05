@@ -9,6 +9,7 @@ import { AccountSheet } from '@/components/ui/AccountSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
@@ -258,6 +259,10 @@ const Home: React.FC = () => {
     }
   }, []);
 
+  // Recargar cuando el usuario inicia o cierra sesión
+  useEffect(() => {
+    loadData();
+  }, [user?.id]);
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     setScrollPosition(e.currentTarget.scrollTop);
@@ -268,8 +273,21 @@ const Home: React.FC = () => {
       const isCacheValid = useHomeStore.getState().getValidCache() !== null;
       if (!isCacheValid) setLoading(true);
       setError(null);
-      const hostId = getHostId();
-      const data = await encuentrosService.getEncuentrosByHost(hostId);
+
+      const anonId = getHostId();
+      // Leer el usuario actual directamente de Supabase (evita dependencia del closure)
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const userId = currentUser?.id;
+
+      let data: any[];
+      if (userId && userId !== anonId) {
+        // Logueado: combinar encuentros del user.id + UUID anónimo del dispositivo
+        data = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
+      } else {
+        // Anónimo: solo UUID local
+        data = await encuentrosService.getEncuentrosByHost(anonId);
+      }
+
       const sortedData = (data || []).filter(e => e && e.id).sort((a, b) => {
         const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
         const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();

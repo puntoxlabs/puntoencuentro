@@ -73,28 +73,32 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isOpen]);
 
-  // Scroll to selected time or current time when opened
+  // Scroll to correct position when picker opens
   useEffect(() => {
-    if (isOpen && scrollRef.current) {
-      setTimeout(() => {
-        if (selectedRef.current) {
-          selectedRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        } else if (value) {
-          // If value is not in options (e.g. 10:12), find closest
-          const el = document.getElementById(`time-opt-${value}`);
-          if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        } else {
-          // Scroll to current time or minTime
-          const now = new Date();
-          const curH = String(now.getHours()).padStart(2, '0');
-          const curM = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
-          const targetTime = minTime || `${curH}:${curM}`;
-          const el = document.getElementById(`time-opt-${targetTime}`);
-          if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
-      }, 50);
-    }
+    if (!isOpen || !scrollRef.current) return;
+
+    setTimeout(() => {
+      // First valid time: first option that is not disabled
+      const firstValidTime = minTime
+        ? TIME_OPTIONS.find(t => t >= minTime) ?? TIME_OPTIONS[0]
+        : (() => {
+            const now = new Date();
+            const curH = String(now.getHours()).padStart(2, '0');
+            const curM = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
+            return `${curH}:${curM}`;
+          })();
+
+      // If current value is valid (not disabled), scroll to it
+      const valueIsValid = value && (!minTime || value >= minTime);
+
+      const targetTime = valueIsValid ? value : firstValidTime;
+      const el = document.getElementById(`time-opt-${targetTime}`);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 50);
   }, [isOpen, value, minTime]);
+
 
   const handleSelect = (time: string) => {
     if (minTime && time < minTime) return;
