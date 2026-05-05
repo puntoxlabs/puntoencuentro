@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 
 const optionCard = (selected: boolean, disabled: boolean): React.CSSProperties => ({
@@ -18,6 +19,7 @@ const optionCard = (selected: boolean, disabled: boolean): React.CSSProperties =
 
 const Step4InviteType: React.FC = () => {
   const { setField, ...wizardData } = useWizardStore();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,9 @@ const Step4InviteType: React.FC = () => {
     }
     try {
       setLoading(true);
-      const hostId = getHostId();
+      // Si está logueado → user.id (UUID de Supabase Auth).
+      // Si es anónimo  → UUID local del dispositivo (sin FK en host_id).
+      const hostId = user?.id ?? getHostId();
       const payload = {
         titulo: wizardData.titulo,
         descripcion: wizardData.descripcion,

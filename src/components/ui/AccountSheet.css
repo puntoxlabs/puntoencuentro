@@ -1,0 +1,229 @@
+/* AccountSheet.css */
+
+/* Backdrop */
+.account-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: fadeInBackdrop 0.2s ease forwards;
+}
+
+@keyframes fadeInBackdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Sheet container */
+.account-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  z-index: 1000;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 24px 20px 36px 20px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  animation: slideUpSheet 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Drag handle */
+.account-sheet__handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  align-self: center;
+  margin-bottom: 20px;
+}
+
+/* Header row */
+.account-sheet__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.account-sheet__title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+}
+
+.account-sheet__close-btn {
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #374151;
+  transition: background 0.15s ease;
+}
+
+.account-sheet__close-btn:hover {
+  background: #e5e7eb;
+}
+
+/* ── Logged-out state ── */
+.account-sheet__benefit-box {
+  background: var(--color-primary-container, #EEF2FF);
+  border-radius: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+
+.account-sheet__benefit-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #111827;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.account-sheet__benefit-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.account-sheet__google-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: var(--font-family, inherit);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+  margin-bottom: 16px;
+}
+
+.account-sheet__google-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.account-sheet__google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.account-sheet__disclaimer {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── Logged-in state ── */
+.account-sheet__profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+}
+
+.account-sheet__avatar-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.account-sheet__avatar-initials {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary, #4F46E5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+
+.account-sheet__profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-sheet__profile-name {
+  margin: 0 0 2px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-sheet__profile-email {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-sheet__signout-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(220, 38, 38, 0.25);
+  background: #fef2f2;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: var(--font-family, inherit);
+  transition: background 0.2s ease;
+}
+
+.account-sheet__signout-btn:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.account-sheet__signout-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

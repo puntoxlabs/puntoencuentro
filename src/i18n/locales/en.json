@@ -3,6 +3,14 @@
     "title": "My Meetings",
     "create_btn": "Create meeting"
   },
+  "account": {
+    "save_title": "Save your meetings",
+    "save_desc": "Access your meetings from any device.",
+    "google_btn": "Continue with Google",
+    "sign_out": "Sign out",
+    "disclaimer": "Access is optional. You can keep using the app without signing in.",
+    "your_account": "Your account"
+  },
   "virtual_link_pending": "Confirm your attendance to access the video call link.",
   "open_video_call": "Open video call",
   "copy_link": "Copy link",

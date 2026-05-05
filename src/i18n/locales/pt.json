@@ -3,6 +3,14 @@
     "title": "Meus Encontros",
     "create_btn": "Criar encontro"
   },
+  "account": {
+    "save_title": "Salve seus encontros",
+    "save_desc": "Acesse seus encontros de qualquer dispositivo.",
+    "google_btn": "Continuar com Google",
+    "sign_out": "Sair da conta",
+    "disclaimer": "O acesso é opcional. Você pode continuar usando o app sem entrar.",
+    "your_account": "Sua conta"
+  },
   "virtual_link_pending": "Confirme sua presença para acessar o link da videochamada.",
   "open_video_call": "Abrir videochamada",
   "copy_link": "Copiar link",

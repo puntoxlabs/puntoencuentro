@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Sliders, Plus } from 'lucide-react';
+import { Calendar, Sliders, Plus, User } from 'lucide-react';
 import { FilterSheet } from '@/components/ui/FilterSheet';
+import { AccountSheet } from '@/components/ui/AccountSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
@@ -221,6 +223,7 @@ const PastCard: React.FC<{
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -230,7 +233,17 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+
+  // Avatar helper
+  const userAvatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const userInitials = (() => {
+    const name = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '') as string;
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase() || '?';
+  })();
 
   const totalProximos = (encuentros || []).filter(enc => enc && enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
   const totalPasados = (encuentros || []).filter(enc => enc && (enc.estado === 'cancelado' || isEncuentroPasado(enc))).length;
@@ -244,6 +257,7 @@ const Home: React.FC = () => {
       });
     }
   }, []);
+
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     setScrollPosition(e.currentTarget.scrollTop);
@@ -504,17 +518,42 @@ const Home: React.FC = () => {
             {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
           </p>
         </div>
-        <button
-          onClick={() => setIsFilterOpen(true)}
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 36, height: 36, borderRadius: '50%',
-            color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : '#111827'
-          }}
-        >
-          <Sliders size={20} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Botón de perfil/cuenta */}
+          <button
+            onClick={() => setIsAccountOpen(true)}
+            style={{
+              background: user ? 'var(--color-primary)' : '#F3F4F6',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '50%',
+              overflow: 'hidden',
+              transition: 'background 0.2s ease',
+            }}
+            title={user ? 'Tu cuenta' : 'Iniciar sesión'}
+          >
+            {user && userAvatarUrl ? (
+              <img src={userAvatarUrl} alt="Avatar" style={{ width: 36, height: 36, objectFit: 'cover' }} />
+            ) : user ? (
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{userInitials}</span>
+            ) : (
+              <User size={18} color="#6B7280" />
+            )}
+          </button>
+
+          {/* Botón de filtros */}
+          <button
+            onClick={() => setIsFilterOpen(true)}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '50%',
+              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : '#111827'
+            }}
+          >
+            <Sliders size={20} />
+          </button>
+        </div>
       </header>
 
       {/* Segmented Control Toggle */}
@@ -584,6 +623,7 @@ const Home: React.FC = () => {
       </div>
       
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
+      <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
