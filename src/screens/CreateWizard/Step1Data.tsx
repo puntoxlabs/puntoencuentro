@@ -14,10 +14,12 @@ const Step1Data: React.FC = () => {
   const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [highlightDescripcion, setHighlightDescripcion] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timeInputRef = useRef<TimePickerRef>(null);
+  const descripcionContainerRef = useRef<HTMLDivElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   const now = new Date();
@@ -115,11 +117,13 @@ const Step1Data: React.FC = () => {
       const currentErr = validateEncounterDate(fecha, val);
       setError(currentErr === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : currentErr);
 
-      // Scroll al campo descripción sin disparar el teclado
+      // Scroll al contenedor descripción y aplicar highlight visual, SIN hacer focus (no abre teclado)
       if (!currentErr) {
         setTimeout(() => {
-          descriptionInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
+          descripcionContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setHighlightDescripcion(true);
+          setTimeout(() => setHighlightDescripcion(false), 1000);
+        }, 150);
       }
     }
   };
@@ -173,7 +177,18 @@ const Step1Data: React.FC = () => {
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
           </p>
         </div>
-        <div className="input-group">
+        <div
+          ref={descripcionContainerRef}
+          className="input-group"
+          style={{
+            borderRadius: 12,
+            transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+            ...(highlightDescripcion ? {
+              boxShadow: '0 0 0 2px var(--color-primary, #6366f1), 0 4px 16px rgba(99,102,241,0.13)',
+              background: 'var(--color-primary-container, rgba(99,102,241,0.06))',
+            } : {}),
+          }}
+        >
           <label className="input-label">Descripción (opcional)</label>
           <textarea
             className="input-field"
