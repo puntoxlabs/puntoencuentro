@@ -149,4 +149,22 @@ export const encuentrosService = {
     }
     return data;
   },
+
+  async linkAnonymousEncuentros(anonId: string, userId: string) {
+    if (!anonId || !userId || anonId === userId) return;
+
+    console.log(`[LINK] Vinculando encuentros de ${anonId} a ${userId}`);
+
+    const { data, error } = await supabase
+      .from('encuentros')
+      .update({ host_id: userId })
+      .eq('host_id', anonId);
+
+    if (error) {
+      console.error('Error linking anonymous encuentros:', error);
+      throw error;
+    }
+
+    return data;
+  },
 };

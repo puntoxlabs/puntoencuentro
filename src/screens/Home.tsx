@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -223,6 +224,7 @@ const PastCard: React.FC<{
 
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 const Home: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
@@ -236,6 +238,16 @@ const Home: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [linking, setLinking] = useState(false);
+  const [linkDismissed, setLinkDismissed] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  const anonId = getHostId();
+  // Mostrar banner si: logueado + hay encuentros anónimos locales + no descartado en esta sesión
+  const hasAnonymous = !!user
+    && anonId !== user.id
+    && !linkDismissed
+    && (encuentros || []).some(e => e.host_id === anonId);
 
   // Avatar helper
   const userAvatarUrl = user?.user_metadata?.avatar_url as string | undefined;
@@ -267,6 +279,22 @@ const Home: React.FC = () => {
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     setScrollPosition(e.currentTarget.scrollTop);
   }, 200);
+
+  const handleLinkEncuentros = async () => {
+    if (!user || !anonId || anonId === user.id || linking) return;
+    try {
+      setLinking(true);
+      setLinkError(null);
+      await encuentrosService.linkAnonymousEncuentros(anonId, user.id);
+      await loadData();
+      // El banner desaparece sola porque hasAnonymous vuelve false tras recargar
+    } catch (err) {
+      console.error('Error linking encuentros', err);
+      setLinkError(t('account.link_error', 'No se pudieron guardar los encuentros. Intentá nuevamente.'));
+    } finally {
+      setLinking(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -430,6 +458,51 @@ const Home: React.FC = () => {
           .slide-from-left { animation: slideFromLeft 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
           .slide-from-right { animation: slideFromRight 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
         `}} />
+
+        {activeTab === 'upcoming' && hasAnonymous && (
+          <div style={{
+            background: 'var(--color-primary-container)',
+            borderRadius: 16,
+            padding: '16px 20px',
+            marginBottom: 20,
+            border: '1px solid var(--color-primary)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3, letterSpacing: 0.1 }}>
+              {t('account.link_title', 'Guardá tus encuentros en tu cuenta')}
+            </p>
+            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+              {t('account.link_banner', 'Tenés encuentros creados en este dispositivo. Guardálos para acceder desde otros dispositivos.')}
+            </p>
+            {linkError && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-error, #dc2626)', fontWeight: 600 }}>
+                {linkError}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleLinkEncuentros}
+                disabled={linking}
+                style={{ padding: '0 18px' }}
+              >
+                {linking ? '…' : t('account.link_action', 'Guardar en mi cuenta')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setLinkDismissed(true); setLinkError(null); }}
+                disabled={linking}
+                style={{ padding: '0 12px', color: '#6B7280', fontSize: 13 }}
+              >
+                {t('account.link_later', 'Ahora no')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {activeTab === 'upcoming' ? (
           proximos.length > 0 ? (

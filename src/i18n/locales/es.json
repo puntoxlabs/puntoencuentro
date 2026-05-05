@@ -9,7 +9,12 @@
     "google_btn": "Continuar con Google",
     "sign_out": "Cerrar sesión",
     "disclaimer": "El acceso es opcional. Podés seguir usando la app sin iniciar sesión.",
-    "your_account": "Tu cuenta"
+    "your_account": "Tu cuenta",
+    "link_title": "Guardá tus encuentros en tu cuenta",
+    "link_banner": "Tenés encuentros creados en este dispositivo. Guardálos para acceder desde otros dispositivos.",
+    "link_action": "Guardar en mi cuenta",
+    "link_later": "Ahora no",
+    "link_error": "No se pudieron guardar los encuentros. Intentá nuevamente."
   },
   "virtual_link_pending": "Confirmá tu asistencia para acceder al enlace de la videollamada.",
   "open_video_call": "Abrir videollamada",

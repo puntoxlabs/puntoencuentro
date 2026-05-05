@@ -9,7 +9,12 @@
     "google_btn": "Continuar com Google",
     "sign_out": "Sair da conta",
     "disclaimer": "O acesso é opcional. Você pode continuar usando o app sem entrar.",
-    "your_account": "Sua conta"
+    "your_account": "Sua conta",
+    "link_title": "Salve seus encontros na sua conta",
+    "link_banner": "Você tem encontros criados neste dispositivo. Salve-os para acessar de qualquer lugar.",
+    "link_action": "Salvar na minha conta",
+    "link_later": "Agora não",
+    "link_error": "Não foi possível salvar os encontros. Tente novamente."
   },
   "virtual_link_pending": "Confirme sua presença para acessar o link da videochamada.",
   "open_video_call": "Abrir videochamada",

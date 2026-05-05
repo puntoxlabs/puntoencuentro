@@ -9,7 +9,12 @@
     "google_btn": "Continue with Google",
     "sign_out": "Sign out",
     "disclaimer": "Access is optional. You can keep using the app without signing in.",
-    "your_account": "Your account"
+    "your_account": "Your account",
+    "link_title": "Save your meetings to your account",
+    "link_banner": "You have meetings created on this device. Save them to access from any device.",
+    "link_action": "Save to my account",
+    "link_later": "Not now",
+    "link_error": "Could not save meetings. Please try again."
   },
   "virtual_link_pending": "Confirm your attendance to access the video call link.",
   "open_video_call": "Open video call",
