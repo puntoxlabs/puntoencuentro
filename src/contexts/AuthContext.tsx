@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { participantesService } from '@/services/participantesService';
+
+const RECENT_PARTICIPANT_KEY = 'puntoencuentro_recent_participant_id';
 
 interface AuthContextValue {
   user: User | null;
@@ -32,10 +35,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Escuchar cambios de estado
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setLoading(false);
+
+      // Vinculación post-login: solo si el usuario acaba de iniciar sesión
+      if (event === 'SIGNED_IN' && newSession?.user?.id) {
+        const recentParticipantId = sessionStorage.getItem(RECENT_PARTICIPANT_KEY);
+        if (recentParticipantId) {
+          // Limpiar antes de vincular para evitar reintentos en refrescos
+          sessionStorage.removeItem(RECENT_PARTICIPANT_KEY);
+          participantesService
+            .linkUserToParticipante(recentParticipantId, newSession.user.id)
+            .then(() => {
+              console.log('[AUTH] Participante reciente vinculado a usuario:', newSession.user.id);
+            })
+            .catch((err) => {
+              console.error('[AUTH] Error al vincular participante reciente:', err);
+              // No mostramos alert — fallo silencioso para no romper el flujo
+            });
+        }
+      }
     });
 
     return () => subscription.unsubscribe();

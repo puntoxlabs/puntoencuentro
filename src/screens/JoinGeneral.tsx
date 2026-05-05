@@ -9,6 +9,7 @@ import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { useHomeStore } from '@/store/homeStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { getThemeStyle } from '@/lib/themes';
 
@@ -36,6 +37,7 @@ const linkBox: React.CSSProperties = {
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
   const { t } = useTranslation();
+  const { user, signInWithGoogle } = useAuth();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,8 @@ const JoinGeneral: React.FC = () => {
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [participante, setParticipante] = useState<any>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  // true solo si el usuario acaba de confirmar en ESTA sesión (no una visita posterior)
+  const [justConfirmed, setJustConfirmed] = useState(false);
 
   useEffect(() => { if (public_token) loadData(); }, [public_token]);
 
@@ -104,14 +108,15 @@ const JoinGeneral: React.FC = () => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
-      const newPart = await participantesService.addParticipanteGenerico(encuentro.id, nombre.trim(), estado);
+      // Pasar user_id si el usuario está logueado
+      const newPart = await participantesService.addParticipanteGenerico(
+        encuentro.id, nombre.trim(), estado, user?.id ?? null
+      );
       if (newPart && newPart.id) {
         let savedData: SavedData = { encuentros: {} };
         try {
           const savedDataStr = localStorage.getItem('encuentros_general');
-          if (savedDataStr) {
-            savedData = JSON.parse(savedDataStr);
-          }
+          if (savedDataStr) savedData = JSON.parse(savedDataStr);
         } catch (e) {
           console.error('Error parsing encuentros_general before saving', e);
         }
@@ -119,10 +124,16 @@ const JoinGeneral: React.FC = () => {
         if (!savedData.encuentros) savedData.encuentros = {};
         savedData.encuentros[public_token!] = { participant_id: newPart.id, token_invitacion: newPart.token_invitacion };
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));
+
+        // Guardar en sessionStorage para vinculación post-login
+        if (!user) {
+          sessionStorage.setItem('puntoencuentro_recent_participant_id', newPart.id);
+        }
       }
       useHomeStore.getState().invalidateCache();
       setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
       setStep('done');
+      setJustConfirmed(true);
       console.log('[GENERAL_LINK] estado final:', 'done');
     } catch (err) {
       console.error('Error responding', err);
@@ -239,6 +250,30 @@ const JoinGeneral: React.FC = () => {
         <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16 }}>
           Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
         </p>
+        {/* Nudge de login: solo si acaba de confirmar en esta sesión y no está logueado */}
+        {!user && justConfirmed && (
+          <div style={{
+            marginTop: 20, padding: '16px', borderRadius: 14,
+            background: 'var(--color-primary-container)',
+            border: '1px solid var(--color-primary)',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
+              Guardá este encuentro
+            </p>
+            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+              Accedé a este encuentro desde cualquier dispositivo iniciando sesión.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={signInWithGoogle}
+              style={{ width: '100%' }}
+            >
+              Continuar con Google
+            </Button>
+          </div>
+        )}
       </div>
     </ScreenContainer>
   );

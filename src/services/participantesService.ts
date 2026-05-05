@@ -95,11 +95,14 @@ export const participantesService = {
     return data;
   },
 
-  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado') {
+  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
     const respondido_en = new Date().toISOString();
+    const updatePayload: Record<string, any> = { estado, respondido_en };
+    if (user_id !== undefined) updatePayload.user_id = user_id;
+
     const { data, error } = await supabase
       .from('participantes')
-      .update({ estado, respondido_en })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
@@ -112,19 +115,22 @@ export const participantesService = {
     return data;
   },
 
-  async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado') {
+  async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
     const respondido_en = new Date().toISOString();
     const token_invitacion = crypto.randomUUID();
+    const insertPayload: Record<string, any> = {
+      encuentro_id,
+      nombre_invitado,
+      tipo_invitacion: 'generico',
+      estado,
+      respondido_en,
+      token_invitacion,
+    };
+    if (user_id !== undefined && user_id !== null) insertPayload.user_id = user_id;
+
     const { data, error } = await supabase
       .from('participantes')
-      .insert([{
-        encuentro_id,
-        nombre_invitado,
-        tipo_invitacion: 'generico',
-        estado,
-        respondido_en,
-        token_invitacion
-      }])
+      .insert([insertPayload])
       .select()
       .single();
 
@@ -134,5 +140,20 @@ export const participantesService = {
     }
 
     return data;
-  }
+  },
+
+  async linkUserToParticipante(participantId: string, userId: string) {
+    if (!participantId || !userId) return;
+    console.log(`[LINK_PART] Vinculando participante ${participantId} a user ${userId}`);
+
+    const { error } = await supabase
+      .from('participantes')
+      .update({ user_id: userId })
+      .eq('id', participantId);
+
+    if (error) {
+      console.error('Error linking user to participante:', error);
+      throw error;
+    }
+  },
 };

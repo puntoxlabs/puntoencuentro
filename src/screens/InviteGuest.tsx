@@ -8,6 +8,7 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
 
 const metaRow: React.CSSProperties = {
@@ -30,6 +31,7 @@ const linkBox: React.CSSProperties = {
 const InviteGuest: React.FC = () => {
   const { token } = useParams();
   const { t } = useTranslation();
+  const { user, signInWithGoogle } = useAuth();
   const [participante, setParticipante] = useState<any>(null);
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,8 @@ const InviteGuest: React.FC = () => {
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [copiedLink, setCopiedLink] = useState(false);
+  // true solo si el usuario acaba de responder en ESTA sesión
+  const [justConfirmed, setJustConfirmed] = useState(false);
 
   const handleCopyVideoLink = async () => {
     if (!encuentro?.link_virtual) return;
@@ -82,9 +86,18 @@ const InviteGuest: React.FC = () => {
     try {
       setLoadingResponse(true);
       console.log('[INVITE] confirmando token:', token);
-      const response = await participantesService.updateParticipanteEstado(participante.id, estado);
+      // Pasar user_id si el usuario está logueado — no toca host_id ni otros campos
+      const response = await participantesService.updateParticipanteEstado(
+        participante.id, estado, user?.id ?? null
+      );
       console.log('[INVITE] respuesta confirmación:', response);
       useHomeStore.getState().invalidateCache();
+
+      // Guardar en sessionStorage para vinculación post-login si no está logueado
+      if (!user) {
+        sessionStorage.setItem('puntoencuentro_recent_participant_id', participante.id);
+      }
+
       const refreshed = await participantesService.getParticipanteByToken(token!);
       let refEnc = refreshed.encuentros;
       if (!refEnc && refreshed.encuentro_id) {
@@ -95,6 +108,7 @@ const InviteGuest: React.FC = () => {
       }
       if (!refEnc) throw new Error("No se pudo obtener el participante actualizado o su encuentro después de confirmar.");
       setParticipante(refreshed); setEncuentro(refEnc); setStep('done');
+      setJustConfirmed(true);
       console.log('[INVITE] ruta post-confirmación:', window.location.href);
     } catch (err) {
       console.error('InviteGuest error:', err);
@@ -217,6 +231,30 @@ const InviteGuest: React.FC = () => {
         <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16, lineHeight: 1.55, margin: '16px 0 0' }}>
           Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
         </p>
+        {/* Nudge de login: solo si acaba de responder en esta sesión y no está logueado */}
+        {!user && justConfirmed && (
+          <div style={{
+            marginTop: 20, padding: '16px', borderRadius: 14,
+            background: 'var(--color-primary-container)',
+            border: '1px solid var(--color-primary)',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
+              Guardá este encuentro
+            </p>
+            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+              Accedé a este encuentro desde cualquier dispositivo iniciando sesión.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={signInWithGoogle}
+              style={{ width: '100%' }}
+            >
+              Continuar con Google
+            </Button>
+          </div>
+        )}
       </div>
     </ScreenContainer>
   );
