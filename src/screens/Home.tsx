@@ -227,20 +227,28 @@ const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { encuentros: cachedEncuentros, getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
+  const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
   const detailCache = useDetailStore(s => s.cache);
   const validCache = getValidCache();
-  const [encuentros, setLocalEncuentros] = useState<any[]>(validCache || cachedEncuentros);
   const [loading, setLoading] = useState(!validCache);
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [activeScope, setActiveScope] = useState<'organizo' | 'participo'>('organizo');
   const [linking, setLinking] = useState(false);
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  // Estados locales para las dos listas
+  const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache || []);
+  const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>([]);
+
+  // Los encuentros "visibles" dependen del scope activo
+  const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
 
   const anonId = getHostId();
   // Mostrar banner si: logueado + hay encuentros anónimos locales + no descartado en esta sesión
@@ -303,26 +311,35 @@ const Home: React.FC = () => {
       setError(null);
 
       const anonId = getHostId();
-      // Leer el usuario actual directamente de Supabase (evita dependencia del closure)
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       const userId = currentUser?.id;
 
-      let data: any[];
-      if (userId && userId !== anonId) {
-        // Logueado: combinar encuentros del user.id + UUID anónimo del dispositivo
-        data = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
+      let organized: any[] = [];
+      let participated: any[] = [];
+
+      if (userId) {
+        // Logueado: traer organizados (user + anon) y participados
+        organized = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
+        participated = await encuentrosService.getEncuentrosParticipados(userId);
       } else {
-        // Anónimo: solo UUID local
-        data = await encuentrosService.getEncuentrosByHost(anonId);
+        // Anónimo: solo organizados del UUID local
+        organized = await encuentrosService.getEncuentrosByHost(anonId);
       }
 
-      const sortedData = (data || []).filter(e => e && e.id).sort((a, b) => {
+      const sortList = (list: any[]) => (list || []).filter(e => e && e.id).sort((a, b) => {
         const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
         const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
         return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
       });
-      setLocalEncuentros(sortedData);
-      setEncuentros(sortedData);
+
+      const sortedOrganized = sortList(organized);
+      const sortedParticipated = sortList(participated);
+
+      setOrganizedEncuentros(sortedOrganized);
+      setParticipatedEncuentros(sortedParticipated);
+      
+      // Actualizar el store global (principalmente para la lista de organizados que es la principal)
+      setEncuentros(sortedOrganized);
     } catch (err) {
       console.error('Error loading home data', err);
       setError('Hubo un error al cargar tus encuentros.');
@@ -399,42 +416,51 @@ const Home: React.FC = () => {
     }
 
     // Estado vacío total
-    if (!encuentros || encuentros.length === 0) return (
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '20px 0', gap: 0,
-      }}>
+    if (!encuentros || encuentros.length === 0) {
+      const isOrganizo = activeScope === 'organizo';
+      return (
         <div style={{
-          width: 80, height: 80, borderRadius: 28,
-          background: 'var(--color-primary-container)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginBottom: 24,
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '20px 0', gap: 0,
         }}>
-          <Calendar size={40} color="var(--color-primary)" />
+          <div style={{
+            width: 80, height: 80, borderRadius: 28,
+            background: 'var(--color-primary-container)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 24,
+          }}>
+            <Calendar size={40} color="var(--color-primary)" />
+          </div>
+          <h2 style={{
+            fontSize: 22, fontWeight: 800, textAlign: 'center',
+            margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
+          }}>
+            {isOrganizo 
+              ? 'Todavía no organizaste encuentros'
+              : 'Todavía no tenés invitaciones confirmadas'}
+          </h2>
+          <p style={{
+            fontSize: 15, color: '#6B7280',
+            textAlign: 'center', margin: '0 0 32px', lineHeight: 1.5,
+          }}>
+            {isOrganizo
+              ? 'Creá uno nuevo para coordinar con otros.'
+              : 'Cuando confirmes asistencia, aparecerán acá.'}
+          </p>
+          {isOrganizo && (
+            <Button
+              variant="primary"
+              fullWidth
+              style={{ height: 56, fontSize: 16, fontWeight: 700 }}
+              onClick={() => { resetWizard(); navigate('/create'); }}
+            >
+              + Crear encuentro
+            </Button>
+          )}
         </div>
-        <h2 style={{
-          fontSize: 22, fontWeight: 800, textAlign: 'center',
-          margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
-        }}>
-          Todavía no tenés encuentros<br />programados 👇
-        </h2>
-        <p style={{
-          fontSize: 15, color: '#6B7280',
-          textAlign: 'center', margin: '0 0 32px', lineHeight: 1.5,
-        }}>
-          Organizá algo en segundos y empezá<br />a coordinar con otros
-        </p>
-        <Button
-          variant="primary"
-          fullWidth
-          style={{ height: 56, fontSize: 16, fontWeight: 700 }}
-          onClick={() => { resetWizard(); navigate('/create'); }}
-        >
-          + Crear encuentro
-        </Button>
-      </div>
-    );
+      );
+    }
 
     const slideClass = activeTab === 'upcoming' ? 'slide-from-left' : 'slide-from-right';
 
@@ -613,6 +639,7 @@ const Home: React.FC = () => {
           {/* Botón de perfil/cuenta */}
           <button
             onClick={() => setIsAccountOpen(true)}
+            aria-label="Cuenta"
             style={{
               background: user ? 'var(--color-primary)' : '#F3F4F6',
               border: 'none', cursor: 'pointer',
@@ -620,13 +647,21 @@ const Home: React.FC = () => {
               width: 36, height: 36, borderRadius: '50%',
               overflow: 'hidden',
               transition: 'background 0.2s ease',
+              padding: 0,
             }}
             title={user ? 'Tu cuenta' : 'Iniciar sesión'}
           >
-            {user && userAvatarUrl ? (
-              <img src={userAvatarUrl} alt="Avatar" style={{ width: 36, height: 36, objectFit: 'cover' }} />
+            {user && userAvatarUrl && !imgError ? (
+              <img
+                src={userAvatarUrl}
+                alt=""
+                onError={() => setImgError(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             ) : user ? (
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{userInitials}</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>
+                {userInitials}
+              </span>
             ) : (
               <User size={18} color="#6B7280" />
             )}
@@ -647,8 +682,46 @@ const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* Segmented Control Toggle */}
-      {!loading && encuentros.length > 0 && (
+      {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
+      {user && (
+        <div style={{ padding: '16px 20px 0 20px', background: '#F4F6FB' }}>
+          <div style={{
+            display: 'flex',
+            background: '#E5E7EB',
+            padding: 4,
+            borderRadius: 14,
+            height: 48,
+          }}>
+            <button
+              onClick={() => setActiveScope('organizo')}
+              style={{
+                flex: 1, border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                background: activeScope === 'organizo' ? '#fff' : 'transparent',
+                color: activeScope === 'organizo' ? '#111827' : '#6B7280',
+                boxShadow: activeScope === 'organizo' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Organizo
+            </button>
+            <button
+              onClick={() => setActiveScope('participo')}
+              style={{
+                flex: 1, border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                background: activeScope === 'participo' ? '#fff' : 'transparent',
+                color: activeScope === 'participo' ? '#111827' : '#6B7280',
+                boxShadow: activeScope === 'participo' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Participo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* B. Segmented Control Toggle (Próximos / Anteriores) */}
+      {!loading && (encuentros.length > 0 || filterStatus !== 'all') && (
         <div style={{ padding: '16px 20px 0 20px', background: '#F4F6FB' }}>
           <div style={{
             background: '#E8EDF8',

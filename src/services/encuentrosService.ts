@@ -150,6 +150,33 @@ export const encuentrosService = {
     return data;
   },
 
+  async getEncuentrosParticipados(userId: string) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+      .from('participantes')
+      .select('encuentros(*)')
+      .eq('user_id', userId)
+      .eq('estado', 'confirmado');
+
+    if (error) {
+      console.error('Error fetching encuentros participados:', error);
+      throw error;
+    }
+
+    // Mapear a Encuentro[], filtrar nulls y deduplicar
+    const seen = new Set<string>();
+    const encuentros = (data || [])
+      .map(p => p.encuentros as any)
+      .filter((enc): enc is any => {
+        if (!enc || seen.has(enc.id)) return false;
+        seen.add(enc.id);
+        return true;
+      });
+
+    return encuentros;
+  },
+
   async linkAnonymousEncuentros(anonId: string, userId: string) {
     if (!anonId || !userId || anonId === userId) return;
 

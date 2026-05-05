@@ -12,6 +12,8 @@ import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
 import { useHomeStore } from '@/store/homeStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { MapPin, Video, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó (con 2 horas de gracia para permitir "En curso ahora") */
 function isEncuentroPasado(enc: any): boolean {
@@ -39,6 +41,7 @@ const DetailHost: React.FC = () => {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
@@ -354,14 +357,112 @@ const DetailHost: React.FC = () => {
     </div>
   ) : null;
 
+  const isHost = !!(user && encuentro.host_id === user.id);
+  const participanteActual = user ? participantes.find(p => p.user_id === user.id) : null;
+  const isParticipant = !!participanteActual;
+
+  const renderParticipantView = () => {
+    const pEstado = participanteActual?.estado || 'pendiente';
+    const statusLabel = pEstado === 'confirmado' ? 'Confirmaste tu asistencia' :
+                        pEstado === 'rechazado' ? 'Rechazaste esta invitación' : 'Todavía no respondiste';
+    const statusIcon = pEstado === 'confirmado' ? <CheckCircle2 size={18} color="#059669" /> :
+                       pEstado === 'rechazado' ? <XCircle size={18} color="#DC2626" /> : <Clock size={18} color="#6B7280" />;
+    
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
+              {encuentro.titulo}
+            </h2>
+            <div style={{
+              background: badge.bg, color: badge.color,
+              padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              whiteSpace: 'nowrap'
+            }}>
+              {badge.label}
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#4B5563', fontSize: 15 }}>
+              <Clock size={18} />
+              <span style={{ fontWeight: 600 }}>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#4B5563', fontSize: 15 }}>
+              {isVirtual ? <Video size={18} /> : <MapPin size={18} />}
+              <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
+            </div>
+            {encuentro.descripcion && (
+              <div style={{ marginTop: 8, fontSize: 15, color: '#6B7280', lineHeight: 1.5, background: '#F9FAFB', padding: '12px 16px', borderRadius: 12 }}>
+                {encuentro.descripcion}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Estado personal */}
+        <div style={{
+          background: '#fff', borderRadius: 16, padding: '16px 20px', marginBottom: 32,
+          border: '1px solid rgba(0,0,0,0.04)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          display: 'flex', alignItems: 'center', gap: 12
+        }}>
+          {statusIcon}
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{statusLabel}</span>
+        </div>
+
+        {isCancelado && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: 12, padding: '14px 16px', marginBottom: 32 }}>
+            <p style={{ margin: 0, fontSize: 14, color: '#991B1B', fontWeight: 600 }}>El organizador canceló este encuentro.</p>
+          </div>
+        )}
+
+        {isFinalizado && (
+          <div style={{ background: '#F3F4F6', borderRadius: 12, padding: '14px 16px', marginBottom: 32 }}>
+            <p style={{ margin: 0, fontSize: 14, color: '#4B5563', fontWeight: 600 }}>Este encuentro ya finalizó.</p>
+          </div>
+        )}
+
+        {/* Acciones para participantes */}
+        {!isCancelado && !isFinalizado && isVirtual && encuentro.link_virtual && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
+             <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
+               Abrir videollamada
+             </Button>
+             <button 
+               onClick={handleCopyVideoLink} 
+               style={{ 
+                 background: 'none', border: 'none', color: 'var(--color-primary)', 
+                 fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '8px' 
+               }}
+             >
+               {copiedLink ? 'Copiado' : 'Copiar link de la reunión'}
+             </button>
+          </div>
+        )}
+
+        <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}
+            fullWidth
+          >
+            Ir al inicio
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       {cancelModal}
       {deleteModal}
       <AppBar
-        title=""
+        title={!isHost && isParticipant ? "Tu invitación" : ""}
         showBack
-        rightAction={
+        rightAction={(!isHost && isParticipant) ? null : (
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowContextMenu(!showContextMenu)}
@@ -411,163 +512,165 @@ const DetailHost: React.FC = () => {
               </>
             )}
           </div>
-        }
+        )}
       />
 
-      <div
-        id="detail-scroll-container"
-        onScroll={handleScroll}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}
-      >
-        {/* 1. HEADER EVENTO */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
-              {encuentro.titulo}
-            </h2>
-            <div style={{
-              background: badge.bg, color: badge.color,
-              padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-              whiteSpace: 'nowrap'
-            }}>
-              {badge.label}
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
-              <span>📅</span> <span style={{ fontWeight: 500 }}>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
-              <span>{isVirtual ? '💻' : '📍'}</span> <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
-            </div>
-            {encuentro.descripcion && (
-              <div style={{ marginTop: 8, fontSize: 14, color: '#6B7280', fontStyle: 'italic' }}>
-                {encuentro.descripcion}
+      {!isHost && isParticipant ? renderParticipantView() : (
+        <div
+          id="detail-scroll-container"
+          onScroll={handleScroll}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}
+        >
+          {/* 1. HEADER EVENTO */}
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
+                {encuentro.titulo}
+              </h2>
+              <div style={{
+                background: badge.bg, color: badge.color,
+                padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                whiteSpace: 'nowrap'
+              }}>
+                {badge.label}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* MODO SOLO LECTURA BANNER */}
-        {isReadOnly && (
-          <div style={{
-            background: 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '10px 14px',
-            marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8,
-            border: '1px solid rgba(0,0,0,0.06)'
-          }}>
-            <span style={{ fontSize: 16 }}>🔒</span>
-            <span style={{ fontSize: 13, color: '#4B5563', fontWeight: 500 }}>
-              Este encuentro ya finalizó. No se puede modificar.
-            </span>
-          </div>
-        )}
-
-        {/* 2. CTA PRINCIPAL */}
-        {!isReadOnly && !isCancelado && (
-          <div style={{ marginBottom: 16 }}>
-            <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}>
-              Invitar personas
-            </Button>
-          </div>
-        )}
-
-        {/* 3. LINK COMPACTO (Solo virtual) */}
-        {!isCancelado && isVirtual && encuentro.link_virtual && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: '#F3F4F6', borderRadius: 10, padding: '10px 14px', marginBottom: isReadOnly ? 32 : 16
-          }}>
-            <span style={{ fontSize: 13, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>
-              🔗 {encuentro.link_virtual.replace(/^https?:\/\//, '')}
-            </span>
-            {!isReadOnly && (
-              <button onClick={handleCopyVideoLink} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '4px 8px' }}>
-                {copiedLink ? 'Copiado' : 'Copiar enlace'}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* 4. ACCIONES SECUNDARIAS */}
-        {!isReadOnly && !isCancelado && isVirtual && (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
-            <button
-              onClick={() => openExternalVideoLink(encuentro.link_virtual)}
-              style={{
-                flex: 1, padding: 12, borderRadius: 10,
-                background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
-                fontWeight: 600, border: 'none', fontSize: 14, cursor: 'pointer',
-                transition: 'background 0.15s ease'
-              }}
-            >
-              Unirme a la videollamada
-            </button>
-          </div>
-        )}
-
-        {/* BANNER REPETIR CANCELADO */}
-        {fromCancelled && (
-          <div style={{
-            background: 'var(--color-primary-container)',
-            border: '1px solid var(--color-primary)',
-            borderRadius: 16, padding: '16px',
-            marginBottom: 32, flexShrink: 0,
-          }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro anterior</p>
-            <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>
-              ❌ {fromCancelled.oldTitulo} – {fromCancelled.oldFecha}
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>Recordá compartir el nuevo enlace con los participantes.</p>
-            <Button fullWidth onClick={handleShareNewEncuentro}>
-              {copiedNewShare ? '✓ Copiado' : '📤 Compartir nuevo enlace'}
-            </Button>
-          </div>
-        )}
-
-        {/* 5. PARTICIPANTES */}
-        <div style={{ marginBottom: 40 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 20 }}>
-            Participantes <span style={{ color: '#6B7280', fontWeight: 500, fontSize: 16 }}>({confirmados.length} confirmados)</span>
-          </h3>
-
-          {participantes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
-              <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Aún no hay invitados</h4>
-              <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace para que tus amigos se sumen al encuentro.</p>
             </div>
-          ) : (
-            <>
-              {renderParticipantList('Confirmados', confirmados)}
-              {renderParticipantList('Pendientes', pendientes)}
-              {renderParticipantList('No asisten', rechazados)}
-            </>
-          )}
-        </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
+                <span>📅</span> <span style={{ fontWeight: 500 }}>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
+                <span>{isVirtual ? '💻' : '📍'}</span> <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
+              </div>
+              {encuentro.descripcion && (
+                <div style={{ marginTop: 8, fontSize: 14, color: '#6B7280', fontStyle: 'italic' }}>
+                  {encuentro.descripcion}
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* 6. ACCIONES INFERIORES */}
-        <div style={{ marginTop: 'auto', paddingTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {!isCancelado && !isReadOnly && (
+          {/* MODO SOLO LECTURA BANNER */}
+          {isReadOnly && (
+            <div style={{
+              background: 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '10px 14px',
+              marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8,
+              border: '1px solid rgba(0,0,0,0.06)'
+            }}>
+              <span style={{ fontSize: 16 }}>🔒</span>
+              <span style={{ fontSize: 13, color: '#4B5563', fontWeight: 500 }}>
+                Este encuentro ya finalizó. No se puede modificar.
+              </span>
+            </div>
+          )}
+
+          {/* 2. CTA PRINCIPAL */}
+          {!isReadOnly && !isCancelado && (
+            <div style={{ marginBottom: 16 }}>
+              <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}>
+                Invitar personas
+              </Button>
+            </div>
+          )}
+
+          {/* 3. LINK COMPACTO (Solo virtual) */}
+          {!isCancelado && isVirtual && encuentro.link_virtual && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: '#F3F4F6', borderRadius: 10, padding: '10px 14px', marginBottom: isReadOnly ? 32 : 16
+            }}>
+              <span style={{ fontSize: 13, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>
+                🔗 {encuentro.link_virtual.replace(/^https?:\/\//, '')}
+              </span>
+              {!isReadOnly && (
+                <button onClick={handleCopyVideoLink} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '4px 8px' }}>
+                  {copiedLink ? 'Copiado' : 'Copiar enlace'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 4. ACCIONES SECUNDARIAS */}
+          {!isReadOnly && !isCancelado && isVirtual && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
+              <button
+                onClick={() => openExternalVideoLink(encuentro.link_virtual)}
+                style={{
+                  flex: 1, padding: 12, borderRadius: 10,
+                  background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
+                  fontWeight: 600, border: 'none', fontSize: 14, cursor: 'pointer',
+                  transition: 'background 0.15s ease'
+                }}
+              >
+                Unirme a la videollamada
+              </button>
+            </div>
+          )}
+
+          {/* BANNER REPETIR CANCELADO */}
+          {fromCancelled && (
+            <div style={{
+              background: 'var(--color-primary-container)',
+              border: '1px solid var(--color-primary)',
+              borderRadius: 16, padding: '16px',
+              marginBottom: 32, flexShrink: 0,
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro anterior</p>
+              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>
+                ❌ {fromCancelled.oldTitulo} – {fromCancelled.oldFecha}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>Recordá compartir el nuevo enlace con los participantes.</p>
+              <Button fullWidth onClick={handleShareNewEncuentro}>
+                {copiedNewShare ? '✓ Copiado' : '📤 Compartir nuevo enlace'}
+              </Button>
+            </div>
+          )}
+
+          {/* 5. PARTICIPANTES */}
+          <div style={{ marginBottom: 40 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 20 }}>
+              Participantes <span style={{ color: '#6B7280', fontWeight: 500, fontSize: 16 }}>({confirmados.length} confirmados)</span>
+            </h3>
+
+            {participantes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+                <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Aún no hay invitados</h4>
+                <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace para que tus amigos se sumen al encuentro.</p>
+              </div>
+            ) : (
+              <>
+                {renderParticipantList('Confirmados', confirmados)}
+                {renderParticipantList('Pendientes', pendientes)}
+                {renderParticipantList('No asisten', rechazados)}
+              </>
+            )}
+          </div>
+
+          {/* 6. ACCIONES INFERIORES */}
+          <div style={{ marginTop: 'auto', paddingTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {!isCancelado && !isReadOnly && (
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelModal(true)}
+                style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                fullWidth
+              >
+                Cancelar encuentro
+              </Button>
+            )}
+
             <Button
-              variant="outline"
-              onClick={() => setShowCancelModal(true)}
-              style={{ borderColor: '#DC2626', color: '#DC2626' }}
+              variant="ghost"
+              onClick={() => navigate('/')}
+              style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}
               fullWidth
             >
-              Cancelar encuentro
+              Ir al inicio
             </Button>
-          )}
-
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/')}
-            style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}
-            fullWidth
-          >
-            Ir al inicio
-          </Button>
+          </div>
         </div>
-      </div>
+      )}
     </ScreenContainer>
   );
 };
