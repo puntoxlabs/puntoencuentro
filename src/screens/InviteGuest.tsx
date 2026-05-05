@@ -10,6 +10,7 @@ import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
+import { CheckCircle2, CalendarCheck2, MapPin, Video } from 'lucide-react';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -21,12 +22,7 @@ const eventCard: React.CSSProperties = {
   border: '1px solid rgba(0,0,0,0.06)',
   boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
 };
-const linkBox: React.CSSProperties = {
-  background: 'var(--color-primary-container)', borderRadius: 12,
-  padding: '10px 14px', marginBottom: 12,
-  wordBreak: 'break-all', fontSize: 14,
-  color: 'var(--color-primary-dark)', fontWeight: 500,
-};
+
 
 const InviteGuest: React.FC = () => {
   const { token } = useParams();
@@ -194,68 +190,130 @@ const InviteGuest: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
 
-      {/* ===== BLOQUE SUPERIOR: ícono + título ===== */}
-      <div style={{ padding: '36px 24px 20px', textAlign: 'center' }}>
-        <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 20 }}>
-          {participante.estado === 'confirmado' ? '🎉' : '👍'}
+      {/* ── A. Bloque de éxito ──────────────────────────────── */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '40px 24px 28px', textAlign: 'center', gap: 14,
+      }}>
+        {/* Ícono en contenedor circular */}
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: participante.estado === 'confirmado'
+            ? 'var(--color-primary-container)'
+            : 'rgba(107,114,128,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {participante.estado === 'confirmado'
+            ? <CheckCircle2 size={36} strokeWidth={1.75} color="var(--color-primary)" />
+            : <CalendarCheck2 size={36} strokeWidth={1.75} color="#6B7280" />
+          }
         </div>
-        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, lineHeight: 1.25, color: '#111827' }}>
+
+        {/* Título */}
+        <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.25, color: '#111827', margin: 0 }}>
           {participante.estado === 'confirmado' ? '¡Asistencia confirmada!' : 'Gracias por responder'}
         </h2>
-        <p style={{ color: 'var(--color-on-surface-variant)', fontSize: 15, margin: 0, lineHeight: 1.5 }}>
-          {participante.estado === 'confirmado' ? 'Te esperamos en el encuentro.' : 'Avisamos que no vas a poder asistir.'}
+
+        {/* Subtítulo */}
+        <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', margin: 0, lineHeight: 1.55 }}>
+          {participante.estado === 'confirmado'
+            ? 'Te esperamos en el encuentro.'
+            : 'Avisamos que no vas a poder asistir.'}
         </p>
       </div>
 
-      {/* ===== CARD DEL ENCUENTRO ===== */}
-      <div style={{ ...eventCard, margin: '0 0 24px', padding: '16px 20px' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro</p>
-        <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>{encuentro.titulo}</h4>
-        {participante.estado === 'confirmado' && encuentro.modalidad === 'virtual' && (
-          <p style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700, marginBottom: 12 }}>🎉 Ya podés unirte a la videollamada</p>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-          <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
-          <div style={metaRow}>
-            <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
-            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+      {/* ── B. Card del encuentro ──────────────────────────── */}
+      <div style={{
+        background: '#fff', borderRadius: 20, padding: '20px',
+        border: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+        marginBottom: 16,
+      }}>
+        <p style={{
+          fontSize: 10, fontWeight: 700, color: 'var(--color-on-surface-variant)',
+          textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px',
+        }}>Encuentro</p>
+        <h4 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14, lineHeight: 1.25, color: '#111827' }}>
+          {encuentro.titulo}
+        </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+            <CalendarCheck2 size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+            <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+            {encuentro.modalidad === 'presencial'
+              ? <MapPin size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+              : <Video size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+            }
+            <span>
+              {encuentro.modalidad === 'presencial'
+                ? (encuentro.lugar_texto || 'Presencial')
+                : 'Virtual'}
+            </span>
           </div>
         </div>
-        {encuentro.modalidad === 'virtual' && participante.estado === 'confirmado' && encuentro.link_virtual && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={linkBox}>{encuentro.link_virtual}</div>
-            <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>{t('open_video_call', 'Abrir videollamada')}</Button>
-            <Button fullWidth variant="outline" onClick={handleCopyVideoLink}>{copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}</Button>
-          </div>
-        )}
-        <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', marginTop: 16, lineHeight: 1.55, margin: '16px 0 0' }}>
-          Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
-        </p>
-        {/* Nudge de login: solo si acaba de responder en esta sesión y no está logueado */}
-        {!user && justConfirmed && (
-          <div style={{
-            marginTop: 20, padding: '16px', borderRadius: 14,
-            background: 'var(--color-primary-container)',
-            border: '1px solid var(--color-primary)',
-            display: 'flex', flexDirection: 'column', gap: 10,
-          }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
-              Guardá este encuentro
-            </p>
-            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
-              Accedé a este encuentro desde cualquier dispositivo iniciando sesión.
-            </p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={signInWithGoogle}
-              style={{ width: '100%' }}
-            >
-              Continuar con Google
-            </Button>
-          </div>
-        )}
       </div>
+
+      {/* ── C. Acción de videollamada (si aplica) ─────────── */}
+      {encuentro.modalidad === 'virtual' && participante.estado === 'confirmado' && encuentro.link_virtual && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <div style={{
+            background: 'var(--color-primary-container)',
+            borderRadius: 12, padding: '10px 14px',
+            fontSize: 13, color: 'var(--color-primary-dark)',
+            fontWeight: 500, wordBreak: 'break-all',
+          }}>
+            {encuentro.link_virtual}
+          </div>
+          {/* Acción primaria */}
+          <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
+            {t('open_video_call', 'Abrir videollamada')}
+          </Button>
+          {/* Acción secundaria — menos peso visual */}
+          <button
+            onClick={handleCopyVideoLink}
+            style={{
+              background: 'none', border: 'none',
+              color: 'var(--color-on-surface-variant)', fontSize: 14,
+              fontFamily: 'var(--font-family)', fontWeight: 500,
+              cursor: 'pointer', padding: '6px 0', textAlign: 'center',
+              textDecoration: 'underline', textUnderlineOffset: 3,
+            }}
+          >
+            {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+          </button>
+        </div>
+      )}
+
+      {/* ── D. Texto de ayuda ─────────────────────────────── */}
+      <p style={{
+        fontSize: 13, color: 'var(--color-on-surface-variant)',
+        textAlign: 'center', lineHeight: 1.6, margin: '0 0 20px',
+      }}>
+        Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
+      </p>
+
+      {/* ── E. Nudge de login (solo si acabó de responder sin login) ── */}
+      {!user && justConfirmed && (
+        <div style={{
+          padding: '16px', borderRadius: 14,
+          background: 'rgba(0,0,0,0.03)',
+          border: '1px solid rgba(0,0,0,0.07)',
+          display: 'flex', flexDirection: 'column', gap: 10,
+          marginBottom: 8,
+        }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151', lineHeight: 1.35 }}>
+            Guardá este encuentro
+          </p>
+          <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
+            Accedé a este encuentro desde cualquier dispositivo iniciando sesión.
+          </p>
+          <Button variant="outline" size="sm" onClick={signInWithGoogle} style={{ width: '100%' }}>
+            Continuar con Google
+          </Button>
+        </div>
+      )}
     </ScreenContainer>
   );
 
