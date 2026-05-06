@@ -73,7 +73,7 @@ const Step1Data: React.FC = () => {
   };
 
   const handleDateFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    const isMobile = window.matchMedia("(pointer: coarse)").matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     if (!isMobile && 'showPicker' in e.target && typeof (e.target as any).showPicker === 'function') {
       try {
         (e.target as any).showPicker();

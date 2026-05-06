@@ -7,15 +7,21 @@ import { Badge } from '@/components/ui/Badge';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useTranslation } from 'react-i18next';
+import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
+import { PencilLine } from 'lucide-react';
 
 const AddGuests: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [personalMessage, setPersonalMessage] = useState('');
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,12 +86,21 @@ const AddGuests: React.FC = () => {
   const handleShareLink = async (token: string, pid: string) => {
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
+    
+    let shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n📅 ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+
+    if (personalMessage.trim()) {
+      shareText += `${personalMessage.trim()}\n\n`;
+    }
+
+    shareText += `Confirmá acá:\n${shareUrl}`;
+
     if (navigator.share) {
-      try { await navigator.share({ text: 'Te invito a este encuentro 👇 Confirmá si podés asistir:', url: shareUrl }); }
+      try { await navigator.share({ text: shareText }); }
       catch (err) { console.error('Error sharing', err); }
     } else {
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(shareText);
         setCopiedId(pid); setTimeout(() => setCopiedId(null), 2000);
       } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
     }
@@ -162,6 +177,28 @@ const AddGuests: React.FC = () => {
         </button>
       </div>
 
+      {/* Personal Message Option */}
+      <div style={{ marginBottom: 24 }}>
+        <button 
+          onClick={() => setIsSheetOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: personalMessage ? 'var(--color-primary-container)' : 'transparent',
+            border: `1px solid ${personalMessage ? 'var(--color-primary)' : 'rgba(0,0,0,0.1)'}`,
+            padding: '6px 12px', borderRadius: 8,
+            cursor: 'pointer', transition: 'all 0.2s ease',
+          }}
+        >
+          <PencilLine size={14} color={personalMessage ? 'var(--color-primary)' : '#6B7280'} />
+          <span style={{ 
+            fontSize: 13, fontWeight: 600, 
+            color: personalMessage ? 'var(--color-primary)' : '#6B7280' 
+          }}>
+            {personalMessage ? t('invitation.edit_message', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
+          </span>
+        </button>
+      </div>
+
       {/* Guest list */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
@@ -232,6 +269,13 @@ const AddGuests: React.FC = () => {
           Ir al inicio
         </Button>
       </div>
+
+      <OrganizerMessageSheet 
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        initialMessage={personalMessage}
+        onSave={(msg) => setPersonalMessage(msg)}
+      />
     </ScreenContainer>
   );
 };

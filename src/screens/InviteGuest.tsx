@@ -205,7 +205,7 @@ const InviteGuest: React.FC = () => {
   );
 
 
-  if (step === 'done' || participante.estado !== 'pendiente') return (
+  if (step === 'done') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
 
