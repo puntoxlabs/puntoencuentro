@@ -20,7 +20,8 @@
     "save_meetings_title": "Guardá tus encuentros",
     "save_meetings_desc": "Iniciá sesión para acceder desde otros dispositivos.",
     "continue_google": "Continuar con Google",
-    "not_now": "Ahora no"
+    "not_now": "Ahora no",
+    "login_later_hint": "Podés iniciar sesión más tarde desde el ícono de cuenta."
   },
   "change_response": "Cambiar respuesta",
   "already_confirmed": "Confirmaste tu asistencia",
@@ -35,6 +36,7 @@
     "ready_cancel": "Listo. Los invitados podrán ver el estado actualizado."
   },
   "invitation": {
+    "share_intro": "Te invito a un encuentro:",
     "custom_message_title": "Mensaje del organizador",
     "add_message": "Agregar mensaje",
     "message_placeholder": "Escribí una nota breve para tus invitados...",

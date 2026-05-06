@@ -20,7 +20,8 @@
     "save_meetings_title": "Save your meetings",
     "save_meetings_desc": "Sign in to access from other devices.",
     "continue_google": "Continue with Google",
-    "not_now": "Not now"
+    "not_now": "Not now",
+    "login_later_hint": "You can sign in later from the account icon."
   },
   "change_response": "Change response",
   "already_confirmed": "You confirmed your attendance",
@@ -35,6 +36,7 @@
     "ready_cancel": "Ready. Guests will see the updated status."
   },
   "invitation": {
+    "share_intro": "I'm inviting you to a meeting:",
     "custom_message_title": "Organizer's message",
     "add_message": "Add message",
     "message_placeholder": "Write a short note for your guests...",

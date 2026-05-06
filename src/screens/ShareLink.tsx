@@ -77,11 +77,11 @@ const ShareLink: React.FC = () => {
       if (anteriorData) {
         shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior: ${anteriorData.titulo} – ${formatFriendlyDate(anteriorData.fecha, anteriorData.hora)}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\n`;
       } else {
-        shareText = `Te invitaron a un encuentro:\n\n*${encuentro.titulo}*\n📅 ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+        shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n📅 ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
       }
 
       if (personalMessage.trim()) {
-        shareText += `${t('invitation.organizer_message', 'Mensaje del organizador:')}\n${personalMessage.trim()}\n\n`;
+        shareText += `${personalMessage.trim()}\n\n`;
       }
 
       shareText += `Confirmá acá:\n${shareUrl}`;
@@ -107,6 +107,12 @@ const ShareLink: React.FC = () => {
         alert('Error al compartir o copiar el enlace.');
       }
     }
+  };
+
+  const [showHint, setShowHint] = useState(false);
+  const handleDismissNudge = () => {
+    setShowHint(true);
+    setTimeout(() => setShowHint(false), 4000);
   };
 
   if (loading) return (
@@ -270,20 +276,60 @@ const ShareLink: React.FC = () => {
             <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
               {t('account.save_encounter_desc', 'Accedé desde otros dispositivos y mantené tu historial organizado.')}
             </p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => signInWithGoogle()}
-              style={{ alignSelf: 'flex-start', padding: '0 18px', height: 36 }}
-            >
-              <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 8 }}>
-                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-              </svg>
-              {t('account.continue_google', 'Continuar con Google')}
-            </Button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => signInWithGoogle()}
+                style={{ padding: '0 18px', height: 36 }}
+              >
+                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 8 }}>
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                {t('account.continue_google', 'Continuar con Google')}
+              </Button>
+              <button
+                onClick={handleDismissNudge}
+                style={{ 
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#9CA3AF', 
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '2px'
+                }}
+              >
+                {t('account.not_now', 'Ahora no')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Hint Toast */}
+        {showHint && (
+          <div style={{
+            position: 'fixed',
+            bottom: 24,
+            left: 20,
+            right: 20,
+            background: '#374151',
+            color: '#fff',
+            padding: '12px 16px',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 500,
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 2000,
+            animation: 'fadeIn 0.3s ease'
+          }}>
+            {t('account.login_later_hint', 'Podés iniciar sesión más tarde desde el ícono de cuenta.')}
           </div>
         )}
 

@@ -242,6 +242,7 @@ const Home: React.FC = () => {
   const [linkDismissed, setLinkDismissed] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
+  const [showHint, setShowHint] = useState(false);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache || []);
@@ -536,7 +537,11 @@ const Home: React.FC = () => {
                 {t('account.continue_google', 'Continuar con Google')}
               </Button>
               <button
-                onClick={() => setLinkDismissed(true)}
+                onClick={() => {
+                  setLinkDismissed(true);
+                  setShowHint(true);
+                  setTimeout(() => setShowHint(false), 4000);
+                }}
                 style={{ 
                   background: 'none',
                   border: 'none',
@@ -597,7 +602,12 @@ const Home: React.FC = () => {
                 {linking ? '…' : t('account.link_action', 'Guardar en mi cuenta')}
               </Button>
               <button
-                onClick={() => { setLinkDismissed(true); setLinkError(null); }}
+                onClick={() => { 
+                  setLinkDismissed(true); 
+                  setLinkError(null); 
+                  setShowHint(true);
+                  setTimeout(() => setShowHint(false), 4000);
+                }}
                 disabled={linking}
                 style={{ 
                   background: 'none',
@@ -876,6 +886,28 @@ const Home: React.FC = () => {
       
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
+
+      {/* Hint Toast */}
+      {showHint && (
+        <div style={{
+          position: 'fixed',
+          bottom: 100, // Above the "Add" button
+          left: 20,
+          right: 20,
+          background: '#374151',
+          color: '#fff',
+          padding: '12px 16px',
+          borderRadius: 12,
+          fontSize: 13,
+          fontWeight: 500,
+          textAlign: 'center',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 2000,
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          {t('account.login_later_hint', 'Podés iniciar sesión más tarde desde el ícono de cuenta.')}
+        </div>
+      )}
       
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
