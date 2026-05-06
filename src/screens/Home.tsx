@@ -59,9 +59,10 @@ const ActiveCard: React.FC<{
   onClick: () => void;
   participantesCache: any[] | null;
 }> = ({ enc, onClick, participantesCache }) => {
+  if (!enc) return null;
   const accentColor = getEncuentroPrimaryColor(enc);
-  const confirmados = participantesCache?.filter((p: any) => p.estado === 'confirmado').length ?? null;
-  const total = participantesCache?.length ?? null;
+  const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
+  const total = (participantesCache || []).length;
 
   return (
     <div
@@ -120,10 +121,11 @@ const PastCard: React.FC<{
   onRepeat: (e: React.MouseEvent) => void;
   participantesCache: any[] | null;
 }> = ({ enc, onClick, onRepeat, participantesCache }) => {
+  if (!enc) return null;
   const isCancelled = enc.estado === 'cancelado';
   const accentColor = getEncuentroPrimaryColor(enc);
-  const confirmados = participantesCache?.filter((p: any) => p.estado === 'confirmado').length ?? null;
-  const total = participantesCache?.length ?? null;
+  const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
+  const total = (participantesCache || []).length;
 
   return (
     <div
@@ -272,8 +274,8 @@ const Home: React.FC = () => {
     return name.slice(0, 2).toUpperCase() || '?';
   })();
 
-  const totalProximos = (encuentros || []).filter(enc => enc && enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
-  const totalPasados = (encuentros || []).filter(enc => enc && (enc.estado === 'cancelado' || isEncuentroPasado(enc))).length;
+  const totalProximos = (encuentros || []).filter(enc => enc && typeof enc === 'object' && enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
+  const totalPasados = (encuentros || []).filter(enc => enc && typeof enc === 'object' && (enc.estado === 'cancelado' || isEncuentroPasado(enc))).length;
 
   useEffect(() => {
     loadData();

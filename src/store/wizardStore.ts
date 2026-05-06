@@ -54,7 +54,10 @@ export const useWizardStore = create<WizardState>()(
         getItem: (name) => {
           try {
             const val = localStorage.getItem(name);
-            if (val) JSON.parse(val); // test parse
+            if (!val) return null;
+            // Validate it's at least an object with expected properties if needed, 
+            // but migrate handles the object structure.
+            JSON.parse(val); 
             return val;
           } catch (e) {
             console.warn('wizardStore: Invalid local storage data, clearing...', e);
@@ -70,22 +73,46 @@ export const useWizardStore = create<WizardState>()(
         }
       })),
       migrate: (persistedState: any, version: number) => {
-        if (version === 0) {
-          // Si es una versión antigua, reseteamos para evitar inconsistencias
-          return {
-            step: 1,
-            titulo: '',
-            fecha: '',
-            hora: '',
-            descripcion: '',
-            modalidad: null,
-            lugar_texto: '',
-            link_virtual: '',
-            tipo_invitacion: null,
-            tema: 'blue',
-          };
+        console.log(`[wizardStore] Migrating version ${version}`, persistedState);
+        
+        // Initial state for fallback
+        const initialState: WizardState = {
+          step: 1,
+          titulo: '',
+          fecha: '',
+          hora: '',
+          descripcion: '',
+          modalidad: null,
+          lugar_texto: '',
+          link_virtual: '',
+          tipo_invitacion: null,
+          tema: 'blue',
+          setField: () => {},
+          nextStep: () => {},
+          prevStep: () => {},
+          reset: () => {},
+        };
+
+        if (version === 0 || !persistedState || typeof persistedState !== 'object') {
+          return initialState;
         }
-        return persistedState as WizardState;
+
+        // Ensure all fields are valid strings or expected types
+        const state = persistedState as any;
+        return {
+          ...initialState,
+          ...state,
+          step: typeof state.step === 'number' ? state.step : 1,
+          titulo: typeof state.titulo === 'string' ? state.titulo : '',
+          fecha: typeof state.fecha === 'string' ? state.fecha : '',
+          hora: typeof state.hora === 'string' ? state.hora : '',
+          descripcion: typeof state.descripcion === 'string' ? state.descripcion : '',
+          modalidad: (state.modalidad === 'presencial' || state.modalidad === 'virtual') ? state.modalidad : null,
+          lugar_texto: typeof state.lugar_texto === 'string' ? state.lugar_texto : '',
+          link_virtual: typeof state.link_virtual === 'string' ? state.link_virtual : '',
+          tipo_invitacion: (state.tipo_invitacion === 'individual' || state.tipo_invitacion === 'link_general') ? state.tipo_invitacion : null,
+          tema: typeof state.tema === 'string' ? state.tema : 'blue',
+        };
       },
     }
   )

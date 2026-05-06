@@ -68,7 +68,7 @@ const DetailHost: React.FC = () => {
       if (refStr) {
         try {
           const ref = JSON.parse(refStr);
-          if (ref.newId === id) {
+          if (ref && typeof ref === 'object' && ref.newId === id) {
             setFromCancelled(ref);
             sessionStorage.removeItem('cancel_reference');
           }
@@ -168,9 +168,9 @@ const DetailHost: React.FC = () => {
     </ScreenContainer>
   );
 
-  const confirmados = participantes.filter(p => p.estado === 'confirmado');
-  const pendientes  = participantes.filter(p => p.estado === 'pendiente');
-  const rechazados  = participantes.filter(p => p.estado === 'rechazado');
+  const confirmados = (participantes || []).filter(p => p && p.estado === 'confirmado');
+  const pendientes  = (participantes || []).filter(p => p && p.estado === 'pendiente');
+  const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado');
 
   const isCancelado  = encuentro.estado === 'cancelado';
   const isFinalizado = !isCancelado && isEncuentroPasado(encuentro);

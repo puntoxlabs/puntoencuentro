@@ -48,7 +48,7 @@ const ShareLink: React.FC = () => {
         if (refStr) {
           try {
             const ref = JSON.parse(refStr);
-            if (ref.newId === id || ref.fromId) {
+            if (ref && typeof ref === 'object' && (ref.newId === id || ref.fromId)) {
               setAnteriorData({
                 titulo: ref.title,
                 fecha: ref.date,
