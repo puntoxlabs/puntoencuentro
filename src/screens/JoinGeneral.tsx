@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -76,13 +76,27 @@ const JoinGeneral: React.FC = () => {
         try {
           const partData = await participantesService.getParticipanteByToken(participantToken);
           console.log('[GENERAL_LINK] participante backend token:', partData);
-          if (partData && partData.estado === 'confirmado') { setParticipante(partData); setStep('done'); estadoUI = 'done'; }
+          if (partData) { 
+            setParticipante(partData); 
+            setNombre(partData.nombre_invitado || '');
+            if (partData.estado !== 'pendiente') {
+              setStep('done'); 
+              estadoUI = 'done'; 
+            }
+          }
         } catch (err) { console.error('Participant not found by token', err); }
       } else if (participantId) {
         try {
           const partData = await participantesService.getParticipanteById(participantId);
           console.log('[GENERAL_LINK] participante backend id:', partData);
-          if (partData && partData.estado === 'confirmado') { setParticipante(partData); setStep('done'); estadoUI = 'done'; }
+          if (partData) { 
+            setParticipante(partData); 
+            setNombre(partData.nombre_invitado || '');
+            if (partData.estado !== 'pendiente') {
+              setStep('done'); 
+              estadoUI = 'done'; 
+            }
+          }
         } catch (err) { console.error('Participant not found by id', err); }
       }
       console.log('[GENERAL_LINK] estado final:', estadoUI);
@@ -104,10 +118,20 @@ const JoinGeneral: React.FC = () => {
     if (!encuentro || !nombre.trim()) return;
     try {
       setLoadingResponse(true);
-      // Pasar user_id si el usuario está logueado
-      const newPart = await participantesService.addParticipanteGenerico(
-        encuentro.id, nombre.trim(), estado, user?.id ?? null
-      );
+      
+      let newPart;
+      if (participante && participante.id) {
+        // Caso: Ya existe el participante, actualizar respuesta
+        newPart = await participantesService.updateParticipanteEstado(
+          participante.id, estado, user?.id ?? null
+        );
+      } else {
+        // Caso: Nuevo participante
+        newPart = await participantesService.addParticipanteGenerico(
+          encuentro.id, nombre.trim(), estado, user?.id ?? null
+        );
+      }
+
       if (newPart && newPart.id) {
         let savedData: SavedData = { encuentros: {} };
         try {
@@ -234,14 +258,33 @@ const JoinGeneral: React.FC = () => {
         </div>
 
         <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.25, color: '#111827', margin: 0 }}>
-          {participante?.estado === 'confirmado' ? '¡Asistencia confirmada!' : 'Gracias por responder'}
+          {participante?.estado === 'confirmado' 
+            ? t('already_confirmed', 'Confirmaste tu asistencia') 
+            : t('already_rejected', 'Indicaste que no podés asistir')}
         </h2>
 
         <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', margin: 0, lineHeight: 1.55 }}>
           {participante?.estado === 'confirmado'
-            ? 'Te esperamos en el encuentro.'
-            : 'Avisamos que no vas a poder asistir.'}
+            ? t('waiting_for_you', 'Te esperamos en el encuentro.')
+            : t('not_attending', 'Avisamos que no vas a poder asistir.')}
         </p>
+
+        {/* Botón Cambiar respuesta - SOLO si el encuentro está activo y no ha pasado */}
+        {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
+          <button
+            onClick={() => setStep('pending')}
+            style={{
+              background: 'none', border: 'none',
+              color: 'var(--color-primary)', fontSize: 14,
+              fontFamily: 'var(--font-family)', fontWeight: 600,
+              cursor: 'pointer', padding: '4px 0', textAlign: 'center',
+              marginTop: 4,
+              textDecoration: 'underline', textUnderlineOffset: 3,
+            }}
+          >
+            {t('change_response', 'Cambiar respuesta')}
+          </button>
+        )}
       </div>
 
       {/* ── B. Card del encuentro ──────────────────────────── */}
@@ -320,13 +363,13 @@ const JoinGeneral: React.FC = () => {
           marginBottom: 8,
         }}>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151', lineHeight: 1.35 }}>
-            Guardá este encuentro
+            {t('save_this_meeting', 'Guardá este encuentro')}
           </p>
           <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
-            Accedé a este encuentro desde cualquier dispositivo iniciando sesión.
+            {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
           </p>
           <Button variant="outline" size="sm" onClick={signInWithGoogle} style={{ width: '100%' }}>
-            Continuar con Google
+            {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>
       )}
@@ -371,7 +414,7 @@ const JoinGeneral: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
         <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
-          {loadingResponse ? t('loading_link', 'Cargando…') : 'Confirmar asistencia'}
+          {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
         </Button>
         <button
           onClick={() => handleResponse('rechazado')}
@@ -384,7 +427,7 @@ const JoinGeneral: React.FC = () => {
             padding: '10px 0', textAlign: 'center', width: '100%',
           }}
         >
-          {loadingResponse ? 'Procesando…' : 'No puedo ir'}
+          {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
         </button>
       </div>
     </ScreenContainer>

@@ -226,7 +226,7 @@ const PastCard: React.FC<{
 const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signInWithGoogle } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -251,11 +251,16 @@ const Home: React.FC = () => {
   const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
 
   const anonId = getHostId();
-  // Mostrar banner si: logueado + hay encuentros anónimos locales + no descartado en esta sesión
+  // Mostrar banner de VINCULACIÓN si: logueado + hay encuentros anónimos locales + no descartado
   const hasAnonymous = !!user
     && anonId !== user.id
     && !linkDismissed
-    && (encuentros || []).some(e => e.host_id === anonId);
+    && (organizedEncuentros || []).some(e => e.host_id === anonId);
+
+  // Mostrar nudge de LOGIN si: NO logueado + hay encuentros locales + no descartado
+  const showAnonNudge = !user
+    && !linkDismissed
+    && (organizedEncuentros || []).length > 0;
 
   // Avatar helper
   const userAvatarUrl = user?.user_metadata?.avatar_url as string | undefined;
@@ -289,13 +294,12 @@ const Home: React.FC = () => {
   }, 200);
 
   const handleLinkEncuentros = async () => {
-    if (!user || !anonId || anonId === user.id || linking) return;
+    if (!user || !anonId || linking) return;
     try {
       setLinking(true);
       setLinkError(null);
       await encuentrosService.linkAnonymousEncuentros(anonId, user.id);
       await loadData();
-      // El banner desaparece sola porque hasAnonymous vuelve false tras recargar
     } catch (err) {
       console.error('Error linking encuentros', err);
       setLinkError(t('account.link_error', 'No se pudieron guardar los encuentros. Intentá nuevamente.'));
@@ -485,47 +489,131 @@ const Home: React.FC = () => {
           .slide-from-right { animation: slideFromRight 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
         `}} />
 
-        {activeTab === 'upcoming' && hasAnonymous && (
+        {/* Banner A: Usuario NO logueado + encuentros locales (Nudge Login) */}
+        {activeTab === 'upcoming' && showAnonNudge && (
           <div style={{
-            background: 'var(--color-primary-container)',
-            borderRadius: 16,
-            padding: '16px 20px',
-            marginBottom: 20,
-            border: '1px solid var(--color-primary)',
+            background: '#fff',
+            borderRadius: 14,
+            padding: '12px 16px',
+            marginBottom: 16,
+            border: '1px solid rgba(var(--color-primary-rgb), 0.15)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
+            gap: 8,
+            animation: 'fadeIn 0.5s ease-out',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
           }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3, letterSpacing: 0.1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.2 }}>
+                  {t('account.save_meetings_title', 'Guardá tus encuentros')}
+                </p>
+                <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>
+                  {t('account.save_meetings_desc', 'Iniciá sesión para acceder desde otros dispositivos.')}
+                </p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => signInWithGoogle()}
+                style={{ 
+                  padding: '0 12px', 
+                  height: 32, 
+                  fontSize: 12, 
+                  borderRadius: 8,
+                  fontWeight: 600
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 6 }}>
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                {t('account.continue_google', 'Continuar con Google')}
+              </Button>
+              <button
+                onClick={() => setLinkDismissed(true)}
+                style={{ 
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#9CA3AF', 
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '2px'
+                }}
+              >
+                {t('account.not_now', 'Ahora no')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner B: Usuario logueado + encuentros locales sin vincular (Vinculación) */}
+        {activeTab === 'upcoming' && hasAnonymous && (
+          <div style={{
+            background: '#fff',
+            borderRadius: 14,
+            padding: '12px 16px',
+            marginBottom: 16,
+            border: '1px solid rgba(var(--color-primary-rgb), 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            animation: 'fadeIn 0.5s ease-out',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+          }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.2 }}>
               {t('account.link_title', 'Guardá tus encuentros en tu cuenta')}
             </p>
-            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+            <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>
               {t('account.link_banner', 'Tenés encuentros creados en este dispositivo. Guardálos para acceder desde otros dispositivos.')}
             </p>
             {linkError && (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-error, #dc2626)', fontWeight: 600 }}>
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--color-error, #dc2626)', fontWeight: 600 }}>
                 {linkError}
               </p>
             )}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
               <Button
                 variant="primary"
                 size="sm"
                 onClick={handleLinkEncuentros}
                 disabled={linking}
-                style={{ padding: '0 18px' }}
+                style={{ 
+                  padding: '0 12px', 
+                  height: 32, 
+                  fontSize: 12, 
+                  borderRadius: 8,
+                  fontWeight: 600
+                }}
               >
                 {linking ? '…' : t('account.link_action', 'Guardar en mi cuenta')}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={() => { setLinkDismissed(true); setLinkError(null); }}
                 disabled={linking}
-                style={{ padding: '0 12px', color: '#6B7280', fontSize: 13 }}
+                style={{ 
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#9CA3AF', 
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '2px',
+                  opacity: linking ? 0.5 : 1
+                }}
               >
                 {t('account.link_later', 'Ahora no')}
-              </Button>
+              </button>
             </div>
           </div>
         )}

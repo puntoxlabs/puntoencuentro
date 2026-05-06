@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Badge } from '@/components/ui/Badge';
@@ -19,6 +20,7 @@ const metaIcon: React.CSSProperties = { fontSize: 16, width: 20, textAlign: 'cen
 const CancelSummary: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,18 +51,31 @@ const CancelSummary: React.FC = () => {
       : `${baseUrl}/meet/${enc.id}`;
   };
 
+  const [shareFeedback, setShareFeedback] = useState(false);
+
   const handleShareCancel = async () => {
     if (!encuentro) return;
-    const shareLink = buildShareLink(encuentro);
-    const msg = `Este encuentro fue cancelado.\n\n${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nVer estado:\n${shareLink}`;
+    try {
+      const shareLink = buildShareLink(encuentro);
+      const msg = `Este encuentro fue cancelado.\n\n${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nVer estado:\n${shareLink}`;
 
-    if (navigator.share) {
-      try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
-    } else {
-      try {
+      if (navigator.share) {
+        await navigator.share({
+          title: encuentro.titulo || 'Cancelación',
+          text: msg,
+        });
+        setShareFeedback(true);
+      } else {
         await navigator.clipboard.writeText(msg);
-        setCopied(true); setTimeout(() => setCopied(false), 2000);
-      } catch { alert('Error al copiar el mensaje.'); }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        setShareFeedback(true);
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error sharing/copying cancellation', err);
+        alert('Error al compartir o copiar la cancelación.');
+      }
     }
   };
 
@@ -134,9 +149,16 @@ const CancelSummary: React.FC = () => {
 
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto', paddingTop: 8 }}>
-          <Button fullWidth variant="outline" onClick={handleShareCancel}>
-            {copied ? '✓ Copiado' : '📤 Compartir cancelación'}
+          <Button fullWidth variant={copied ? 'secondary' : 'outline'} onClick={handleShareCancel}>
+            {copied ? t('share.copied_for_sharing', 'Copiado para compartir') : '📤 Compartir cancelación'}
           </Button>
+
+          {shareFeedback && (
+            <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: '4px 0 8px', fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+              {t('share.ready_cancel', 'Listo. Los invitados podrán ver el estado actualizado.')}
+            </p>
+          )}
+
           <Button fullWidth variant="primary" onClick={handleCreateNew}>
             ✨ Cancelar y crear uno nuevo
           </Button>
@@ -145,6 +167,13 @@ const CancelSummary: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}} />
     </ScreenContainer>
   );
 };

@@ -57,20 +57,9 @@ const Step1Data: React.FC = () => {
           if ('focus' in target && typeof target.focus === 'function') target.focus();
           setTimeout(() => target.openPicker(), 100);
 
-        // Si es un input de tipo date: en desktop intentar showPicker(), en mobile solo focus
+        // Si es un input de tipo date: solo focus (el onFocus se encarga de abrir el picker en desktop)
         } else if (target instanceof HTMLInputElement && target.type === 'date') {
           target.focus();
-          const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-          if (!isMobile && 'showPicker' in target && typeof (target as any).showPicker === 'function') {
-            // Pequeño delay para que el foco se asiente antes de abrir el picker
-            setTimeout(() => {
-              try {
-                (target as any).showPicker();
-              } catch {
-                // showPicker puede lanzar en algunos navegadores — ignorar silenciosamente
-              }
-            }, 120);
-          }
 
         // Si es un textarea u otro elemento: solo scroll, NO focus (evita teclado en Android)
         } else if (target instanceof HTMLTextAreaElement) {
@@ -79,6 +68,17 @@ const Step1Data: React.FC = () => {
         } else {
           if ('focus' in target && typeof target.focus === 'function') target.focus();
         }
+      }
+    }
+  };
+
+  const handleDateFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (!isMobile && 'showPicker' in e.target && typeof (e.target as any).showPicker === 'function') {
+      try {
+        (e.target as any).showPicker();
+      } catch {
+        // Silenciar errores si showPicker falla (ej: no detecta gesto de usuario)
       }
     }
   };
@@ -172,6 +172,7 @@ const Step1Data: React.FC = () => {
           type="date"
           value={fecha}
           onChange={handleFechaChange}
+          onFocus={handleDateFocus}
           onKeyDown={(e) => handleKeyDown(e, timeInputRef)}
           min={minDate}
           ref={dateInputRef}

@@ -16,6 +16,18 @@ export function formatFriendlyDate(fecha: string, hora: string): string {
   return `${parseInt(day, 10)} ${monthName} • ${formattedHora}`;
 }
 
+/** Devuelve true si la fecha+hora del encuentro ya pasó */
+export function isEncuentroPasado(fecha: string, hora: string): boolean {
+  if (!fecha || !hora) return false;
+  try {
+    const fechaHora = new Date(`${fecha}T${hora}`);
+    if (isNaN(fechaHora.getTime())) return false;
+    return fechaHora < new Date();
+  } catch (e) {
+    return false;
+  }
+}
+
 export function isFuture(fecha: string, hora: string): boolean {
   return validateEncounterDate(fecha, hora) === null;
 }

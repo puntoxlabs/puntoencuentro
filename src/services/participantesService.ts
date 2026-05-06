@@ -98,7 +98,8 @@ export const participantesService = {
   async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
     const respondido_en = new Date().toISOString();
     const updatePayload: Record<string, any> = { estado, respondido_en };
-    if (user_id !== undefined) updatePayload.user_id = user_id;
+    // Solo actualizar user_id si se proporciona un id válido (no sobreescribir con null si ya existía)
+    if (user_id) updatePayload.user_id = user_id;
 
     const { data, error } = await supabase
       .from('participantes')
