@@ -100,10 +100,25 @@ const JoinGeneral: React.FC = () => {
         } catch (err) { console.error('Participant not found by id', err); }
       }
       console.log('[GENERAL_LINK] estado final:', estadoUI);
+
+      // Pre-llenado de nombre si está logueado y no hay uno previo
+      if (user && !participantToken && !participantId) {
+        const suggested = getSuggestedName(user);
+        if (suggested) setNombre(suggested);
+      }
     } catch (err) {
       console.error('Error loading encuentro', err);
       setError('No se pudo encontrar el encuentro o el enlace es inválido.');
     } finally { setLoading(false); }
+  };
+
+  const getSuggestedName = (user: any) => {
+    if (!user) return '';
+    const meta = user.user_metadata || {};
+    if (meta.full_name) return meta.full_name;
+    if (meta.name) return meta.name;
+    if (user.email) return user.email.split('@')[0];
+    return '';
   };
 
   const handleCopyVideoLink = async () => {
@@ -397,19 +412,27 @@ const JoinGeneral: React.FC = () => {
         )}
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <Input
-          label="¿Cómo te llamás?"
-          placeholder="Ej: Marcos"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              document.getElementById('btn-confirmar')?.focus();
-            }
-          }}
-        />
+      {/* ── B. Confirmación ─────────────────────────────── */}
+      <div style={{ ...eventCard, padding: '24px 20px' }}>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
+            {t('participant.visible_name', 'Nombre visible')}
+          </label>
+          <Input
+            placeholder="Ej: Leandro"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-confirmar')?.focus();
+              }
+            }}
+          />
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+            {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
+          </p>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>

@@ -13,7 +13,8 @@ import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
 import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { MapPin, Video, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó (con 2 horas de gracia para permitir "En curso ahora") */
 function isEncuentroPasado(enc: any): boolean {
@@ -24,6 +25,7 @@ function isEncuentroPasado(enc: any): boolean {
 
 const DetailHost: React.FC = () => {
   const { id } = useParams();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { getValidCache, setDetailData, setScrollPosition } = useDetailStore();
   const validCache = getValidCache(id!);
@@ -243,7 +245,13 @@ const DetailHost: React.FC = () => {
                   {avatarChar}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15, color: '#111827' }}>{p.nombre_invitado}</span>
+                  <span style={{ fontWeight: 600, fontSize: 15, color: '#111827', display: 'block' }}>{p.nombre_invitado}</span>
+                  {p.user_id && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, color: 'var(--color-primary)', fontSize: 11, fontWeight: 500 }}>
+                      <User size={12} strokeWidth={2.5} />
+                      <span>{t('participant.linked_account', 'Cuenta vinculada')}</span>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {!isReadOnly && !isCancelado && p.estado === 'pendiente' && p.token_invitacion && (

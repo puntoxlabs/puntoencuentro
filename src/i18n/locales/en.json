@@ -28,6 +28,12 @@
   "already_rejected": "You indicated you can't attend",
   "yes_attend": "Yes, I can attend",
   "no_attend": "I can't attend",
+  "participant": {
+    "linked_account": "Linked account",
+    "no_account": "No account",
+    "visible_name": "Visible name",
+    "visible_name_help": "This name will be visible to the organizer."
+  },
   "share": {
     "copied": "Message copied",
     "button_invitation": "Share invitation",

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -32,11 +33,21 @@ const InviteGuest: React.FC = () => {
   const [encuentro, setEncuentro] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nombre, setNombre] = useState('');
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [copiedLink, setCopiedLink] = useState(false);
   // true solo si el usuario acaba de responder en ESTA sesión
   const [justConfirmed, setJustConfirmed] = useState(false);
+
+  const getSuggestedName = (user: any) => {
+    if (!user) return '';
+    const meta = user.user_metadata || {};
+    if (meta.full_name) return meta.full_name;
+    if (meta.name) return meta.name;
+    if (user.email) return user.email.split('@')[0];
+    return '';
+  };
 
   const handleCopyVideoLink = async () => {
     if (!encuentro?.link_virtual) return;
@@ -60,6 +71,14 @@ const InviteGuest: React.FC = () => {
       console.log('[INDIVIDUAL_INVITE] invitación encontrada:', data);
       if (!data) throw new Error("No encontrado");
       setParticipante(data);
+      
+      // Establecer nombre inicial
+      let initialName = data.nombre_invitado || '';
+      if (user && !initialName) {
+        initialName = getSuggestedName(user);
+      }
+      setNombre(initialName);
+
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
       if ((!enc || !enc.estado) && data.encuentro_id) {
         try {
@@ -84,7 +103,7 @@ const InviteGuest: React.FC = () => {
       console.log('[INVITE] confirmando token:', token);
       // Pasar user_id si el usuario está logueado — no toca host_id ni otros campos
       const response = await participantesService.updateParticipanteEstado(
-        participante.id, estado, user?.id ?? null
+        participante.id, estado, user?.id ?? null, nombre.trim() || undefined
       );
       console.log('[INVITE] respuesta confirmación:', response);
       useHomeStore.getState().invalidateCache();
@@ -340,9 +359,20 @@ const InviteGuest: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
 
-      <div style={{ padding: '20px 0 4px 0' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4 }}>¡Hola, {participante.nombre_invitado}!</h2>
-        <p style={{ margin: 0, fontSize: 15 }}>Te invitaron a un encuentro.</p>
+      <div style={{ padding: '20px 0 0 0' }}>
+        <div style={{ ...eventCard, padding: '24px 20px', marginBottom: 0 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
+            {t('participant.visible_name', 'Nombre visible')}
+          </label>
+          <Input
+            placeholder="Ej: Leandro"
+            value={nombre}
+            onChange={(e: any) => setNombre(e.target.value)}
+          />
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+            {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
+          </p>
+        </div>
       </div>
 
       <div style={{ ...eventCard, margin: '20px 0' }}>

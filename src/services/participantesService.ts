@@ -95,9 +95,10 @@ export const participantesService = {
     return data;
   },
 
-  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
+  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string) {
     const respondido_en = new Date().toISOString();
     const updatePayload: Record<string, any> = { estado, respondido_en };
+    if (nombre_invitado) updatePayload.nombre_invitado = nombre_invitado;
     // Solo actualizar user_id si se proporciona un id válido (no sobreescribir con null si ya existía)
     if (user_id) updatePayload.user_id = user_id;
 

@@ -28,6 +28,12 @@
   "already_rejected": "Você indicou que não pode comparecer",
   "yes_attend": "Sim, eu posso ir",
   "no_attend": "Não posso ir",
+  "participant": {
+    "linked_account": "Conta vinculada",
+    "no_account": "Sem conta",
+    "visible_name": "Nome visível",
+    "visible_name_help": "Este nome ficará visível para o organizador."
+  },
   "share": {
     "copied": "Mensagem copiada",
     "button_invitation": "Compartilhar convite",
