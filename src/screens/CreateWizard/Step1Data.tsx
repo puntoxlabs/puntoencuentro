@@ -60,6 +60,15 @@ const Step1Data: React.FC = () => {
         // Si es un input de tipo date: solo focus (el onFocus se encarga de abrir el picker en desktop)
         } else if (target instanceof HTMLInputElement && target.type === 'date') {
           target.focus();
+          // En mobile, intentamos abrir el picker explícitamente al presionar Enter
+          const isMobile = window.matchMedia("(pointer: coarse)").matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+          if (isMobile && 'showPicker' in target && typeof target.showPicker === 'function') {
+            try {
+              target.showPicker();
+            } catch (err) {
+              console.warn('showPicker blocked or failed', err);
+            }
+          }
 
         // Si es un textarea u otro elemento: solo scroll, NO focus (evita teclado en Android)
         } else if (target instanceof HTMLTextAreaElement) {

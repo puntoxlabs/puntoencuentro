@@ -14,10 +14,14 @@ const TOTAL_STEPS = 4;
 const stepTitles = ['Nuevo encuentro', 'Modalidad', 'Lugar', 'Invitación'];
 
 const CreateWizard: React.FC = () => {
-  const { step, prevStep } = useWizardStore();
+  const { step, prevStep, encuentro_id } = useWizardStore();
   const navigate = useNavigate();
 
   const handleBack = () => {
+    if (encuentro_id) {
+      navigate(`/meet/${encuentro_id}`);
+      return;
+    }
     if (step === 1) navigate(-1);
     else prevStep();
   };

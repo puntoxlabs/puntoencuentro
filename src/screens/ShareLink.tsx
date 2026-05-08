@@ -135,7 +135,7 @@ const ShareLink: React.FC = () => {
 
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
-      <AppBar title="Compartir invitación" showBack />
+      <AppBar title="Compartir invitación" showBack onBack={() => navigate(`/meet/${id}`)} />
 
       {/* Success Message for Link General */}
       {isLinkGeneral && (

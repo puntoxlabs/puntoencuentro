@@ -194,4 +194,20 @@ export const encuentrosService = {
 
     return data;
   },
+
+  async updateEncuentro(id: string, data: Partial<CreateEncuentroDTO>) {
+    const { data: result, error } = await supabase
+      .from('encuentros')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating encuentro:', error);
+      throw error;
+    }
+
+    return result;
+  },
 };

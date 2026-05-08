@@ -12,6 +12,7 @@ interface WizardState {
   link_virtual: string;
   tipo_invitacion: 'individual' | 'link_general' | null;
   tema: string;
+  encuentro_id: string | null;
   setField: (field: string, value: any) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -31,6 +32,7 @@ export const useWizardStore = create<WizardState>()(
       link_virtual: '',
       tipo_invitacion: null,
       tema: 'blue',
+      encuentro_id: null,
       setField: (field, value) => set({ [field]: value }),
       nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
       prevStep: () => set((state) => ({ step: state.step > 1 ? state.step - 1 : state.step })),
@@ -45,6 +47,7 @@ export const useWizardStore = create<WizardState>()(
         link_virtual: '',
         tipo_invitacion: null,
         tema: 'blue',
+        encuentro_id: null,
       }),
     }),
     {
@@ -87,6 +90,7 @@ export const useWizardStore = create<WizardState>()(
           link_virtual: '',
           tipo_invitacion: null,
           tema: 'blue',
+          encuentro_id: null,
           setField: () => {},
           nextStep: () => {},
           prevStep: () => {},
@@ -112,6 +116,7 @@ export const useWizardStore = create<WizardState>()(
           link_virtual: typeof state.link_virtual === 'string' ? state.link_virtual : '',
           tipo_invitacion: (state.tipo_invitacion === 'individual' || state.tipo_invitacion === 'link_general') ? state.tipo_invitacion : null,
           tema: typeof state.tema === 'string' ? state.tema : 'blue',
+          encuentro_id: typeof state.encuentro_id === 'string' ? state.encuentro_id : null,
         };
       },
     }

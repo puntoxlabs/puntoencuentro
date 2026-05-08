@@ -126,7 +126,11 @@ const AddGuests: React.FC = () => {
 
   return (
     <ScreenContainer>
-      <AppBar title="Agregar Invitados" showBack />
+      <AppBar 
+        title="Agregar Invitados" 
+        showBack 
+        onBack={() => navigate(`/meet/${id}`)}
+      />
 
       {/* Event mini-card */}
       <div style={{
@@ -197,6 +201,26 @@ const AddGuests: React.FC = () => {
             {personalMessage ? t('invitation.edit_message', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
           </span>
         </button>
+
+        {personalMessage && (
+          <p style={{
+            marginTop: 10,
+            fontSize: 13,
+            color: '#6B7280',
+            fontStyle: 'italic',
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            paddingLeft: 12,
+            borderLeft: '2px solid var(--color-outline-variant)',
+            margin: '10px 0 0 4px',
+          }}>
+            "{personalMessage}"
+          </p>
+        )}
       </div>
 
       {/* Guest list */}

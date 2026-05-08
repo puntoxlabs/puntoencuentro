@@ -38,47 +38,69 @@ const Step4InviteType: React.FC = () => {
     }
     try {
       setLoading(true);
-      // Si está logueado → user.id (UUID de Supabase Auth).
-      // Si es anónimo  → UUID local del dispositivo (sin FK en host_id).
-      const hostId = user?.id ?? getHostId();
-      const payload = {
-        titulo: wizardData.titulo,
-        descripcion: wizardData.descripcion,
-        fecha: wizardData.fecha,
-        hora: wizardData.hora,
-        modalidad: wizardData.modalidad as 'presencial' | 'virtual',
-        lugar_texto: wizardData.lugar_texto,
-        link_virtual: wizardData.link_virtual,
-        tipo_invitacion: tipo,
-        host_id: hostId,
-        tema: wizardData.tema || 'blue',
-        reemplaza_a: (() => {
-          const refStr = sessionStorage.getItem('cancel_reference');
-          if (refStr) {
-            try {
-              const ref = JSON.parse(refStr);
-              return ref.oldId || ref.fromId || null;
-            } catch (e) { return null; }
-          }
-          return null;
-        })(),
-      };
+      
+      let encuentroId = wizardData.encuentro_id;
 
-      console.log('[CREATE PAYLOAD]', payload);
-      const newEncuentro = await encuentrosService.createEncuentro(payload);
-      const cancelRefStr = sessionStorage.getItem('cancel_reference');
-      if (cancelRefStr) {
-        try {
-          const ref = JSON.parse(cancelRefStr);
-          ref.newId = newEncuentro.id;
-          sessionStorage.setItem('cancel_reference', JSON.stringify(ref));
-        } catch (e) { console.error('Error updating cancel_reference', e); }
+      if (!encuentroId) {
+        // Si está logueado → user.id (UUID de Supabase Auth).
+        // Si es anónimo  → UUID local del dispositivo (sin FK en host_id).
+        const hostId = user?.id ?? getHostId();
+        const payload = {
+          titulo: wizardData.titulo,
+          descripcion: wizardData.descripcion,
+          fecha: wizardData.fecha,
+          hora: wizardData.hora,
+          modalidad: wizardData.modalidad as 'presencial' | 'virtual',
+          lugar_texto: wizardData.lugar_texto,
+          link_virtual: wizardData.link_virtual,
+          tipo_invitacion: tipo,
+          host_id: hostId,
+          tema: wizardData.tema || 'blue',
+          reemplaza_a: (() => {
+            const refStr = sessionStorage.getItem('cancel_reference');
+            if (refStr) {
+              try {
+                const ref = JSON.parse(refStr);
+                return ref.oldId || ref.fromId || null;
+              } catch (e) { return null; }
+            }
+            return null;
+          })(),
+        };
+
+        console.log('[CREATE PAYLOAD]', payload);
+        const newEncuentro = await encuentrosService.createEncuentro(payload);
+        encuentroId = newEncuentro.id;
+        setField('encuentro_id', encuentroId);
+
+        const cancelRefStr = sessionStorage.getItem('cancel_reference');
+        if (cancelRefStr) {
+          try {
+            const ref = JSON.parse(cancelRefStr);
+            ref.newId = newEncuentro.id;
+            sessionStorage.setItem('cancel_reference', JSON.stringify(ref));
+          } catch (e) { console.error('Error updating cancel_reference', e); }
+        }
+      } else {
+        console.log('[REUSING ENCUENTRO]', encuentroId);
+        // Actualizamos por si cambió algo en pasos previos (título, fecha, etc.)
+        await encuentrosService.updateEncuentro(encuentroId, {
+          titulo: wizardData.titulo,
+          descripcion: wizardData.descripcion,
+          fecha: wizardData.fecha,
+          hora: wizardData.hora,
+          modalidad: wizardData.modalidad as 'presencial' | 'virtual',
+          lugar_texto: wizardData.lugar_texto,
+          link_virtual: wizardData.link_virtual,
+          tipo_invitacion: tipo,
+          tema: wizardData.tema || 'blue',
+        });
       }
 
       if (tipo === 'individual') {
-        navigate(`/add-guests/${newEncuentro.id}`);
+        navigate(`/add-guests/${encuentroId}`);
       } else {
-        navigate(`/share/${newEncuentro.id}`);
+        navigate(`/share/${encuentroId}`);
       }
     } catch (error: any) {
       console.error('[CREATE ERROR FULL]', error);
