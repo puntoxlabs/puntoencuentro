@@ -117,20 +117,6 @@ const Step4InviteType: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div
-          style={optionCard(wizardData.tipo_invitacion === 'individual', loading)}
-          onClick={async () => {
-            if (loading) return;
-            setField('tipo_invitacion', 'individual');
-            setError(null);
-            await handleFinish('individual');
-          }}
-        >
-          <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
-          <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Personas específicas</h4>
-          <p style={{ margin: 0, fontSize: 14 }}>Invitás a cada uno individualmente</p>
-        </div>
-
-        <div
           style={optionCard(wizardData.tipo_invitacion === 'link_general', loading)}
           onClick={async () => {
             if (loading) return;
@@ -142,6 +128,20 @@ const Step4InviteType: React.FC = () => {
           <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
           <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Compartir link</h4>
           <p style={{ margin: 0, fontSize: 14 }}>Cualquiera con el link puede sumarse</p>
+        </div>
+
+        <div
+          style={optionCard(wizardData.tipo_invitacion === 'individual', loading)}
+          onClick={async () => {
+            if (loading) return;
+            setField('tipo_invitacion', 'individual');
+            setError(null);
+            await handleFinish('individual');
+          }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
+          <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Personas específicas</h4>
+          <p style={{ margin: 0, fontSize: 14 }}>Invitás a cada uno individualmente</p>
         </div>
       </div>
       
