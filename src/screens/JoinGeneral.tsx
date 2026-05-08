@@ -170,9 +170,17 @@ const JoinGeneral: React.FC = () => {
       setStep('done');
       setJustConfirmed(true);
       console.log('[GENERAL_LINK] estado final:', 'done');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error responding', err);
-      alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
+      if (err.message === 'meeting_cancelled') {
+        alert('Este encuentro fue cancelado por el organizador.');
+        loadData(); // Recargar para mostrar pantalla de cancelado
+      } else if (err.message === 'meeting_not_found') {
+        alert('Este encuentro ya no está disponible.');
+        loadData(); // Recargar para mostrar pantalla de no disponible
+      } else {
+        alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
+      }
     } finally { setLoadingResponse(false); }
   };
 

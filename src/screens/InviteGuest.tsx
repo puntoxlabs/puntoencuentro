@@ -125,9 +125,17 @@ const InviteGuest: React.FC = () => {
       setParticipante(refreshed); setEncuentro(refEnc); setStep('done');
       setJustConfirmed(true);
       console.log('[INVITE] ruta post-confirmación:', window.location.href);
-    } catch (err) {
+    } catch (err: any) {
       console.error('InviteGuest error:', err);
-      alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
+      if (err.message === 'meeting_cancelled') {
+        alert('Este encuentro fue cancelado por el organizador.');
+        loadData(); // Recargar para mostrar pantalla de cancelado
+      } else if (err.message === 'meeting_not_found') {
+        alert('Este encuentro ya no está disponible.');
+        loadData(); // Recargar para mostrar pantalla de no disponible
+      } else {
+        alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
+      }
     } finally { setLoadingResponse(false); }
   };
 

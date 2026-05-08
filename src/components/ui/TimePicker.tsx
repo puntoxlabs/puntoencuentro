@@ -77,26 +77,33 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
   useEffect(() => {
     if (!isOpen || !scrollRef.current) return;
 
-    setTimeout(() => {
-      // First valid time: first option that is not disabled
-      const firstValidTime = minTime
-        ? TIME_OPTIONS.find(t => t >= minTime) ?? TIME_OPTIONS[0]
-        : (() => {
-            const now = new Date();
-            const curH = String(now.getHours()).padStart(2, '0');
-            const curM = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
-            return `${curH}:${curM}`;
-          })();
+    // Usamos un timeout ligeramente mayor para asegurar que el DOM y las animaciones estén listas
+    const timer = setTimeout(() => {
+      if (!scrollRef.current) return;
 
-      // If current value is valid (not disabled), scroll to it
+      // 1. Determinar el "primer horario útil" según minTime
+      let firstValidTime = TIME_OPTIONS[0]; // 00:00 por defecto para días futuros
+      if (minTime) {
+        // Si hay minTime (es hoy), buscamos el primer slot de 15 min disponible
+        firstValidTime = TIME_OPTIONS.find(t => t >= minTime) || TIME_OPTIONS[0];
+      }
+
+      // 2. Determinar si el valor actual es válido (no es del pasado)
       const valueIsValid = value && (!minTime || value >= minTime);
 
+      // 3. Elegir el target: el valor actual si es válido, sino el primer útil
       const targetTime = valueIsValid ? value : firstValidTime;
+
+      // 4. Scrollear al elemento
       const el = document.getElementById(`time-opt-${targetTime}`);
       if (el) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Usamos behavior: 'auto' para que el salto sea instantáneo al abrir el modal,
+        // evitando el efecto visual de "scroll desde arriba" en mobile.
+        el.scrollIntoView({ block: 'center', behavior: 'auto' });
       }
-    }, 50);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [isOpen, value, minTime]);
 
 

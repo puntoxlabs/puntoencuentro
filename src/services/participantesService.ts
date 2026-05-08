@@ -95,7 +95,35 @@ export const participantesService = {
     return data;
   },
 
+  async validateEncuentroActivo(encuentro_id: string) {
+    const { data: encuentro, error } = await supabase
+      .from('encuentros')
+      .select('estado')
+      .eq('id', encuentro_id)
+      .single();
+
+    if (error || !encuentro) {
+      throw new Error('meeting_not_found');
+    }
+
+    if (encuentro.estado !== 'activo') {
+      throw new Error('meeting_cancelled');
+    }
+  },
+
   async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string) {
+    // 1. Obtener el id del encuentro para validar su estado
+    const { data: participante, error: pError } = await supabase
+      .from('participantes')
+      .select('encuentro_id')
+      .eq('id', id)
+      .single();
+
+    if (pError || !participante) throw new Error('participant_not_found');
+
+    // 2. Validar que el encuentro siga activo
+    await this.validateEncuentroActivo(participante.encuentro_id);
+
     const respondido_en = new Date().toISOString();
     const updatePayload: Record<string, any> = { estado, respondido_en };
     if (nombre_invitado) updatePayload.nombre_invitado = nombre_invitado;
@@ -118,6 +146,9 @@ export const participantesService = {
   },
 
   async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
+    // 1. Validar que el encuentro siga activo antes de insertar
+    await this.validateEncuentroActivo(encuentro_id);
+
     const respondido_en = new Date().toISOString();
     const token_invitacion = crypto.randomUUID();
     const insertPayload: Record<string, any> = {
