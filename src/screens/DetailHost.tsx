@@ -97,25 +97,29 @@ const DetailHost: React.FC = () => {
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     if (id) setScrollPosition(id, e.currentTarget.scrollTop);
-    
-    const target = e.currentTarget;
-    const isBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 30;
-    const hasOverflow = target.scrollHeight > target.clientHeight;
-    setShowScrollHint(hasOverflow && !isBottom);
   }, 200);
 
   useEffect(() => {
-    const checkScrollOverflow = () => {
-      const container = document.getElementById('detail-scroll-container') || document.getElementById('participant-scroll-container');
-      if (container) {
-        const isBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
-        const hasOverflow = container.scrollHeight > container.clientHeight;
-        setShowScrollHint(hasOverflow && !isBottom);
-      }
+    const checkScroll = () => {
+      const scrollY = window.scrollY;
+      const viewportHeight = window.innerHeight;
+      const totalHeight = document.documentElement.scrollHeight;
+      
+      const hasOverflow = totalHeight > viewportHeight + 12;
+      const isBottom = totalHeight - scrollY - viewportHeight < 35;
+      
+      setShowScrollHint(hasOverflow && !isBottom);
     };
 
-    const timer = setTimeout(checkScrollOverflow, 350);
-    return () => clearTimeout(timer);
+    window.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    const timer = setTimeout(checkScroll, 350);
+
+    return () => {
+      window.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+      clearTimeout(timer);
+    };
   }, [participantes, encuentro, loading]);
 
   const handleCancelEncuentro = async () => {

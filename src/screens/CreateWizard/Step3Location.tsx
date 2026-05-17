@@ -57,14 +57,15 @@ const Step3Location: React.FC = () => {
         ) : (
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: 6, letterSpacing: '0.02em' }}>
-              Link
+              Link de videollamada
             </label>
             <div style={{
-              display: 'flex', background: '#fff',
+              background: '#fff',
               borderRadius: 12, border: `1.5px solid ${link_virtual ? 'var(--color-primary)' : 'var(--color-outline-variant)'}`,
               overflow: 'hidden',
               boxShadow: link_virtual ? '0 0 0 3px rgba(26,86,240,0.1)' : '0 2px 6px rgba(0,0,0,0.04)',
               transition: 'all 0.18s',
+              marginBottom: 8
             }}>
               <input
                 value={link_virtual}
@@ -73,25 +74,31 @@ const Step3Location: React.FC = () => {
                 placeholder="https://meet.google.com/…"
                 type="url"
                 style={{
-                  flex: 1, border: 'none', outline: 'none',
+                  width: '100%', border: 'none', outline: 'none',
                   padding: '0 16px', height: 52, fontSize: 15,
                   fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
                   background: 'transparent',
+                  boxSizing: 'border-box'
                 }}
               />
-              <button
-                onClick={handlePaste}
-                style={{
-                  background: 'var(--color-primary)',
-                  color: '#fff', border: 'none',
-                  padding: '0 18px', cursor: 'pointer',
-                  fontFamily: 'var(--font-family)',
-                  fontWeight: 700, fontSize: 14, flexShrink: 0,
-                }}
-              >
-                Pegar
-              </button>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--color-on-surface-variant)', margin: '4px 0 16px', lineHeight: '1.4' }}>
+              Pegá el enlace de Google Meet, Zoom o similar.
+            </p>
+            <Button
+              variant="outline"
+              onClick={handlePaste}
+              style={{
+                width: '100%',
+                height: 48,
+                fontSize: 14,
+                fontWeight: 600,
+                borderColor: 'var(--color-outline-variant)',
+                color: 'var(--color-primary-dark)'
+              }}
+            >
+              Pegar enlace
+            </Button>
           </div>
         )}
       </div>

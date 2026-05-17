@@ -49,6 +49,14 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
+  const normalizeTime = (time?: string) => {
+    if (!time) return '';
+    return time.substring(0, 5);
+  };
+
+  const normalizedValue = normalizeTime(value);
+  const normalizedMinTime = normalizeTime(minTime);
+
   useImperativeHandle(ref, () => ({
     openPicker: () => {
       if (!disabled) setIsOpen(true);
@@ -84,16 +92,16 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
 
       // 1. Determinar el "primer horario útil" según minTime
       let firstValidTime = TIME_OPTIONS[0]; // 00:00 por defecto para días futuros
-      if (minTime) {
+      if (normalizedMinTime) {
         // Si hay minTime (es hoy), buscamos el primer slot de 15 min disponible
-        firstValidTime = TIME_OPTIONS.find(t => t >= minTime) || TIME_OPTIONS[0];
+        firstValidTime = TIME_OPTIONS.find(t => t >= normalizedMinTime) || TIME_OPTIONS[0];
       }
 
       // 2. Determinar si el valor actual es válido (no es del pasado)
-      const valueIsValid = value && (!minTime || value >= minTime);
+      const valueIsValid = normalizedValue && (!normalizedMinTime || normalizedValue >= normalizedMinTime);
 
       // 3. Elegir el target: el valor actual si es válido, sino el primer útil
-      const targetTime = valueIsValid ? value : firstValidTime;
+      const targetTime = valueIsValid ? normalizedValue : firstValidTime;
 
       // 4. Scrollear al elemento usando offsetTop de manera independiente a animaciones de pantalla
       const el = document.getElementById(`time-opt-${targetTime}`);
@@ -113,11 +121,11 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
-  }, [isOpen, value, minTime]);
+  }, [isOpen, normalizedValue, normalizedMinTime]);
 
 
   const handleSelect = (time: string) => {
-    if (minTime && time < minTime) return;
+    if (normalizedMinTime && time < normalizedMinTime) return;
     onChange(time);
     setIsOpen(false);
     
@@ -161,7 +169,7 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
           background: disabled ? '#F3F4F6' : '#fff',
           border: '1px solid rgba(0,0,0,0.1)',
           cursor: disabled ? 'not-allowed' : 'pointer',
-          color: value ? '#111827' : '#9CA3AF',
+          color: normalizedValue ? '#111827' : '#9CA3AF',
           fontFamily: 'var(--font-family)',
           fontSize: 16,
           fontWeight: 500,
@@ -173,8 +181,8 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
           } : {})
         }}
       >
-        <span>{value || placeholder || t('select_time', 'Seleccionar horario')}</span>
-        <Clock size={18} color={value ? '#111827' : '#9CA3AF'} />
+        <span>{normalizedValue || placeholder || t('select_time', 'Seleccionar horario')}</span>
+        <Clock size={18} color={normalizedValue ? '#111827' : '#9CA3AF'} />
       </div>
 
       {/* Picker Modal / Bottom Sheet */}
@@ -248,8 +256,8 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
               style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}
             >
               {TIME_OPTIONS.map((time) => {
-                const isSelected = value === time;
-                const isDisabled = minTime ? time < minTime : false;
+                const isSelected = normalizedValue === time;
+                const isDisabled = normalizedMinTime ? time < normalizedMinTime : false;
                 
                 return (
                   <button
