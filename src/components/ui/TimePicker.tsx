@@ -77,9 +77,10 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
   useEffect(() => {
     if (!isOpen || !scrollRef.current) return;
 
-    // Usamos un timeout ligeramente mayor para asegurar que el DOM y las animaciones estén listas
-    const timer = setTimeout(() => {
-      if (!scrollRef.current) return;
+    // Función de alineación programática robusta y centrada
+    const alignScroll = () => {
+      const container = scrollRef.current;
+      if (!container) return;
 
       // 1. Determinar el "primer horario útil" según minTime
       let firstValidTime = TIME_OPTIONS[0]; // 00:00 por defecto para días futuros
@@ -94,16 +95,24 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
       // 3. Elegir el target: el valor actual si es válido, sino el primer útil
       const targetTime = valueIsValid ? value : firstValidTime;
 
-      // 4. Scrollear al elemento
+      // 4. Scrollear al elemento usando offsetTop de manera independiente a animaciones de pantalla
       const el = document.getElementById(`time-opt-${targetTime}`);
       if (el) {
-        // Usamos behavior: 'auto' para que el salto sea instantáneo al abrir el modal,
-        // evitando el efecto visual de "scroll desde arriba" en mobile.
-        el.scrollIntoView({ block: 'center', behavior: 'auto' });
+        const targetOffset = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+        container.scrollTop = targetOffset;
       }
-    }, 100);
+    };
 
-    return () => clearTimeout(timer);
+    // Mitigar conflictos con la transición CSS slideUp de 300ms en Android Chrome:
+    // 1. Primer ajuste rápido a los 100ms
+    const timer1 = setTimeout(alignScroll, 100);
+    // 2. Segundo ajuste exacto a los 350ms una vez completado el slideUp
+    const timer2 = setTimeout(alignScroll, 350);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [isOpen, value, minTime]);
 
 

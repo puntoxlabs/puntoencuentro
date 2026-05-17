@@ -12,6 +12,8 @@ import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
 import { CheckCircle2, CalendarCheck2, MapPin, Video } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { ScrollHint } from '@/components/ui/ScrollHint';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -39,6 +41,7 @@ const InviteGuest: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
   // true solo si el usuario acaba de responder en ESTA sesión
   const [justConfirmed, setJustConfirmed] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(false);
 
   const getSuggestedName = (user: any) => {
     if (!user) return '';
@@ -61,6 +64,90 @@ const InviteGuest: React.FC = () => {
     console.log('[INVITE] token inicial:', token);
     if (token) { loadData(); } else { setError('Token no proporcionado en la URL.'); setLoading(false); }
   }, [token]);
+
+  // Realtime subscription and polling for cancellation / deletion revalidation
+  useEffect(() => {
+    if (!encuentro?.id) return;
+
+    console.log('[INVITE REALTIME] Subscribing to encounter updates, id:', encuentro.id);
+    const channel = supabase
+      .channel(`public:encuentros:id=eq.${encuentro.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'encuentros',
+          filter: `id=eq.${encuentro.id}`
+        },
+        (payload: any) => {
+          console.log('[INVITE REALTIME] Encounter updated:', payload);
+          if (payload.eventType === 'DELETE') {
+            setError('No disponible');
+            setEncuentro(null);
+          } else if (payload.new) {
+            setEncuentro(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    // Fallback Polling every 8.5 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('[INVITE POLLING] Checking encounter status...');
+        const { data, error: pollErr } = await supabase
+          .from('encuentros')
+          .select('*')
+          .eq('id', encuentro.id)
+          .maybeSingle();
+
+        if (pollErr || !data) {
+          console.log('[INVITE POLLING] Encounter deleted or unavailable');
+          setError('No disponible');
+          setEncuentro(null);
+          return;
+        }
+
+        if (data.estado !== encuentro.estado) {
+          console.log('[INVITE POLLING] Status updated to:', data.estado);
+          setEncuentro(data);
+        }
+      } catch (err) {
+        console.error('[INVITE POLLING] Error running polling check', err);
+      }
+    }, 8500);
+
+    return () => {
+      console.log('[INVITE REALTIME] Unsubscribing, id:', encuentro.id);
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [encuentro?.id, encuentro?.estado]);
+
+  // Scroll indicator listening to window scroll
+  useEffect(() => {
+    const checkScroll = () => {
+      const scrollY = window.scrollY;
+      const viewportHeight = window.innerHeight;
+      const totalHeight = document.documentElement.scrollHeight;
+      
+      const hasOverflow = totalHeight > viewportHeight + 12;
+      const isBottom = totalHeight - scrollY - viewportHeight < 35;
+      
+      setShowScrollHint(hasOverflow && !isBottom);
+    };
+
+    window.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    const timer = setTimeout(checkScroll, 350);
+
+    return () => {
+      window.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+      clearTimeout(timer);
+    };
+  }, [participante, encuentro, step, loading]);
 
   const loadData = async () => {
     try {
@@ -209,6 +296,7 @@ const InviteGuest: React.FC = () => {
         </p>
 
       </div>
+      <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
 
@@ -360,6 +448,7 @@ const InviteGuest: React.FC = () => {
           </Button>
         </div>
       )}
+      <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
 
@@ -419,6 +508,7 @@ const InviteGuest: React.FC = () => {
           {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
         </button>
       </div>
+      <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
 };

@@ -15,6 +15,7 @@ import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { ScrollHint } from '@/components/ui/ScrollHint';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó (con 2 horas de gracia para permitir "En curso ahora") */
 function isEncuentroPasado(enc: any): boolean {
@@ -43,6 +44,7 @@ const DetailHost: React.FC = () => {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -95,7 +97,26 @@ const DetailHost: React.FC = () => {
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     if (id) setScrollPosition(id, e.currentTarget.scrollTop);
+    
+    const target = e.currentTarget;
+    const isBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 30;
+    const hasOverflow = target.scrollHeight > target.clientHeight;
+    setShowScrollHint(hasOverflow && !isBottom);
   }, 200);
+
+  useEffect(() => {
+    const checkScrollOverflow = () => {
+      const container = document.getElementById('detail-scroll-container') || document.getElementById('participant-scroll-container');
+      if (container) {
+        const isBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
+        const hasOverflow = container.scrollHeight > container.clientHeight;
+        setShowScrollHint(hasOverflow && !isBottom);
+      }
+    };
+
+    const timer = setTimeout(checkScrollOverflow, 350);
+    return () => clearTimeout(timer);
+  }, [participantes, encuentro, loading]);
 
   const handleCancelEncuentro = async () => {
     if (!id || cancelling) return;
@@ -377,7 +398,11 @@ const DetailHost: React.FC = () => {
                        pEstado === 'rechazado' ? <XCircle size={18} color="#DC2626" /> : <Clock size={18} color="#6B7280" />;
     
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}>
+      <div 
+        id="participant-scroll-container" 
+        onScroll={handleScroll}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}
+      >
         <div style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
@@ -679,6 +704,7 @@ const DetailHost: React.FC = () => {
           </div>
         </div>
       )}
+      <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
 };
