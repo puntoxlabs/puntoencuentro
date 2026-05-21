@@ -90,8 +90,10 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
       const container = scrollRef.current;
       if (!container) return;
 
+const DEFAULT_FUTURE_TIME = '20:00';
+
       // 1. Determinar el "primer horario útil" según minTime
-      let firstValidTime = TIME_OPTIONS[0]; // 00:00 por defecto para días futuros
+      let firstValidTime = DEFAULT_FUTURE_TIME; // por defecto para días futuros
       if (normalizedMinTime) {
         // Si hay minTime (es hoy), buscamos el primer slot de 15 min disponible
         firstValidTime = TIME_OPTIONS.find(t => t >= normalizedMinTime) || TIME_OPTIONS[0];
@@ -104,7 +106,12 @@ export const TimePicker = forwardRef<TimePickerRef, TimePickerProps>(({
       const targetTime = valueIsValid ? normalizedValue : firstValidTime;
 
       // 4. Scrollear al elemento usando offsetTop de manera independiente a animaciones de pantalla
-      const el = document.getElementById(`time-opt-${targetTime}`);
+      let el = document.getElementById(`time-opt-${targetTime}`);
+      if (!el) {
+        const closestTime = TIME_OPTIONS.reduce((prev, curr) => (curr <= targetTime ? curr : prev), TIME_OPTIONS[0]);
+        el = document.getElementById(`time-opt-${closestTime}`);
+      }
+      
       if (el) {
         const targetOffset = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
         container.scrollTop = targetOffset;

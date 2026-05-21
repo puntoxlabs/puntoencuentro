@@ -136,12 +136,54 @@ const AddGuests: React.FC = () => {
       <div style={{
         background: '#fff', borderRadius: 16, padding: '14px 16px',
         border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        marginTop: 16, marginBottom: 20,
+        marginTop: 16, marginBottom: 16,
       }}>
         <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{encuentro.titulo}</h3>
         <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0 }}>
           📅 {formatFriendlyDate(encuentro.fecha, encuentro.hora)} · {encuentro.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
         </p>
+      </div>
+
+      {/* Personal Message Option */}
+      <div style={{ marginBottom: 24 }}>
+        <button 
+          onClick={() => setIsSheetOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: personalMessage ? 'var(--color-primary-container)' : 'transparent',
+            border: `1px solid ${personalMessage ? 'var(--color-primary)' : 'rgba(0,0,0,0.1)'}`,
+            padding: '6px 12px', borderRadius: 8,
+            cursor: 'pointer', transition: 'all 0.2s ease',
+          }}
+        >
+          <PencilLine size={14} color={personalMessage ? 'var(--color-primary)' : '#6B7280'} />
+          <span style={{ 
+            fontSize: 13, fontWeight: 600, 
+            color: personalMessage ? 'var(--color-primary)' : '#6B7280' 
+          }}>
+            {personalMessage ? t('invitation.edit_message', 'Editar mensaje de invitación') : t('invitation.add_message', 'Mensaje de invitación')}
+          </span>
+        </button>
+
+        {personalMessage && (
+          <p style={{
+            marginTop: 10,
+            fontSize: 13,
+            color: '#6B7280',
+            fontStyle: 'italic',
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            paddingLeft: 12,
+            borderLeft: '2px solid var(--color-outline-variant)',
+            margin: '10px 0 0 4px',
+          }}>
+            "{personalMessage}"
+          </p>
+        )}
       </div>
 
       {/* Inline input + add */}
@@ -181,47 +223,7 @@ const AddGuests: React.FC = () => {
         </button>
       </div>
 
-      {/* Personal Message Option */}
-      <div style={{ marginBottom: 24 }}>
-        <button 
-          onClick={() => setIsSheetOpen(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: personalMessage ? 'var(--color-primary-container)' : 'transparent',
-            border: `1px solid ${personalMessage ? 'var(--color-primary)' : 'rgba(0,0,0,0.1)'}`,
-            padding: '6px 12px', borderRadius: 8,
-            cursor: 'pointer', transition: 'all 0.2s ease',
-          }}
-        >
-          <PencilLine size={14} color={personalMessage ? 'var(--color-primary)' : '#6B7280'} />
-          <span style={{ 
-            fontSize: 13, fontWeight: 600, 
-            color: personalMessage ? 'var(--color-primary)' : '#6B7280' 
-          }}>
-            {personalMessage ? t('invitation.edit_message', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
-          </span>
-        </button>
 
-        {personalMessage && (
-          <p style={{
-            marginTop: 10,
-            fontSize: 13,
-            color: '#6B7280',
-            fontStyle: 'italic',
-            lineHeight: 1.4,
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            paddingLeft: 12,
-            borderLeft: '2px solid var(--color-outline-variant)',
-            margin: '10px 0 0 4px',
-          }}>
-            "{personalMessage}"
-          </p>
-        )}
-      </div>
 
       {/* Guest list */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>

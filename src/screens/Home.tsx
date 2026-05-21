@@ -279,6 +279,9 @@ const Home: React.FC = () => {
         if (container) container.scrollTop = scrollPosition;
       });
     }
+    
+    // Limpiar cualquier contexto de reemplazo abandonado o completado al volver a la Home
+    sessionStorage.removeItem('cancel_reference');
   }, []);
 
   // Recargar cuando el usuario inicia o cierra sesión

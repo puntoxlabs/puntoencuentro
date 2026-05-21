@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
+import { ScrollHint } from '@/components/ui/ScrollHint';
 import { useWizardStore } from '@/store/wizardStore';
 
 import Step1Data from '@/screens/CreateWizard/Step1Data';
@@ -16,6 +17,30 @@ const stepTitles = ['Nuevo encuentro', 'Modalidad', 'Lugar', 'Invitación'];
 const CreateWizard: React.FC = () => {
   const { step, prevStep, encuentro_id } = useWizardStore();
   const navigate = useNavigate();
+  const [showScrollHint, setShowScrollHint] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkScroll = () => {
+      const scrollY = window.scrollY;
+      const viewportHeight = window.innerHeight;
+      const totalHeight = document.documentElement.scrollHeight;
+      
+      const hasOverflow = totalHeight > viewportHeight + 12;
+      const isBottom = totalHeight - scrollY - viewportHeight < 35;
+      
+      setShowScrollHint(hasOverflow && !isBottom);
+    };
+
+    window.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    const timer = setTimeout(checkScroll, 350);
+
+    return () => {
+      window.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+      clearTimeout(timer);
+    };
+  }, [step]);
 
   const handleBack = () => {
     if (encuentro_id) {
@@ -59,6 +84,7 @@ const CreateWizard: React.FC = () => {
       </p>
 
       {renderStep()}
+      <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
 };
