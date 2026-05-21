@@ -111,7 +111,7 @@ export const participantesService = {
     }
   },
 
-  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string) {
+  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string, mensaje_respuesta?: string) {
     // 1. Obtener el id del encuentro para validar su estado
     const { data: participante, error: pError } = await supabase
       .from('participantes')
@@ -127,6 +127,9 @@ export const participantesService = {
     const respondido_en = new Date().toISOString();
     const updatePayload: Record<string, any> = { estado, respondido_en };
     if (nombre_invitado) updatePayload.nombre_invitado = nombre_invitado;
+    if (mensaje_respuesta !== undefined) {
+      updatePayload.mensaje_respuesta = mensaje_respuesta ? mensaje_respuesta.trim().substring(0, 120) : null;
+    }
     // Solo actualizar user_id si se proporciona un id válido (no sobreescribir con null si ya existía)
     if (user_id) updatePayload.user_id = user_id;
 
@@ -145,7 +148,7 @@ export const participantesService = {
     return data;
   },
 
-  async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado', user_id?: string | null) {
+  async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, mensaje_respuesta?: string) {
     // 1. Validar que el encuentro siga activo antes de insertar
     await this.validateEncuentroActivo(encuentro_id);
 
@@ -159,6 +162,9 @@ export const participantesService = {
       respondido_en,
       token_invitacion,
     };
+    if (mensaje_respuesta) {
+      insertPayload.mensaje_respuesta = mensaje_respuesta.trim().substring(0, 120);
+    }
     if (user_id !== undefined && user_id !== null) insertPayload.user_id = user_id;
 
     const { data, error } = await supabase

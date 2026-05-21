@@ -16,12 +16,16 @@ export function formatFriendlyDate(fecha: string, hora: string): string {
   return `${parseInt(day, 10)} ${monthName} • ${formattedHora}`;
 }
 
-/** Devuelve true si la fecha+hora del encuentro ya pasó */
-export function isEncuentroPasado(fecha: string, hora: string): boolean {
+/** Devuelve true si la fecha+hora del encuentro ya pasó, considerando una ventana de gracia */
+export function isEncuentroPasado(fecha: string, hora: string, graceMinutes: number = 45): boolean {
   if (!fecha || !hora) return false;
   try {
     const fechaHora = new Date(`${fecha}T${hora}`);
     if (isNaN(fechaHora.getTime())) return false;
+    
+    // Sumamos los minutos de gracia al tiempo del encuentro
+    fechaHora.setMinutes(fechaHora.getMinutes() + graceMinutes);
+    
     return fechaHora < new Date();
   } catch (e) {
     return false;

@@ -11,7 +11,7 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat } from '@/lib/formatDate';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
 import { useDetailStore } from '@/store/detailStore';
@@ -22,13 +22,7 @@ import { throttle } from 'lodash';
 /** Devuelve true si la fecha+hora del encuentro ya pasó */
 function isEncuentroPasado(enc: any): boolean {
   if (!enc || !enc.fecha || !enc.hora) return false;
-  try {
-    const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
-    if (isNaN(fechaHora.getTime())) return false;
-    return fechaHora < new Date();
-  } catch (e) {
-    return false;
-  }
+  return isEncuentroPasadoFormat(enc.fecha, enc.hora);
 }
 
 /** Obtiene el color primario del tema del encuentro */

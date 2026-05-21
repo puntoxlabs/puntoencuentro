@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { MoreVertical } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
+import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
 import { useDetailStore } from '@/store/detailStore';
 import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
@@ -17,12 +18,7 @@ import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 
-/** Devuelve true si la fecha+hora del encuentro ya pasó (con 2 horas de gracia para permitir "En curso ahora") */
-function isEncuentroPasado(enc: any): boolean {
-  if (!enc?.fecha || !enc?.hora) return false;
-  const fechaHora = new Date(`${enc.fecha}T${enc.hora}`);
-  return fechaHora < new Date();
-}
+/** Función eliminada a favor de la exportada en formatDate.ts */
 
 const DetailHost: React.FC = () => {
   const { id } = useParams();
@@ -164,7 +160,10 @@ const DetailHost: React.FC = () => {
     const newLink = encuentro.public_token
       ? `${baseUrl}/join/${encuentro.public_token}`
       : `${baseUrl}/meet/${encuentro.id}`;
-    const msg = `El encuentro fue actualizado:\n\n❌ Anterior: ${fromCancelled.oldTitulo} – ${fromCancelled.oldFecha}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nUnite acá:\n${newLink}`;
+    
+    const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
+    const msg = `El encuentro fue actualizado:\n\n❌ Anterior:\n${fromCancelled.oldTitulo}\n${fromCancelled.oldFecha}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nUnite acá:\n${newLink}`;
+    
     if (navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
     } else {
@@ -198,7 +197,7 @@ const DetailHost: React.FC = () => {
   const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado');
 
   const isCancelado  = encuentro.estado === 'cancelado';
-  const isFinalizado = !isCancelado && isEncuentroPasado(encuentro);
+  const isFinalizado = !isCancelado && isEncuentroPasado(encuentro.fecha, encuentro.hora);
   const isReadOnly   = isFinalizado;
   const isVirtual    = encuentro.modalidad === 'virtual';
 
@@ -210,7 +209,7 @@ const DetailHost: React.FC = () => {
     const eventDate = new Date(`${encuentro.fecha}T${encuentro.hora}`);
     const diffMinutes = Math.round((eventDate.getTime() - now.getTime()) / 60000);
     
-    if (diffMinutes < -120) return { label: 'Finalizado', bg: '#F3F4F6', color: '#4B5563' };
+    if (diffMinutes < -45) return { label: 'Finalizado', bg: '#F3F4F6', color: '#4B5563' };
     if (diffMinutes <= 0) return { label: '🟢 En curso ahora', bg: '#D1FAE5', color: '#047857' };
     if (diffMinutes <= 15) return { label: '🟢 Listo para unirte', bg: '#D1FAE5', color: '#047857' };
     if (diffMinutes <= 60) return { label: `🟡 Empieza en ${diffMinutes} min`, bg: '#FEF3C7', color: '#B45309' };
@@ -275,6 +274,11 @@ const DetailHost: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, color: 'var(--color-primary)', fontSize: 11, fontWeight: 500 }}>
                       <User size={12} strokeWidth={2.5} />
                       <span>{t('participant.linked_account', 'Cuenta vinculada')}</span>
+                    </div>
+                  )}
+                  {p.mensaje_respuesta && (
+                    <div style={{ marginTop: 4, fontSize: 13, color: '#6B7280', fontStyle: 'italic', lineHeight: 1.3 }}>
+                      "{p.mensaje_respuesta}"
                     </div>
                   )}
                 </div>
@@ -499,6 +503,7 @@ const DetailHost: React.FC = () => {
       <AppBar
         title={!isHost && isParticipant ? "Tu invitación" : ""}
         showBack
+        onBack={(!isHost && isParticipant) ? undefined : () => navigate('/')}
         rightAction={(!isHost && isParticipant) ? null : (
           <div style={{ position: 'relative' }}>
             <button

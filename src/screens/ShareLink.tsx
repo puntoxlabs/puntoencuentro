@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { encuentrosService } from '@/services/encuentrosService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
 import { getThemeStyle } from '@/lib/themes';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { PencilLine } from 'lucide-react';
@@ -73,11 +74,13 @@ const ShareLink: React.FC = () => {
   const handleShare = async () => {
     try {
       let shareText = '';
+      const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
       
       if (anteriorData) {
-        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior: ${anteriorData.titulo} – ${formatFriendlyDate(anteriorData.fecha, anteriorData.hora)}\n✅ Nuevo: ${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\n`;
+        const anteriorFormat = formatFechaHoraWhatsApp(anteriorData.fecha, anteriorData.hora);
+        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior:\n*${anteriorData.titulo}*\n${anteriorFormat.fechaStr} · ${anteriorFormat.horaStr}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\n`;
       } else {
-        shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n📅 ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+        shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
       }
 
       if (personalMessage.trim()) {

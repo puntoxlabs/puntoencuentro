@@ -42,6 +42,7 @@ const InviteGuest: React.FC = () => {
   // true solo si el usuario acaba de responder en ESTA sesión
   const [justConfirmed, setJustConfirmed] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
+  const [mensaje, setMensaje] = useState('');
 
   const getSuggestedName = (user: any) => {
     if (!user) return '';
@@ -159,12 +160,13 @@ const InviteGuest: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       setParticipante(data);
       
-      // Establecer nombre inicial
+      // Establecer nombre inicial y mensaje
       let initialName = data.nombre_invitado || '';
       if (user && !initialName) {
         initialName = getSuggestedName(user);
       }
       setNombre(initialName);
+      setMensaje(data.mensaje_respuesta || '');
 
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
       if ((!enc || !enc.estado) && data.encuentro_id) {
@@ -190,7 +192,7 @@ const InviteGuest: React.FC = () => {
       console.log('[INVITE] confirmando token:', token);
       // Pasar user_id si el usuario está logueado — no toca host_id ni otros campos
       const response = await participantesService.updateParticipanteEstado(
-        participante.id, estado, user?.id ?? null, nombre.trim() || undefined
+        participante.id, estado, user?.id ?? null, nombre.trim() || undefined, mensaje.trim() || undefined
       );
       console.log('[INVITE] respuesta confirmación:', response);
       useHomeStore.getState().invalidateCache();
@@ -469,6 +471,30 @@ const InviteGuest: React.FC = () => {
           <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
             {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
           </p>
+
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginTop: 20, marginBottom: 8 }}>
+            Mensaje para el organizador (opcional)
+          </label>
+          <textarea
+            placeholder="Ej: Llego 10 min tarde."
+            value={mensaje}
+            maxLength={120}
+            onChange={(e: any) => setMensaje(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: 60,
+              padding: '12px 16px',
+              borderRadius: 12,
+              border: '1.5px solid var(--color-outline-variant)',
+              outline: 'none',
+              fontSize: 15,
+              fontFamily: 'inherit',
+              color: 'var(--color-on-surface)',
+              background: '#fff',
+              resize: 'none',
+              boxSizing: 'border-box'
+            }}
+          />
         </div>
       </div>
 

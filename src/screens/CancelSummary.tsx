@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
 import { getThemeStyle } from '@/lib/themes';
 import { useWizardStore } from '@/store/wizardStore';
 
@@ -44,29 +45,23 @@ const CancelSummary: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  const buildShareLink = (enc: any): string => {
-    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-    return enc.public_token
-      ? `${baseUrl}/join/${enc.public_token}`
-      : `${baseUrl}/meet/${enc.id}`;
-  };
-
   const [shareFeedback, setShareFeedback] = useState(false);
 
   const handleShareCancel = async () => {
     if (!encuentro) return;
     try {
-      const shareLink = buildShareLink(encuentro);
-      const msg = `Este encuentro fue cancelado.\n\n${encuentro.titulo} – ${formatFriendlyDate(encuentro.fecha, encuentro.hora)}\n\nVer estado:\n${shareLink}`;
+      const shareUrl = `${window.location.origin}/join/${encuentro.public_token || encuentro.id}`;
+      const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
+      const shareText = `Este encuentro fue cancelado.\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nVer estado:\n${shareUrl}`;
 
       if (navigator.share) {
         await navigator.share({
           title: encuentro.titulo || 'Cancelación',
-          text: msg,
+          text: shareText,
         });
         setShareFeedback(true);
       } else {
-        await navigator.clipboard.writeText(msg);
+        await navigator.clipboard.writeText(shareText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         setShareFeedback(true);

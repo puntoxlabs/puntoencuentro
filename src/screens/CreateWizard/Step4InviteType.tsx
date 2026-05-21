@@ -5,6 +5,7 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
+import { Button } from '@/components/ui/Button';
 
 const optionCard = (selected: boolean, disabled: boolean): React.CSSProperties => ({
   background: selected ? 'var(--color-primary-container)' : '#fff',
@@ -23,6 +24,7 @@ const Step4InviteType: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
 
   const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
     if (loading) return;
@@ -144,6 +146,22 @@ const Step4InviteType: React.FC = () => {
           <p style={{ margin: 0, fontSize: 14 }}>Invitás a cada uno individualmente</p>
         </div>
       </div>
+
+      {hasInitialValue && (
+        <div style={{ marginTop: 24 }}>
+          <Button 
+            fullWidth 
+            disabled={loading}
+            onClick={async () => {
+              if (loading) return;
+              setError(null);
+              await handleFinish();
+            }}
+          >
+            Continuar
+          </Button>
+        </div>
+      )}
       
       {error && (
         <div style={{ 

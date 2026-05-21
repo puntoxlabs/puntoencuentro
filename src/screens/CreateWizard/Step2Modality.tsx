@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useWizardStore } from '@/store/wizardStore';
+import { Button } from '@/components/ui/Button';
 
 const optionCard = (selected: boolean): React.CSSProperties => ({
   background: selected ? 'var(--color-primary-container)' : '#fff',
@@ -14,6 +15,7 @@ const optionCard = (selected: boolean): React.CSSProperties => ({
 const Step2Modality: React.FC = () => {
   const { modalidad, setField, nextStep } = useWizardStore();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [hasInitialValue] = useState(!!modalidad);
 
   const handleSelect = (mod: 'presencial' | 'virtual') => {
     if (isNavigating) return;
@@ -48,6 +50,22 @@ const Step2Modality: React.FC = () => {
           <p style={{ margin: 0, fontSize: 14 }}>Por videollamada</p>
         </div>
       </div>
+
+      {hasInitialValue && (
+        <div style={{ marginTop: 24 }}>
+          <Button 
+            fullWidth 
+            onClick={() => {
+              if (!isNavigating) {
+                setIsNavigating(true);
+                nextStep();
+              }
+            }}
+          >
+            Continuar
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
