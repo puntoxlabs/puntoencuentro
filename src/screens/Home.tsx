@@ -706,7 +706,7 @@ const Home: React.FC = () => {
       <header style={{
         background: '#F3F7FF',
         borderBottom: '1px solid #E5E7EB',
-        padding: '20px 16px 16px 16px',
+        padding: 'calc(20px + env(safe-area-inset-top, 0px)) 16px 16px 16px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
