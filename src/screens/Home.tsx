@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Sliders, Plus, User } from 'lucide-react';
+import { Calendar, Sliders, Plus, User, MoreVertical } from 'lucide-react';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import { AccountSheet } from '@/components/ui/AccountSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -232,6 +233,7 @@ const Home: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'organizo' | 'participo'>('organizo');
   const [linking, setLinking] = useState(false);
@@ -776,8 +778,23 @@ const Home: React.FC = () => {
           >
             <Sliders size={20} />
           </button>
+
+          {/* Botón de información */}
+          <button
+            onClick={() => setIsInfoOpen(true)}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '50%',
+              color: '#111827'
+            }}
+          >
+            <MoreVertical size={20} />
+          </button>
         </div>
       </header>
+
+      <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
 
       {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
       {user && (
