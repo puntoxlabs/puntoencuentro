@@ -678,10 +678,17 @@ const DetailHost: React.FC = () => {
               <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
                 <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Aún no hay invitados</h4>
-                <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace para que tus amigos se sumen al encuentro.</p>
+                <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace o invitá personas para que se sumen al encuentro.</p>
               </div>
             ) : (
               <>
+                {confirmados.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+                    <h4 style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía nadie confirmó</h4>
+                    <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Cuando respondan, vas a ver las confirmaciones acá.</p>
+                  </div>
+                )}
                 {renderParticipantList('Confirmados', confirmados)}
                 {renderParticipantList('Pendientes', pendientes)}
                 {renderParticipantList('No asisten', rechazados)}
