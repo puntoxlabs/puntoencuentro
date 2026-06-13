@@ -187,6 +187,14 @@ const InviteGuest: React.FC = () => {
 
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!participante || loadingResponse) return;
+
+    // Validación antes de guardar: si ya finalizó, abortar
+    if (isEncuentroPasado(encuentro.fecha, encuentro.hora)) {
+      alert('Este encuentro ya finalizó. Ya no es posible modificar la respuesta.');
+      loadData();
+      return;
+    }
+
     try {
       setLoadingResponse(true);
       console.log('[INVITE] confirmando token:', token);
@@ -302,6 +310,7 @@ const InviteGuest: React.FC = () => {
     </ScreenContainer>
   );
 
+  const isFinalizado = encuentro?.estado?.toLowerCase() !== 'cancelado' && isEncuentroPasado(encuentro.fecha, encuentro.hora);
 
   if (step === 'done') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
@@ -339,6 +348,21 @@ const InviteGuest: React.FC = () => {
             ? t('waiting_for_you', 'Te esperamos en el encuentro.')
             : t('not_attending', 'Avisamos que no vas a poder asistir.')}
         </p>
+
+        {isFinalizado && (
+          <div style={{ marginTop: 8, padding: '10px 16px', background: '#F3F4F6', borderRadius: 12 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#374151' }}>Este encuentro ya finalizó.</p>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6B7280' }}>Ya no es posible modificar la respuesta.</p>
+          </div>
+        )}
+
+        {/* Mensaje previo en modo lectura (si existe) */}
+        {participante.mensaje_respuesta && (
+          <div style={{ width: '100%', textAlign: 'left', marginTop: 12, padding: '12px 16px', background: 'var(--color-surface-variant)', borderRadius: 12 }}>
+            <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tu mensaje</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-on-surface)', fontStyle: 'italic' }}>"{participante.mensaje_respuesta}"</p>
+          </div>
+        )}
 
         {/* Botón Cambiar respuesta - SOLO si el encuentro está activo y no ha pasado */}
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
@@ -458,8 +482,16 @@ const InviteGuest: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
 
-      <div style={{ padding: '20px 0 0 0' }}>
-        <div style={{ ...eventCard, padding: '24px 20px', marginBottom: 0 }}>
+      {isFinalizado && (
+        <div style={{ margin: '20px 20px 0', background: '#F3F4F6', borderRadius: 16, padding: '16px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#374151' }}>Este encuentro ya finalizó.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6B7280' }}>Ya no es posible responder a esta invitación.</p>
+        </div>
+      )}
+
+      <div style={{ padding: isFinalizado ? '16px 0 0 0' : '20px 0 0 0' }}>
+        {!isFinalizado && (
+          <div style={{ ...eventCard, padding: '24px 20px', marginBottom: 0 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
             {t('participant.visible_name', 'Nombre visible')}
           </label>
@@ -496,6 +528,7 @@ const InviteGuest: React.FC = () => {
             }}
           />
         </div>
+        )}
       </div>
 
       <div style={{ ...eventCard, margin: '20px 0' }}>
@@ -516,24 +549,27 @@ const InviteGuest: React.FC = () => {
         )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
-        <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={loadingResponse}>
-          {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
-        </Button>
-        <button
-          onClick={() => handleResponse('rechazado')}
-          disabled={loadingResponse}
-          style={{
-            background: 'none', border: 'none',
-            color: loadingResponse ? 'var(--color-outline-variant)' : 'var(--color-on-surface-variant)',
-            fontSize: 15, fontFamily: 'var(--font-family)', fontWeight: 500,
-            cursor: loadingResponse ? 'not-allowed' : 'pointer',
-            padding: '10px 0', textAlign: 'center', width: '100%',
-          }}
-        >
-          {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
-        </button>
-      </div>
+      {!isFinalizado && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
+          <Button fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={loadingResponse}>
+            {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
+          </Button>
+          <button
+            onClick={() => handleResponse('rechazado')}
+            disabled={loadingResponse}
+            style={{
+              background: 'none', border: 'none',
+              color: loadingResponse ? 'var(--color-outline-variant)' : 'var(--color-on-surface-variant)',
+              fontSize: 15, fontFamily: 'var(--font-family)', fontWeight: 500,
+              cursor: loadingResponse ? 'not-allowed' : 'pointer',
+              padding: '10px 0', textAlign: 'center', width: '100%',
+            }}
+          >
+            {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
+          </button>
+        </div>
+      )}
+      
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );

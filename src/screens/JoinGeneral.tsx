@@ -218,6 +218,14 @@ const JoinGeneral: React.FC = () => {
 
   const handleResponse = async (estado: 'confirmado' | 'rechazado') => {
     if (!encuentro || !nombre.trim()) return;
+
+    // Validación antes de guardar: si ya finalizó, abortar
+    if (isEncuentroPasado(encuentro.fecha, encuentro.hora)) {
+      alert('Este encuentro ya finalizó. Ya no es posible modificar la respuesta.');
+      loadData();
+      return;
+    }
+
     try {
       setLoadingResponse(true);
       
@@ -345,6 +353,7 @@ const JoinGeneral: React.FC = () => {
     </ScreenContainer>
   );
 
+  const isFinalizado = encuentro?.estado?.toLowerCase() !== 'cancelado' && isEncuentroPasado(encuentro.fecha, encuentro.hora);
 
   if (step === 'done') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
@@ -379,6 +388,21 @@ const JoinGeneral: React.FC = () => {
             ? t('waiting_for_you', 'Te esperamos en el encuentro.')
             : t('not_attending', 'Avisamos que no vas a poder asistir.')}
         </p>
+
+        {isFinalizado && (
+          <div style={{ marginTop: 8, padding: '10px 16px', background: '#F3F4F6', borderRadius: 12 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#374151' }}>Este encuentro ya finalizó.</p>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6B7280' }}>Ya no es posible modificar la respuesta.</p>
+          </div>
+        )}
+
+        {/* Mensaje previo en modo lectura (si existe) */}
+        {participante?.mensaje_respuesta && (
+          <div style={{ width: '100%', textAlign: 'left', marginTop: 12, padding: '12px 16px', background: 'var(--color-surface-variant)', borderRadius: 12 }}>
+            <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tu mensaje</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-on-surface)', fontStyle: 'italic' }}>"{participante.mensaje_respuesta}"</p>
+          </div>
+        )}
 
         {/* Botón Cambiar respuesta - SOLO si el encuentro está activo y no ha pasado */}
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
@@ -491,7 +515,15 @@ const JoinGeneral: React.FC = () => {
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
-      <div style={{ ...eventCard, marginTop: 20 }}>
+
+      {isFinalizado && (
+        <div style={{ margin: '20px 20px 0', background: '#F3F4F6', borderRadius: 16, padding: '16px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#374151' }}>Este encuentro ya finalizó.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6B7280' }}>Ya no es posible responder a esta invitación.</p>
+        </div>
+      )}
+
+      <div style={{ ...eventCard, marginTop: isFinalizado ? 16 : 20 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Te invitan a</p>
         <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16, lineHeight: 1.15 }}>{encuentro.titulo}</h2>
         <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
@@ -510,29 +542,32 @@ const JoinGeneral: React.FC = () => {
       </div>
 
       {/* ── B. Confirmación ─────────────────────────────── */}
-      <div style={{ ...eventCard, padding: '24px 20px' }}>
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
-            {t('participant.visible_name', 'Nombre visible')}
-          </label>
-          <Input
-            placeholder="Ej: Leandro"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('btn-confirmar')?.focus();
-              }
-            }}
-          />
-          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
-            {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
-          </p>
+      {!isFinalizado && (
+        <div style={{ ...eventCard, padding: '24px 20px' }}>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
+              {t('participant.visible_name', 'Nombre visible')}
+            </label>
+            <Input
+              placeholder="Ej: Leandro"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  document.getElementById('btn-confirmar')?.focus();
+                }
+              }}
+            />
+            <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+              {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
+      {!isFinalizado && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
         <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
           {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
         </Button>
@@ -550,6 +585,7 @@ const JoinGeneral: React.FC = () => {
           {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
         </button>
       </div>
+      )}
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
