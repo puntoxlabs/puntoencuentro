@@ -670,7 +670,13 @@ const Home: React.FC = () => {
                 <ActiveCard
                   key={enc.id}
                   enc={enc}
-                  onClick={() => navigate(`/meet/${enc.id}`)}
+                  onClick={() => {
+                    if (activeScope === 'participo' && enc._mi_token_invitacion) {
+                      navigate(`/invite/${enc._mi_token_invitacion}`);
+                    } else {
+                      navigate(`/meet/${enc.id}`);
+                    }
+                  }}
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
                 />
@@ -719,7 +725,13 @@ const Home: React.FC = () => {
                 <PastCard
                   key={enc.id}
                   enc={enc}
-                  onClick={() => navigate(`/meet/${enc.id}`)}
+                  onClick={() => {
+                    if (activeScope === 'participo' && enc._mi_token_invitacion) {
+                      navigate(`/invite/${enc._mi_token_invitacion}`);
+                    } else {
+                      navigate(`/meet/${enc.id}`);
+                    }
+                  }}
                   onRepeat={(e) => handleRepeat(enc, e)}
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
