@@ -82,7 +82,7 @@ const AddGuests: React.FC = () => {
   const handleDelete = async (partId: string) => {
     try {
       setParticipantes(prev => prev.filter(p => p.id !== partId));
-      await participantesService.deleteParticipante(partId, user?.id);
+      await participantesService.deleteParticipante(partId, user?.id ?? getHostId());
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');

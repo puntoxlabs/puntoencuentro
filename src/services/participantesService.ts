@@ -39,21 +39,29 @@ export const participantesService = {
     return (data as any[]) || [];
   },
 
-  async deleteParticipante(id: string, userId?: string) {
-    if (!userId) {
-      throw new Error('deleteParticipante bloqueado para usuarios anónimos en arquitectura RPC-first.');
+  async deleteParticipante(participanteId: string, hostId: string) {
+    if (!hostId) {
+      throw new Error('hostId requerido para eliminar participante bajo arquitectura RPC-first');
     }
-    const { error } = await supabase
-      .from('participantes')
-      .delete()
-      .eq('id', id);
+    
+    const { data, error } = await supabase.rpc('eliminar_participante_seguro', {
+      p_participante_id: participanteId,
+      p_host_id: hostId
+    });
 
     if (error) {
-      console.error('Error deleting participante:', error);
+      console.error('Error deleting participante (RPC):', error);
       throw error;
     }
     
-    return true;
+    const result = data as any;
+    if (!result?.ok) {
+      const msg = result?.error || 'delete_failed';
+      console.error('[DELETE PART] RPC Error:', msg);
+      throw new Error(msg);
+    }
+    
+    return result;
   },
 
   async getParticipanteByToken(token: string) {
