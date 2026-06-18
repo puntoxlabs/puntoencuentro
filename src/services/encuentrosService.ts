@@ -155,7 +155,7 @@ export const encuentrosService = {
 
     const { data, error } = await supabase
       .from('participantes')
-      .select('encuentros(*)')
+      .select('estado, encuentros(*)')
       .eq('user_id', userId)
       .eq('estado', 'confirmado');
 
@@ -167,7 +167,12 @@ export const encuentrosService = {
     // Mapear a Encuentro[], filtrar nulls y deduplicar
     const seen = new Set<string>();
     const encuentros = (data || [])
-      .map(p => p.encuentros as any)
+      .map(p => {
+        const enc = p.encuentros as any;
+        if (!enc) return null;
+        // Adjuntar estado propio del invitado en el objeto del encuentro
+        return { ...enc, _mi_estado: p.estado };
+      })
       .filter((enc): enc is any => {
         if (!enc || seen.has(enc.id)) return false;
         seen.add(enc.id);

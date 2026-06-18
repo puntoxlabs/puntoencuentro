@@ -48,16 +48,21 @@ function preloadWizardFromEncuentro(enc: any, wizardStore: ReturnType<typeof use
   setField('tema', enc.tema || 'blue');
 }
 
-/* ─── Componente de card activa ─────────────────────────────────────────── */
+/* ─── Componente de card activa ───────────────────────────────────── */
 const ActiveCard: React.FC<{
   enc: any;
   onClick: () => void;
   participantesCache: any[] | null;
-}> = ({ enc, onClick, participantesCache }) => {
+  miEstado?: string | null;
+}> = ({ enc, onClick, participantesCache, miEstado }) => {
   if (!enc) return null;
   const accentColor = getEncuentroPrimaryColor(enc);
   const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
   const total = (participantesCache || []).length;
+
+  // Label para estado propio del invitado (vista Participo)
+  const miEstadoLabel = miEstado === 'confirmado' ? '✔ Vas a asistir' : miEstado === 'rechazado' ? '✖ No vas a asistir' : miEstado ? 'Respuesta registrada' : null;
+  const miEstadoColor = miEstado === 'confirmado' ? '#059669' : miEstado === 'rechazado' ? '#DC2626' : '#6B7280';
 
   return (
     <div
@@ -97,30 +102,42 @@ const ActiveCard: React.FC<{
           {enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
         </div>
         
-        {total !== null && (
-          <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-            {confirmados !== null && confirmados > 0
-              ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
-              : `${total} invitado${total !== 1 ? 's' : ''}`}
+        {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
+        {miEstadoLabel ? (
+          <span style={{ fontSize: 13, color: miEstadoColor, fontWeight: 600 }}>
+            {miEstadoLabel}
           </span>
+        ) : (
+          total !== null && (
+            <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+              {confirmados !== null && confirmados > 0
+                ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
+                : `${total} invitado${total !== 1 ? 's' : ''}`}
+            </span>
+          )
         )}
       </div>
     </div>
   );
 };
 
-/* ─── Componente de card pasada ─────────────────────────────────────────── */
+/* ─── Componente de card pasada ───────────────────────────────────── */
 const PastCard: React.FC<{
   enc: any;
   onClick: () => void;
   onRepeat: (e: React.MouseEvent) => void;
   participantesCache: any[] | null;
-}> = ({ enc, onClick, onRepeat, participantesCache }) => {
+  miEstado?: string | null;
+}> = ({ enc, onClick, onRepeat, participantesCache, miEstado }) => {
   if (!enc) return null;
   const isCancelled = enc.estado === 'cancelado';
   const accentColor = getEncuentroPrimaryColor(enc);
   const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
   const total = (participantesCache || []).length;
+
+  // Label para estado propio del invitado (vista Participo)
+  const miEstadoLabel = miEstado === 'confirmado' ? '✔ Asististe' : miEstado === 'rechazado' ? '✖ No asististe' : miEstado ? 'Respuesta registrada' : null;
+  const miEstadoColor = miEstado === 'confirmado' ? '#059669' : miEstado === 'rechazado' ? '#DC2626' : '#9CA3AF';
 
   return (
     <div
@@ -166,12 +183,19 @@ const PastCard: React.FC<{
           <div style={{ background: '#F3F4F6', color: '#6B7280', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
             {enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
           </div>
-          {total !== null && (
-            <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>
-              {confirmados !== null && confirmados > 0
-                ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
-                : `${total} invitado${total !== 1 ? 's' : ''}`}
+          {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
+          {miEstadoLabel ? (
+            <span style={{ fontSize: 12, color: miEstadoColor, fontWeight: 600 }}>
+              {miEstadoLabel}
             </span>
+          ) : (
+            total !== null && (
+              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>
+                {confirmados !== null && confirmados > 0
+                  ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
+                  : `${total} invitado${total !== 1 ? 's' : ''}`}
+              </span>
+            )
           )}
         </div>
 
@@ -637,7 +661,8 @@ const Home: React.FC = () => {
                   key={enc.id}
                   enc={enc}
                   onClick={() => navigate(`/meet/${enc.id}`)}
-                  participantesCache={detailCache[enc.id]?.participantes ?? null}
+                  participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
+                  miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
                 />
               ))}
             </div>
@@ -686,7 +711,8 @@ const Home: React.FC = () => {
                   enc={enc}
                   onClick={() => navigate(`/meet/${enc.id}`)}
                   onRepeat={(e) => handleRepeat(enc, e)}
-                  participantesCache={detailCache[enc.id]?.participantes ?? null}
+                  participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
+                  miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
                 />
               ))}
             </div>
