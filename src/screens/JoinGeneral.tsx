@@ -54,7 +54,7 @@ const JoinGeneral: React.FC = () => {
   useEffect(() => {
     if (!encuentro?.id) return;
 
-    console.log('[JOIN REALTIME] Subscribing to encounter updates, id:', encuentro.id);
+    if (import.meta.env.DEV) console.log('[JOIN REALTIME] Subscribing to encounter updates, id:', encuentro.id);
     const channel = supabase
       .channel(`public:encuentros:id=eq.${encuentro.id}`)
       .on(
@@ -66,7 +66,7 @@ const JoinGeneral: React.FC = () => {
           filter: `id=eq.${encuentro.id}`
         },
         (payload: any) => {
-          console.log('[JOIN REALTIME] Encounter updated:', payload);
+          if (import.meta.env.DEV) console.log('[JOIN REALTIME] Encounter updated:', payload.eventType);
           if (payload.eventType === 'DELETE') {
             setError('No disponible');
             setEncuentro(null);
@@ -80,23 +80,19 @@ const JoinGeneral: React.FC = () => {
     // Fallback Polling every 8.5 seconds
     const pollInterval = setInterval(async () => {
       try {
-        console.log('[JOIN POLLING] Checking encounter status...');
-        const { data, error: pollErr } = await supabase
-          .from('encuentros')
-          .select('*')
-          .eq('id', encuentro.id)
-          .maybeSingle();
+        if (import.meta.env.DEV) console.log('[JOIN POLLING] Checking encounter status...');
+        const updatedEnc = await encuentrosService.getEncuentroByPublicToken(public_token!);
 
-        if (pollErr || !data) {
-          console.log('[JOIN POLLING] Encounter deleted or unavailable');
+        if (!updatedEnc) {
+          if (import.meta.env.DEV) console.log('[JOIN POLLING] Encounter deleted or unavailable');
           setError('No disponible');
           setEncuentro(null);
           return;
         }
 
-        if (data.estado !== encuentro.estado) {
-          console.log('[JOIN POLLING] Status updated to:', data.estado);
-          setEncuentro(data);
+        if (updatedEnc.estado !== encuentro.estado) {
+          if (import.meta.env.DEV) console.log('[JOIN POLLING] Status updated to:', updatedEnc.estado);
+          setEncuentro(updatedEnc);
         }
       } catch (err) {
         console.error('[JOIN POLLING] Error running polling check', err);
@@ -104,7 +100,7 @@ const JoinGeneral: React.FC = () => {
     }, 8500);
 
     return () => {
-      console.log('[JOIN REALTIME] Unsubscribing, id:', encuentro.id);
+      if (import.meta.env.DEV) console.log('[JOIN REALTIME] Unsubscribing, id:', encuentro.id);
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
@@ -137,11 +133,10 @@ const JoinGeneral: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
-      console.log('[GENERAL_LINK] token:', public_token);
+      if (import.meta.env.DEV) console.log('[GENERAL_LINK] cargando token...');
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
-      console.log('[GENERAL_LINK] encuentro:', data);
-      console.log("Estado encuentro:", data.estado);
+      if (import.meta.env.DEV) console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
       let savedData: SavedData = { encuentros: {} };
       try {
@@ -157,12 +152,12 @@ const JoinGeneral: React.FC = () => {
       const participantData = savedData?.encuentros?.[public_token!];
       const participantId = participantData?.participant_id;
       const participantToken = participantData?.token_invitacion;
-      console.log('[GENERAL_LINK] token local:', participantToken, 'id local:', participantId);
+      if (import.meta.env.DEV) console.log('[GENERAL_LINK] datos locales encontrados:', !!(participantToken || participantId));
       let estadoUI = 'pending';
       if (participantToken) {
         try {
           const partData = await participantesService.getParticipanteByToken(participantToken);
-          console.log('[GENERAL_LINK] participante backend token:', partData);
+          if (import.meta.env.DEV) console.log('[GENERAL_LINK] participante encontrado por token: ok');
           if (partData) { 
             setParticipante(partData); 
             setNombre(partData.nombre_invitado || '');
@@ -175,7 +170,7 @@ const JoinGeneral: React.FC = () => {
       } else if (participantId) {
         try {
           const partData = await participantesService.getParticipanteById(participantId);
-          console.log('[GENERAL_LINK] participante backend id:', partData);
+          if (import.meta.env.DEV) console.log('[GENERAL_LINK] participante encontrado por id: ok');
           if (partData) { 
             setParticipante(partData); 
             setNombre(partData.nombre_invitado || '');
@@ -186,7 +181,7 @@ const JoinGeneral: React.FC = () => {
           }
         } catch (err) { console.error('Participant not found by id', err); }
       }
-      console.log('[GENERAL_LINK] estado final:', estadoUI);
+      if (import.meta.env.DEV) console.log('[GENERAL_LINK] estado final:', estadoUI);
 
       // Pre-llenado de nombre si está logueado y no hay uno previo
       if (user && !participantToken && !participantId) {
@@ -232,13 +227,17 @@ const JoinGeneral: React.FC = () => {
       let newPart;
       if (participante && participante.id) {
         // Caso: Ya existe el participante, actualizar respuesta
-        newPart = await participantesService.updateParticipanteEstado(
-          participante.id, estado, user?.id ?? null
+        newPart = await participantesService.responderInvitacion(
+          participante.token_invitacion,
+          estado,
+          nombre.trim() || undefined
         );
+        // Para mantener compatibilidad con el campo .id que se usa después:
+        if (newPart && !newPart.id && participante.id) newPart.id = participante.id;
       } else {
         // Caso: Nuevo participante
         newPart = await participantesService.addParticipanteGenerico(
-          encuentro.id, nombre.trim(), estado, user?.id ?? null
+          encuentro.id, nombre.trim(), estado, user?.id ?? null, undefined, public_token
         );
       }
 
@@ -264,7 +263,7 @@ const JoinGeneral: React.FC = () => {
       setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
       setStep('done');
       setJustConfirmed(true);
-      console.log('[GENERAL_LINK] estado final:', 'done');
+      if (import.meta.env.DEV) console.log('[GENERAL_LINK] estado final: done');
     } catch (err: any) {
       console.error('Error responding', err);
       if (err.message === 'meeting_cancelled') {
@@ -273,6 +272,9 @@ const JoinGeneral: React.FC = () => {
       } else if (err.message === 'meeting_not_found') {
         alert('Este encuentro ya no está disponible.');
         loadData(); // Recargar para mostrar pantalla de no disponible
+      } else if (err.message === 'meeting_expired') {
+        alert('Este encuentro ya ha finalizado. No es posible modificar la respuesta.');
+        loadData();
       } else {
         alert('Hubo un error al guardar tu respuesta. Por favor intenta de nuevo.');
       }

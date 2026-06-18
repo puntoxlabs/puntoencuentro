@@ -14,6 +14,7 @@ import throttle from 'lodash/throttle';
 import { getThemeStyle } from '@/lib/themes';
 import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { getHostId } from '@/lib/auth';
 import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
@@ -55,7 +56,8 @@ const DetailHost: React.FC = () => {
       }
       intervalId = setInterval(async () => {
         try {
-          const parts = await participantesService.getParticipantesByEncuentro(id);
+          const hId = user?.id ?? getHostId();
+          const parts = await participantesService.getParticipantesByEncuentro(id, hId);
           setParticipantes(parts || []);
           const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
           if (currentEnc) setDetailData(id, currentEnc, parts || []);
@@ -80,9 +82,10 @@ const DetailHost: React.FC = () => {
     try {
       if (!useDetailStore.getState().getValidCache(id!)) setLoading(true);
       setError(null);
-      const enc = await encuentrosService.getEncuentroById(id!);
+      const hostId = user?.id ?? getHostId();
+      const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
-      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
       setDetailData(id!, enc, parts || []);
     } catch (err) {
@@ -122,10 +125,11 @@ const DetailHost: React.FC = () => {
     if (!id || cancelling) return;
     try {
       setCancelling(true);
-      await encuentrosService.cancelarEncuentro(id);
+      const hostId = user?.id ?? getHostId();
+      await encuentrosService.cancelarEncuentro(id, hostId);
       
       // Refetch obligatorio para asegurar datos reales de Supabase
-      const updatedEnc = await encuentrosService.getEncuentroById(id);
+      const updatedEnc = await encuentrosService.getDetalleHostSeguro(id, hostId);
       
       useHomeStore.getState().invalidateCache();
       setEncuentro(updatedEnc);
@@ -143,7 +147,8 @@ const DetailHost: React.FC = () => {
     if (!id) return;
     try {
       setIsDeleting(true);
-      await encuentrosService.deleteEncuentro(id);
+      const hostId = user?.id ?? getHostId();
+      await encuentrosService.deleteEncuentro(id, hostId);
       useHomeStore.setState(state => ({ encuentros: state.encuentros.filter(e => e.id !== id) }));
       useHomeStore.getState().invalidateCache();
       setShowDeleteModal(false);

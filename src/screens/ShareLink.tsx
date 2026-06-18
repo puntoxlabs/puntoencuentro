@@ -5,6 +5,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { getHostId } from '@/lib/auth';
 import { encuentrosService } from '@/services/encuentrosService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
@@ -33,13 +34,14 @@ const ShareLink: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
-      const enc = await encuentrosService.getEncuentroById(id!);
+      const hostId = user?.id ?? getHostId();
+      const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
 
       // 1. Detect replacement from DB
       if (enc.reemplaza_a) {
         try {
-          const ant = await encuentrosService.getEncuentroById(enc.reemplaza_a);
+          const ant = await encuentrosService.getDetalleHostSeguro(enc.reemplaza_a, hostId);
           setAnteriorData(ant);
         } catch (e) { console.error('Error loading anterior', e); }
       } 

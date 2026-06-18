@@ -70,7 +70,7 @@ const Step4InviteType: React.FC = () => {
           })(),
         };
 
-        console.log('[CREATE PAYLOAD]', payload);
+        if (import.meta.env.DEV) console.log('[CREATE PAYLOAD]', payload);
         const newEncuentro = await encuentrosService.createEncuentro(payload);
         encuentroId = newEncuentro.id;
         setField('encuentro_id', encuentroId);
@@ -84,8 +84,9 @@ const Step4InviteType: React.FC = () => {
           } catch (e) { console.error('Error updating cancel_reference', e); }
         }
       } else {
-        console.log('[REUSING ENCUENTRO]', encuentroId);
+        if (import.meta.env.DEV) console.log('[REUSING ENCUENTRO]', encuentroId);
         // Actualizamos por si cambió algo en pasos previos (título, fecha, etc.)
+        const hostId = user?.id ?? getHostId();
         await encuentrosService.updateEncuentro(encuentroId, {
           titulo: wizardData.titulo,
           descripcion: wizardData.descripcion,
@@ -96,7 +97,7 @@ const Step4InviteType: React.FC = () => {
           link_virtual: wizardData.link_virtual,
           tipo_invitacion: tipo,
           tema: wizardData.tema || 'blue',
-        });
+        }, hostId);
       }
 
       if (tipo === 'individual') {

@@ -22,19 +22,28 @@ export const participantesService = {
     return data;
   },
 
-  async getParticipantesByEncuentro(encuentro_id: string) {
+  async getParticipantesByEncuentro(encuentro_id: string, hostId?: string) {
+    // Si se provee hostId, usar RPC segura
+    if (hostId) {
+      const { data, error } = await supabase.rpc('get_participantes_host_seguro', {
+        p_encuentro_id: encuentro_id,
+        p_host_id: hostId
+      });
+      if (error) throw error;
+      if ((data as any)?.error) {
+        if (import.meta.env.DEV) console.warn('[PART] RPC error:', (data as any).error);
+        return [];
+      }
+      return (data as any[]) || [];
+    }
+    // Fallback: SELECT directo (temporal, hasta que todos los callers pasen hostId)
     const { data, error } = await supabase
       .from('participantes')
       .select('*')
       .eq('encuentro_id', encuentro_id)
       .order('creado_en', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching participantes:', error);
-      throw error;
-    }
-
-    return data;
+    if (error) throw error;
+    return data || [];
   },
 
   async deleteParticipante(id: string) {
@@ -52,25 +61,12 @@ export const participantesService = {
   },
 
   async getParticipanteByToken(token: string) {
-    console.log('Token consultado en backend:', token);
-    
-    // Intentamos consulta directa primero para obtener la relación anidada
-    const directResult = await supabase
-      .from('participantes')
-      .select('*, encuentros(*)')
-      .eq('token_invitacion', token)
-      .single();
-      
-    if (!directResult.error && directResult.data) {
-       console.log('Resultado de búsqueda directa en DB:', directResult);
-       return directResult.data;
-    }
+    if (import.meta.env.DEV) console.log('Token consultado en backend:', token);
 
-    // Si la directa falla (por RLS u otro motivo), usamos el RPC como fallback
-    const { data, error } = await supabase
-      .rpc('get_participante_seguro', { p_token: token });
+    // Usar SOLO la RPC — eliminar intento directo
+    const { data, error } = await supabase.rpc('get_participante_seguro', { p_token: token });
 
-    console.log('Resultado de búsqueda RPC en DB:', { data, error });
+    if (import.meta.env.DEV) console.log('Resultado de búsqueda RPC en DB:', error ? 'error' : 'ok');
 
     if (error) {
       console.error('Error fetching participante by token:', error);
@@ -111,6 +107,26 @@ export const participantesService = {
     }
   },
 
+  async responderInvitacion(
+    token: string,
+    estado: 'confirmado' | 'rechazado',
+    nombre?: string,
+    mensaje?: string
+  ) {
+    const { data, error } = await supabase.rpc('responder_participante_seguro', {
+      p_token: token,
+      p_estado: estado,
+      p_nombre: nombre ?? null,
+      p_mensaje_respuesta: mensaje ?? null
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (!result?.ok) {
+      throw new Error(result?.error || 'response_failed');
+    }
+    return result;
+  },
+
   async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string, mensaje_respuesta?: string) {
     // 1. Obtener el id del encuentro para validar su estado
     const { data: participante, error: pError } = await supabase
@@ -148,47 +164,46 @@ export const participantesService = {
     return data;
   },
 
-  async addParticipanteGenerico(encuentro_id: string, nombre_invitado: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, mensaje_respuesta?: string) {
-    // 1. Validar que el encuentro siga activo antes de insertar
-    await this.validateEncuentroActivo(encuentro_id);
+  async addParticipanteGenerico(
+    encuentro_id: string,
+    nombre_invitado: string,
+    estado: 'confirmado' | 'rechazado',
+    user_id?: string | null,
+    mensaje_respuesta?: string,
+    public_token?: string  // parámetro opcional para usar RPC segura
+  ) {
+    // Si hay public_token disponible, usar RPC segura
+    if (public_token) {
+      const result = await this.responderInvitacion(
+        public_token, estado, nombre_invitado, mensaje_respuesta
+      );
+      return result;
+    }
 
+    // Fallback: INSERT directo (temporal)
+    await this.validateEncuentroActivo(encuentro_id);
     const respondido_en = new Date().toISOString();
     const token_invitacion = crypto.randomUUID();
     const insertPayload: Record<string, any> = {
-      encuentro_id,
-      nombre_invitado,
-      tipo_invitacion: 'generico',
-      estado,
-      respondido_en,
-      token_invitacion,
+      encuentro_id, nombre_invitado, tipo_invitacion: 'generico',
+      estado, respondido_en, token_invitacion,
     };
-    if (mensaje_respuesta) {
-      insertPayload.mensaje_respuesta = mensaje_respuesta.trim().substring(0, 120);
-    }
+    if (mensaje_respuesta) insertPayload.mensaje_respuesta = mensaje_respuesta.trim().substring(0, 120);
     if (user_id !== undefined && user_id !== null) insertPayload.user_id = user_id;
-
-    const { data, error } = await supabase
-      .from('participantes')
-      .insert([insertPayload])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding participante generico:', error);
-      throw error;
-    }
-
+    const { data, error } = await supabase.from('participantes').insert([insertPayload]).select().single();
+    if (error) throw error;
     return data;
   },
 
   async linkUserToParticipante(participantId: string, userId: string) {
     if (!participantId || !userId) return;
-    console.log(`[LINK_PART] Vinculando participante ${participantId} a user ${userId}`);
+    if (import.meta.env.DEV) console.log(`[LINK_PART] Vinculando participante ${participantId} a user ${userId}`);
 
     const { error } = await supabase
       .from('participantes')
       .update({ user_id: userId })
-      .eq('id', participantId);
+      .eq('id', participantId)
+      .is('user_id', null); // Solo vincular si aún no tiene user_id (evita sobreescribir)
 
     if (error) {
       console.error('Error linking user to participante:', error);

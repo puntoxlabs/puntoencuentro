@@ -1,13 +1,18 @@
 export const openExternalVideoLink = async (url: string) => {
-  console.log('[VIDEO_LINK] recibido:', url);
-  
+  if (!url) return;
+
   let finalUrl = url.trim();
-  // Asegurar que la URL sea absoluta
-  if (!/^https?:\/\//i.test(finalUrl) && !/^[a-zA-Z0-9]+:\/\//i.test(finalUrl)) {
+
+  // Normalizar: si no tiene protocolo reconocido, asumir https
+  if (!/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//i.test(finalUrl)) {
     finalUrl = `https://${finalUrl}`;
   }
 
-  console.log('[VIDEO_LINK] abriendo:', finalUrl);
+  // Solo permitir http:// y https:// — rechazar javascript:, data:, file:, etc.
+  if (!/^https?:\/\//i.test(finalUrl)) {
+    console.error('[VIDEO_LINK] Esquema de URL no permitido:', finalUrl);
+    return;
+  }
 
   try {
     // 1. Entorno móvil (Capacitor)

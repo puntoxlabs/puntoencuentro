@@ -352,8 +352,18 @@ const Home: React.FC = () => {
         organized = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
         participated = await encuentrosService.getEncuentrosParticipados(userId);
       } else {
-        // Anónimo: solo organizados del UUID local
+        // Anónimo: organizados del UUID local
         organized = await encuentrosService.getEncuentrosByHost(anonId);
+        // Anónimo: participaciones por tokens locales
+        try {
+          const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
+          const tokens = getAllParticipatedTokens();
+          if (tokens.length > 0) {
+            participated = await encuentrosService.getEncuentrosParticipadosPorTokens(tokens);
+          }
+        } catch (err) {
+          if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo:', err);
+        }
       }
 
       const sortList = (list: any[]) => (list || []).filter(e => e && e.id).sort((a, b) => {

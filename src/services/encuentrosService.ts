@@ -22,6 +22,7 @@ export const encuentrosService = {
       throw new Error(validationError);
     }
 
+    // INSERT directo — aún seguro, RLS permite INSERT para anon
     const { data: result, error } = await supabase
       .from('encuentros')
       .insert([data])
@@ -37,18 +38,11 @@ export const encuentrosService = {
   },
 
   async getEncuentrosByHost(host_id: string) {
-    const { data, error } = await supabase
-      .from('encuentros')
-      .select('*')
-      .eq('host_id', host_id)
-      .order('creado_en', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching encuentros by host:', error);
-      throw error;
-    }
-
-    return data;
+    const { data, error } = await supabase.rpc('get_encuentros_host_seguro', {
+      p_host_ids: [host_id]
+    });
+    if (error) throw error;
+    return (data as any[]) || [];
   },
 
   async getEncuentrosByHostIds(host_ids: string[]) {
@@ -56,26 +50,22 @@ export const encuentrosService = {
     const ids = [...new Set(host_ids.filter(Boolean))];
     if (ids.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('encuentros')
-      .select('*')
-      .in('host_id', ids)
-      .order('creado_en', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching encuentros by host ids:', error);
-      throw error;
-    }
+    const { data, error } = await supabase.rpc('get_encuentros_host_seguro', {
+      p_host_ids: ids
+    });
+    if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
 
     // Deduplicar por id (por si acaso haya solapamiento futuro)
     const seen = new Set<string>();
-    return (data || []).filter(enc => {
+    return ((data as any[]) || []).filter(enc => {
       if (seen.has(enc.id)) return false;
       seen.add(enc.id);
       return true;
     });
   },
 
+  // Mantener para compatibilidad — CancelSummary, ShareLink y otros lo usan
   async getEncuentroById(id: string) {
     const { data, error } = await supabase
       .from('encuentros')
@@ -92,127 +82,106 @@ export const encuentrosService = {
   },
 
   async getEncuentroByPublicToken(public_token: string) {
-    const { data, error } = await supabase
-      .from('encuentros')
-      .select('*')
-      .eq('public_token', public_token)
-      .single();
-
-    if (error) {
-      console.error('Error fetching encuentro by public token:', error);
-      throw error;
-    }
-
-    return data;
-  },
-
-  async cancelarEncuentro(id: string) {
-    console.log('[CANCEL] Iniciando cancelación. encuentroId:', id);
-    
-    const { data, error } = await supabase
-      .from('encuentros')
-      .update({ estado: 'cancelado' })
-      .eq('id', id)
-      .select();
-
-    if (error) {
-      console.error("[CANCEL ERROR FULL]", error);
-      alert(error.message || JSON.stringify(error));
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      console.error("[CANCEL ERROR FULL]", "No se actualizó ningún registro (data vacío)");
-      alert("Error Supabase: No se modificaron filas. Verifique permisos RLS para UPDATE en la tabla 'encuentros'.");
-      throw new Error("No se pudo cancelar. Verifique los permisos o si el encuentro existe.");
-    }
-
-    console.log('[CANCEL] Cancelación exitosa. Resultado:', data[0]);
-    return data[0];
-  },
-
-  async deleteEncuentro(id: string) {
-    console.log('[DELETE] encuentroId:', id);
-
-    const { data, error } = await supabase
-      .from('encuentros')
-      .delete()
-      .eq('id', id)
-      .select();
-
-    console.log('[DELETE] data:', data);
-    console.log('[DELETE] error:', error);
-
+    const { data, error } = await supabase.rpc('get_encuentro_por_public_token', {
+      p_public_token: public_token
+    });
     if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('DELETE ejecutado pero no eliminó filas. Revisar RLS o id.');
+    if (!data) return null;
+    return data;
+  },
+
+  async getDetalleHostSeguro(id: string, hostId: string) {
+    const { data, error } = await supabase.rpc('get_detalle_host_seguro', {
+      p_encuentro_id: id,
+      p_host_id: hostId
+    });
+    if (error) throw error;
+    if (!data || (data as any).error) {
+      throw new Error((data as any)?.error || 'not_found');
     }
     return data;
+  },
+
+  async cancelarEncuentro(id: string, hostId: string) {
+    if (!hostId) throw new Error('host_id requerido para cancelar');
+    if (import.meta.env.DEV) console.log('[CANCEL] Iniciando cancelación. encuentroId:', id);
+
+    const { data, error } = await supabase.rpc('cancelar_encuentro_seguro', {
+      p_encuentro_id: id,
+      p_host_id: hostId
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (!result?.ok) {
+      const msg = result?.error || 'cancel_failed';
+      if (import.meta.env.DEV) console.error('[CANCEL ERROR]', msg);
+      throw new Error(msg);
+    }
+    if (import.meta.env.DEV) console.log('[CANCEL] Cancelación exitosa.');
+    return result;
+  },
+
+  async deleteEncuentro(id: string, hostId: string) {
+    if (!hostId) throw new Error('host_id requerido para eliminar');
+    if (import.meta.env.DEV) console.log('[DELETE] encuentroId:', id);
+
+    const { data, error } = await supabase.rpc('eliminar_encuentro_seguro', {
+      p_encuentro_id: id,
+      p_host_id: hostId
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (!result?.ok) throw new Error(result?.error || 'delete_failed');
+    return result;
   },
 
   async getEncuentrosParticipados(userId: string) {
     if (!userId) return [];
 
-    const { data, error } = await supabase
-      .from('participantes')
-      .select('estado, encuentros(*)')
-      .eq('user_id', userId)
-      .eq('estado', 'confirmado');
+    // RPC sin params — usa auth.uid() internamente
+    const { data, error } = await supabase.rpc('get_encuentros_participados_seguro');
+    if (error) throw error;
+    if (!data || (data as any).error) return [];
+    return (data as any[]) || [];
+  },
 
+  async getEncuentrosParticipadosPorTokens(tokens: string[]) {
+    if (!tokens || tokens.length === 0) return [];
+    const { data, error } = await supabase.rpc('get_encuentros_participados_por_tokens', {
+      p_tokens: tokens
+    });
     if (error) {
-      console.error('Error fetching encuentros participados:', error);
-      throw error;
+      if (import.meta.env.DEV) console.error('Error fetching encuentros por tokens:', error);
+      return [];
     }
-
-    // Mapear a Encuentro[], filtrar nulls y deduplicar
-    const seen = new Set<string>();
-    const encuentros = (data || [])
-      .map(p => {
-        const enc = p.encuentros as any;
-        if (!enc) return null;
-        // Adjuntar estado propio del invitado en el objeto del encuentro
-        return { ...enc, _mi_estado: p.estado };
-      })
-      .filter((enc): enc is any => {
-        if (!enc || seen.has(enc.id)) return false;
-        seen.add(enc.id);
-        return true;
-      });
-
-    return encuentros;
+    return (data as any[]) || [];
   },
 
   async linkAnonymousEncuentros(anonId: string, userId: string) {
     if (!anonId || !userId || anonId === userId) return;
+    if (import.meta.env.DEV) console.log(`[LINK] Transfiriendo encuentros de ${anonId} a ${userId}`);
 
-    console.log(`[LINK] Vinculando encuentros de ${anonId} a ${userId}`);
-
-    const { data, error } = await supabase
-      .from('encuentros')
-      .update({ host_id: userId })
-      .eq('host_id', anonId);
-
-    if (error) {
-      console.error('Error linking anonymous encuentros:', error);
-      throw error;
-    }
-
-    return data;
+    const { data, error } = await supabase.rpc('transferir_encuentros_anonimos_seguro', {
+      p_anon_host_id: anonId,
+      p_user_id: userId
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (!result?.ok) throw new Error(result?.error || 'transfer_failed');
+    return result;
   },
 
-  async updateEncuentro(id: string, data: Partial<CreateEncuentroDTO>) {
-    const { data: result, error } = await supabase
-      .from('encuentros')
-      .update(data)
-      .eq('id', id)
-      .select()
-      .single();
+  async updateEncuentro(id: string, campos: Partial<CreateEncuentroDTO>, hostId: string) {
+    if (!hostId) throw new Error('host_id requerido para actualizar');
 
-    if (error) {
-      console.error('Error updating encuentro:', error);
-      throw error;
-    }
-
-    return result;
+    const { data: result, error } = await supabase.rpc('actualizar_encuentro_seguro', {
+      p_encuentro_id: id,
+      p_host_id: hostId,
+      p_campos: campos
+    });
+    if (error) throw error;
+    const res = result as any;
+    if (!res?.ok) throw new Error(res?.error || 'update_failed');
+    return res;
   },
 };

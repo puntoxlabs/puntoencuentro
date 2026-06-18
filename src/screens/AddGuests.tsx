@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
+import { useAuth } from '@/contexts/AuthContext';
+import { getHostId } from '@/lib/auth';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
@@ -23,6 +25,7 @@ const AddGuests: React.FC = () => {
   const [personalMessage, setPersonalMessage] = useState('');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval>;
@@ -30,14 +33,16 @@ const AddGuests: React.FC = () => {
       loadData();
       intervalId = setInterval(async () => {
         try {
-          const parts = await participantesService.getParticipantesByEncuentro(id);
+          const hostId = user?.id ?? getHostId();
+          const parts = await participantesService.getParticipantesByEncuentro(id, hostId);
           setParticipantes(parts || []);
         } catch (error) { console.error('Error polling data', error); }
       }, 10000);
       const handleVisibilityChange = async () => {
         if (document.visibilityState === 'visible') {
           try {
-            const parts = await participantesService.getParticipantesByEncuentro(id);
+            const hostId = user?.id ?? getHostId();
+            const parts = await participantesService.getParticipantesByEncuentro(id, hostId);
             setParticipantes(parts || []);
           } catch (error) { console.error('Error refreshing on visibility change', error); }
         }
@@ -50,9 +55,10 @@ const AddGuests: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const enc = await encuentrosService.getEncuentroById(id!);
+      const hostId = user?.id ?? getHostId();
+      const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
-      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
     } catch (error) { console.error('Error loading data', error); } finally { setLoading(false); }
   };
@@ -79,7 +85,11 @@ const AddGuests: React.FC = () => {
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');
-      if (id) { const parts = await participantesService.getParticipantesByEncuentro(id); setParticipantes(parts || []); }
+      if (id) {
+        const hostId = user?.id ?? getHostId();
+        const parts = await participantesService.getParticipantesByEncuentro(id, hostId);
+        setParticipantes(parts || []);
+      }
     }
   };
 

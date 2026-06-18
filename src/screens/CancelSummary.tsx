@@ -11,6 +11,8 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
 import { getThemeStyle } from '@/lib/themes';
 import { useWizardStore } from '@/store/wizardStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { getHostId } from '@/lib/auth';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -22,6 +24,7 @@ const CancelSummary: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,9 +38,10 @@ const CancelSummary: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const enc = await encuentrosService.getEncuentroById(id!);
+      const hostId = user?.id ?? getHostId();
+      const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
-      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
     } catch (err) {
       console.error('CancelSummary error:', err);

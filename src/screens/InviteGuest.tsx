@@ -5,6 +5,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { participantesService } from '@/services/participantesService';
+import { saveParticipatedToken } from '@/lib/participatedTokens';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
@@ -62,7 +63,7 @@ const InviteGuest: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log('[INVITE] token inicial:', token);
+    if (import.meta.env.DEV) console.log('[INVITE] token inicial:', token);
     if (token) { loadData(); } else { setError('Token no proporcionado en la URL.'); setLoading(false); }
   }, [token]);
 
@@ -70,7 +71,7 @@ const InviteGuest: React.FC = () => {
   useEffect(() => {
     if (!encuentro?.id) return;
 
-    console.log('[INVITE REALTIME] Subscribing to encounter updates, id:', encuentro.id);
+    if (import.meta.env.DEV) console.log('[INVITE REALTIME] Subscribing to encounter updates, id:', encuentro.id);
     const channel = supabase
       .channel(`public:encuentros:id=eq.${encuentro.id}`)
       .on(
@@ -82,7 +83,7 @@ const InviteGuest: React.FC = () => {
           filter: `id=eq.${encuentro.id}`
         },
         (payload: any) => {
-          console.log('[INVITE REALTIME] Encounter updated:', payload);
+          if (import.meta.env.DEV) console.log('[INVITE REALTIME] Encounter updated:', payload.eventType);
           if (payload.eventType === 'DELETE') {
             setError('No disponible');
             setEncuentro(null);
@@ -96,23 +97,19 @@ const InviteGuest: React.FC = () => {
     // Fallback Polling every 8.5 seconds
     const pollInterval = setInterval(async () => {
       try {
-        console.log('[INVITE POLLING] Checking encounter status...');
-        const { data, error: pollErr } = await supabase
-          .from('encuentros')
-          .select('*')
-          .eq('id', encuentro.id)
-          .maybeSingle();
-
-        if (pollErr || !data) {
-          console.log('[INVITE POLLING] Encounter deleted or unavailable');
+        if (import.meta.env.DEV) console.log('[INVITE POLLING] Checking encounter status...');
+        if (!token) return;
+        const data = await participantesService.getParticipanteByToken(token);
+        if (!data) {
+          if (import.meta.env.DEV) console.log('[INVITE POLLING] Encounter deleted or unavailable');
           setError('No disponible');
           setEncuentro(null);
           return;
         }
-
-        if (data.estado !== encuentro.estado) {
-          console.log('[INVITE POLLING] Status updated to:', data.estado);
-          setEncuentro(data);
+        const enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
+        if (enc && enc.estado !== encuentro?.estado) {
+          if (import.meta.env.DEV) console.log('[INVITE POLLING] Status updated to:', enc.estado);
+          setEncuentro(enc);
         }
       } catch (err) {
         console.error('[INVITE POLLING] Error running polling check', err);
@@ -120,7 +117,7 @@ const InviteGuest: React.FC = () => {
     }, 8500);
 
     return () => {
-      console.log('[INVITE REALTIME] Unsubscribing, id:', encuentro.id);
+      if (import.meta.env.DEV) console.log('[INVITE REALTIME] Unsubscribing, id:', encuentro.id);
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
@@ -153,10 +150,9 @@ const InviteGuest: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
-      console.log('[INDIVIDUAL_INVITE] url completa:', window.location.href);
-      console.log('[INDIVIDUAL_INVITE] token leído:', token);
+      if (import.meta.env.DEV) console.log('[INDIVIDUAL_INVITE] token leído:', token);
       const data = await participantesService.getParticipanteByToken(token!);
-      console.log('[INDIVIDUAL_INVITE] invitación encontrada:', data);
+      if (import.meta.env.DEV) console.log('[INDIVIDUAL_INVITE] invitación encontrada: ok');
       if (!data) throw new Error("No encontrado");
       setParticipante(data);
       
@@ -175,12 +171,11 @@ const InviteGuest: React.FC = () => {
           enc = await encuentrosService.getEncuentroById(data.encuentro_id);
         } catch (e) { console.error("Error fetching fallback encuentro", e); }
       }
-      console.log("Estado encuentro:", enc?.estado);
+      if (import.meta.env.DEV) console.log("Estado encuentro:", enc?.estado);
       setEncuentro(enc);
       if (data.estado !== 'pendiente') setStep('done');
     } catch (err) {
       console.error('InviteGuest error:', err);
-      console.log('[INDIVIDUAL_INVITE] error backend:', err);
       setError('No se pudo encontrar la invitación o el enlace es inválido.');
     } finally { setLoading(false); }
   };
@@ -197,13 +192,19 @@ const InviteGuest: React.FC = () => {
 
     try {
       setLoadingResponse(true);
-      console.log('[INVITE] confirmando token:', token);
-      // Pasar user_id si el usuario está logueado — no toca host_id ni otros campos
-      const response = await participantesService.updateParticipanteEstado(
-        participante.id, estado, user?.id ?? null, nombre.trim() || undefined, mensaje.trim() || undefined
+      if (import.meta.env.DEV) console.log('[INVITE] confirmando...');
+      // Usar RPC responder_participante_seguro via token del URL
+      const response = await participantesService.responderInvitacion(
+        token!, // el token del URL
+        estado,
+        nombre.trim() || undefined,
+        mensaje.trim() || undefined
       );
-      console.log('[INVITE] respuesta confirmación:', response);
+      if (import.meta.env.DEV) console.log('[INVITE] respuesta confirmación: ok, estado:', response?.estado);
       useHomeStore.getState().invalidateCache();
+
+      // Guardar token en localStorage para Participo anónimo
+      if (token) saveParticipatedToken(token);
 
       // Guardar en sessionStorage para vinculación post-login si no está logueado
       if (!user) {
@@ -211,17 +212,10 @@ const InviteGuest: React.FC = () => {
       }
 
       const refreshed = await participantesService.getParticipanteByToken(token!);
-      let refEnc = refreshed.encuentros;
-      if (!refEnc && refreshed.encuentro_id) {
-        try {
-          const { encuentrosService } = await import('@/services/encuentrosService');
-          refEnc = await encuentrosService.getEncuentroById(refreshed.encuentro_id);
-        } catch (e) { console.error("Error fetching fallback encuentro in refresh", e); }
-      }
+      let refEnc = Array.isArray(refreshed?.encuentros) ? refreshed.encuentros[0] : refreshed?.encuentros;
       if (!refEnc) throw new Error("No se pudo obtener el participante actualizado o su encuentro después de confirmar.");
       setParticipante(refreshed); setEncuentro(refEnc); setStep('done');
       setJustConfirmed(true);
-      console.log('[INVITE] ruta post-confirmación:', window.location.href);
     } catch (err: any) {
       console.error('InviteGuest error:', err);
       if (err.message === 'meeting_cancelled') {
@@ -230,6 +224,9 @@ const InviteGuest: React.FC = () => {
       } else if (err.message === 'meeting_not_found') {
         alert('Este encuentro ya no está disponible.');
         loadData(); // Recargar para mostrar pantalla de no disponible
+      } else if (err.message === 'meeting_expired') {
+        alert('Este encuentro ya ha finalizado. No es posible modificar la respuesta.');
+        loadData();
       } else {
         alert('Hubo un problema al enviar tu respuesta. Por favor intenta de nuevo.');
       }
