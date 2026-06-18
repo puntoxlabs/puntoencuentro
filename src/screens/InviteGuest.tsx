@@ -165,12 +165,6 @@ const InviteGuest: React.FC = () => {
       setMensaje(data.mensaje_respuesta || '');
 
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
-      if ((!enc || !enc.estado) && data.encuentro_id) {
-        try {
-          const { encuentrosService } = await import('@/services/encuentrosService');
-          enc = await encuentrosService.getEncuentroById(data.encuentro_id);
-        } catch (e) { console.error("Error fetching fallback encuentro", e); }
-      }
       if (import.meta.env.DEV) console.log("Estado encuentro:", enc?.estado);
       setEncuentro(enc);
       if (data.estado !== 'pendiente') setStep('done');

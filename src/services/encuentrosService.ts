@@ -65,20 +65,12 @@ export const encuentrosService = {
     });
   },
 
-  // Mantener para compatibilidad — CancelSummary, ShareLink y otros lo usan
-  async getEncuentroById(id: string) {
-    const { data, error } = await supabase
-      .from('encuentros')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching encuentro by id:', error);
-      throw error;
-    }
-
-    return data;
+  /**
+   * @deprecated Úsese getDetalleHostSeguro (host) o getEncuentroByPublicToken (invitados).
+   * Este método usa SELECT directo que fallará bajo RLS restrictivo para usuarios anónimos.
+   */
+  async getEncuentroById(_id: string) {
+    throw new Error('getEncuentroById está deprecado en la arquitectura RPC-first. Use getDetalleHostSeguro o getEncuentroByPublicToken.');
   },
 
   async getEncuentroByPublicToken(public_token: string) {

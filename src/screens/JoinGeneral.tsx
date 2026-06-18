@@ -167,19 +167,6 @@ const JoinGeneral: React.FC = () => {
             }
           }
         } catch (err) { console.error('Participant not found by token', err); }
-      } else if (participantId) {
-        try {
-          const partData = await participantesService.getParticipanteById(participantId);
-          if (import.meta.env.DEV) console.log('[GENERAL_LINK] participante encontrado por id: ok');
-          if (partData) { 
-            setParticipante(partData); 
-            setNombre(partData.nombre_invitado || '');
-            if (partData.estado !== 'pendiente') {
-              setStep('done'); 
-              estadoUI = 'done'; 
-            }
-          }
-        } catch (err) { console.error('Participant not found by id', err); }
       }
       if (import.meta.env.DEV) console.log('[GENERAL_LINK] estado final:', estadoUI);
 

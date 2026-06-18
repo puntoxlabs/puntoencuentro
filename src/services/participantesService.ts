@@ -22,31 +22,27 @@ export const participantesService = {
     return data;
   },
 
-  async getParticipantesByEncuentro(encuentro_id: string, hostId?: string) {
-    // Si se provee hostId, usar RPC segura
-    if (hostId) {
-      const { data, error } = await supabase.rpc('get_participantes_host_seguro', {
-        p_encuentro_id: encuentro_id,
-        p_host_id: hostId
-      });
-      if (error) throw error;
-      if ((data as any)?.error) {
-        if (import.meta.env.DEV) console.warn('[PART] RPC error:', (data as any).error);
-        return [];
-      }
-      return (data as any[]) || [];
+  async getParticipantesByEncuentro(encuentro_id: string, hostId: string) {
+    if (!hostId) {
+      throw new Error("hostId requerido para getParticipantesByEncuentro bajo arquitectura RPC-first");
     }
-    // Fallback: SELECT directo (temporal, hasta que todos los callers pasen hostId)
-    const { data, error } = await supabase
-      .from('participantes')
-      .select('*')
-      .eq('encuentro_id', encuentro_id)
-      .order('creado_en', { ascending: true });
+
+    const { data, error } = await supabase.rpc('get_participantes_host_seguro', {
+      p_encuentro_id: encuentro_id,
+      p_host_id: hostId
+    });
     if (error) throw error;
-    return data || [];
+    if ((data as any)?.error) {
+      if (import.meta.env.DEV) console.warn('[PART] RPC error:', (data as any).error);
+      return [];
+    }
+    return (data as any[]) || [];
   },
 
-  async deleteParticipante(id: string) {
+  async deleteParticipante(id: string, userId?: string) {
+    if (!userId) {
+      throw new Error('deleteParticipante bloqueado para usuarios anónimos en arquitectura RPC-first.');
+    }
     const { error } = await supabase
       .from('participantes')
       .delete()
@@ -76,35 +72,18 @@ export const participantesService = {
     return data;
   },
 
-  async getParticipanteById(id: string) {
-    const { data, error } = await supabase
-      .from('participantes')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching participante by id:', error);
-      throw error;
-    }
-
-    return data;
+  /**
+   * @deprecated Fallback SELECT directo bloqueado por RLS en Etapa D. Use getParticipanteByToken.
+   */
+  async getParticipanteById(_id: string) {
+    throw new Error('getParticipanteById está deprecado en la arquitectura RPC-first.');
   },
 
-  async validateEncuentroActivo(encuentro_id: string) {
-    const { data: encuentro, error } = await supabase
-      .from('encuentros')
-      .select('estado')
-      .eq('id', encuentro_id)
-      .single();
-
-    if (error || !encuentro) {
-      throw new Error('meeting_not_found');
-    }
-
-    if (encuentro.estado !== 'activo') {
-      throw new Error('meeting_cancelled');
-    }
+  /**
+   * @deprecated Lógica reemplazada por validaciones internas en Supabase RPCs.
+   */
+  async validateEncuentroActivo(_encuentro_id: string) {
+    throw new Error('validateEncuentroActivo está deprecado.');
   },
 
   async responderInvitacion(
@@ -127,48 +106,18 @@ export const participantesService = {
     return result;
   },
 
-  async updateParticipanteEstado(id: string, estado: 'confirmado' | 'rechazado', user_id?: string | null, nombre_invitado?: string, mensaje_respuesta?: string) {
-    // 1. Obtener el id del encuentro para validar su estado
-    const { data: participante, error: pError } = await supabase
-      .from('participantes')
-      .select('encuentro_id')
-      .eq('id', id)
-      .single();
-
-    if (pError || !participante) throw new Error('participant_not_found');
-
-    // 2. Validar que el encuentro siga activo
-    await this.validateEncuentroActivo(participante.encuentro_id);
-
-    const respondido_en = new Date().toISOString();
-    const updatePayload: Record<string, any> = { estado, respondido_en };
-    if (nombre_invitado) updatePayload.nombre_invitado = nombre_invitado;
-    if (mensaje_respuesta !== undefined) {
-      updatePayload.mensaje_respuesta = mensaje_respuesta ? mensaje_respuesta.trim().substring(0, 120) : null;
-    }
-    // Solo actualizar user_id si se proporciona un id válido (no sobreescribir con null si ya existía)
-    if (user_id) updatePayload.user_id = user_id;
-
-    const { data, error } = await supabase
-      .from('participantes')
-      .update(updatePayload)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating participante estado:', error);
-      throw error;
-    }
-
-    return data;
+  /**
+   * @deprecated UPDATE directo bloqueado en Etapa D. Use responderInvitacion (RPC).
+   */
+  async updateParticipanteEstado(_id: string, _estado: 'confirmado' | 'rechazado', _user_id?: string | null, _nombre_invitado?: string, _mensaje_respuesta?: string) {
+    throw new Error('updateParticipanteEstado está deprecado en la arquitectura RPC-first. Use responderInvitacion.');
   },
 
   async addParticipanteGenerico(
-    encuentro_id: string,
+    _encuentro_id: string,
     nombre_invitado: string,
     estado: 'confirmado' | 'rechazado',
-    user_id?: string | null,
+    _user_id?: string | null,
     mensaje_respuesta?: string,
     public_token?: string  // parámetro opcional para usar RPC segura
   ) {
@@ -180,19 +129,7 @@ export const participantesService = {
       return result;
     }
 
-    // Fallback: INSERT directo (temporal)
-    await this.validateEncuentroActivo(encuentro_id);
-    const respondido_en = new Date().toISOString();
-    const token_invitacion = crypto.randomUUID();
-    const insertPayload: Record<string, any> = {
-      encuentro_id, nombre_invitado, tipo_invitacion: 'generico',
-      estado, respondido_en, token_invitacion,
-    };
-    if (mensaje_respuesta) insertPayload.mensaje_respuesta = mensaje_respuesta.trim().substring(0, 120);
-    if (user_id !== undefined && user_id !== null) insertPayload.user_id = user_id;
-    const { data, error } = await supabase.from('participantes').insert([insertPayload]).select().single();
-    if (error) throw error;
-    return data;
+    throw new Error('addParticipanteGenerico sin public_token está deprecado en la arquitectura RPC-first.');
   },
 
   async linkUserToParticipante(participantId: string, userId: string) {

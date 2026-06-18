@@ -73,7 +73,8 @@ const AddGuests: React.FC = () => {
       await participantesService.addParticipanteIndividual(id!, trimNombre, tokenInvitacion);
       setNombre('');
       setTimeout(() => inputRef.current?.focus(), 0);
-      const parts = await participantesService.getParticipantesByEncuentro(id!);
+      const hostId = user?.id ?? getHostId();
+      const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
     } catch (error) { console.error('Error adding guest', error); alert('Error al agregar invitado'); }
   };
@@ -81,7 +82,7 @@ const AddGuests: React.FC = () => {
   const handleDelete = async (partId: string) => {
     try {
       setParticipantes(prev => prev.filter(p => p.id !== partId));
-      await participantesService.deleteParticipante(partId);
+      await participantesService.deleteParticipante(partId, user?.id);
     } catch (error) {
       console.error('Error deleting guest', error);
       alert('Error al eliminar invitado');
