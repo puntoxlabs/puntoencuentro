@@ -82,15 +82,28 @@ export const encuentrosService = {
   },
 
   async getDetalleHostSeguro(id: string, hostId: string) {
+    if (import.meta.env.DEV) console.log('[get_detalle_host_seguro] encuentroId:', id, 'hostId:', hostId);
+
     const { data, error } = await supabase.rpc('get_detalle_host_seguro', {
       p_encuentro_id: id,
       p_host_id: hostId
     });
+
+    if (import.meta.env.DEV) console.log('[get_detalle_host_seguro] raw data:', data, 'error:', error);
+
     if (error) throw error;
-    if (!data || (data as any).error) {
-      throw new Error((data as any)?.error || 'not_found');
+
+    // Parseo defensivo: Supabase puede devolver JSON como string
+    const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+
+    if (!result || result.error) {
+      const code = result?.error || 'not_found';
+      const err = new Error(code);
+      (err as any).code = code;
+      throw err;
     }
-    return data;
+
+    return result;
   },
 
   async cancelarEncuentro(id: string, hostId: string) {

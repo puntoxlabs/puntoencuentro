@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -42,57 +42,123 @@ const DetailHost: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
+  // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
+  // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
+  // No genera un nuevo UUID al refrescar: getHostId() lee desde localStorage.
+  const hostIdRef = useRef<string | null>(null);
+
+  // Ref para el interval de polling (evita duplicados)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Resuelve y fija hostId cuando auth termina de cargar
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval>;
-    if (id) {
-      loadData();
-      if (validCache && validCache.scrollPosition > 0) {
-        requestAnimationFrame(() => {
-          const container = document.getElementById('detail-scroll-container');
-          if (container) container.scrollTop = validCache.scrollPosition;
-        });
-      }
-      intervalId = setInterval(async () => {
-        try {
-          const hId = user?.id ?? getHostId();
-          const parts = await participantesService.getParticipantesByEncuentro(id, hId);
-          setParticipantes(parts || []);
-          const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
-          if (currentEnc) setDetailData(id, currentEnc, parts || []);
-        } catch (err) { console.error('Error polling participants', err); }
-      }, 10000);
-      
-      const refStr = sessionStorage.getItem('cancel_reference');
-      if (refStr) {
-        try {
-          const ref = JSON.parse(refStr);
-          if (ref && typeof ref === 'object' && ref.newId === id) {
-            setFromCancelled(ref);
-            sessionStorage.removeItem('cancel_reference');
-          }
-        } catch (e) { console.error('Error reading cancel_reference', e); }
-      }
+    if (authLoading) return; // Esperar que auth resuelva antes de fijar hostId
+    const resolved = user?.id ?? getHostId();
+    if (import.meta.env.DEV) console.log('[DetailHost] hostId resuelto:', resolved, '(user logueado:', !!user, ')');
+    hostIdRef.current = resolved;
+  }, [authLoading, user?.id]);
+
+  const refreshParticipantes = useCallback(async () => {
+    const hId = hostIdRef.current;
+    if (!id || !hId) return;
+    try {
+      const parts = await participantesService.getParticipantesByEncuentro(id, hId);
+      setParticipantes(parts || []);
+      const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
+      if (currentEnc) setDetailData(id, currentEnc, parts || []);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('[DetailHost] Error polling participants:', err);
     }
-    return () => { if (intervalId) clearInterval(intervalId); };
   }, [id]);
 
-  const loadData = async () => {
+  // Efecto principal: carga inicial + polling + visibilitychange
+  // Se re-ejecuta cuando auth termina (authLoading cambia a false)
+  useEffect(() => {
+    if (!id) return;
+    if (authLoading) return; // No cargar hasta que auth esté resuelto
+
+    const hId = user?.id ?? getHostId();
+    hostIdRef.current = hId;
+
+    if (import.meta.env.DEV) console.log('[DetailHost] mount/auth-resolved. id:', id, 'hostId:', hId);
+
+    loadData(hId);
+
+    if (validCache && validCache.scrollPosition > 0) {
+      requestAnimationFrame(() => {
+        const container = document.getElementById('detail-scroll-container');
+        if (container) container.scrollTop = validCache.scrollPosition;
+      });
+    }
+
+    // Leer cancel_reference del sessionStorage
+    const refStr = sessionStorage.getItem('cancel_reference');
+    if (refStr) {
+      try {
+        const ref = JSON.parse(refStr);
+        if (ref && typeof ref === 'object' && ref.newId === id) {
+          setFromCancelled(ref);
+          sessionStorage.removeItem('cancel_reference');
+        }
+      } catch (e) { console.error('Error reading cancel_reference', e); }
+    }
+
+    // Polling de participantes cada 5 s por RPC (no SELECT directo)
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    pollIntervalRef.current = setInterval(async () => {
+      const hId2 = hostIdRef.current;
+      if (!id || !hId2) return;
+      try {
+        const parts = await participantesService.getParticipantesByEncuentro(id, hId2);
+        setParticipantes(parts || []);
+        const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
+        if (currentEnc) setDetailData(id, currentEnc, parts || []);
+      } catch (err) {
+        if (import.meta.env.DEV) console.error('[DetailHost] Error en polling:', err);
+      }
+    }, 5000);
+
+    // Refresh al volver el foco de la ventana
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        if (import.meta.env.DEV) console.log('[DetailHost] visibilitychange: refrescando participantes');
+        refreshParticipantes();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [id, authLoading]);
+
+  const loadData = async (hId?: string) => {
+    const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getHostId());
     try {
       if (!useDetailStore.getState().getValidCache(id!)) setLoading(true);
       setError(null);
-      const hostId = user?.id ?? getHostId();
+      if (import.meta.env.DEV) console.log('[DetailHost] loadData con hostId:', hostId);
       const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
       const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
       setDetailData(id!, enc, parts || []);
-    } catch (err) {
-      console.error('Error loading detail', err);
-      setError('No se pudo cargar el encuentro.');
+    } catch (err: any) {
+      if (import.meta.env.DEV) console.error('[DetailHost] loadData error:', err?.message, err);
+      const code = err?.code || err?.message || '';
+      if (code === 'unauthorized') {
+        setError('Este encuentro no pertenece a este dispositivo o sesión.');
+      } else if (code === 'not_found') {
+        setError('No se pudo encontrar el encuentro.');
+      } else {
+        setError('No se pudo cargar el encuentro.');
+      }
     } finally { setLoading(false); }
   };
+
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     if (id) setScrollPosition(id, e.currentTarget.scrollTop);
@@ -179,7 +245,8 @@ const DetailHost: React.FC = () => {
     }
   };
 
-  if (loading) return (
+  // Mostrar loading mientras auth resuelve (evita flash de error)
+  if (authLoading || loading) return (
     <ScreenContainer>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p>Cargando detalle…</p>
@@ -190,8 +257,14 @@ const DetailHost: React.FC = () => {
   if (error || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Error" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <p>{error || 'Encuentro no encontrado.'}</p>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
+        <span style={{ fontSize: 36 }}>⚠️</span>
+        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
+          {error || 'Encuentro no encontrado.'}
+        </p>
+        <Button fullWidth onClick={() => loadData()} variant="outline">
+          Reintentar
+        </Button>
         <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
