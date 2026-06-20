@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -13,6 +13,7 @@ import { getThemeStyle } from '@/lib/themes';
 import { useWizardStore } from '@/store/wizardStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
+import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -24,28 +25,51 @@ const CancelSummary: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (id) loadData();
-  }, [id]);
+  const hostIdRef = useRef<string | null>(null);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (authLoading) return;
+    const resolved = user?.id ?? getHostId();
+    hostIdRef.current = resolved;
+  }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (!id || authLoading) return;
+    const hId = user?.id ?? getEncuentroHost(id) ?? getHostId();
+    hostIdRef.current = hId;
+    loadData(hId);
+  }, [id, authLoading]);
+
+  const loadData = async (hId?: string) => {
     try {
-      setLoading(true);
-      const hostId = user?.id ?? getHostId();
+      setLoading(true); setError(null);
+      const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getEncuentroHost(id!) ?? getHostId());
       const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
+
+      if (enc?.host_id) {
+        rememberEncuentroHost(id!, enc.host_id);
+      }
+
       const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('CancelSummary error:', err);
-      setError('No se pudo cargar el encuentro.');
+      const code = err?.code || err?.message || '';
+      if (code === 'unauthorized') {
+        setError('Este encuentro no pertenece a este dispositivo o sesión.');
+      } else if (code === 'not_found') {
+        setError('No se pudo encontrar el encuentro.');
+      } else {
+        setError('No se pudo cargar el encuentro.');
+      }
     } finally { setLoading(false); }
   };
 
@@ -104,7 +128,7 @@ const CancelSummary: React.FC = () => {
     navigate('/create');
   };
 
-  if (loading) return (
+  if (authLoading || loading) return (
     <ScreenContainer>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p>Cargando…</p>
@@ -114,10 +138,16 @@ const CancelSummary: React.FC = () => {
 
   if (error || !encuentro) return (
     <ScreenContainer>
-      <AppBar title="Cancelado" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <p>{error || 'Encuentro no encontrado.'}</p>
-        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
+      <AppBar title="Error" showBack />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
+        <span style={{ fontSize: 36 }}>⚠️</span>
+        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
+          {error || 'Encuentro no encontrado.'}
+        </p>
+        <Button fullWidth onClick={() => loadData()} variant="outline">
+          Reintentar
+        </Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );

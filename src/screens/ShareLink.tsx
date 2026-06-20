@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -10,6 +10,7 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
 import { getThemeStyle } from '@/lib/themes';
+import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { PencilLine } from 'lucide-react';
 
@@ -17,7 +18,7 @@ const ShareLink: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [encuentro, setEncuentro] = useState<any>(null);
   const [anteriorData, setAnteriorData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,16 +28,33 @@ const ShareLink: React.FC = () => {
   const [personalMessage, setPersonalMessage] = useState('');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  useEffect(() => { if (id) loadData(); }, [id]);
+  const hostIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const resolved = user?.id ?? getHostId();
+    hostIdRef.current = resolved;
+  }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (!id || authLoading) return;
+    const hId = user?.id ?? getEncuentroHost(id) ?? getHostId();
+    hostIdRef.current = hId;
+    loadData(hId);
+  }, [id, authLoading]);
 
   const isLinkGeneral = encuentro?.tipo_invitacion === 'link_general';
 
-  const loadData = async () => {
+  const loadData = async (hId?: string) => {
     try {
       setLoading(true); setError(null);
-      const hostId = user?.id ?? getHostId();
+      const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getEncuentroHost(id!) ?? getHostId());
       const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
+
+      if (enc?.host_id) {
+        rememberEncuentroHost(id!, enc.host_id);
+      }
 
       // 1. Detect replacement from DB
       if (enc.reemplaza_a) {
@@ -65,9 +83,19 @@ const ShareLink: React.FC = () => {
       // Cleanup session storage after processing
       sessionStorage.removeItem('cancel_reference');
 
-    } catch (err) {
+      // Cleanup session storage after processing
+      sessionStorage.removeItem('cancel_reference');
+
+    } catch (err: any) {
       console.error('Error loading data', err);
-      setError('No se pudo cargar el encuentro.');
+      const code = err?.code || err?.message || '';
+      if (code === 'unauthorized') {
+        setError('Este encuentro no pertenece a este dispositivo o sesión.');
+      } else if (code === 'not_found') {
+        setError('No se pudo encontrar el encuentro.');
+      } else {
+        setError('No se pudo cargar el encuentro.');
+      }
     } finally { setLoading(false); }
   };
 
@@ -120,7 +148,7 @@ const ShareLink: React.FC = () => {
     setTimeout(() => setShowHint(false), 4000);
   };
 
-  if (loading) return (
+  if (authLoading || loading) return (
     <ScreenContainer>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p>Cargando…</p>
@@ -131,9 +159,15 @@ const ShareLink: React.FC = () => {
   if (error || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Error" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <p>{error || 'Encuentro no encontrado.'}</p>
-        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>Ir al inicio</Button>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
+        <span style={{ fontSize: 36 }}>⚠️</span>
+        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
+          {error || 'Encuentro no encontrado.'}
+        </p>
+        <Button fullWidth onClick={() => loadData()} variant="outline">
+          Reintentar
+        </Button>
+        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
       </div>
     </ScreenContainer>
   );
