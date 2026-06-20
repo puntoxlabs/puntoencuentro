@@ -104,7 +104,7 @@ export const participantesService = {
       p_token: token,
       p_estado: estado,
       p_nombre: nombre ?? null,
-      p_mensaje_respuesta: mensaje ?? null
+      p_mensaje: mensaje ?? null
     });
 
     if (import.meta.env.DEV) console.log('[RPC responder_participante_seguro] raw data:', data, 'error:', error);
