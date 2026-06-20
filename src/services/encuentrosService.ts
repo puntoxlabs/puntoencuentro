@@ -22,19 +22,18 @@ export const encuentrosService = {
       throw new Error(validationError);
     }
 
-    // INSERT directo — aún seguro, RLS permite INSERT para anon
-    const { data: result, error } = await supabase
-      .from('encuentros')
-      .insert([data])
-      .select()
-      .single();
+    // RPC SECURITY DEFINER — evita bloqueo de RLS en SELECT post-INSERT
+    const { data: result, error } = await supabase.rpc(
+      'crear_encuentro_seguro',
+      { p_data: data }
+    );
 
     if (error) {
-      console.error('Error creating encuentro:', error);
+      console.error('Error creating encuentro (RPC):', error);
       throw error;
     }
 
-    return result;
+    return result as any;
   },
 
   async getEncuentrosByHost(host_id: string) {

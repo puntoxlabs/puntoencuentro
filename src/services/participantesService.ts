@@ -1,25 +1,23 @@
 import { supabase } from '@/lib/supabase';
 
 export const participantesService = {
-  async addParticipanteIndividual(encuentro_id: string, nombre_invitado: string, token_invitacion: string) {
-    const { data, error } = await supabase
-      .from('participantes')
-      .insert([{
-        encuentro_id,
-        nombre_invitado,
-        tipo_invitacion: 'individual',
-        token_invitacion,
-        estado: 'pendiente'
-      }])
-      .select()
-      .single();
+  async addParticipanteIndividual(encuentro_id: string, host_id: string, nombre_invitado: string) {
+    // RPC SECURITY DEFINER — verifica ownership y genera token server-side
+    const { data, error } = await supabase.rpc(
+      'crear_participante_individual_seguro',
+      {
+        p_encuentro_id: encuentro_id,
+        p_host_id: host_id,
+        p_nombre: nombre_invitado,
+      }
+    );
 
     if (error) {
-      console.error('Error adding participante:', error);
+      console.error('Error adding participante (RPC):', error);
       throw error;
     }
 
-    return data;
+    return data as any;
   },
 
   async getParticipantesByEncuentro(encuentro_id: string, hostId: string) {

@@ -69,11 +69,10 @@ const AddGuests: React.FC = () => {
     const isDuplicate = participantes.some(p => p.nombre_invitado.toLowerCase() === trimNombre.toLowerCase());
     if (isDuplicate) { alert('Ya existe un invitado con ese nombre.'); return; }
     try {
-      const tokenInvitacion = crypto.randomUUID();
-      await participantesService.addParticipanteIndividual(id!, trimNombre, tokenInvitacion);
+      const hostId = user?.id ?? getHostId();
+      await participantesService.addParticipanteIndividual(id!, hostId, trimNombre);
       setNombre('');
       setTimeout(() => inputRef.current?.focus(), 0);
-      const hostId = user?.id ?? getHostId();
       const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
     } catch (error) { console.error('Error adding guest', error); alert('Error al agregar invitado'); }
