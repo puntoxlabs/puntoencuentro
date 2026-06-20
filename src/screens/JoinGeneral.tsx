@@ -210,22 +210,27 @@ const JoinGeneral: React.FC = () => {
 
     try {
       setLoadingResponse(true);
-      
+      if (import.meta.env.DEV) console.log('[GENERAL] Paso 1: respondiendo. participante existente:', !!participante?.id);
+
       let newPart;
       if (participante && participante.id) {
         // Caso: Ya existe el participante, actualizar respuesta
+        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1a: actualizando participante existente, token:', participante.token_invitacion);
         newPart = await participantesService.responderInvitacion(
           participante.token_invitacion,
           estado,
           nombre.trim() || undefined
         );
+        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1a resultado:', newPart);
         // Para mantener compatibilidad con el campo .id que se usa después:
         if (newPart && !newPart.id && participante.id) newPart.id = participante.id;
       } else {
         // Caso: Nuevo participante
+        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1b: nuevo participante con public_token:', public_token);
         newPart = await participantesService.addParticipanteGenerico(
           encuentro.id, nombre.trim(), estado, user?.id ?? null, undefined, public_token
         );
+        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1b resultado:', newPart);
       }
 
       if (newPart && newPart.id) {
@@ -250,9 +255,9 @@ const JoinGeneral: React.FC = () => {
       setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
       setStep('done');
       setJustConfirmed(true);
-      if (import.meta.env.DEV) console.log('[GENERAL_LINK] estado final: done');
+      if (import.meta.env.DEV) console.log('[GENERAL] Paso 2: done. estado:', estado);
     } catch (err: any) {
-      console.error('Error responding', err);
+      if (import.meta.env.DEV) console.error('[GENERAL] ERROR en handleResponse:', err?.message, err);
       if (err.message === 'meeting_cancelled') {
         alert('Este encuentro fue cancelado por el organizador.');
         loadData(); // Recargar para mostrar pantalla de cancelado

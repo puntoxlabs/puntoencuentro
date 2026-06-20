@@ -98,14 +98,24 @@ export const participantesService = {
     nombre?: string,
     mensaje?: string
   ) {
+    if (import.meta.env.DEV) console.log('[RPC responder_participante_seguro] llamando con token:', token, 'estado:', estado);
+
     const { data, error } = await supabase.rpc('responder_participante_seguro', {
       p_token: token,
       p_estado: estado,
       p_nombre: nombre ?? null,
       p_mensaje_respuesta: mensaje ?? null
     });
+
+    if (import.meta.env.DEV) console.log('[RPC responder_participante_seguro] raw data:', data, 'error:', error);
+
     if (error) throw error;
-    const result = data as any;
+
+    // Supabase puede devolver JSON como string serializado — parseo defensivo
+    const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+
+    if (import.meta.env.DEV) console.log('[RPC responder_participante_seguro] parsed result:', result);
+
     if (!result?.ok) {
       throw new Error(result?.error || 'response_failed');
     }

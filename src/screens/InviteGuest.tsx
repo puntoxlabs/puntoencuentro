@@ -186,7 +186,8 @@ const InviteGuest: React.FC = () => {
 
     try {
       setLoadingResponse(true);
-      if (import.meta.env.DEV) console.log('[INVITE] confirmando...');
+      if (import.meta.env.DEV) console.log('[INVITE] Paso 1: llamando responderInvitacion, token:', token, 'estado:', estado);
+
       // Usar RPC responder_participante_seguro via token del URL
       const response = await participantesService.responderInvitacion(
         token!, // el token del URL
@@ -194,24 +195,46 @@ const InviteGuest: React.FC = () => {
         nombre.trim() || undefined,
         mensaje.trim() || undefined
       );
-      if (import.meta.env.DEV) console.log('[INVITE] respuesta confirmación: ok, estado:', response?.estado);
+      if (import.meta.env.DEV) console.log('[INVITE] Paso 2: RPC ok. response:', response);
+
+      // La confirmación fue exitosa — guardar token y sesión antes de hacer el refresh
       useHomeStore.getState().invalidateCache();
-
-      // Guardar token en localStorage para Participo anónimo
       if (token) saveParticipatedToken(token);
-
-      // Guardar en sessionStorage para vinculación post-login si no está logueado
       if (!user) {
         sessionStorage.setItem('puntoencuentro_recent_participant_id', participante.id);
       }
 
-      const refreshed = await participantesService.getParticipanteByToken(token!);
-      let refEnc = Array.isArray(refreshed?.encuentros) ? refreshed.encuentros[0] : refreshed?.encuentros;
-      if (!refEnc) throw new Error("No se pudo obtener el participante actualizado o su encuentro después de confirmar.");
-      setParticipante(refreshed); setEncuentro(refEnc); setStep('done');
+      // Refresh para obtener link_virtual (si confirmado en encuentro virtual)
+      // Si falla, NO es fatal — ya tenemos el estado suficiente para mostrar la pantalla de éxito
+      try {
+        if (import.meta.env.DEV) console.log('[INVITE] Paso 3: refreshing participante...');
+        const refreshed = await participantesService.getParticipanteByToken(token!);
+        if (import.meta.env.DEV) console.log('[INVITE] Paso 3 resultado:', refreshed);
+
+        if (refreshed) {
+          const refEnc = Array.isArray(refreshed.encuentros)
+            ? refreshed.encuentros[0]
+            : refreshed.encuentros;
+
+          // Actualizar estado con datos frescos del servidor
+          setParticipante({ ...refreshed, estado });
+          if (refEnc) setEncuentro(refEnc);
+        } else {
+          // Refresh no encontró datos — usar estado local con el estado actualizado
+          if (import.meta.env.DEV) console.warn('[INVITE] Paso 3: refresh devolvió null, usando estado local');
+          setParticipante((prev: any) => ({ ...prev, estado }));
+        }
+      } catch (refreshErr) {
+        // Error en el refresh — no es fatal, la confirmación ya fue exitosa
+        if (import.meta.env.DEV) console.warn('[INVITE] Paso 3 WARN: refresh falló (no fatal):', refreshErr);
+        setParticipante((prev: any) => ({ ...prev, estado }));
+      }
+
+      if (import.meta.env.DEV) console.log('[INVITE] Paso 4: mostrando pantalla de éxito');
+      setStep('done');
       setJustConfirmed(true);
     } catch (err: any) {
-      console.error('InviteGuest error:', err);
+      if (import.meta.env.DEV) console.error('[INVITE] ERROR en handleResponse:', err?.message, err);
       if (err.message === 'meeting_cancelled') {
         alert('Este encuentro fue cancelado por el organizador.');
         loadData(); // Recargar para mostrar pantalla de cancelado
