@@ -10,6 +10,7 @@ import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
+import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat } from '@/lib/formatDate';
@@ -377,7 +378,12 @@ const Home: React.FC = () => {
 
       setOrganizedEncuentros(sortedOrganized);
       setParticipatedEncuentros(sortedParticipated);
-      
+
+      // Reforzar mapeo local encuentroId → hostId para todos los encuentros organizados.
+      // Esto garantiza que DetailHost pueda resolver el hostId correcto al refrescar
+      // incluso si el usuario llegó a esta pantalla antes de pasar por Home.
+      rememberEncuentroHostBulk(sortedOrganized);
+
       // Actualizar el store global (principalmente para la lista de organizados que es la principal)
       setEncuentros(sortedOrganized);
     } catch (err) {

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
+import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/Button';
@@ -74,6 +75,12 @@ const Step4InviteType: React.FC = () => {
         const newEncuentro = await encuentrosService.createEncuentro(payload);
         encuentroId = newEncuentro.id;
         setField('encuentro_id', encuentroId);
+
+        // Persistir mapeo encuentroId → hostId antes de navegar.
+        // Esto permite que DetailHost resuelva hostId al refrescar /meet/:id
+        // sin necesidad de pasar por Home primero.
+        rememberEncuentroHost(encuentroId!, hostId!);
+        if (import.meta.env.DEV) console.log('[CREATE] Mapeado', encuentroId, '→', hostId);
 
         const cancelRefStr = sessionStorage.getItem('cancel_reference');
         if (cancelRefStr) {

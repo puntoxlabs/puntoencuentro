@@ -15,6 +15,7 @@ import { getThemeStyle } from '@/lib/themes';
 import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
+import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
@@ -79,7 +80,11 @@ const DetailHost: React.FC = () => {
     if (!id) return;
     if (authLoading) return; // No cargar hasta que auth esté resuelto
 
-    const hId = user?.id ?? getHostId();
+    // Prioridad hostId:
+    // 1. user?.id (sesión autenticada)
+    // 2. mapeo local encuentroId → hostId (persistido al crear)
+    // 3. hostId genérico del dispositivo
+    const hId = user?.id ?? getEncuentroHost(id) ?? getHostId();
     hostIdRef.current = hId;
 
     if (import.meta.env.DEV) console.log('[DetailHost] mount/auth-resolved. id:', id, 'hostId:', hId);
@@ -136,13 +141,19 @@ const DetailHost: React.FC = () => {
   }, [id, authLoading]);
 
   const loadData = async (hId?: string) => {
-    const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getHostId());
+    const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getEncuentroHost(id!) ?? getHostId());
     try {
       if (!useDetailStore.getState().getValidCache(id!)) setLoading(true);
       setError(null);
       if (import.meta.env.DEV) console.log('[DetailHost] loadData con hostId:', hostId);
       const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
       setEncuentro(enc);
+
+      // Reforzar mapeo local con los datos que vienen del servidor
+      if (enc?.host_id) {
+        rememberEncuentroHost(id!, enc.host_id);
+      }
+
       const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
       setDetailData(id!, enc, parts || []);
