@@ -43,6 +43,10 @@ const JoinGeneral: React.FC = () => {
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [participante, setParticipante] = useState<any>(null);
+  // Token propio del participante generado por link general.
+  // Se establece tras la primera respuesta y se usa en todos los cambios posteriores.
+  // NUNCA usar public_token para cambiar respuesta una vez que ownInviteToken esté disponible.
+  const [ownInviteToken, setOwnInviteToken] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   // true solo si el usuario acaba de confirmar en ESTA sesión (no una visita posterior)
   const [justConfirmed, setJustConfirmed] = useState(false);
@@ -155,6 +159,8 @@ const JoinGeneral: React.FC = () => {
       if (import.meta.env.DEV) console.log('[GENERAL_LINK] datos locales encontrados:', !!(participantToken || participantId));
       let estadoUI = 'pending';
       if (participantToken) {
+        // Restaurar ownInviteToken desde localStorage en visitas posteriores
+        setOwnInviteToken(participantToken);
         try {
           const partData = await participantesService.getParticipanteByToken(participantToken);
           if (import.meta.env.DEV) console.log('[GENERAL_LINK] participante encontrado por token: ok');
@@ -210,30 +216,42 @@ const JoinGeneral: React.FC = () => {
 
     try {
       setLoadingResponse(true);
-      if (import.meta.env.DEV) console.log('[GENERAL] Paso 1: respondiendo. participante existente:', !!participante?.id);
 
-      let newPart;
-      if (participante && participante.id) {
-        // Caso: Ya existe el participante, actualizar respuesta
-        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1a: actualizando participante existente, token:', participante.token_invitacion);
-        newPart = await participantesService.responderInvitacion(
-          participante.token_invitacion,
-          estado,
-          nombre.trim() || undefined
-        );
-        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1a resultado:', newPart);
-        // Para mantener compatibilidad con el campo .id que se usa después:
-        if (newPart && !newPart.id && participante.id) newPart.id = participante.id;
-      } else {
-        // Caso: Nuevo participante
-        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1b: nuevo participante con public_token:', public_token);
-        newPart = await participantesService.addParticipanteGenerico(
-          encuentro.id, nombre.trim(), estado, user?.id ?? null, undefined, public_token
-        );
-        if (import.meta.env.DEV) console.log('[GENERAL] Paso 1b resultado:', newPart);
+      // Determinar el token efectivo para esta llamada:
+      // - ownInviteToken: token propio del participante (disponible tras primera respuesta)
+      // - public_token: SOLO para la primera respuesta (cuando no existe ownInviteToken)
+      const effectiveToken = ownInviteToken ?? public_token!;
+      const isFirstResponse = !ownInviteToken;
+
+      if (import.meta.env.DEV) console.log(
+        '[GENERAL] Paso 1: respondiendo. isFirstResponse:', isFirstResponse,
+        'effectiveToken:', effectiveToken
+      );
+
+      const newPart = await participantesService.responderInvitacion(
+        effectiveToken,
+        estado,
+        nombre.trim() || undefined
+      );
+
+      if (import.meta.env.DEV) console.log('[GENERAL] Paso 1 resultado:', newPart);
+
+      // Tras la primera respuesta por link general, la RPC devuelve token_invitacion propio.
+      // Guardarlo en estado Y en localStorage para usarlo en todos los cambios posteriores.
+      const returnedToken: string | undefined = newPart?.token_invitacion;
+      const returnedId: string | undefined = newPart?.id;
+
+      if (isFirstResponse && returnedToken) {
+        // Primera respuesta: guardar ownInviteToken en estado React
+        setOwnInviteToken(returnedToken);
+        if (import.meta.env.DEV) console.log('[GENERAL] Primer submit: ownInviteToken guardado:', returnedToken);
       }
 
-      if (newPart && newPart.id) {
+      // Guardar en localStorage usando el token_invitacion devuelto (o el ya conocido)
+      const tokenToSave = returnedToken ?? ownInviteToken ?? undefined;
+      const idToSave = returnedId ?? participante?.id ?? undefined;
+
+      if (tokenToSave) {
         let savedData: SavedData = { encuentros: {} };
         try {
           const savedDataStr = localStorage.getItem('encuentros_general');
@@ -243,16 +261,30 @@ const JoinGeneral: React.FC = () => {
         }
 
         if (!savedData.encuentros) savedData.encuentros = {};
-        savedData.encuentros[public_token!] = { participant_id: newPart.id, token_invitacion: newPart.token_invitacion };
+        savedData.encuentros[public_token!] = {
+          participant_id: idToSave,
+          token_invitacion: tokenToSave,
+        };
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));
 
         // Guardar en sessionStorage para vinculación post-login
-        if (!user) {
-          sessionStorage.setItem('puntoencuentro_recent_participant_id', newPart.id);
+        if (!user && idToSave) {
+          sessionStorage.setItem('puntoencuentro_recent_participant_id', idToSave);
         }
+
+        if (import.meta.env.DEV) console.log('[GENERAL] localStorage actualizado con token_invitacion:', tokenToSave);
       }
+
       useHomeStore.getState().invalidateCache();
-      setParticipante(newPart || { estado, nombre_invitado: nombre.trim() });
+      // Preservar id del participante si la RPC no lo repite en actualizaciones
+      setParticipante((prev: any) => ({
+        ...(prev || {}),
+        ...newPart,
+        estado,
+        nombre_invitado: nombre.trim(),
+        id: returnedId ?? prev?.id,
+        token_invitacion: tokenToSave ?? prev?.token_invitacion,
+      }));
       setStep('done');
       setJustConfirmed(true);
       if (import.meta.env.DEV) console.log('[GENERAL] Paso 2: done. estado:', estado);
