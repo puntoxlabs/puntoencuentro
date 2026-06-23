@@ -889,13 +889,13 @@ const DetailHost: React.FC = () => {
                   {/* Botón principal: compartir */}
                   <Button
                     fullWidth
-                    variant={copiedShare ? 'secondary' : 'primary'}
+                    variant={(fromCancelled ? copiedNewShare : copiedShare) ? 'secondary' : 'primary'}
                     style={{ height: 50, fontSize: 15, fontWeight: 700 }}
-                    onClick={handleShareGeneral}
+                    onClick={fromCancelled ? handleShareNewEncuentro : handleShareGeneral}
                   >
-                    {copiedShare
+                    {(fromCancelled ? copiedNewShare : copiedShare)
                       ? `✓ ${t('share.copied', 'Mensaje copiado')}`
-                      : t('share.button_invitation', 'Compartir invitación')}
+                      : (fromCancelled ? 'Compartir nuevo enlace' : t('share.button_invitation', 'Compartir invitación'))}
                   </Button>
 
                   {/* Feedback post-compartir */}
@@ -998,14 +998,15 @@ const DetailHost: React.FC = () => {
               borderRadius: 16, padding: '16px',
               marginBottom: 32, flexShrink: 0,
             }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Encuentro anterior</p>
-              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>
-                ❌ {fromCancelled.oldTitulo} – {fromCancelled.oldFecha}
+              <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-primary-dark)', marginBottom: 6 }}>
+                Encuentro anterior cancelado
               </p>
-              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginBottom: 12 }}>Recordá compartir el nuevo enlace con los participantes.</p>
-              <Button fullWidth onClick={handleShareNewEncuentro}>
-                {copiedNewShare ? '✓ Copiado' : '📤 Compartir nuevo enlace'}
-              </Button>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-on-surface)', marginBottom: 8 }}>
+                {fromCancelled.oldTitulo} — {fromCancelled.oldFecha}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0, lineHeight: 1.4 }}>
+                Este nuevo encuentro reemplaza al anterior. Al compartir el enlace, los invitados recibirán la nueva invitación.
+              </p>
             </div>
           )}
 
@@ -1017,10 +1018,10 @@ const DetailHost: React.FC = () => {
 
             <>
               {confirmados.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '32px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>⏳</div>
+                <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
                   <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía nadie confirmó</h4>
-                  <p style={{ margin: 0, fontSize: 14, color: '#6B7280' }}>Compartí el enlace o invitá personas para recibir respuestas.</p>
+                  <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir respuestas.</p>
                 </div>
               )}
               {renderParticipantList('Confirmados', confirmados)}
