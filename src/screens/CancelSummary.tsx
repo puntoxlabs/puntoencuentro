@@ -174,6 +174,23 @@ const CancelSummary: React.FC = () => {
           </div>
         </div>
 
+        {/* Nota informativa: el anfitrión debe compartir el aviso manualmente */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: 'rgba(59, 130, 246, 0.06)',
+          border: '1px solid rgba(59, 130, 246, 0.18)',
+          borderRadius: 12,
+          padding: '12px 14px',
+        }}>
+          <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>ℹ️</span>
+          <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+            <strong style={{ display: 'block', marginBottom: 2, fontWeight: 700 }}>
+              El encuentro ya fue cancelado.
+            </strong>
+            Ahora compartí el aviso con los invitados para que todos estén informados.
+          </p>
+        </div>
+
         <div style={{ flex: 1 }}></div>
 
         {/* Actions */}

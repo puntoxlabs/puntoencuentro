@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, PencilLine } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
@@ -19,6 +19,7 @@ import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage'
 import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
+import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
 
@@ -26,6 +27,8 @@ const DetailHost: React.FC = () => {
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isFromShare = searchParams.get('share') === '1';
   const { getValidCache, setDetailData, setScrollPosition } = useDetailStore();
   const validCache = getValidCache(id!);
 
@@ -43,7 +46,12 @@ const DetailHost: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
-  const { user, loading: authLoading } = useAuth();
+  // Estados para bloque de invitación unificado (link_general)
+  const [personalMessage, setPersonalMessage] = useState('');
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -300,13 +308,43 @@ const DetailHost: React.FC = () => {
     
     if (diffMinutes < -45) return { label: 'Finalizado', bg: '#F3F4F6', color: '#4B5563' };
     if (diffMinutes <= 0) return { label: '🟢 En curso ahora', bg: '#D1FAE5', color: '#047857' };
-    if (diffMinutes <= 15) return { label: '🟢 Listo para unirte', bg: '#D1FAE5', color: '#047857' };
+    // Corregido: "Listo para unirte" suena a invitado; para el host usamos "Encuentro activo"
+    if (diffMinutes <= 15) return { label: '🟢 Encuentro activo', bg: '#D1FAE5', color: '#047857' };
     if (diffMinutes <= 60) return { label: `🟡 Empieza en ${diffMinutes} min`, bg: '#FEF3C7', color: '#B45309' };
     
     return { label: 'Activo', bg: 'var(--color-primary-container)', color: 'var(--color-primary-dark)' };
   };
 
   const badge = getEventStatusBadge();
+
+  // Handler para compartir invitación general (link_general)
+  const handleShareGeneral = async () => {
+    if (!encuentro) return;
+    try {
+      const shareUrl = `${window.location.origin}/join/${encuentro.public_token}`;
+      const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
+      let shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+      if (personalMessage.trim()) {
+        shareText += `${personalMessage.trim()}\n\n`;
+      }
+      shareText += `Confirmá acá:\n${shareUrl}`;
+
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile && navigator.share) {
+        await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
+        setShareFeedback(true);
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        setCopiedShare(true); setTimeout(() => setCopiedShare(false), 3000);
+        setShareFeedback(true);
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Error compartiendo invitación general:', err);
+        alert('Error al compartir o copiar el enlace.');
+      }
+    }
+  };
 
   const handleShareLink = async (token: string, partId: string) => {
     if (!token) return;
@@ -585,12 +623,19 @@ const DetailHost: React.FC = () => {
     );
   };
 
+  // Título del AppBar para el host según origen
+  const appBarTitle = (!isHost && isParticipant)
+    ? 'Tu invitación'
+    : isFromShare
+      ? (encuentro?.tipo_invitacion === 'link_general' ? 'Invitación lista' : 'Compartir invitación')
+      : '';
+
   return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       {cancelModal}
       {deleteModal}
       <AppBar
-        title={!isHost && isParticipant ? "Tu invitación" : ""}
+        title={appBarTitle}
         showBack
         onBack={(!isHost && isParticipant) ? undefined : () => navigate('/')}
         rightAction={(!isHost && isParticipant) ? null : (
@@ -695,12 +740,124 @@ const DetailHost: React.FC = () => {
             </div>
           )}
 
-          {/* 2. CTA PRINCIPAL */}
+          {/* 2. BLOQUE DE INVITACIÓN UNIFICADO */}
           {!isReadOnly && !isCancelado && (
-            <div style={{ marginBottom: 16 }}>
-              <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => navigate(encuentro.tipo_invitacion === 'individual' ? `/add-guests/${encuentro.id}` : `/share/${encuentro.id}`)}>
-                Invitar personas
-              </Button>
+            <div style={{ marginBottom: 24 }}>
+              {encuentro.tipo_invitacion === 'link_general' ? (
+                // --- Link general: compartir + mensaje del organizador ---
+                <div style={{
+                  background: '#fff',
+                  borderRadius: 16,
+                  padding: '16px 20px',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}>
+                  {/* Acción: agregar/editar mensaje */}
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => setIsSheetOpen(true)}
+                      style={{
+                        background: 'none', border: 'none',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        color: 'var(--color-primary-dark)',
+                        fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                        padding: '6px 12px', borderRadius: 10,
+                        transition: 'background 0.2s ease',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.03)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <PencilLine size={16} />
+                      {personalMessage.trim() ? t('edit', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
+                    </button>
+                  </div>
+
+                  {/* Vista previa del mensaje si existe */}
+                  {personalMessage.trim() && (
+                    <div style={{
+                      background: '#F9FAFB', borderRadius: 10,
+                      padding: '10px 14px', border: '1px solid rgba(0,0,0,0.05)',
+                      animation: 'fadeIn 0.3s ease'
+                    }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                        {t('invitation.organizer_message', 'Mensaje del organizador')}
+                      </p>
+                      <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5, fontStyle: 'italic' }}>
+                        "{personalMessage}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Botón principal: compartir */}
+                  <Button
+                    fullWidth
+                    variant={copiedShare ? 'secondary' : 'primary'}
+                    style={{ height: 50, fontSize: 15, fontWeight: 700 }}
+                    onClick={handleShareGeneral}
+                  >
+                    {copiedShare
+                      ? `✓ ${t('share.copied', 'Mensaje copiado')}`
+                      : t('share.button_invitation', 'Compartir invitación')}
+                  </Button>
+
+                  {/* Feedback post-compartir */}
+                  {shareFeedback && !copiedShare && (
+                    <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+                      {t('share.ready_host', 'Listo. Podés volver al inicio o revisar el encuentro.')}
+                    </p>
+                  )}
+                  {copiedShare && (
+                    <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, lineHeight: 1.4, animation: 'fadeIn 0.3s ease' }}>
+                      {t('invitation.desktop_copied', 'Mensaje copiado. Pegalo en WhatsApp Web, correo o donde quieras compartirlo.')}
+                    </p>
+                  )}
+
+                  {/* Aclaración breve */}
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)', textAlign: 'center', lineHeight: 1.4 }}>
+                    Quienes reciban el enlace podrán confirmar o rechazar su asistencia.
+                  </p>
+                </div>
+              ) : (
+                // --- Invitación individual: ir a /add-guests ---
+                <Button
+                  fullWidth
+                  style={{ height: 54, fontSize: 16, fontWeight: 700 }}
+                  onClick={() => navigate(`/add-guests/${encuentro.id}`)}
+                >
+                  Invitar personas
+                </Button>
+              )}
+
+              {/* Google sign-in nudge: solo cuando viene de ?share=1 y usuario no autenticado */}
+              {isFromShare && !user && !loading && encuentro && (
+                <div style={{
+                  background: 'var(--color-primary-container)',
+                  borderRadius: 16, padding: '16px 20px',
+                  marginTop: 12,
+                  border: '1px solid var(--color-primary)',
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                  animation: 'fadeIn 0.5s ease-out'
+                }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
+                    {t('account.save_encounter_title', 'Guardá este encuentro en tu cuenta')}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                    {t('account.save_encounter_desc', 'Accedé desde otros dispositivos y mantené tu historial organizado.')}
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
+                    <Button
+                      variant="primary" size="sm"
+                      onClick={() => signInWithGoogle()}
+                      style={{ padding: '0 18px', height: 36 }}
+                    >
+                      {t('account.continue_google', 'Continuar con Google')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -801,6 +958,22 @@ const DetailHost: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* OrganizerMessageSheet — para link_general */}
+      <OrganizerMessageSheet
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        initialMessage={personalMessage}
+        onSave={setPersonalMessage}
+      />
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}} />
+
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );

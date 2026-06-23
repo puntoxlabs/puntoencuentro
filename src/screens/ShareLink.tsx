@@ -1,408 +1,43 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { AppBar } from '@/components/ui/AppBar';
-import { Button } from '@/components/ui/Button';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
-import { encuentrosService } from '@/services/encuentrosService';
-import { formatFriendlyDate } from '@/lib/formatDate';
-import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
-import { getThemeStyle } from '@/lib/themes';
-import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
-import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
-import { PencilLine } from 'lucide-react';
 
+/**
+ * ShareLink — thin redirect hacia /meet/:id?share=1
+ *
+ * Responsabilidades:
+ *  1. Esperar a que auth resuelva (no navegar con estado indeterminado).
+ *  2. Preservar el contexto de hostId que DetailHost necesita.
+ *  3. Redirigir de forma idempotente (replace:true) sin cargas innecesarias.
+ *
+ * Nota: La logica de compartir, OrganizerMessageSheet y el bloque de invitacion
+ * estan integrados directamente en DetailHost.tsx, que ahora detecta ?share=1.
+ */
 const ShareLink: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const [encuentro, setEncuentro] = useState<any>(null);
-  const [anteriorData, setAnteriorData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [shareFeedback, setShareFeedback] = useState(false);
-  const [personalMessage, setPersonalMessage] = useState('');
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-
-  const hostIdRef = useRef<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (authLoading) return;
-    const resolved = user?.id ?? getHostId();
-    hostIdRef.current = resolved;
-  }, [authLoading, user?.id]);
+    // Esperar que auth resuelva antes de navegar para no perder el hostId
+    if (authLoading || !id) return;
 
-  useEffect(() => {
-    if (!id || authLoading) return;
-    const hId = user?.id ?? getEncuentroHost(id) ?? getHostId();
-    hostIdRef.current = hId;
-    loadData(hId);
-  }, [id, authLoading]);
+    // El mapeo hostId (encuentroId → hostId) lo gestionará DetailHost
+    // cuando cargue los datos reales del servidor (enc.host_id).
+    // Aquí solo aseguramos que getHostId() haya inicializado el UUID anónimo.
+    getHostId();
 
-  const isLinkGeneral = encuentro?.tipo_invitacion === 'link_general';
+    navigate(`/meet/${id}?share=1`, { replace: true });
+  }, [id, authLoading, user?.id]);
 
-  const loadData = async (hId?: string) => {
-    try {
-      setLoading(true); setError(null);
-      const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getEncuentroHost(id!) ?? getHostId());
-      const enc = await encuentrosService.getDetalleHostSeguro(id!, hostId);
-      setEncuentro(enc);
-
-      if (enc?.host_id) {
-        rememberEncuentroHost(id!, enc.host_id);
-      }
-
-      // 1. Detect replacement from DB
-      if (enc.reemplaza_a) {
-        try {
-          const ant = await encuentrosService.getDetalleHostSeguro(enc.reemplaza_a, hostId);
-          setAnteriorData(ant);
-        } catch (e) { console.error('Error loading anterior', e); }
-      } 
-      // 2. Fallback: sessionStorage
-      else {
-        const refStr = sessionStorage.getItem('cancel_reference');
-        if (refStr) {
-          try {
-            const ref = JSON.parse(refStr);
-            if (ref && typeof ref === 'object' && (ref.newId === id || ref.fromId)) {
-              setAnteriorData({
-                titulo: ref.title,
-                fecha: ref.date,
-                hora: ref.time
-              });
-            }
-          } catch (e) { console.error('Error parsing ref', e); }
-        }
-      }
-
-      // Cleanup session storage after processing
-      sessionStorage.removeItem('cancel_reference');
-
-      // Cleanup session storage after processing
-      sessionStorage.removeItem('cancel_reference');
-
-    } catch (err: any) {
-      console.error('Error loading data', err);
-      const code = err?.code || err?.message || '';
-      if (code === 'unauthorized') {
-        setError('Este encuentro no pertenece a este dispositivo o sesión.');
-      } else if (code === 'not_found') {
-        setError('No se pudo encontrar el encuentro.');
-      } else {
-        setError('No se pudo cargar el encuentro.');
-      }
-    } finally { setLoading(false); }
-  };
-
-  const shareUrl = encuentro ? `${window.location.origin}/join/${encuentro.public_token}` : '';
-
-  const handleShare = async () => {
-    try {
-      let shareText = '';
-      const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
-      
-      if (anteriorData) {
-        const anteriorFormat = formatFechaHoraWhatsApp(anteriorData.fecha, anteriorData.hora);
-        shareText = `El encuentro anterior fue cancelado y reemplazado por este nuevo:\n\n❌ Anterior:\n*${anteriorData.titulo}*\n${anteriorFormat.fechaStr} · ${anteriorFormat.horaStr}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\n`;
-      } else {
-        shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
-      }
-
-      if (personalMessage.trim()) {
-        shareText += `${personalMessage.trim()}\n\n`;
-      }
-
-      shareText += `Confirmá acá:\n${shareUrl}`;
-
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-      if (isMobile && navigator.share) {
-        // Comportamiento Mobile: Usar share nativo
-        await navigator.share({
-          title: encuentro?.titulo || 'Invitación',
-          text: shareText
-        });
-        setShareFeedback(true);
-      } else {
-        // Comportamiento Desktop/Web o fallback: Copiar al portapapeles
-        await navigator.clipboard.writeText(shareText);
-        setCopied(true); setTimeout(() => setCopied(false), 3000);
-        setShareFeedback(true);
-      }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('Error sharing/copying', err);
-        alert('Error al compartir o copiar el enlace.');
-      }
-    }
-  };
-
-  const [showHint, setShowHint] = useState(false);
-  const handleDismissNudge = () => {
-    setShowHint(true);
-    setTimeout(() => setShowHint(false), 4000);
-  };
-
-  if (authLoading || loading) return (
+  // Pantalla minima mientras auth resuelve (evita flash)
+  return (
     <ScreenContainer>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p>Cargando…</p>
       </div>
-    </ScreenContainer>
-  );
-
-  if (error || !encuentro) return (
-    <ScreenContainer>
-      <AppBar title="Error" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
-        <span style={{ fontSize: 36 }}>⚠️</span>
-        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
-          {error || 'Encuentro no encontrado.'}
-        </p>
-        <Button fullWidth onClick={() => loadData()} variant="outline">
-          Reintentar
-        </Button>
-        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
-      </div>
-    </ScreenContainer>
-  );
-
-  return (
-    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
-      <AppBar title="Compartir invitación" showBack onBack={() => navigate(`/meet/${id}`)} />
-
-      {/* Success Message for Link General */}
-      {isLinkGeneral && (
-        <div style={{ textAlign: 'center', marginTop: 16, marginBottom: 8, animation: 'fadeIn 0.5s ease-out' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-primary-dark)', marginBottom: 4 }}>Invitación lista ✔</h2>
-          <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', margin: 0 }}>Compartila con quien quieras</p>
-        </div>
-      )}
-
-      {/* Replacement Banner */}
-      {anteriorData && (
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.8)',
-          backdropFilter: 'blur(10px)',
-          borderRadius: 16,
-          padding: '12px 16px',
-          marginTop: 16,
-          border: '1.5px dashed var(--color-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          animation: 'fadeIn 0.5s ease-out'
-        }}>
-          <span style={{ fontSize: 18 }}>✨</span>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-primary-dark)' }}>
-            Este encuentro reemplaza a: <span style={{ fontWeight: 800 }}>{anteriorData.titulo}</span>
-          </p>
-        </div>
-      )}
-
-      {/* Event summary */}
-      <div style={{
-        background: '#fff', borderRadius: 20, padding: '20px',
-        border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
-        marginTop: anteriorData ? 12 : 20, marginBottom: 24,
-      }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-          Encuentro
-        </p>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 10, lineHeight: 1.2 }}>{encuentro.titulo}</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 6 }}>
-          <span>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
-          <span>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
-          <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
-        </div>
-
-        {/* Mensaje Personal (si existe) */}
-        {personalMessage.trim() && (
-          <div style={{ 
-            marginTop: 16, 
-            paddingTop: 16, 
-            borderTop: '1px solid rgba(0,0,0,0.06)',
-            animation: 'fadeIn 0.3s ease'
-          }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-              {t('invitation.organizer_message', 'Mensaje del organizador')}
-            </p>
-            <p style={{ margin: 0, fontSize: 14, color: '#374151', lineHeight: 1.5, fontStyle: 'italic' }}>
-              "{personalMessage}"
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Acción: Agregar Mensaje */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <button
-          onClick={() => setIsSheetOpen(true)}
-          style={{
-            background: 'none',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            color: 'var(--color-primary-dark)',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            padding: '8px 12px',
-            borderRadius: 10,
-            transition: 'background 0.2s ease',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.03)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          <PencilLine size={16} />
-          {personalMessage.trim() ? t('edit', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
-        </button>
-      </div>
-
-      {/* Share section */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Button fullWidth onClick={handleShare} variant={copied ? 'secondary' : 'primary'}>
-          {copied 
-            ? `✓ ${t('share.copied', 'Mensaje copiado')}` 
-            : t('share.button_invitation', 'Compartir invitación')}
-        </Button>
-
-        {copied && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && (
-          <p style={{ 
-            fontSize: 13, 
-            color: 'var(--color-primary-dark)', 
-            textAlign: 'center', 
-            margin: '0 0 8px', 
-            fontWeight: 500, 
-            lineHeight: 1.4,
-            animation: 'fadeIn 0.3s ease' 
-          }}>
-            {t('invitation.desktop_copied', 'Mensaje copiado. Pegalo en WhatsApp Web, correo o donde quieras compartirlo.')}
-          </p>
-        )}
-
-        {shareFeedback && !copied && (
-          <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: '4px 0 8px', fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
-            {t('share.ready_host', 'Listo. Podés volver al inicio o revisar el encuentro.')}
-          </p>
-        )}
-
-        {/* Nudge: Save to account */}
-        {!user && !loading && encuentro && (
-          <div style={{
-            background: 'var(--color-primary-container)',
-            borderRadius: 16,
-            padding: '16px 20px',
-            marginTop: 8,
-            marginBottom: 8,
-            border: '1px solid var(--color-primary)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            animation: 'fadeIn 0.5s ease-out'
-          }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
-              {t('account.save_encounter_title', 'Guardá este encuentro en tu cuenta')}
-            </p>
-            <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
-              {t('account.save_encounter_desc', 'Accedé desde otros dispositivos y mantené tu historial organizado.')}
-            </p>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => signInWithGoogle()}
-                style={{ padding: '0 18px', height: 36 }}
-              >
-                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 8 }}>
-                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                </svg>
-                {t('account.continue_google', 'Continuar con Google')}
-              </Button>
-              <button
-                onClick={handleDismissNudge}
-                style={{ 
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  color: '#9CA3AF', 
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '2px'
-                }}
-              >
-                {t('account.not_now', 'Ahora no')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Hint Toast */}
-        {showHint && (
-          <div style={{
-            position: 'fixed',
-            bottom: 24,
-            left: 20,
-            right: 20,
-            background: '#374151',
-            color: '#fff',
-            padding: '12px 16px',
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 500,
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 2000,
-            animation: 'fadeIn 0.3s ease'
-          }}>
-            {t('account.login_later_hint', 'Podés iniciar sesión más tarde desde el ícono de cuenta.')}
-          </div>
-        )}
-
-        <Button fullWidth variant="outline" onClick={() => navigate(`/meet/${id}`)}>
-          Ver encuentro
-        </Button>
-
-        <Button
-          fullWidth
-          variant="ghost"
-          onClick={() => navigate('/', { replace: true })}
-          style={{ 
-            color: 'var(--color-on-surface-variant)', 
-            marginTop: 4,
-            border: '1px solid rgba(0,0,0,0.1)'
-          }}
-        >
-          Ir al inicio
-        </Button>
-      </div>
-
-      <OrganizerMessageSheet
-        isOpen={isSheetOpen}
-        onClose={() => setIsSheetOpen(false)}
-        initialMessage={personalMessage}
-        onSave={setPersonalMessage}
-      />
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}} />
     </ScreenContainer>
   );
 };
