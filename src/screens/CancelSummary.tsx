@@ -206,7 +206,7 @@ const CancelSummary: React.FC = () => {
           )}
 
           <Button fullWidth variant="primary" onClick={handleCreateNew}>
-            ✨ Cancelar y crear uno nuevo
+            ✨ Crear encuentro de reemplazo
           </Button>
           <Button fullWidth variant="ghost" onClick={() => navigate('/')} style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>
             Ir al inicio
