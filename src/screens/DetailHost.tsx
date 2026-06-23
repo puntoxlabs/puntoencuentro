@@ -20,6 +20,7 @@ import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
+import { useWizardStore } from '@/store/wizardStore';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
 
@@ -51,6 +52,8 @@ const DetailHost: React.FC = () => {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [shareFeedback, setShareFeedback] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+  // Estado para discriminar qué botón destructivo del bottom sheet de cancelación fue clickeado
+  const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
@@ -226,6 +229,60 @@ const DetailHost: React.FC = () => {
       console.error('[DetailHost] Error cancelando encuentro:', err);
       alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
     } finally { setCancelling(false); }
+  };
+
+  // Cancela el encuentro Y precarga el wizard para crear uno nuevo de inmediato.
+  // Replica la lógica de CancelSummary.handleCreateNew pero desde el bottom sheet,
+  // evitando que el usuario tenga que navegar a /cancel-summary primero.
+  const handleCancelAndCreate = async () => {
+    if (!id || cancelling) return;
+    try {
+      setCancelling(true);
+      const hostId = user?.id ?? getHostId();
+
+      // 1. Cancelar en Supabase (mismo flujo validado)
+      await encuentrosService.cancelarEncuentro(id, hostId);
+      const updatedEnc = await encuentrosService.getDetalleHostSeguro(id, hostId);
+
+      useHomeStore.getState().invalidateCache();
+      setEncuentro(updatedEnc);
+      useDetailStore.getState().setDetailData(id, updatedEnc, participantes);
+
+      // 2. Guardar referencia del encuentro cancelado para que ShareLink
+      //    pueda mostrar el banner "reemplaza a" cuando el nuevo encuentro se cree
+      const cancelRef = {
+        oldId: id,
+        oldTitulo: encuentro.titulo,
+        oldFecha: formatFriendlyDate(encuentro.fecha, encuentro.hora),
+        tipoInvitacion: encuentro.tipo_invitacion,
+        participantes: participantes.map((p: any) => ({
+          nombre_invitado: p.nombre_invitado,
+          estado: p.estado,
+        })),
+        newId: null,
+      };
+      sessionStorage.setItem('cancel_reference', JSON.stringify(cancelRef));
+
+      // 3. Precargar wizard con datos del encuentro cancelado
+      const { setField, reset } = useWizardStore.getState();
+      reset();
+      setField('titulo', encuentro.titulo);
+      setField('descripcion', encuentro.descripcion || '');
+      setField('fecha', encuentro.fecha);
+      setField('hora', encuentro.hora);
+      setField('modalidad', encuentro.modalidad);
+      setField('lugar_texto', encuentro.lugar_texto || '');
+      setField('link_virtual', encuentro.link_virtual || '');
+      setField('tema', encuentro.tema || 'blue');
+
+      setShowCancelModal(false);
+      navigate('/create');
+    } catch (err: any) {
+      console.error('[DetailHost] Error en cancelar y crear:', err);
+      alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const handleDeleteEncuentro = async () => {
@@ -494,6 +551,8 @@ const DetailHost: React.FC = () => {
     </div>
   ) : null;
 
+  // Bottom sheet de cancelación unificado:
+  // 3 opciones en un solo paso para evitar la doble instancia modal → CancelSummary.
   const cancelModal = showCancelModal ? (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 100,
@@ -502,18 +561,54 @@ const DetailHost: React.FC = () => {
     }}>
       <div style={{
         background: '#fff', borderRadius: '24px 24px 0 0',
-        padding: '28px 24px 40px', width: '100%', maxWidth: 480,
+        padding: '20px 24px 44px', width: '100%', maxWidth: 480,
         boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
+        display: 'flex', flexDirection: 'column',
       }}>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>¿Cancelar este encuentro?</h3>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24 }}>
-          El encuentro quedará marcado como cancelado. Esta acción no se puede deshacer.
+        {/* Drag handle */}
+        <div style={{
+          width: 40, height: 4, background: 'rgba(0,0,0,0.1)',
+          borderRadius: 2, alignSelf: 'center', marginBottom: 22,
+        }} />
+
+        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: '#111827' }}>
+          ¿Qué querés hacer con este encuentro?
+        </h3>
+        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24, lineHeight: 1.5 }}>
+          Si lo cancelás, el encuentro quedará marcado como cancelado.
+          Después podrás compartir el aviso con los invitados.
         </p>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Button fullWidth variant="primary" onClick={handleCancelEncuentro} disabled={cancelling}>
-            {cancelling ? 'Cancelando…' : 'Sí, cancelar encuentro'}
+          {/* Opción 1: Cancelar y quedar en cancel-summary */}
+          <Button
+            fullWidth
+            variant="outline"
+            style={{ borderColor: '#DC2626', color: '#DC2626' }}
+            onClick={() => { setCancellingMode('cancel'); handleCancelEncuentro(); }}
+            disabled={cancelling}
+          >
+            {cancelling && cancellingMode === 'cancel' ? 'Cancelando…' : 'Cancelar encuentro'}
           </Button>
-          <Button fullWidth variant="outline" onClick={() => setShowCancelModal(false)} disabled={cancelling}>
+
+          {/* Opción 2: Cancelar y crear uno nuevo */}
+          <Button
+            fullWidth
+            variant="primary"
+            onClick={() => { setCancellingMode('create'); handleCancelAndCreate(); }}
+            disabled={cancelling}
+          >
+            {cancelling && cancellingMode === 'create' ? 'Cancelando y preparando…' : '✨ Cancelar y crear uno nuevo'}
+          </Button>
+
+          {/* Opción 3: Volver sin cancelar */}
+          <Button
+            fullWidth
+            variant="ghost"
+            style={{ color: 'var(--color-on-surface-variant)', marginTop: 2 }}
+            onClick={() => { setShowCancelModal(false); setCancellingMode(null); }}
+            disabled={cancelling}
+          >
             Volver
           </Button>
         </div>
