@@ -349,6 +349,7 @@ const DetailHost: React.FC = () => {
   const confirmados = (participantes || []).filter(p => p && p.estado === 'confirmado');
   const pendientes  = (participantes || []).filter(p => p && p.estado === 'pendiente');
   const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado');
+  const hasAnyResponse = confirmados.length > 0 || pendientes.length > 0 || rechazados.length > 0;
 
   const isCancelado  = encuentro.estado === 'cancelado';
   const isFinalizado = !isCancelado && isEncuentroPasado(encuentro.fecha, encuentro.hora);
@@ -1017,11 +1018,11 @@ const DetailHost: React.FC = () => {
             </h3>
 
             <>
-              {confirmados.length === 0 && (
+              {!hasAnyResponse && (
                 <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-                  <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía nadie confirmó</h4>
-                  <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir respuestas.</p>
+                  <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía no hay respuestas</h4>
+                  <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir confirmaciones.</p>
                 </div>
               )}
               {renderParticipantList('Confirmados', confirmados)}
