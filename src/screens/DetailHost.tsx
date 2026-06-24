@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
-import { MoreVertical, PencilLine } from 'lucide-react';
+import { MoreVertical, PencilLine, MessageSquare } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
@@ -55,6 +55,11 @@ const DetailHost: React.FC = () => {
   // Estado para discriminar qué botón destructivo del bottom sheet de cancelación fue clickeado
   const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
+
+  // Estados para invitado individual
+  const [nombre, setNombre] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedGuestMessage, setSelectedGuestMessage] = useState<any>(null);
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -229,6 +234,35 @@ const DetailHost: React.FC = () => {
       console.error('[DetailHost] Error cancelando encuentro:', err);
       alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
     } finally { setCancelling(false); }
+  };
+
+  const handleAddGuest = async () => {
+    const trimNombre = nombre.trim();
+    if (!trimNombre) return;
+    const isDuplicate = participantes.some(p => p.nombre_invitado?.toLowerCase() === trimNombre.toLowerCase());
+    if (isDuplicate) { alert('Ya existe un invitado con ese nombre.'); return; }
+    try {
+      const hostId = user?.id ?? getHostId();
+      await participantesService.addParticipanteIndividual(id!, hostId, trimNombre);
+      setNombre('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+      refreshParticipantes();
+    } catch (error) { 
+      console.error('Error adding guest', error); 
+      alert('Error al agregar invitado'); 
+    }
+  };
+
+  const handleDeleteGuest = async (partId: string) => {
+    try {
+      setParticipantes(prev => prev.filter(p => p.id !== partId));
+      await participantesService.deleteParticipante(partId, user?.id ?? getHostId());
+      refreshParticipantes();
+    } catch (error) {
+      console.error('Error deleting guest', error);
+      alert('Error al eliminar invitado');
+      refreshParticipantes();
+    }
   };
 
   // Cancela el encuentro Y precarga el wizard para crear uno nuevo de inmediato.
@@ -462,9 +496,19 @@ const DetailHost: React.FC = () => {
                     </div>
                   )}
                   {p.mensaje_respuesta && (
-                    <div style={{ marginTop: 4, fontSize: 13, color: '#6B7280', fontStyle: 'italic', lineHeight: 1.3 }}>
-                      "{p.mensaje_respuesta}"
-                    </div>
+                    <button
+                      onClick={() => setSelectedGuestMessage(p)}
+                      style={{ 
+                        marginTop: 4, 
+                        background: 'none', border: 'none', 
+                        display: 'flex', alignItems: 'center', gap: 4, 
+                        color: 'var(--color-primary)', fontSize: 13, 
+                        fontWeight: 500, cursor: 'pointer', padding: 0 
+                      }}
+                    >
+                      <MessageSquare size={14} />
+                      <span>Ver mensaje</span>
+                    </button>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -472,17 +516,33 @@ const DetailHost: React.FC = () => {
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id)}
                       style={{
-                        background: 'none', border: 'none',
-                        color: copiedId === p.id ? 'var(--color-primary)' : 'var(--color-outline-variant)',
-                        fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 8px'
+                        background: copiedId === p.id ? 'var(--color-primary-container)' : 'transparent',
+                        border: `1.5px solid ${copiedId === p.id ? 'var(--color-primary)' : 'var(--color-outline-variant)'}`,
+                        borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+                        fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
+                        color: copiedId === p.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                        transition: 'all 0.15s',
                       }}
                     >
-                      {copiedId === p.id ? 'Copiado' : 'Recordar'}
+                      {copiedId === p.id ? '✓ Copiado' : 'Recordar'}
                     </button>
                   )}
                   <span style={{ fontSize: 13, color: sColor, fontWeight: 500 }}>
                     {sLabel}
                   </span>
+                  {!isReadOnly && !isCancelado && (
+                    <button
+                      onClick={() => handleDeleteGuest(p.id)}
+                      style={{
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'var(--color-on-surface-variant)', fontSize: 14,
+                        padding: '4px'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -917,14 +977,50 @@ const DetailHost: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                // --- Invitación individual: ir a /add-guests ---
-                <Button
-                  fullWidth
-                  style={{ height: 54, fontSize: 16, fontWeight: 700 }}
-                  onClick={() => navigate(`/add-guests/${encuentro.id}`)}
-                >
-                  Invitar personas
-                </Button>
+                // --- Invitación individual o ?guests=1 ---
+                <div style={{
+                  background: '#fff', borderRadius: 16, padding: '16px 20px',
+                  border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#111827' }}>Agregar invitados</h3>
+                  <div style={{
+                    display: 'flex', gap: 0,
+                    background: '#F9FAFB', borderRadius: 12,
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    overflow: 'hidden', marginBottom: 16,
+                  }}>
+                    <input
+                      ref={inputRef}
+                      value={nombre}
+                      onChange={e => setNombre(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddGuest(); }}
+                      placeholder="Nombre del invitado"
+                      style={{
+                        flex: 1, border: 'none', outline: 'none',
+                        padding: '0 16px', height: 48, fontSize: 15,
+                        fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
+                        background: 'transparent',
+                      }}
+                    />
+                    <button
+                      onClick={handleAddGuest}
+                      disabled={!nombre.trim()}
+                      style={{
+                        background: nombre.trim() ? 'var(--color-primary)' : 'var(--color-surface-variant)',
+                        color: nombre.trim() ? '#fff' : 'var(--color-on-surface-variant)',
+                        border: 'none', cursor: nombre.trim() ? 'pointer' : 'not-allowed',
+                        padding: '0 16px', fontFamily: 'var(--font-family)',
+                        fontWeight: 700, fontSize: 14, transition: 'all 0.18s',
+                      }}
+                    >
+                      + Agregar
+                    </button>
+                  </div>
+
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+                    Agregá a las personas que querés invitar. Luego podrás compartirles su invitación individual.
+                  </p>
+                </div>
               )}
 
               {/* Google sign-in nudge: solo cuando viene de ?share=1 y usuario no autenticado */}
@@ -1063,6 +1159,41 @@ const DetailHost: React.FC = () => {
         initialMessage={personalMessage}
         onSave={setPersonalMessage}
       />
+
+      {/* Modal para ver mensaje de invitado */}
+      {selectedGuestMessage && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '24px 24px 0 0',
+            padding: '28px 24px 40px', width: '100%', maxWidth: 480,
+            boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
+          }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{selectedGuestMessage.nombre_invitado}</h3>
+            <span style={{ 
+              display: 'inline-block', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+              background: selectedGuestMessage.estado === 'confirmado' ? '#D1FAE5' : selectedGuestMessage.estado === 'rechazado' ? '#FEE2E2' : '#F3F4F6',
+              color: selectedGuestMessage.estado === 'confirmado' ? '#047857' : selectedGuestMessage.estado === 'rechazado' ? '#B91C1C' : '#4B5563',
+              marginBottom: 20
+            }}>
+              {selectedGuestMessage.estado === 'confirmado' ? 'Confirmado' : selectedGuestMessage.estado === 'rechazado' ? 'No asiste' : 'Pendiente'}
+            </span>
+            <div style={{
+              background: '#F9FAFB', padding: '16px', borderRadius: 12,
+              border: '1px solid rgba(0,0,0,0.05)', marginBottom: 24,
+              fontSize: 15, color: '#374151', lineHeight: 1.5, fontStyle: 'italic'
+            }}>
+              "{selectedGuestMessage.mensaje_respuesta}"
+            </div>
+            <Button fullWidth variant="outline" onClick={() => setSelectedGuestMessage(null)}>
+              Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeIn {
