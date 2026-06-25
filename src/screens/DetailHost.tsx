@@ -60,6 +60,8 @@ const DetailHost: React.FC = () => {
   const [nombre, setNombre] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedGuestMessage, setSelectedGuestMessage] = useState<any>(null);
+  // Marca local de invitaciones ya compartidas (persiste en localStorage)
+  const [sharedInvites, setSharedInvites] = useState<Record<string, boolean>>({});
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -76,6 +78,16 @@ const DetailHost: React.FC = () => {
     if (import.meta.env.DEV) console.log('[DetailHost] hostId resuelto:', resolved, '(user logueado:', !!user, ')');
     hostIdRef.current = resolved;
   }, [authLoading, user?.id]);
+
+  // Carga el estado de invitaciones ya compartidas desde localStorage
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const raw = localStorage.getItem('puntoencuentro_shared_invites');
+      const all = raw ? JSON.parse(raw) : {};
+      setSharedInvites(all[id] || {});
+    } catch { /* ignore */ }
+  }, [id]);
 
   const refreshParticipantes = useCallback(async () => {
     const hId = hostIdRef.current;
@@ -380,9 +392,13 @@ const DetailHost: React.FC = () => {
     </ScreenContainer>
   );
 
-  const confirmados = (participantes || []).filter(p => p && p.estado === 'confirmado');
-  const pendientes  = (participantes || []).filter(p => p && p.estado === 'pendiente');
-  const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado');
+  // Orden alfabético dentro de cada sección (no muta participantes)
+  const sortByName = (a: any, b: any) =>
+    (a.nombre_invitado || '').localeCompare(b.nombre_invitado || '', 'es', { sensitivity: 'base' });
+
+  const confirmados = (participantes || []).filter(p => p && p.estado === 'confirmado').sort(sortByName);
+  const pendientes  = (participantes || []).filter(p => p && p.estado === 'pendiente').sort(sortByName);
+  const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado').sort(sortByName);
   const hasAnyResponse = confirmados.length > 0 || pendientes.length > 0 || rechazados.length > 0;
 
   const isCancelado  = encuentro.estado === 'cancelado';
@@ -438,6 +454,20 @@ const DetailHost: React.FC = () => {
     }
   };
 
+  // Marca un invitado como ya compartido en state y localStorage
+  const markAsShared = (partId: string) => {
+    setSharedInvites(prev => {
+      const next = { ...prev, [partId]: true };
+      try {
+        const raw = localStorage.getItem('puntoencuentro_shared_invites');
+        const all = raw ? JSON.parse(raw) : {};
+        all[id!] = next;
+        localStorage.setItem('puntoencuentro_shared_invites', JSON.stringify(all));
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const handleShareLink = async (token: string, partId: string, guestName?: string) => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -445,11 +475,17 @@ const DetailHost: React.FC = () => {
     const greeting = guestName?.trim() ? `${guestName.trim()}, te` : 'Te';
     const shareText = `${greeting} invito a este encuentro 👇\nConfirmá si podés asistir:`;
     if (navigator.share) {
-      try { await navigator.share({ text: shareText, url: shareUrl }); }
-      catch (err) { console.error('Error sharing', err); }
+      try {
+        await navigator.share({ text: shareText, url: shareUrl });
+        markAsShared(partId); // marcar solo si el share completó sin error
+      } catch (err: any) {
+        // AbortError = usuario canceló el diálogo de share → no marcar
+        if (err?.name !== 'AbortError') console.error('Error sharing', err);
+      }
     } else {
       try {
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        markAsShared(partId); // marcar solo si la copia fue exitosa
         setCopiedId(partId); setTimeout(() => setCopiedId(null), 2000);
       } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
     }
@@ -517,15 +553,29 @@ const DetailHost: React.FC = () => {
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
                       style={{
-                        background: copiedId === p.id ? 'var(--color-primary-container)' : 'transparent',
-                        border: `1.5px solid ${copiedId === p.id ? 'var(--color-primary)' : 'var(--color-outline-variant)'}`,
+                        background: copiedId === p.id
+                          ? 'var(--color-primary-container)'
+                          : sharedInvites[p.id]
+                          ? '#F0FDF4'
+                          : 'transparent',
+                        border: `1.5px solid ${
+                          copiedId === p.id
+                            ? 'var(--color-primary)'
+                            : sharedInvites[p.id]
+                            ? '#86EFAC'
+                            : 'var(--color-outline-variant)'
+                        }`,
                         borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
                         fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
-                        color: copiedId === p.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                        color: copiedId === p.id
+                          ? 'var(--color-primary)'
+                          : sharedInvites[p.id]
+                          ? '#16A34A'
+                          : 'var(--color-on-surface-variant)',
                         transition: 'all 0.15s', whiteSpace: 'nowrap',
                       }}
                     >
-                      {copiedId === p.id ? '✓ Copiado' : 'Compartir'}
+                      {copiedId === p.id ? '✓ Copiado' : sharedInvites[p.id] ? '✓ Compartido' : 'Compartir'}
                     </button>
                   )}
                   <span style={{ fontSize: 13, color: sColor, fontWeight: 500 }}>
