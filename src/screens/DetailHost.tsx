@@ -438,17 +438,18 @@ const DetailHost: React.FC = () => {
     }
   };
 
-  const handleShareLink = async (token: string, partId: string) => {
+  const handleShareLink = async (token: string, partId: string, guestName?: string) => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    const shareText = "Te invito a este encuentro 👇 Confirmá si podés asistir:";
+    const greeting = guestName?.trim() ? `${guestName.trim()}, te` : 'Te';
+    const shareText = `${greeting} invito a este encuentro 👇\nConfirmá si podés asistir:`;
     if (navigator.share) {
       try { await navigator.share({ text: shareText, url: shareUrl }); }
       catch (err) { console.error('Error sharing', err); }
     } else {
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         setCopiedId(partId); setTimeout(() => setCopiedId(null), 2000);
       } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
     }
@@ -514,17 +515,17 @@ const DetailHost: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {!isReadOnly && !isCancelado && p.estado === 'pendiente' && p.token_invitacion && (
                     <button
-                      onClick={() => handleShareLink(p.token_invitacion, p.id)}
+                      onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
                       style={{
                         background: copiedId === p.id ? 'var(--color-primary-container)' : 'transparent',
                         border: `1.5px solid ${copiedId === p.id ? 'var(--color-primary)' : 'var(--color-outline-variant)'}`,
                         borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
                         fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
                         color: copiedId === p.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-                        transition: 'all 0.15s',
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
                       }}
                     >
-                      {copiedId === p.id ? '✓ Copiado' : 'Recordar'}
+                      {copiedId === p.id ? '✓ Copiado' : 'Compartir'}
                     </button>
                   )}
                   <span style={{ fontSize: 13, color: sColor, fontWeight: 500 }}>
@@ -1116,11 +1117,27 @@ const DetailHost: React.FC = () => {
 
             <>
               {!hasAnyResponse && (
-                <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-                  <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía no hay respuestas</h4>
-                  <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir confirmaciones.</p>
-                </div>
+                (searchParams.get('guests') === '1' || encuentro.tipo_invitacion !== 'link_general')
+                  ? (
+                    <div style={{
+                      padding: '10px 14px',
+                      background: 'rgba(0,0,0,0.02)',
+                      borderRadius: 10,
+                      border: '1px solid rgba(0,0,0,0.06)',
+                      marginBottom: 16,
+                    }}>
+                      <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>
+                        Los invitados aparecerán acá cuando los agregues.
+                      </p>
+                    </div>
+                  )
+                  : (
+                    <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+                      <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía no hay respuestas</h4>
+                      <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir confirmaciones.</p>
+                    </div>
+                  )
               )}
               {renderParticipantList('Confirmados', confirmados)}
               {renderParticipantList('Pendientes', pendientes)}
