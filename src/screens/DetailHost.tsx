@@ -996,7 +996,7 @@ const DetailHost: React.FC = () => {
                       onKeyDown={e => { if (e.key === 'Enter') handleAddGuest(); }}
                       placeholder="Nombre del invitado"
                       style={{
-                        flex: 1, border: 'none', outline: 'none',
+                        flex: 1, minWidth: 0, border: 'none', outline: 'none',
                         padding: '0 16px', height: 48, fontSize: 15,
                         fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
                         background: 'transparent',
@@ -1011,6 +1011,7 @@ const DetailHost: React.FC = () => {
                         border: 'none', cursor: nombre.trim() ? 'pointer' : 'not-allowed',
                         padding: '0 16px', fontFamily: 'var(--font-family)',
                         fontWeight: 700, fontSize: 14, transition: 'all 0.18s',
+                        whiteSpace: 'nowrap', flexShrink: 0, minWidth: 96,
                       }}
                     >
                       + Agregar
