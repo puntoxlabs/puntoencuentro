@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
-import { getHostAlias } from '@/lib/hostAliasStorage';
+import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -68,6 +68,11 @@ const DetailHost: React.FC = () => {
   const [visibilidadRespuestas, setVisibilidadRespuestas] = useState(false);
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
+
+  // Estados para alias de anfitrión
+  const [hostAlias, setHostAliasState] = useState(getHostAlias());
+  const [isEditingAlias, setIsEditingAlias] = useState(false);
+  const [tempAlias, setTempAlias] = useState('');
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -999,6 +1004,71 @@ const DetailHost: React.FC = () => {
               <span style={{ fontSize: 13, color: '#4B5563', fontWeight: 500 }}>
                 Este encuentro ya finalizó. No se puede modificar.
               </span>
+            </div>
+          )}
+
+          {/* 1.5 ALIAS DEL ANFITRIÓN COMPACTO */}
+          {!isReadOnly && !isCancelado && (
+            <div style={{
+              background: '#fff', borderRadius: 12, padding: '10px 16px',
+              border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+              marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              {isEditingAlias ? (
+                <div style={{ display: 'flex', gap: 8, width: '100%', alignItems: 'center' }}>
+                  <input
+                    value={tempAlias}
+                    onChange={e => setTempAlias(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setHostAlias(tempAlias);
+                        setHostAliasState(tempAlias.trim().substring(0, 40));
+                        setIsEditingAlias(false);
+                      }
+                    }}
+                    placeholder="Tu nombre o apodo"
+                    autoFocus
+                    style={{
+                      flex: 1, border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
+                      padding: '0 10px', height: 32, fontSize: 14, borderRadius: 6,
+                      background: '#F9FAFB', fontFamily: 'var(--font-family)',
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      setHostAlias(tempAlias);
+                      setHostAliasState(tempAlias.trim().substring(0, 40));
+                      setIsEditingAlias(false);
+                    }}
+                    style={{
+                      background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
+                      border: '1px solid var(--color-primary)', borderRadius: 6,
+                      padding: '0 12px', height: 32, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Guardar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Invitás como: <span style={{ fontWeight: 700, color: '#111827' }}>{hostAlias || 'Sin alias'}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setTempAlias(hostAlias);
+                      setIsEditingAlias(true);
+                    }}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--color-primary)',
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 8px', flexShrink: 0
+                    }}
+                  >
+                    {hostAlias ? 'Cambiar' : 'Agregar'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
