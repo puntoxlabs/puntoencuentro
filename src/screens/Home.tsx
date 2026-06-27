@@ -254,7 +254,14 @@ const Home: React.FC = () => {
   const { reset: resetWizard } = wizardStore;
   const detailCache = useDetailStore(s => s.cache);
   const validCache = getValidCache();
-  const [loading, setLoading] = useState(!validCache);
+  const storeState = useHomeStore.getState();
+  const staleOrganized = storeState.encuentros;
+  const staleParticipated = storeState.participatedEncuentros;
+  
+  // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
+  const [loading, setLoading] = useState(
+    !validCache && staleOrganized.length === 0 && staleParticipated.length === 0
+  );
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -268,8 +275,8 @@ const Home: React.FC = () => {
   const [showHint, setShowHint] = useState(false);
 
   // Estados locales para las dos listas
-  const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache || []);
-  const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>([]);
+  const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
+  const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>(validCache?.participated || staleParticipated || []);
 
   // Los encuentros "visibles" dependen del scope activo
   const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
@@ -309,6 +316,15 @@ const Home: React.FC = () => {
     
     // Limpiar cualquier contexto de reemplazo abandonado o completado al volver a la Home
     sessionStorage.removeItem('cancel_reference');
+
+    // Refresco silencioso al recuperar foco
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // Recargar cuando el usuario inicia o cierra sesión
@@ -338,7 +354,9 @@ const Home: React.FC = () => {
   const loadData = async () => {
     try {
       const isCacheValid = useHomeStore.getState().getValidCache() !== null;
-      if (!isCacheValid) setLoading(true);
+      const storeState = useHomeStore.getState();
+      const hasLocalData = storeState.encuentros.length > 0 || storeState.participatedEncuentros.length > 0;
+      if (!isCacheValid && !hasLocalData) setLoading(true);
       setError(null);
 
       const anonId = getHostId();
@@ -385,7 +403,7 @@ const Home: React.FC = () => {
       rememberEncuentroHostBulk(sortedOrganized);
 
       // Actualizar el store global (principalmente para la lista de organizados que es la principal)
-      setEncuentros(sortedOrganized);
+      setEncuentros(sortedOrganized, sortedParticipated);
     } catch (err) {
       console.error('Error loading home data', err);
       setError('Hubo un error al cargar tus encuentros.');
