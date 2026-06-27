@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate } from '@/lib/formatDate';
-import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
+
 import { getThemeStyle } from '@/lib/themes';
 import { useWizardStore } from '@/store/wizardStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
+import { getHostAlias } from '@/lib/hostAliasStorage';
 
 const metaRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
@@ -79,8 +80,9 @@ const CancelSummary: React.FC = () => {
     if (!encuentro) return;
     try {
       const shareUrl = `${window.location.origin}/join/${encuentro.public_token || encuentro.id}`;
-      const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
-      const shareText = `Este encuentro fue cancelado.\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nVer estado:\n${shareUrl}`;
+      const alias = getHostAlias();
+      const intro = alias ? `${alias} canceló el encuentro:` : 'Se canceló el encuentro:';
+      const shareText = `${intro}\n\n*${encuentro.titulo}*\n\nTe aviso para que estés al tanto.\n\nVer estado:\n${shareUrl}`;
 
       if (navigator.share) {
         await navigator.share({
@@ -196,7 +198,7 @@ const CancelSummary: React.FC = () => {
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto', paddingTop: 8 }}>
           <Button fullWidth variant={copied ? 'secondary' : 'outline'} onClick={handleShareCancel}>
-            {copied ? t('share.copied_for_sharing', 'Copiado para compartir') : '📤 Compartir cancelación'}
+            {copied ? t('share.copied_for_sharing', 'Copiado para compartir') : '📤 Compartir aviso de cancelación'}
           </Button>
 
           {shareFeedback && (

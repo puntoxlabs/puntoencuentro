@@ -499,7 +499,7 @@ const Home: React.FC = () => {
               variant="primary"
               fullWidth
               style={{ height: 56, fontSize: 16, fontWeight: 700 }}
-              onClick={() => { resetWizard(); navigate('/create'); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create'); }}
             >
               + Crear encuentro
             </Button>
@@ -990,7 +990,7 @@ const Home: React.FC = () => {
             padding: '0 20px'
           }}>
             <button
-              onClick={() => { resetWizard(); navigate('/create'); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create'); }}
               style={{
                 pointerEvents: 'auto',
                 height: 56, borderRadius: 28, padding: '0 24px',

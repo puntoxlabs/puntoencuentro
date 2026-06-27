@@ -378,13 +378,12 @@ const DetailHost: React.FC = () => {
       ? `${baseUrl}/join/${encuentro.public_token}`
       : `${baseUrl}/meet/${encuentro.id}`;
     
-    const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
     
     const intro = hostAlias 
       ? `${hostAlias} creó un nuevo encuentro en reemplazo del anterior 👇` 
       : `Se creó un nuevo encuentro en reemplazo del anterior 👇`;
       
-    const msg = `${intro}\n\n❌ Anterior:\n${fromCancelled.oldTitulo}\n${fromCancelled.oldFecha}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nUnite acá:\n${newLink}`;
+    const msg = `${intro}\n\nConfirmá si podés asistir:\n${newLink}`;
     
     if (navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
