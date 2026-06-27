@@ -1242,7 +1242,7 @@ const DetailHost: React.FC = () => {
                     Permitir que los invitados vean las respuestas
                   </p>
                   <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.45 }}>
-                    Si activás esta opción, los invitados podrán ver quién confirmó y quién no asiste. Los mensajes privados no serán visibles.
+                    Si activás esta opción, los invitados podrán ver quién confirmó, quién no asiste y quién todavía falta responder. Los mensajes privados no serán visibles.
                   </p>
                 </div>
                 {/* Toggle switch */}

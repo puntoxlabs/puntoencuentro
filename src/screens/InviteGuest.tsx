@@ -517,10 +517,18 @@ const InviteGuest: React.FC = () => {
                 </div>
               )}
               {respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && (
-                <div>
+                <div style={{ marginBottom: 10 }}>
                   <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#DC2626' }}>No asisten</p>
                   {respuestasVisibles.filter(p => p.estado === 'rechazado').map((p, i) => (
                     <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
+                  ))}
+                </div>
+              )}
+              {respuestasVisibles.filter(p => p.estado === 'pendiente').length > 0 && (
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Faltan responder</p>
+                  {respuestasVisibles.filter(p => p.estado === 'pendiente').map((p, i) => (
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#374151' }}>{p.nombre_invitado}</p>
                   ))}
                 </div>
               )}
