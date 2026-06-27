@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
+import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
 
@@ -66,6 +67,17 @@ const DetailHost: React.FC = () => {
   const [visibilidadRespuestas, setVisibilidadRespuestas] = useState(false);
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
+
+  // Alias del anfitrión
+  const [hostAlias, setHostAliasState] = useState(getHostAlias());
+  const [aliasFeedback, setAliasFeedback] = useState(false);
+
+  const handleSaveAlias = () => {
+    setHostAlias(hostAlias);
+    setHostAliasState(getHostAlias());
+    setAliasFeedback(true);
+    setTimeout(() => setAliasFeedback(false), 2000);
+  };
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -367,7 +379,12 @@ const DetailHost: React.FC = () => {
       : `${baseUrl}/meet/${encuentro.id}`;
     
     const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
-    const msg = `El encuentro fue actualizado:\n\n❌ Anterior:\n${fromCancelled.oldTitulo}\n${fromCancelled.oldFecha}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nUnite acá:\n${newLink}`;
+    
+    const intro = hostAlias 
+      ? `${hostAlias} creó un nuevo encuentro en reemplazo del anterior 👇` 
+      : `Se creó un nuevo encuentro en reemplazo del anterior 👇`;
+      
+    const msg = `${intro}\n\n❌ Anterior:\n${fromCancelled.oldTitulo}\n${fromCancelled.oldFecha}\n\n✅ Nuevo:\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n\nUnite acá:\n${newLink}`;
     
     if (navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
@@ -461,7 +478,12 @@ const DetailHost: React.FC = () => {
     try {
       const shareUrl = `${window.location.origin}/join/${encuentro.public_token}`;
       const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
-      let shareText = `${t('invitation.share_intro', 'Te invito a un encuentro:')}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+      
+      const aliasIntro = hostAlias 
+        ? `${hostAlias} te invita a este encuentro 👇` 
+        : `Te invito a este encuentro 👇`;
+        
+      let shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
       if (personalMessage.trim()) {
         shareText += `${personalMessage.trim()}\n\n`;
       }
@@ -502,8 +524,17 @@ const DetailHost: React.FC = () => {
     if (!token) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    const greeting = guestName?.trim() ? `${guestName.trim()}, te` : 'Te';
-    const shareText = `${greeting} invito a este encuentro 👇\nConfirmá si podés asistir:`;
+    
+    let shareText = '';
+    if (guestName?.trim()) {
+      shareText = hostAlias 
+        ? `${guestName.trim()}, ${hostAlias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
+        : `${guestName.trim()}, te invito a este encuentro 👇\nConfirmá si podés asistir:`;
+    } else {
+      shareText = hostAlias
+        ? `${hostAlias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
+        : `Te invito a este encuentro 👇\nConfirmá si podés asistir:`;
+    }
     if (navigator.share) {
       try {
         await navigator.share({ text: shareText, url: shareUrl });
@@ -1284,6 +1315,56 @@ const DetailHost: React.FC = () => {
                   {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
                 </p>
               )}
+            </div>
+          )}
+
+          {!isReadOnly && !isCancelado && (
+            <div style={{
+              background: '#fff', borderRadius: 14, padding: '14px 16px',
+              border: '1px solid rgba(0,0,0,0.06)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              marginBottom: 24,
+            }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Alias del anfitrión
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.45 }}>
+                  Se usará para que tus invitaciones indiquen quién invita. Este nombre sólo se usa para personalizar tus invitaciones en este dispositivo.
+                </p>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    value={hostAlias}
+                    onChange={e => setHostAliasState(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveAlias(); }}
+                    placeholder="Ej: Leandro"
+                    style={{
+                      flex: 1, minWidth: 0, border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
+                      padding: '0 12px', height: 40, fontSize: 14, borderRadius: 8,
+                      fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
+                      background: '#F9FAFB',
+                    }}
+                  />
+                  <button
+                    onClick={handleSaveAlias}
+                    style={{
+                      background: 'var(--color-primary-container)',
+                      color: 'var(--color-primary-dark)',
+                      border: '1px solid var(--color-primary)',
+                      cursor: 'pointer', padding: '0 16px', height: 40, borderRadius: 8,
+                      fontFamily: 'var(--font-family)', fontWeight: 600, fontSize: 13, 
+                      transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Guardar
+                  </button>
+                </div>
+                {aliasFeedback && (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: '#059669', animation: 'fadeIn 0.2s ease' }}>
+                    ✓ Guardado
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
