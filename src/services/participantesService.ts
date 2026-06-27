@@ -163,4 +163,31 @@ export const participantesService = {
       throw error;
     }
   },
+
+  /**
+   * Consulta las respuestas visibles para un invitado.
+   * SEGURIDAD: Solo acepta token_invitacion personal (participantes.token_invitacion).
+   * NO acepta public_token. Si el host no activó la opción, devuelve visible: false.
+   * Nunca devuelve id, token, user_id, host_id, public_token ni mensaje_respuesta.
+   */
+  async getRespuestasVisiblesInvitado(token: string): Promise<{
+    ok: boolean;
+    visible: boolean;
+    participantes: { nombre_invitado: string; estado: string }[];
+  }> {
+    const { data, error } = await supabase.rpc('get_respuestas_visibles_invitado', {
+      p_token: token,
+    });
+    if (error) {
+      console.error('[getRespuestasVisiblesInvitado] RPC error:', error);
+      return { ok: false, visible: false, participantes: [] };
+    }
+    const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+    return {
+      ok: result?.ok ?? false,
+      visible: result?.visible ?? false,
+      participantes: result?.participantes ?? [],
+    };
+  },
 };
+

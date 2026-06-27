@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -44,6 +44,10 @@ const InviteGuest: React.FC = () => {
   const [justConfirmed, setJustConfirmed] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  // Respuestas visibles para el invitado (sólo si el host lo activó)
+  const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
+  const [visibleEnabled, setVisibleEnabled] = useState(false);
+  const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getSuggestedName = (user: any) => {
     if (!user) return '';
@@ -66,6 +70,29 @@ const InviteGuest: React.FC = () => {
     if (import.meta.env.DEV) console.log('[INVITE] token inicial:', token);
     if (token) { loadData(); } else { setError('Token no proporcionado en la URL.'); setLoading(false); }
   }, [token]);
+
+  // Polling de respuestas visibles — sólo cuando el invitado ya respondió
+  useEffect(() => {
+    if (step !== 'done' || !token) return;
+
+    const fetchRespuestas = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        // Usa el token de la URL que ya es token_invitacion personal
+        const result = await participantesService.getRespuestasVisiblesInvitado(token);
+        setVisibleEnabled(result.visible);
+        setRespuestasVisibles(result.participantes);
+      } catch { /* no fatal */ }
+    };
+
+    fetchRespuestas(); // primera consulta inmediata
+    if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
+    pollRespuestasRef.current = setInterval(fetchRespuestas, 10000);
+
+    return () => {
+      if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
+    };
+  }, [step, token]);
 
   // Realtime subscription and polling for cancellation / deletion revalidation
   useEffect(() => {
@@ -468,7 +495,41 @@ const InviteGuest: React.FC = () => {
         Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
       </p>
 
-      {/* ── E. Nudge de login (solo si acabó de responder sin login) ── */}
+      {visibleEnabled && (
+        <div style={{
+          background: 'rgba(0,0,0,0.02)', borderRadius: 14,
+          border: '1px solid rgba(0,0,0,0.06)',
+          padding: '14px 16px', marginBottom: 16,
+        }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Respuestas del encuentro
+          </p>
+          {respuestasVisibles.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Todavía no hay respuestas visibles.</p>
+          ) : (
+            <>
+              {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#059669' }}>Confirmaron</p>
+                  {respuestasVisibles.filter(p => p.estado === 'confirmado').map((p, i) => (
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
+                  ))}
+                </div>
+              )}
+              {respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && (
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#DC2626' }}>No asisten</p>
+                  {respuestasVisibles.filter(p => p.estado === 'rechazado').map((p, i) => (
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ―― E. Nudge de login (solo si acabó de responder sin login) ―― */}
       {!user && justConfirmed && (
         <div style={{
           padding: '16px', borderRadius: 14,

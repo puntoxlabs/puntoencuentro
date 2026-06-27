@@ -188,4 +188,27 @@ export const encuentrosService = {
     if (!res?.ok) throw new Error(res?.error || 'update_failed');
     return res;
   },
+
+  async setVisibilidadRespuestasInvitados(encuentroId: string, hostId: string, visible: boolean) {
+    const { data, error } = await supabase.rpc('set_visibilidad_respuestas_invitados', {
+      p_encuentro_id: encuentroId,
+      p_host_id: hostId,
+      p_visible: visible,
+    });
+    if (error) throw error;
+    const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!result?.ok) throw new Error(result?.error || 'update_visibility_failed');
+    return result;
+  },
+
+  async getVisibilidadInvitadosHost(encuentroId: string, hostId: string) {
+    const { data, error } = await supabase.rpc('get_visibilidad_invitados_host', {
+      p_encuentro_id: encuentroId,
+      p_host_id: hostId,
+    });
+    if (error) throw error;
+    const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+    // Devuelve { ok, visible } o { ok: false, error }
+    return result;
+  },
 };

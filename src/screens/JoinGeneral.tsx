@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -51,8 +51,36 @@ const JoinGeneral: React.FC = () => {
   // true solo si el usuario acaba de confirmar en ESTA sesión (no una visita posterior)
   const [justConfirmed, setJustConfirmed] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
+  // Respuestas visibles para el invitado (sólo si el host lo activó y el invitado ya respondió)
+  const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
+  const [visibleEnabled, setVisibleEnabled] = useState(false);
+  const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { if (public_token) loadData(); }, [public_token]);
+
+  // Polling de respuestas visibles
+  // SEGURIDAD: usa ownInviteToken (token personal del participante), nunca public_token.
+  // Solo activo cuando el invitado ya respondió (step === 'done') y tiene token personal.
+  useEffect(() => {
+    if (step !== 'done' || !ownInviteToken) return;
+
+    const fetchRespuestas = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const result = await participantesService.getRespuestasVisiblesInvitado(ownInviteToken);
+        setVisibleEnabled(result.visible);
+        setRespuestasVisibles(result.participantes);
+      } catch { /* no fatal */ }
+    };
+
+    fetchRespuestas(); // primera consulta inmediata
+    if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
+    pollRespuestasRef.current = setInterval(fetchRespuestas, 10000);
+
+    return () => {
+      if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
+    };
+  }, [step, ownInviteToken]);
 
   // Realtime subscription and polling for cancellation / deletion revalidation
   useEffect(() => {
@@ -513,6 +541,40 @@ const JoinGeneral: React.FC = () => {
       }}>
         Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
       </p>
+
+      {visibleEnabled && (
+        <div style={{
+          background: 'rgba(0,0,0,0.02)', borderRadius: 14,
+          border: '1px solid rgba(0,0,0,0.06)',
+          padding: '14px 16px', marginBottom: 16,
+        }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Respuestas del encuentro
+          </p>
+          {respuestasVisibles.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Todavía no hay respuestas visibles.</p>
+          ) : (
+            <>
+              {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#059669' }}>Confirmaron</p>
+                  {respuestasVisibles.filter(p => p.estado === 'confirmado').map((p, i) => (
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
+                  ))}
+                </div>
+              )}
+              {respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && (
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#DC2626' }}>No asisten</p>
+                  {respuestasVisibles.filter(p => p.estado === 'rechazado').map((p, i) => (
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── E. Nudge de login ────────────────────────────── */}
       {!user && justConfirmed && (

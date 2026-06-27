@@ -62,6 +62,10 @@ const DetailHost: React.FC = () => {
   const [selectedGuestMessage, setSelectedGuestMessage] = useState<any>(null);
   // Marca local de invitaciones ya compartidas (persiste en localStorage)
   const [sharedInvites, setSharedInvites] = useState<Record<string, boolean>>({});
+  // Estado para la opción de visibilidad de respuestas para invitados
+  const [visibilidadRespuestas, setVisibilidadRespuestas] = useState(false);
+  const [savingVisibilidad, setSavingVisibilidad] = useState(false);
+  const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -185,6 +189,14 @@ const DetailHost: React.FC = () => {
       const parts = await participantesService.getParticipantesByEncuentro(id!, hostId);
       setParticipantes(parts || []);
       setDetailData(id!, enc, parts || []);
+
+      // Leer estado actual de visibilidad para invitados
+      // get_detalle_host_seguro puede no incluir este campo (RPC preexistente),
+      // por eso consultamos con RPC dedicada
+      try {
+        const visResult = await encuentrosService.getVisibilidadInvitadosHost(id!, hostId);
+        if (visResult?.ok) setVisibilidadRespuestas(visResult.visible ?? false);
+      } catch { /* no fatal — el toggle inicia en false */ }
     } catch (err: any) {
       if (import.meta.env.DEV) console.error('[DetailHost] loadData error:', err?.message, err);
       const code = err?.code || err?.message || '';
@@ -424,6 +436,24 @@ const DetailHost: React.FC = () => {
   };
 
   const badge = getEventStatusBadge();
+
+  // Handler para compartir invitación general (link_general)
+  const handleToggleVisibilidad = async (newValue: boolean) => {
+    if (savingVisibilidad) return;
+    const hostId = hostIdRef.current ?? (user?.id ?? getHostId());
+    setSavingVisibilidad(true);
+    setVisibilidadFeedback(null);
+    try {
+      await encuentrosService.setVisibilidadRespuestasInvitados(id!, hostId, newValue);
+      setVisibilidadRespuestas(newValue);
+      setVisibilidadFeedback('ok');
+    } catch {
+      setVisibilidadFeedback('error');
+    } finally {
+      setSavingVisibilidad(false);
+      setTimeout(() => setVisibilidadFeedback(null), 2500);
+    }
+  };
 
   // Handler para compartir invitación general (link_general)
   const handleShareGeneral = async () => {
@@ -1194,6 +1224,62 @@ const DetailHost: React.FC = () => {
               {renderParticipantList('No asisten', rechazados)}
             </>
           </div>
+
+          {/* 5b. OPCIONES DEL ENCUENTRO — Visibilidad para invitados */}
+          {!isReadOnly && !isCancelado && (
+            <div style={{
+              background: '#fff', borderRadius: 14, padding: '14px 16px',
+              border: '1px solid rgba(0,0,0,0.06)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              marginBottom: 24,
+            }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Opciones del encuentro
+              </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>
+                    Permitir que los invitados vean las respuestas
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.45 }}>
+                    Si activás esta opción, los invitados podrán ver quién confirmó y quién no asiste. Los mensajes privados no serán visibles.
+                  </p>
+                </div>
+                {/* Toggle switch */}
+                <button
+                  onClick={() => handleToggleVisibilidad(!visibilidadRespuestas)}
+                  disabled={savingVisibilidad}
+                  aria-pressed={visibilidadRespuestas}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none',
+                    background: visibilidadRespuestas ? 'var(--color-primary)' : '#D1D5DB',
+                    cursor: savingVisibilidad ? 'not-allowed' : 'pointer',
+                    position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+                    opacity: savingVisibilidad ? 0.6 : 1,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 3,
+                    left: visibilidadRespuestas ? 23 : 3,
+                    width: 18, height: 18, borderRadius: 9,
+                    background: '#fff',
+                    transition: 'left 0.2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                    display: 'block',
+                  }} />
+                </button>
+              </div>
+              {visibilidadFeedback && (
+                <p style={{
+                  margin: '8px 0 0', fontSize: 12, fontWeight: 500,
+                  color: visibilidadFeedback === 'ok' ? '#059669' : '#DC2626',
+                  animation: 'fadeIn 0.2s ease',
+                }}>
+                  {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* 6. ACCIONES INFERIORES */}
           <div style={{ marginTop: 'auto', paddingTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
