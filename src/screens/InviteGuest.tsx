@@ -501,13 +501,20 @@ const InviteGuest: React.FC = () => {
           border: '1px solid rgba(0,0,0,0.06)',
           padding: '14px 16px', marginBottom: 16,
         }}>
-          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: respuestasVisibles.length === 0 ? 10 : 6 }}>
             Respuestas del encuentro
           </p>
           {respuestasVisibles.length === 0 ? (
             <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Todavía no hay respuestas visibles.</p>
           ) : (
             <>
+              <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
+                {[
+                  respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'confirmado').length} confirm.`,
+                  respuestasVisibles.filter(p => p.estado === 'pendiente').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'pendiente').length} pend.`,
+                  respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'rechazado').length} no asisten`,
+                ].filter(Boolean).join(' · ')}
+              </p>
               {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (
                 <div style={{ marginBottom: 10 }}>
                   <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#059669' }}>Confirmaron</p>
@@ -528,7 +535,7 @@ const InviteGuest: React.FC = () => {
                 <div>
                   <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Faltan responder</p>
                   {respuestasVisibles.filter(p => p.estado === 'pendiente').map((p, i) => (
-                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#374151' }}>{p.nombre_invitado}</p>
+                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#4B5563' }}>{p.nombre_invitado}</p>
                   ))}
                 </div>
               )}

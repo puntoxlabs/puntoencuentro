@@ -539,18 +539,19 @@ const DetailHost: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {list.map(p => {
             const avatarChar = p.nombre_invitado ? p.nombre_invitado.charAt(0).toUpperCase() : '?';
-            const sColor = p.estado === 'confirmado' ? '#059669' : p.estado === 'rechazado' ? '#DC2626' : '#6B7280';
-            const sLabel = p.estado === 'confirmado' ? '✔ Confirmado' : p.estado === 'rechazado' ? '✖ No asiste' : 'Pendiente';
+            const sLabel = p.estado === 'confirmado' ? 'Confirmado' : p.estado === 'rechazado' ? 'No asiste' : 'Pendiente';
+            const bgChip = p.estado === 'confirmado' ? '#D1FAE5' : p.estado === 'rechazado' ? '#FEE2E2' : '#FEF3C7';
+            const fgChip = p.estado === 'confirmado' ? '#065F46' : p.estado === 'rechazado' ? '#991B1B' : '#92400E';
             const bgAvatar = p.estado === 'confirmado' ? '#D1FAE5' : p.estado === 'rechazado' ? '#FEE2E2' : '#F3F4F6';
             const fgAvatar = p.estado === 'confirmado' ? '#047857' : p.estado === 'rechazado' ? '#B91C1C' : '#4B5563';
 
             return (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 38, height: 38, borderRadius: 19,
+                  width: 32, height: 32, borderRadius: 16,
                   background: bgAvatar, color: fgAvatar,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700, fontSize: 15, flexShrink: 0
+                  fontWeight: 700, fontSize: 13, flexShrink: 0
                 }}>
                   {avatarChar}
                 </div>
@@ -583,17 +584,17 @@ const DetailHost: React.FC = () => {
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
                       style={{
-                        background: copiedId === p.id
+                      background: copiedId === p.id
                           ? 'var(--color-primary-container)'
                           : sharedInvites[p.id]
                           ? '#F0FDF4'
-                          : 'transparent',
+                          : 'var(--color-primary-container)',
                         border: `1.5px solid ${
                           copiedId === p.id
                             ? 'var(--color-primary)'
                             : sharedInvites[p.id]
                             ? '#86EFAC'
-                            : 'var(--color-outline-variant)'
+                            : 'var(--color-primary)'
                         }`,
                         borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
                         fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
@@ -601,14 +602,14 @@ const DetailHost: React.FC = () => {
                           ? 'var(--color-primary)'
                           : sharedInvites[p.id]
                           ? '#16A34A'
-                          : 'var(--color-on-surface-variant)',
+                          : 'var(--color-primary-dark)',
                         transition: 'all 0.15s', whiteSpace: 'nowrap',
                       }}
                     >
                       {copiedId === p.id ? '✓ Copiado' : sharedInvites[p.id] ? '✓ Compartido' : 'Compartir'}
                     </button>
                   )}
-                  <span style={{ fontSize: 13, color: sColor, fontWeight: 500 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: bgChip, color: fgChip, borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>
                     {sLabel}
                   </span>
                   {!isReadOnly && !isCancelado && (
@@ -1099,9 +1100,7 @@ const DetailHost: React.FC = () => {
                     </button>
                   </div>
 
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
-                    Agregá a las personas que querés invitar. Luego podrás compartirles su invitación individual.
-                  </p>
+                    Agregá personas y compartiles su invitación individual.
                 </div>
               )}
 
@@ -1191,9 +1190,18 @@ const DetailHost: React.FC = () => {
 
           {/* 5. PARTICIPANTES */}
           <div style={{ marginBottom: 40 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 20 }}>
-              Participantes <span style={{ color: '#6B7280', fontWeight: 500, fontSize: 16 }}>({confirmados.length} confirmados)</span>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: hasAnyResponse ? 2 : 16 }}>
+              Participantes
             </h3>
+            {hasAnyResponse && (
+              <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
+                {[
+                  confirmados.length > 0 && `${confirmados.length} confirm.`,
+                  pendientes.length > 0 && `${pendientes.length} pend.`,
+                  rechazados.length > 0 && `${rechazados.length} no asisten`,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            )}
 
             <>
               {!hasAnyResponse && (
@@ -1212,10 +1220,8 @@ const DetailHost: React.FC = () => {
                     </div>
                   )
                   : (
-                    <div style={{ textAlign: 'center', padding: '24px 20px', background: 'rgba(0,0,0,0.02)', borderRadius: 16, border: '1px dashed rgba(0,0,0,0.1)', marginBottom: 24 }}>
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-                      <h4 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Todavía no hay respuestas</h4>
-                      <p style={{ margin: '0 auto', fontSize: 14, color: '#6B7280', lineHeight: 1.4, maxWidth: 280 }}>Compartí el enlace o invitá personas para recibir confirmaciones.</p>
+                    <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.02)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)', marginBottom: 16 }}>
+                      <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>Todavía no hay respuestas. Compartí el enlace para empezar a recibir confirmaciones.</p>
                     </div>
                   )
               )}
