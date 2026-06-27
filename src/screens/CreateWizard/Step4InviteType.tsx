@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
@@ -26,12 +26,7 @@ const Step4InviteType: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Redirigir a Home si el usuario volvió al wizard con "Atrás" después de crear el encuentro
-    if (wizardData.encuentro_id) {
-      navigate('/', { replace: true });
-    }
-  }, [wizardData.encuentro_id, navigate]);
+
   const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
 
   const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
