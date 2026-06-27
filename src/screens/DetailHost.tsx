@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
-import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
+import { getHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -64,21 +64,10 @@ const DetailHost: React.FC = () => {
   const [selectedGuestMessage, setSelectedGuestMessage] = useState<any>(null);
   // Marca local de invitaciones ya compartidas (persiste en localStorage)
   const [sharedInvites, setSharedInvites] = useState<Record<string, boolean>>({});
-  // Estado para la opción de visibilidad de respuestas para invitados
+  // Opciones de visibilidad
   const [visibilidadRespuestas, setVisibilidadRespuestas] = useState(false);
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
-
-  // Alias del anfitrión
-  const [hostAlias, setHostAliasState] = useState(getHostAlias());
-  const [aliasFeedback, setAliasFeedback] = useState(false);
-
-  const handleSaveAlias = () => {
-    setHostAlias(hostAlias);
-    setHostAliasState(getHostAlias());
-    setAliasFeedback(true);
-    setTimeout(() => setAliasFeedback(false), 2000);
-  };
 
   // hostId estabilizado en ref: se resuelve UNA vez cuando auth ya tiene valor definitivo.
   // Usa user.id si está logueado, o el UUID persistido en localStorage si es anónimo.
@@ -380,9 +369,10 @@ const DetailHost: React.FC = () => {
       : `${baseUrl}/meet/${encuentro.id}`;
     
     
-    const intro = hostAlias 
-      ? `${hostAlias} creó un nuevo encuentro en reemplazo del anterior 👇` 
-      : `Se creó un nuevo encuentro en reemplazo del anterior 👇`;
+    const alias = getHostAlias();
+    const intro = alias 
+      ? `${alias} creó un nuevo encuentro en reemplazo del anterior 👇` 
+      : 'Creé un nuevo encuentro en reemplazo del anterior 👇';
       
     const msg = `${intro}\n\nConfirmá si podés asistir:\n${newLink}`;
     
@@ -479,9 +469,10 @@ const DetailHost: React.FC = () => {
       const shareUrl = `${window.location.origin}/join/${encuentro.public_token}`;
       const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
       
-      const aliasIntro = hostAlias 
-        ? `${hostAlias} te invita a este encuentro 👇` 
-        : `Te invito a este encuentro 👇`;
+      const alias = getHostAlias();
+      const aliasIntro = alias 
+        ? `${alias} te invita a este encuentro 👇` 
+        : 'Te invito a este encuentro 👇';
         
       let shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
       if (personalMessage.trim()) {
@@ -527,12 +518,14 @@ const DetailHost: React.FC = () => {
     
     let shareText = '';
     if (guestName?.trim()) {
-      shareText = hostAlias 
-        ? `${guestName.trim()}, ${hostAlias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
+      const alias = getHostAlias();
+      shareText = alias 
+        ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
         : `${guestName.trim()}, te invito a este encuentro 👇\nConfirmá si podés asistir:`;
     } else {
-      shareText = hostAlias
-        ? `${hostAlias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
+      const alias = getHostAlias();
+      shareText = alias
+        ? `${alias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
         : `Te invito a este encuentro 👇\nConfirmá si podés asistir:`;
     }
     if (navigator.share) {
@@ -1265,21 +1258,21 @@ const DetailHost: React.FC = () => {
           {/* 5b. OPCIONES DEL ENCUENTRO — Visibilidad para invitados */}
           {!isReadOnly && !isCancelado && (
             <div style={{
-              background: '#fff', borderRadius: 14, padding: '14px 16px',
+              background: '#fff', borderRadius: 12, padding: '12px 16px',
               border: '1px solid rgba(0,0,0,0.06)',
               boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
               marginBottom: 24,
             }}>
-              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Opciones del encuentro
               </p>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>
-                    Permitir que los invitados vean las respuestas
+                  <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>
+                    Invitados ven respuestas
                   </p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.45 }}>
-                    Si activás esta opción, los invitados podrán ver quién confirmó, quién no asiste y quién todavía falta responder. Los mensajes privados no serán visibles.
+                  <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>
+                    Verán confirmados, no asisten y pendientes. Los mensajes privados no se comparten.
                   </p>
                 </div>
                 {/* Toggle switch */}
@@ -1315,56 +1308,6 @@ const DetailHost: React.FC = () => {
                   {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
                 </p>
               )}
-            </div>
-          )}
-
-          {!isReadOnly && !isCancelado && (
-            <div style={{
-              background: '#fff', borderRadius: 14, padding: '14px 16px',
-              border: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              marginBottom: 24,
-            }}>
-              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Alias del anfitrión
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.45 }}>
-                  Se usará para que tus invitaciones indiquen quién invita. Este nombre sólo se usa para personalizar tus invitaciones en este dispositivo.
-                </p>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    value={hostAlias}
-                    onChange={e => setHostAliasState(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSaveAlias(); }}
-                    placeholder="Ej: Leandro"
-                    style={{
-                      flex: 1, minWidth: 0, border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
-                      padding: '0 12px', height: 40, fontSize: 14, borderRadius: 8,
-                      fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
-                      background: '#F9FAFB',
-                    }}
-                  />
-                  <button
-                    onClick={handleSaveAlias}
-                    style={{
-                      background: 'var(--color-primary-container)',
-                      color: 'var(--color-primary-dark)',
-                      border: '1px solid var(--color-primary)',
-                      cursor: 'pointer', padding: '0 16px', height: 40, borderRadius: 8,
-                      fontFamily: 'var(--font-family)', fontWeight: 600, fontSize: 13, 
-                      transition: 'all 0.15s', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Guardar
-                  </button>
-                </div>
-                {aliasFeedback && (
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: '#059669', animation: 'fadeIn 0.2s ease' }}>
-                    ✓ Guardado
-                  </p>
-                )}
-              </div>
             </div>
           )}
 

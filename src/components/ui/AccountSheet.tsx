@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import './AccountSheet.css';
 
 interface AccountSheetProps {
@@ -28,6 +29,16 @@ function getInitials(user: {
 export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
   const { user, loading, signInWithGoogle, signOut } = useAuth();
+  
+  const [hostAlias, setHostAliasState] = useState('');
+  const [aliasFeedback, setAliasFeedback] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHostAliasState(getHostAlias());
+      setAliasFeedback(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -47,6 +58,12 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   const handleSignOut = async () => {
     await signOut();
     onClose();
+  };
+
+  const handleSaveAlias = () => {
+    setHostAlias(hostAlias);
+    setAliasFeedback(true);
+    setTimeout(() => setAliasFeedback(false), 3000);
   };
 
   return (
@@ -137,6 +154,56 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
             </p>
           </>
         )}
+
+        {/* ── Alias del anfitrión ───────────────────── */}
+        <div style={{
+          marginTop: 24, padding: '16px', borderRadius: 14,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+        }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Alias del anfitrión
+          </p>
+          <p style={{ margin: '0 0 4px', fontSize: 13, color: '#4B5563', lineHeight: 1.4 }}>
+            Se usará en tus invitaciones para indicar quién invita.
+          </p>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#6B7280' }}>
+            Se guarda en este dispositivo.
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              value={hostAlias}
+              onChange={e => setHostAliasState(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveAlias(); }}
+              placeholder="Ej: Leandro"
+              style={{
+                flex: 1, minWidth: 0, border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
+                padding: '0 12px', height: 40, fontSize: 14, borderRadius: 8,
+                fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
+                background: '#F9FAFB',
+              }}
+            />
+            <button
+              onClick={handleSaveAlias}
+              style={{
+                background: 'var(--color-primary-container)',
+                color: 'var(--color-primary-dark)',
+                border: '1px solid var(--color-primary)',
+                cursor: 'pointer', padding: '0 16px', height: 40, borderRadius: 8,
+                fontFamily: 'var(--font-family)', fontWeight: 600, fontSize: 13, 
+                transition: 'all 0.15s', whiteSpace: 'nowrap',
+              }}
+            >
+              Guardar
+            </button>
+          </div>
+          {aliasFeedback && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 500, color: '#059669', animation: 'fadeIn 0.2s ease' }}>
+              ✓ Guardado
+            </p>
+          )}
+        </div>
+
       </div>
     </>
   );
