@@ -10,6 +10,8 @@ import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
+
+import { formatCount } from '@/lib/formatCount';
 import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
 import { CheckCircle2, CalendarCheck2, MapPin, Video } from 'lucide-react';
@@ -510,9 +512,9 @@ const InviteGuest: React.FC = () => {
             <>
               <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
                 {[
-                  respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'confirmado').length} confirm.`,
-                  respuestasVisibles.filter(p => p.estado === 'pendiente').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'pendiente').length} pend.`,
-                  respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && `${respuestasVisibles.filter(p => p.estado === 'rechazado').length} no asisten`,
+                  formatCount(respuestasVisibles.filter(p => p.estado === 'confirmado').length, 'confirmado', 'confirmados'),
+                  formatCount(respuestasVisibles.filter(p => p.estado === 'rechazado').length, 'no asiste', 'no asisten'),
+                  formatCount(respuestasVisibles.filter(p => p.estado === 'pendiente').length, 'falta responder', 'faltan responder')
                 ].filter(Boolean).join(' · ')}
               </p>
               {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (

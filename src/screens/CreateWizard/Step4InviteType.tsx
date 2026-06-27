@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
@@ -25,6 +25,13 @@ const Step4InviteType: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Redirigir a Home si el usuario volvió al wizard con "Atrás" después de crear el encuentro
+    if (wizardData.encuentro_id) {
+      navigate('/', { replace: true });
+    }
+  }, [wizardData.encuentro_id, navigate]);
   const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
 
   const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
@@ -108,9 +115,9 @@ const Step4InviteType: React.FC = () => {
       }
 
       if (tipo === 'individual') {
-        navigate(`/add-guests/${encuentroId}`);
+        navigate(`/add-guests/${encuentroId}`, { replace: true });
       } else {
-        navigate(`/share/${encuentroId}`);
+        navigate(`/share/${encuentroId}`, { replace: true });
       }
     } catch (error: any) {
       console.error('[CREATE ERROR FULL]', error);
@@ -127,9 +134,9 @@ const Step4InviteType: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div
-          style={optionCard(wizardData.tipo_invitacion === 'link_general', loading)}
+          style={optionCard(wizardData.tipo_invitacion === 'link_general', loading || !!wizardData.encuentro_id)}
           onClick={async () => {
-            if (loading) return;
+            if (loading || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'link_general');
             setError(null);
             await handleFinish('link_general');
@@ -141,9 +148,9 @@ const Step4InviteType: React.FC = () => {
         </div>
 
         <div
-          style={optionCard(wizardData.tipo_invitacion === 'individual', loading)}
+          style={optionCard(wizardData.tipo_invitacion === 'individual', loading || !!wizardData.encuentro_id)}
           onClick={async () => {
-            if (loading) return;
+            if (loading || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'individual');
             setError(null);
             await handleFinish('individual');

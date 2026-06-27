@@ -22,6 +22,7 @@ import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
+import { formatCount } from '@/lib/formatCount';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
 
@@ -1226,9 +1227,9 @@ const DetailHost: React.FC = () => {
             {hasAnyResponse && (
               <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
                 {[
-                  confirmados.length > 0 && `${confirmados.length} confirm.`,
-                  pendientes.length > 0 && `${pendientes.length} pend.`,
-                  rechazados.length > 0 && `${rechazados.length} no asisten`,
+                  formatCount(confirmados.length, 'confirmado', 'confirmados'),
+                  formatCount(pendientes.length, 'pendiente', 'pendientes'),
+                  formatCount(rechazados.length, 'no asiste', 'no asisten'),
                 ].filter(Boolean).join(' · ')}
               </p>
             )}
