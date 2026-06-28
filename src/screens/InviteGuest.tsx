@@ -259,6 +259,13 @@ const InviteGuest: React.FC = () => {
         setParticipante((prev: any) => ({ ...prev, estado }));
       }
 
+      // Actualizar link_virtual usando la respuesta de la RPC directamente
+      if (response?.link_virtual) {
+        setEncuentro((prev: any) => prev ? { ...prev, link_virtual: response.link_virtual } : prev);
+      } else if (estado !== 'confirmado') {
+        setEncuentro((prev: any) => prev ? { ...prev, link_virtual: undefined } : prev);
+      }
+
       if (import.meta.env.DEV) console.log('[INVITE] Paso 4: mostrando pantalla de éxito');
       setStep('done');
       setJustConfirmed(true);
@@ -459,35 +466,44 @@ const InviteGuest: React.FC = () => {
       </div>
 
       {/* ── C. Acción de videollamada (si aplica) ─────────── */}
-      {encuentro.modalidad === 'virtual' && participante.estado === 'confirmado' && encuentro.link_virtual && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{
-            background: 'var(--color-primary-container)',
-            borderRadius: 12, padding: '10px 14px',
-            fontSize: 13, color: 'var(--color-primary-dark)',
-            fontWeight: 500, wordBreak: 'break-all',
-          }}>
-            {encuentro.link_virtual}
+      {(() => {
+        const meetingLink = encuentro?.link_virtual || (encuentro as any)?.linkVirtual || '';
+        const isVirtualMeeting = encuentro?.modalidad === 'virtual';
+        const hasConfirmed = participante?.estado === 'confirmado';
+        const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(meetingLink);
+
+        if (!showJoinMeetingButton) return null;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <div style={{
+              background: 'var(--color-primary-container)',
+              borderRadius: 12, padding: '10px 14px',
+              fontSize: 13, color: 'var(--color-primary-dark)',
+              fontWeight: 500, wordBreak: 'break-all',
+            }}>
+              {meetingLink}
+            </div>
+            {/* Acción primaria */}
+            <Button fullWidth onClick={() => openExternalVideoLink(meetingLink)}>
+              {t('join_meeting', 'Unirme a la reunión')}
+            </Button>
+            {/* Acción secundaria — menos peso visual */}
+            <button
+              onClick={handleCopyVideoLink}
+              style={{
+                background: 'none', border: 'none',
+                color: 'var(--color-on-surface-variant)', fontSize: 14,
+                fontFamily: 'var(--font-family)', fontWeight: 500,
+                cursor: 'pointer', padding: '6px 0', textAlign: 'center',
+                textDecoration: 'underline', textUnderlineOffset: 3,
+              }}
+            >
+              {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
+            </button>
           </div>
-          {/* Acción primaria */}
-          <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
-            {t('join_meeting', 'Unirme a la reunión')}
-          </Button>
-          {/* Acción secundaria — menos peso visual */}
-          <button
-            onClick={handleCopyVideoLink}
-            style={{
-              background: 'none', border: 'none',
-              color: 'var(--color-on-surface-variant)', fontSize: 14,
-              fontFamily: 'var(--font-family)', fontWeight: 500,
-              cursor: 'pointer', padding: '6px 0', textAlign: 'center',
-              textDecoration: 'underline', textUnderlineOffset: 3,
-            }}
-          >
-            {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── D. Texto de ayuda ─────────────────────────────── */}
       <p style={{
