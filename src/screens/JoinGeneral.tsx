@@ -518,7 +518,7 @@ const JoinGeneral: React.FC = () => {
             {encuentro.link_virtual}
           </div>
           <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
-            {t('open_video_call', 'Abrir videollamada')}
+            {t('join_meeting', 'Unirme a la reunión')}
           </Button>
           <button
             onClick={handleCopyVideoLink}

@@ -609,18 +609,22 @@ const DetailHost: React.FC = () => {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {!isReadOnly && !isCancelado && p.estado === 'pendiente' && p.token_invitacion && (
+                  {!isReadOnly && !isCancelado && p.token_invitacion && (
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
                       style={{
-                      background: copiedId === p.id
+                        background: copiedId === p.id
                           ? 'var(--color-primary-container)'
+                          : p.estado !== 'pendiente'
+                          ? 'transparent'
                           : sharedInvites[p.id]
                           ? '#F0FDF4'
                           : 'var(--color-primary-container)',
                         border: `1.5px solid ${
                           copiedId === p.id
                             ? 'var(--color-primary)'
+                            : p.estado !== 'pendiente'
+                            ? '#D1D5DB'
                             : sharedInvites[p.id]
                             ? '#86EFAC'
                             : 'var(--color-primary)'
@@ -629,13 +633,15 @@ const DetailHost: React.FC = () => {
                         fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
                         color: copiedId === p.id
                           ? 'var(--color-primary)'
+                          : p.estado !== 'pendiente'
+                          ? '#6B7280'
                           : sharedInvites[p.id]
                           ? '#16A34A'
                           : 'var(--color-primary-dark)',
                         transition: 'all 0.15s', whiteSpace: 'nowrap',
                       }}
                     >
-                      {copiedId === p.id ? '✓ Copiado' : sharedInvites[p.id] ? '✓ Compartido' : 'Compartir'}
+                      {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir')}
                     </button>
                   )}
                   <span style={{ fontSize: 11, fontWeight: 700, background: bgChip, color: fgChip, borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>

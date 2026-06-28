@@ -471,7 +471,7 @@ const InviteGuest: React.FC = () => {
           </div>
           {/* Acción primaria */}
           <Button fullWidth onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
-            {t('open_video_call', 'Abrir videollamada')}
+            {t('join_meeting', 'Unirme a la reunión')}
           </Button>
           {/* Acción secundaria — menos peso visual */}
           <button

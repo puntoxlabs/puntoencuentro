@@ -370,6 +370,20 @@ const Home: React.FC = () => {
         // Logueado: traer organizados (user + anon) y participados
         organized = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
         participated = await encuentrosService.getEncuentrosParticipados(userId);
+        
+        // Cargar también participaciones anónimas locales y hacer merge
+        try {
+          const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
+          const tokens = getAllParticipatedTokens();
+          if (tokens.length > 0) {
+            const anonParticipated = await encuentrosService.getEncuentrosParticipadosPorTokens(tokens);
+            const existingIds = new Set(participated.map(p => p.id));
+            const missing = anonParticipated.filter(p => !existingIds.has(p.id));
+            participated = [...participated, ...missing];
+          }
+        } catch (err) {
+          if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo en merge:', err);
+        }
       } else {
         // Anónimo: organizados del UUID local
         organized = await encuentrosService.getEncuentrosByHost(anonId);
