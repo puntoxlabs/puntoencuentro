@@ -23,6 +23,7 @@ import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
+import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
 
@@ -394,8 +395,8 @@ const DetailHost: React.FC = () => {
   // Mostrar loading mientras auth resuelve (evita flash de error)
   if (authLoading || loading) return (
     <ScreenContainer>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p>Cargando detalle…</p>
+      <div className="dh-centered">
+        <p className="dh-loading-text">Cargando detalle…</p>
       </div>
     </ScreenContainer>
   );
@@ -403,9 +404,9 @@ const DetailHost: React.FC = () => {
   if (error || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Error" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
-        <span style={{ fontSize: 36 }}>⚠️</span>
-        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
+      <div className="dh-error-container">
+        <span className="dh-error-icon">⚠️</span>
+        <p className="dh-error-text">
           {error || 'Encuentro no encontrado.'}
         </p>
         <Button fullWidth onClick={() => loadData()} variant="outline">
@@ -431,20 +432,19 @@ const DetailHost: React.FC = () => {
   const isVirtual    = encuentro.modalidad === 'virtual';
 
   const getEventStatusBadge = () => {
-    if (isCancelado) return { label: 'Cancelado', bg: '#FEE2E2', color: '#B91C1C' };
-    if (!encuentro.fecha || !encuentro.hora) return { label: 'Activo', bg: 'var(--color-primary-container)', color: 'var(--color-primary-dark)' };
+    if (isCancelado) return { label: 'Cancelado', className: 'dh-badge--cancelled' };
+    if (!encuentro.fecha || !encuentro.hora) return { label: 'Activo', className: 'dh-badge--active' };
 
     const now = new Date();
     const eventDate = new Date(`${encuentro.fecha}T${encuentro.hora}`);
     const diffMinutes = Math.round((eventDate.getTime() - now.getTime()) / 60000);
     
-    if (diffMinutes < -45) return { label: 'Finalizado', bg: '#F3F4F6', color: '#4B5563' };
-    if (diffMinutes <= 0) return { label: '🟢 En curso ahora', bg: '#D1FAE5', color: '#047857' };
-    // Corregido: "Listo para unirte" suena a invitado; para el host usamos "Encuentro activo"
-    if (diffMinutes <= 15) return { label: '🟢 Encuentro activo', bg: '#D1FAE5', color: '#047857' };
-    if (diffMinutes <= 60) return { label: `🟡 Empieza en ${diffMinutes} min`, bg: '#FEF3C7', color: '#B45309' };
+    if (diffMinutes < -45) return { label: 'Finalizado', className: 'dh-badge--finished' };
+    if (diffMinutes <= 0) return { label: '🟢 En curso ahora', className: 'dh-badge--live' };
+    if (diffMinutes <= 15) return { label: '🟢 Encuentro activo', className: 'dh-badge--live' };
+    if (diffMinutes <= 60) return { label: `🟡 Empieza en ${diffMinutes} min`, className: 'dh-badge--soon' };
     
-    return { label: 'Activo', bg: 'var(--color-primary-container)', color: 'var(--color-primary-dark)' };
+    return { label: 'Activo', className: 'dh-badge--active' };
   };
 
   const badge = getEventStatusBadge();
@@ -816,11 +816,7 @@ const DetailHost: React.FC = () => {
             <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
               {encuentro.titulo}
             </h2>
-            <div style={{
-              background: badge.bg, color: badge.color,
-              padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-              whiteSpace: 'nowrap'
-            }}>
+            <div className={`dh-badge ${badge.className}`}>
               {badge.label}
             </div>
           </div>
@@ -971,28 +967,24 @@ const DetailHost: React.FC = () => {
           style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}
         >
           {/* 1. HEADER EVENTO */}
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
+          <div className="dh-event-header">
+            <div className="dh-title-row">
+              <h2 className="dh-title">
                 {encuentro.titulo}
               </h2>
-              <div style={{
-                background: badge.bg, color: badge.color,
-                padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                whiteSpace: 'nowrap'
-              }}>
+              <div className={`dh-badge ${badge.className}`}>
                 {badge.label}
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
-                <span>📅</span> <span style={{ fontWeight: 500 }}>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+            <div className="dh-meta-list">
+              <div className="dh-meta-row">
+                <span>📅</span> <span className="dh-meta-text">{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4B5563', fontSize: 15 }}>
-                <span>{isVirtual ? '💻' : '📍'}</span> <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
+              <div className="dh-meta-row">
+                <span>{isVirtual ? '💻' : '📍'}</span> <span className="dh-meta-text">{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
               </div>
               {encuentro.descripcion && (
-                <div style={{ marginTop: 8, fontSize: 14, color: '#6B7280', fontStyle: 'italic' }}>
+                <div className="dh-description">
                   {encuentro.descripcion}
                 </div>
               )}
@@ -1001,13 +993,9 @@ const DetailHost: React.FC = () => {
 
           {/* MODO SOLO LECTURA BANNER */}
           {isReadOnly && (
-            <div style={{
-              background: 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '10px 14px',
-              marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8,
-              border: '1px solid rgba(0,0,0,0.06)'
-            }}>
-              <span style={{ fontSize: 16 }}>🔒</span>
-              <span style={{ fontSize: 13, color: '#4B5563', fontWeight: 500 }}>
+            <div className="dh-banner dh-banner--readonly">
+              <span className="dh-banner-icon">🔒</span>
+              <span className="dh-banner-text">
                 Este encuentro ya finalizó. No se puede modificar.
               </span>
             </div>
@@ -1115,10 +1103,9 @@ const DetailHost: React.FC = () => {
 
                   {/* Vista previa del mensaje si existe */}
                   {personalMessage.trim() && (
-                    <div style={{
+                    <div className="dh-fade-in" style={{
                       background: '#F9FAFB', borderRadius: 10,
                       padding: '10px 14px', border: '1px solid rgba(0,0,0,0.05)',
-                      animation: 'fadeIn 0.3s ease'
                     }}>
                       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
                         {t('invitation.organizer_message', 'Mensaje del organizador')}
@@ -1143,12 +1130,12 @@ const DetailHost: React.FC = () => {
 
                   {/* Feedback post-compartir */}
                   {shareFeedback && !copiedShare && (
-                    <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500 }}>
                       {t('share.ready_host', 'Listo. Podés volver al inicio o revisar el encuentro.')}
                     </p>
                   )}
                   {copiedShare && (
-                    <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, lineHeight: 1.4, animation: 'fadeIn 0.3s ease' }}>
+                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, lineHeight: 1.4 }}>
                       {t('invitation.desktop_copied', 'Mensaje copiado. Pegalo en WhatsApp Web, correo o donde quieras compartirlo.')}
                     </p>
                   )}
@@ -1206,13 +1193,12 @@ const DetailHost: React.FC = () => {
 
               {/* Google sign-in nudge: solo cuando viene de ?share=1 y usuario no autenticado */}
               {isFromShare && !user && !loading && encuentro && (
-                <div style={{
+                <div className="dh-fade-in" style={{
                   background: 'var(--color-primary-container)',
                   borderRadius: 16, padding: '16px 20px',
                   marginTop: 12,
                   border: '1px solid var(--color-primary)',
                   display: 'flex', flexDirection: 'column', gap: 10,
-                  animation: 'fadeIn 0.5s ease-out'
                 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1.3 }}>
                     {t('account.save_encounter_title', 'Guardá este encuentro en tu cuenta')}
@@ -1270,19 +1256,14 @@ const DetailHost: React.FC = () => {
 
           {/* BANNER REPETIR CANCELADO */}
           {fromCancelled && (
-            <div style={{
-              background: 'var(--color-primary-container)',
-              border: '1px solid var(--color-primary)',
-              borderRadius: 16, padding: '16px',
-              marginBottom: 32, flexShrink: 0,
-            }}>
-              <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-primary-dark)', marginBottom: 6 }}>
+            <div className="dh-banner--info">
+              <p className="dh-banner-title">
                 Encuentro anterior cancelado
               </p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-on-surface)', marginBottom: 8 }}>
+              <p className="dh-banner-subtitle">
                 {fromCancelled.oldTitulo} — {fromCancelled.oldFecha}
               </p>
-              <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', margin: 0, lineHeight: 1.4 }}>
+              <p className="dh-banner-text">
                 Este nuevo encuentro reemplaza al anterior. Al compartir el enlace, los invitados recibirán la nueva invitación.
               </p>
             </div>
@@ -1376,10 +1357,9 @@ const DetailHost: React.FC = () => {
                 </button>
               </div>
               {visibilidadFeedback && (
-                <p style={{
+                <p className="dh-fade-in" style={{
                   margin: '8px 0 0', fontSize: 12, fontWeight: 500,
                   color: visibilidadFeedback === 'ok' ? '#059669' : '#DC2626',
-                  animation: 'fadeIn 0.2s ease',
                 }}>
                   {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
                 </p>
@@ -1454,13 +1434,6 @@ const DetailHost: React.FC = () => {
           </div>
         </div>
       )}
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}} />
 
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>

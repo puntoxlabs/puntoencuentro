@@ -1,0 +1,195 @@
+/* DetailHost.css - Estilos para el panel del organizador (Fase C1) */
+
+/* ==========================================================================
+   Animaciones Globales
+   ========================================================================== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dh-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ==========================================================================
+   Estados Vacíos (Loading, Error)
+   ========================================================================== */
+.dh-centered {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dh-loading-text {
+  color: var(--color-on-surface-variant);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.dh-error-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 24px;
+}
+
+.dh-error-icon {
+  font-size: 36px;
+}
+
+.dh-error-text {
+  text-align: center;
+  font-size: 15px;
+  color: var(--color-on-surface);
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Encabezado del Encuentro
+   ========================================================================== */
+.dh-event-header {
+  margin-bottom: 32px;
+}
+
+.dh-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.dh-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--color-on-surface);
+  flex: 1;
+  margin-right: 12px;
+}
+
+.dh-badge {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dh-badge--active {
+  background: var(--color-primary-container);
+  color: var(--color-primary-dark);
+}
+
+.dh-badge--cancelled {
+  background: var(--color-danger-container);
+  color: var(--color-danger-dark);
+}
+
+.dh-badge--finished {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.dh-badge--live {
+  background: var(--color-success-container);
+  color: var(--color-success-dark);
+}
+
+.dh-badge--soon {
+  background: var(--color-warning-container);
+  color: var(--color-warning-dark);
+}
+
+/* ==========================================================================
+   Metadatos (Fecha, Lugar, Modalidad)
+   ========================================================================== */
+.dh-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dh-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-on-surface-variant);
+  font-size: 15px;
+}
+
+.dh-meta-text {
+  font-weight: 500;
+}
+
+.dh-description {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Banners (Lectura, Info)
+   ========================================================================== */
+.dh-banner {
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dh-banner--readonly {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.dh-banner--readonly .dh-banner-icon {
+  font-size: 16px;
+}
+
+.dh-banner--readonly .dh-banner-text {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+}
+
+.dh-banner--info {
+  background: var(--color-primary-container);
+  border: 1px solid var(--color-primary);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 32px;
+  flex-shrink: 0;
+  display: block; /* Overrides default flex */
+}
+
+.dh-banner--info .dh-banner-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin-bottom: 6px;
+}
+
+.dh-banner--info .dh-banner-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin-bottom: 8px;
+}
+
+.dh-banner--info .dh-banner-text {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  line-height: 1.4;
+}
