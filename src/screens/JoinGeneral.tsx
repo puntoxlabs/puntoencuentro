@@ -13,24 +13,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { getThemeStyle } from '@/lib/themes';
 import { formatCount } from '@/lib/formatCount';
-import { CheckCircle2, CalendarCheck2, MapPin, Video } from 'lucide-react';
+import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
+import { EmptyState } from '@/components/ui/EmptyState';
+import './Guest.css';
 
 interface SavedData {
   encuentros: Record<string, { participant_id?: string; token_invitacion?: string }>;
 }
-
-const metaRow: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8,
-  fontSize: 15, color: 'var(--color-on-surface-variant)', marginBottom: 10,
-};
-const metaIcon: React.CSSProperties = { fontSize: 17, width: 22, textAlign: 'center', flexShrink: 0 };
-const eventCard: React.CSSProperties = {
-  background: '#fff', borderRadius: 20, padding: '20px',
-  border: '1px solid rgba(0,0,0,0.06)',
-  boxShadow: '0 2px 10px rgba(0,0,0,0.06)', marginBottom: 24,
-};
 
 
 const JoinGeneral: React.FC = () => {
@@ -360,8 +351,8 @@ const JoinGeneral: React.FC = () => {
 
   if (loading) return (
     <ScreenContainer>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p>Cargando encuentro…</p>
+      <div className="guest-screen-centered">
+        <p className="guest-loading-text">Cargando encuentro…</p>
       </div>
     </ScreenContainer>
   );
@@ -369,12 +360,11 @@ const JoinGeneral: React.FC = () => {
   if (error || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Encuentro" />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 20px' }}>
-        <span style={{ fontSize: 40 }}>❌</span>
-        <p style={{ textAlign: 'center', fontSize: 16, fontWeight: 600, color: '#374151', margin: 0 }}>
-          Este encuentro ya no está disponible
-        </p>
-      </div>
+      <EmptyState
+        icon={<AlertCircle size={48} color="var(--color-danger)" />}
+        title="Encuentro no disponible"
+        description="Este encuentro ya no existe o el enlace es inválido."
+      />
     </ScreenContainer>
   );
 
@@ -382,48 +372,39 @@ const JoinGeneral: React.FC = () => {
   if (encuentro?.estado?.toLowerCase() === 'cancelado') return (
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Detalle del encuentro" />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 8 }}>
-
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 16, paddingLeft: 20, paddingRight: 20 }}>
+        
         {/* Banner destacado */}
-        <div style={{
-          background: '#B91C1C',
-          borderRadius: 16, padding: '18px 20px',
-          marginBottom: 20,
-          display: 'flex', alignItems: 'center', gap: 14,
-        }}>
-          <span style={{ fontSize: 28, lineHeight: 1 }}>❌</span>
+        <div className="guest-banner guest-banner--danger">
+          <span className="guest-banner-icon"><CalendarX2 size={32} /></span>
           <div>
-            <p style={{ margin: 0, fontWeight: 800, fontSize: 17, color: '#fff' }}>Encuentro cancelado</p>
+            <p className="guest-banner-title">Encuentro cancelado</p>
           </div>
         </div>
 
         {/* Detalle del encuentro (solo lectura) */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '20px',
-          border: '1px solid rgba(0,0,0,0.06)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom: 20,
-        }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>{encuentro.titulo}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
-            <span>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8 }}>
-            <span>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
-            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+        <div className="guest-card">
+          <h2 className="guest-card-title">{encuentro.titulo}</h2>
+          <div className="guest-meta-list">
+            <div className="guest-meta-row">
+              <span className="guest-meta-icon"><CalendarCheck2 size={20} /></span>
+              <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+            </div>
+            <div className="guest-meta-row">
+              <span className="guest-meta-icon">
+                {encuentro.modalidad === 'presencial' ? <MapPin size={20} /> : <Video size={20} />}
+              </span>
+              <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+            </div>
           </div>
           {encuentro.modalidad === 'virtual' && encuentro.link_virtual && (
-            <div style={{
-              background: 'var(--color-primary-container)', borderRadius: 10, padding: '8px 12px',
-              fontSize: 13, color: 'var(--color-on-surface-variant)', wordBreak: 'break-all',
-              marginTop: 4, userSelect: 'text',
-            }}>
+            <div className="guest-video-link-display" style={{ marginTop: 16 }}>
               {encuentro.link_virtual}
             </div>
           )}
         </div>
 
-        <p style={{ margin: 0, fontSize: 15, color: '#B91C1C', fontWeight: 600, textAlign: 'center' }}>
+        <p className="guest-cancel-notice">
           El organizador canceló este encuentro. No es posible unirse.
         </p>
 
@@ -439,91 +420,58 @@ const JoinGeneral: React.FC = () => {
       <AppBar title="Respuesta enviada" />
 
       {/* ── A. Bloque de éxito ──────────────────────────────── */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '40px 24px 28px', textAlign: 'center', gap: 14,
-      }}>
-        <div style={{
-          width: 72, height: 72, borderRadius: '50%',
-          background: participante?.estado === 'confirmado'
-            ? 'var(--color-primary-container)'
-            : 'rgba(107,114,128,0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+      <div className="guest-success-block">
+        <div className={`guest-success-icon-wrap ${participante?.estado === 'confirmado' ? 'guest-success-icon-wrap--confirmed' : 'guest-success-icon-wrap--rejected'}`}>
           {participante?.estado === 'confirmado'
-            ? <CheckCircle2 size={36} strokeWidth={1.75} color="var(--color-primary)" />
-            : <CalendarCheck2 size={36} strokeWidth={1.75} color="#6B7280" />
+            ? <CheckCircle2 size={36} strokeWidth={1.75} />
+            : <CalendarCheck2 size={36} strokeWidth={1.75} />
           }
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.25, color: '#111827', margin: 0 }}>
-          {participante?.estado === 'confirmado' 
-            ? t('already_confirmed', 'Confirmaste tu asistencia') 
-            : t('already_rejected', 'Indicaste que no podés asistir')}
-        </h2>
-
-        <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', margin: 0, lineHeight: 1.55 }}>
-          {participante?.estado === 'confirmado'
-            ? t('waiting_for_you', 'Te esperamos en el encuentro.')
-            : t('not_attending', 'Avisamos que no vas a poder asistir.')}
-        </p>
+        <div>
+          <h2 className="guest-success-title">
+            {participante?.estado === 'confirmado' 
+              ? t('already_confirmed', 'Confirmaste tu asistencia') 
+              : t('already_rejected', 'Indicaste que no podés asistir')}
+          </h2>
+          <p className="guest-success-desc" style={{ marginTop: 8 }}>
+            {participante?.estado === 'confirmado'
+              ? t('waiting_for_you', 'Te esperamos en el encuentro.')
+              : t('not_attending', 'Avisamos que no vas a poder asistir.')}
+          </p>
+        </div>
 
         {isFinalizado && (
-          <div style={{ marginTop: 8, padding: '10px 16px', background: '#F3F4F6', borderRadius: 12 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#374151' }}>Este encuentro ya finalizó.</p>
-            <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6B7280' }}>Ya no es posible modificar la respuesta.</p>
+          <div className="guest-expired-notice">
+            <p>Este encuentro ya finalizó.</p>
+            <p>Ya no es posible modificar la respuesta.</p>
           </div>
         )}
 
         {/* Mensaje previo en modo lectura (si existe) */}
         {participante?.mensaje_respuesta && (
-          <div style={{ width: '100%', textAlign: 'left', marginTop: 12, padding: '12px 16px', background: 'var(--color-surface-variant)', borderRadius: 12 }}>
-            <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tu mensaje</p>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-on-surface)', fontStyle: 'italic' }}>"{participante.mensaje_respuesta}"</p>
+          <div className="guest-message-box">
+            <p className="guest-message-box-label">Tu mensaje</p>
+            <p className="guest-message-box-text">"{participante.mensaje_respuesta}"</p>
           </div>
-        )}
-
-        {/* Botón Cambiar respuesta - SOLO si el encuentro está activo y no ha pasado */}
-        {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
-          <button
-            onClick={() => setStep('pending')}
-            style={{
-              background: 'none', border: 'none',
-              color: 'var(--color-primary)', fontSize: 14,
-              fontFamily: 'var(--font-family)', fontWeight: 600,
-              cursor: 'pointer', padding: '4px 0', textAlign: 'center',
-              marginTop: 4,
-              textDecoration: 'underline', textUnderlineOffset: 3,
-            }}
-          >
-            {t('change_response', 'Cambiar respuesta')}
-          </button>
         )}
       </div>
 
       {/* ── B. Card del encuentro ──────────────────────────── */}
-      <div style={{
-        background: '#fff', borderRadius: 20, padding: '20px',
-        border: '1px solid rgba(0,0,0,0.06)',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-        marginBottom: 16,
-      }}>
-        <p style={{
-          fontSize: 10, fontWeight: 700, color: 'var(--color-on-surface-variant)',
-          textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px',
-        }}>Encuentro</p>
-        <h4 style={{ fontSize: 18, fontWeight: 800, marginBottom: 14, lineHeight: 1.25, color: '#111827' }}>
+      <div className="guest-card" style={{ padding: '20px 24px', margin: '0 20px 16px' }}>
+        <p className="guest-card-eyebrow">Encuentro</p>
+        <h4 className="guest-card-title" style={{ fontSize: 20 }}>
           {encuentro.titulo}
         </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
-            <CalendarCheck2 size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+        <div className="guest-meta-list">
+          <div className="guest-meta-row">
+            <CalendarCheck2 size={18} className="guest-meta-icon" />
             <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+          <div className="guest-meta-row">
             {encuentro.modalidad === 'presencial'
-              ? <MapPin size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
-              : <Video size={15} strokeWidth={2} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+              ? <MapPin size={18} className="guest-meta-icon" />
+              : <Video size={18} className="guest-meta-icon" />
             }
             <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
           </div>
@@ -541,28 +489,14 @@ const JoinGeneral: React.FC = () => {
         if (!showJoinMeetingButton) return null;
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            <div style={{
-              background: 'var(--color-primary-container)',
-              borderRadius: 12, padding: '10px 14px',
-              fontSize: 13, color: 'var(--color-primary-dark)',
-              fontWeight: 500, wordBreak: 'break-all',
-            }}>
+          <div className="guest-video-box" style={{ padding: '0 20px' }}>
+            <div className="guest-video-link-display">
               {allowedMeetingLink}
             </div>
             <Button fullWidth onClick={() => openExternalVideoLink(allowedMeetingLink)}>
               {t('join_meeting', 'Unirme a la reunión')}
             </Button>
-            <button
-              onClick={handleCopyVideoLink}
-              style={{
-                background: 'none', border: 'none',
-                color: 'var(--color-on-surface-variant)', fontSize: 14,
-                fontFamily: 'var(--font-family)', fontWeight: 500,
-                cursor: 'pointer', padding: '6px 0', textAlign: 'center',
-                textDecoration: 'underline', textUnderlineOffset: 3,
-              }}
-            >
+            <button onClick={handleCopyVideoLink} className="guest-action-text">
               {copiedLink ? t('link_copied', 'Link copiado.') : t('copy_link', 'Copiar link')}
             </button>
           </div>
@@ -570,55 +504,55 @@ const JoinGeneral: React.FC = () => {
       })()}
 
       {/* ── D. Texto de ayuda ─────────────────────────────── */}
-      <p style={{
-        fontSize: 13, color: 'var(--color-on-surface-variant)',
-        textAlign: 'center', lineHeight: 1.6, margin: '0 0 20px',
-      }}>
+      <p className="guest-help-text" style={{ padding: '0 20px' }}>
         Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
       </p>
 
       {visibleEnabled && (
-        <div style={{
-          background: 'rgba(0,0,0,0.02)', borderRadius: 14,
-          border: '1px solid rgba(0,0,0,0.06)',
-          padding: '14px 16px', marginBottom: 16,
-        }}>
-          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: respuestasVisibles.length === 0 ? 10 : 6 }}>
+        <div className="guest-responses-box" style={{ margin: '0 20px 24px' }}>
+          <p className="guest-responses-title">
             Respuestas del encuentro
           </p>
           {respuestasVisibles.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>Todavía no hay respuestas visibles.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)' }}>Todavía no hay respuestas visibles.</p>
           ) : (
             <>
-              <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
+              <p className="guest-responses-summary">
                 {[
                   formatCount(respuestasVisibles.filter(p => p.estado === 'confirmado').length, 'confirmado', 'confirmados'),
                   formatCount(respuestasVisibles.filter(p => p.estado === 'rechazado').length, 'no asiste', 'no asisten'),
                   formatCount(respuestasVisibles.filter(p => p.estado === 'pendiente').length, 'falta responder', 'faltan responder')
                 ].filter(Boolean).join(' · ')}
               </p>
+              
               {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#059669' }}>Confirmaron</p>
-                  {respuestasVisibles.filter(p => p.estado === 'confirmado').map((p, i) => (
-                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
-                  ))}
+                <div className="guest-responses-group">
+                  <p className="guest-responses-group-title guest-responses-group-title--success">Confirmaron</p>
+                  <div className="guest-responses-chips">
+                    {respuestasVisibles.filter(p => p.estado === 'confirmado').map((p, i) => (
+                      <span key={i} className="guest-response-chip">{p.nombre_invitado}</span>
+                    ))}
+                  </div>
                 </div>
               )}
               {respuestasVisibles.filter(p => p.estado === 'rechazado').length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#DC2626' }}>No asisten</p>
-                  {respuestasVisibles.filter(p => p.estado === 'rechazado').map((p, i) => (
-                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#111827' }}>{p.nombre_invitado}</p>
-                  ))}
+                <div className="guest-responses-group">
+                  <p className="guest-responses-group-title guest-responses-group-title--danger">No asisten</p>
+                  <div className="guest-responses-chips">
+                    {respuestasVisibles.filter(p => p.estado === 'rechazado').map((p, i) => (
+                      <span key={i} className="guest-response-chip">{p.nombre_invitado}</span>
+                    ))}
+                  </div>
                 </div>
               )}
               {respuestasVisibles.filter(p => p.estado === 'pendiente').length > 0 && (
-                <div>
-                  <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Faltan responder</p>
-                  {respuestasVisibles.filter(p => p.estado === 'pendiente').map((p, i) => (
-                    <p key={i} style={{ margin: '2px 0', fontSize: 14, color: '#4B5563' }}>{p.nombre_invitado}</p>
-                  ))}
+                <div className="guest-responses-group">
+                  <p className="guest-responses-group-title guest-responses-group-title--pending">Faltan responder</p>
+                  <div className="guest-responses-chips">
+                    {respuestasVisibles.filter(p => p.estado === 'pendiente').map((p, i) => (
+                      <span key={i} className="guest-response-chip">{p.nombre_invitado}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -628,24 +562,32 @@ const JoinGeneral: React.FC = () => {
 
       {/* ── E. Nudge de login ────────────────────────────── */}
       {!user && justConfirmed && (
-        <div style={{
-          padding: '16px', borderRadius: 14,
-          background: 'rgba(0,0,0,0.03)',
-          border: '1px solid rgba(0,0,0,0.07)',
-          display: 'flex', flexDirection: 'column', gap: 10,
-          marginBottom: 8,
-        }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151', lineHeight: 1.35 }}>
-            {t('save_this_meeting', 'Guardá este encuentro')}
-          </p>
-          <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
-            {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
-          </p>
-          <Button variant="outline" size="sm" onClick={signInWithGoogle} style={{ width: '100%' }}>
+        <div className="guest-nudge-box" style={{ margin: '0 20px 24px' }}>
+          <div>
+            <p className="guest-nudge-title">
+              {t('save_this_meeting', 'Guardá este encuentro')}
+            </p>
+            <p className="guest-nudge-desc">
+              {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={signInWithGoogle} fullWidth>
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>
       )}
+      
+      {/* ── F. Acciones Inferiores ────────────────────────────── */}
+      <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
+        {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
+          <button
+            onClick={() => setStep('pending')}
+            className="guest-action-secondary"
+          >
+            {t('change_response', 'Cambiar respuesta')}
+          </button>
+        )}
+      </div>
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
@@ -655,74 +597,82 @@ const JoinGeneral: React.FC = () => {
       <AppBar title="Invitación" />
 
       {isFinalizado && (
-        <div style={{ margin: '20px 20px 0', background: '#F3F4F6', borderRadius: 16, padding: '16px', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#374151' }}>Este encuentro ya finalizó.</p>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6B7280' }}>Ya no es posible responder a esta invitación.</p>
+        <div className="guest-expired-notice" style={{ margin: '20px 20px 0', textAlign: 'center' }}>
+          <p>Este encuentro ya finalizó.</p>
+          <p>Ya no es posible responder a esta invitación.</p>
         </div>
       )}
 
-      <div style={{ ...eventCard, marginTop: isFinalizado ? 16 : 20 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Te invitan a</p>
-        <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16, lineHeight: 1.15 }}>{encuentro.titulo}</h2>
-        <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
-        {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
-          <div style={metaRow}><span style={metaIcon}>📍</span><span>{encuentro.lugar_texto}</span></div>
-        )}
-        <div style={metaRow}>
-          <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '🤝' : '💻'}</span>
-          <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
+      <div style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
+        <div className="guest-card" style={{ marginBottom: 0 }}>
+          <p className="guest-card-eyebrow">Te invitan a</p>
+          <h2 className="guest-card-title">{encuentro.titulo}</h2>
+          
+          <div className="guest-meta-list">
+            <div className="guest-meta-row">
+              <CalendarCheck2 size={20} className="guest-meta-icon" />
+              <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+            </div>
+            {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
+              <div className="guest-meta-row">
+                <MapPin size={20} className="guest-meta-icon" />
+                <span>{encuentro.lugar_texto}</span>
+              </div>
+            )}
+            <div className="guest-meta-row">
+              {encuentro.modalidad === 'presencial' ? <MapPin size={20} className="guest-meta-icon" /> : <Video size={20} className="guest-meta-icon" />}
+              <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
+            </div>
+          </div>
+          
+          {encuentro.modalidad === 'virtual' && (
+            <p className="guest-meta-info">
+              {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
+            </p>
+          )}
         </div>
-        {encuentro.modalidad === 'virtual' && (
-          <p style={{ marginTop: 4, fontSize: 13, color: 'var(--color-on-surface-variant)', fontStyle: 'italic' }}>
-            {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
-          </p>
-        )}
       </div>
 
       {/* ── B. Confirmación ─────────────────────────────── */}
-      {!isFinalizado && (
-        <div style={{ ...eventCard, padding: '24px 20px' }}>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', marginBottom: 8 }}>
-              {t('participant.visible_name', 'Nombre visible')}
-            </label>
-            <Input
-              placeholder="Ej: Leandro"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  document.getElementById('btn-confirmar')?.focus();
-                }
-              }}
-            />
-            <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
-              {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
-            </p>
+      <div style={{ padding: '20px 20px 0' }}>
+        {!isFinalizado && (
+          <div className="guest-card" style={{ marginBottom: 20 }}>
+            <div className="guest-form-group" style={{ marginBottom: 0 }}>
+              <label className="guest-form-label">
+                {t('participant.visible_name', 'Nombre visible')}
+              </label>
+              <Input
+                placeholder="Ej: Leandro"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('btn-confirmar')?.focus();
+                  }
+                }}
+              />
+              <p className="guest-form-help">
+                {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {!isFinalizado && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
-        <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
-          {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
-        </Button>
-        <button
-          onClick={() => handleResponse('rechazado')}
-          disabled={!nombre.trim() || loadingResponse}
-          style={{
-            background: 'none', border: 'none',
-            color: !nombre.trim() || loadingResponse ? 'var(--color-outline-variant)' : 'var(--color-on-surface-variant)',
-            fontSize: 15, fontFamily: 'var(--font-family)', fontWeight: 500,
-            cursor: !nombre.trim() || loadingResponse ? 'not-allowed' : 'pointer',
-            padding: '10px 0', textAlign: 'center', width: '100%',
-          }}
-        >
-          {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
-        </button>
-      </div>
+        <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
+          <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
+            {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
+          </Button>
+          <button
+            onClick={() => handleResponse('rechazado')}
+            disabled={!nombre.trim() || loadingResponse}
+            className="guest-action-secondary"
+          >
+            {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
+          </button>
+        </div>
       )}
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>

@@ -1,0 +1,400 @@
+/* Guest.css - Experiencia del Invitado (UI Pro - Etapa B) */
+
+.guest-screen-centered {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 20px;
+}
+
+.guest-loading-text {
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+  font-size: var(--text-md);
+}
+
+.guest-error-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.guest-error-text {
+  text-align: center;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+/* ── Banners ── */
+.guest-banner {
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.guest-banner--danger {
+  background: var(--color-danger);
+  color: var(--color-surface);
+}
+.guest-banner-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.guest-banner-title {
+  margin: 0;
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: inherit;
+}
+
+/* ── Cards Principales ── */
+.guest-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: 24px 20px;
+  border: 1px solid rgba(0,0,0,0.04);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.guest-card-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px 0;
+}
+
+.guest-card-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 16px 0;
+  line-height: 1.2;
+  color: var(--color-on-surface);
+}
+
+/* ── Metadatos del encuentro ── */
+.guest-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guest-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-md);
+  color: var(--color-on-surface-variant);
+}
+
+.guest-meta-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.guest-meta-info {
+  font-size: var(--text-sm);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+}
+
+/* ── Bloque de Éxito / Confirmación ── */
+.guest-success-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px 28px;
+  text-align: center;
+  gap: 16px;
+}
+
+.guest-success-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guest-success-icon-wrap--confirmed {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+.guest-success-icon-wrap--rejected {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.guest-success-title {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.guest-success-desc {
+  font-size: var(--text-base);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.guest-expired-notice {
+  margin-top: 8px;
+  padding: 12px 16px;
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+}
+.guest-expired-notice p:first-child {
+  margin: 0 0 4px 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+.guest-expired-notice p:last-child {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Bloque de Enlace Virtual ── */
+.guest-video-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.guest-video-link-display {
+  background: var(--color-primary-container);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: var(--text-sm);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  word-break: break-all;
+  text-align: center;
+  user-select: text;
+}
+
+/* ── Acciones Adicionales / Inferiores ── */
+.guest-action-secondary {
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-base);
+  font-family: var(--font-family);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 12px 0;
+  text-align: center;
+  width: 100%;
+  transition: color var(--transition-base);
+}
+.guest-action-secondary:disabled {
+  color: var(--color-outline-variant);
+  cursor: not-allowed;
+}
+.guest-action-secondary:hover:not(:disabled) {
+  color: var(--color-on-surface);
+}
+
+.guest-action-text {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-family);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity var(--transition-base);
+}
+.guest-action-text:hover {
+  opacity: 0.8;
+}
+
+.guest-bottom-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-bottom: 24px;
+}
+
+/* ── Inputs y Formularios (Especificos Invitado) ── */
+.guest-form-group {
+  margin-bottom: 24px;
+}
+.guest-form-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin-bottom: 8px;
+}
+.guest-form-help {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+.guest-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-outline-variant);
+  outline: none;
+  font-size: var(--text-base);
+  font-family: var(--font-family);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  resize: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition-base);
+}
+.guest-textarea:focus {
+  border-color: var(--color-primary);
+}
+.guest-textarea::placeholder {
+  color: var(--color-outline);
+}
+
+.guest-message-box {
+  width: 100%;
+  text-align: left;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+}
+.guest-message-box-label {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.guest-message-box-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-on-surface);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* ── Textos de ayuda ── */
+.guest-help-text {
+  font-size: var(--text-sm);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  line-height: 1.5;
+  margin: 0 0 24px 0;
+}
+.guest-cancel-notice {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--color-danger);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── Nudge de Login ── */
+.guest-nudge-box {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-variant);
+  border: 1px solid rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.guest-nudge-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  line-height: 1.35;
+}
+.guest-nudge-desc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+
+/* ── Respuestas (Rediseño) ── */
+.guest-responses-box {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-outline-variant);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+.guest-responses-title {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.guest-responses-summary {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 16px 0;
+  font-weight: 500;
+}
+
+.guest-responses-group {
+  margin-bottom: 16px;
+}
+.guest-responses-group:last-child {
+  margin-bottom: 0;
+}
+.guest-responses-group-title {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+.guest-responses-group-title--success { color: var(--color-success); }
+.guest-responses-group-title--danger { color: var(--color-danger); }
+.guest-responses-group-title--pending { color: var(--color-outline); }
+
+.guest-responses-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.guest-response-chip {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+  padding: 6px 12px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+}
