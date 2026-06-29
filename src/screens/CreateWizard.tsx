@@ -10,6 +10,8 @@ import Step2Modality from '@/screens/CreateWizard/Step2Modality';
 import Step3Location from '@/screens/CreateWizard/Step3Location';
 import Step4InviteType from '@/screens/CreateWizard/Step4InviteType';
 
+import './CreateWizard.css';
+
 const TOTAL_STEPS = 4;
 
 const stepTitles = ['Nuevo encuentro', 'Modalidad', 'Lugar', 'Invitación'];
@@ -68,18 +70,15 @@ const CreateWizard: React.FC = () => {
       <AppBar title={stepTitles[step - 1]} showBack={true} onBack={handleBack} />
 
       {/* Progress bar */}
-      <div style={{ height: 3, background: 'var(--color-outline-variant)', borderRadius: 99, marginBottom: 24, overflow: 'hidden' }}>
-        <div style={{
-          height: '100%',
-          width: `${progress}%`,
-          background: 'var(--color-primary)',
-          borderRadius: 99,
-          transition: 'width 0.35s ease',
-        }} />
+      <div className="cw-progress-track">
+        <div 
+          className="cw-progress-fill"
+          style={{ width: `${progress}%` }} 
+        />
       </div>
 
       {/* Step counter */}
-      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: 8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+      <p className="cw-step-counter">
         Paso {step} de {TOTAL_STEPS}
       </p>
 

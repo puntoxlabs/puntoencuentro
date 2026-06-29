@@ -155,18 +155,18 @@ const Step1Data: React.FC = () => {
   return (
     <form 
       onSubmit={(e) => e.preventDefault()}
-      style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}
+      className="cw-container"
     >
-      <div style={{ marginBottom: 8 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>¿Cuándo y dónde?</h2>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 4 }}>Ponele un nombre y una fecha a tu encuentro.</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-primary)', fontSize: 12, fontWeight: 700 }}>
+      <div className="cw-step-header">
+        <h2 className="cw-step-title">¿Cuándo y dónde?</h2>
+        <p className="cw-step-subtitle">Ponele un nombre y una fecha a tu encuentro.</p>
+        <div className="cw-step-notice">
           <span>✨</span>
           <span>Solo podés crear encuentros futuros.</span>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 24 }}>
+      <div className="cw-form-body">
         <Input
           label="Nombre del encuentro"
           value={titulo}
@@ -197,31 +197,22 @@ const Step1Data: React.FC = () => {
             onKeyDown={(e) => handleKeyDown(e, descriptionInputRef)}
             disabled={!fecha}
           />
-          <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 8, marginBottom: 8 }}>
+          <p className="cw-helper-text">
             {isToday ? 'Hoy: debe ser posterior a ahora' : 'Cualquier horario disponible'}
           </p>
         </div>
         <div
           ref={descripcionContainerRef}
-          className="input-group"
-          style={{
-            borderRadius: 12,
-            transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
-            ...(highlightDescripcion ? {
-              boxShadow: '0 0 0 2px var(--color-primary, #6366f1), 0 4px 16px rgba(99,102,241,0.13)',
-              background: 'var(--color-primary-container, rgba(99,102,241,0.06))',
-            } : {}),
-          }}
+          className={`input-group cw-textarea-wrapper ${highlightDescripcion ? 'cw-textarea-wrapper--highlight' : ''}`}
         >
           <label className="input-label">Descripción (opcional)</label>
           <textarea
-            className="input-field"
+            className="input-field cw-textarea-field"
             value={descripcion}
             onChange={(e) => setField('descripcion', e.target.value)}
             onKeyDown={handleDescriptionKeyDown}
             placeholder="Agregá más detalles…"
             ref={descriptionInputRef}
-            style={{ minHeight: '80px', paddingTop: '12px', paddingBottom: '12px', resize: 'vertical' }}
             enterKeyHint="done"
           />
         </div>
@@ -231,19 +222,9 @@ const Step1Data: React.FC = () => {
         />
       </div>
 
-      <div style={{ paddingTop: 24 }}>
+      <div className="cw-bottom-actions">
         {error && (
-          <div style={{ 
-            background: 'var(--color-error-container, #fee2e2)', 
-            color: 'var(--color-error, #dc2626)', 
-            padding: '10px 14px', 
-            borderRadius: 12, 
-            fontSize: 13, 
-            fontWeight: 600, 
-            marginBottom: 16,
-            textAlign: 'center',
-            border: '1px solid var(--color-error, #dc2626)'
-          }}>
+          <div className="cw-error-banner">
             {error}
           </div>
         )}
