@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Info, Shield, MessageSquare, Tag, ChevronRight } from 'lucide-react';
+import './BottomSheet.css';
 
 interface InfoSheetProps {
   isOpen: boolean;
@@ -21,22 +22,22 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
     switch (activeSection) {
       case 1:
         return (
-          <div style={{ animation: 'slideIn 0.2s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-              <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', marginRight: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }}>‹</span>
+          <div className="pe-sheet-slide-section">
+            <div className="pe-sheet-back-header">
+              <button onClick={() => setActiveSection(null)} className="pe-sheet-back-btn">
+                <span className="pe-sheet-back-icon">‹</span>
               </button>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>Cómo funciona</h2>
+              <h2 className="pe-sheet-title">Cómo funciona</h2>
             </div>
-            <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', marginBottom: 24, lineHeight: 1.5 }}>
+            <p className="pe-sheet-text">
               PuntoEncuentro te ayuda a organizar encuentros sin crear grupos ni perder respuestas en chats.
             </p>
-            <ol style={{ paddingLeft: 20, fontSize: 15, color: 'var(--color-on-surface)', lineHeight: 1.8, marginBottom: 32 }}>
-              <li style={{ paddingLeft: 8, marginBottom: 8 }}>Creás un encuentro.</li>
-              <li style={{ paddingLeft: 8, marginBottom: 8 }}>Compartís el enlace.</li>
-              <li style={{ paddingLeft: 8, marginBottom: 8 }}>Los invitados responden.</li>
-              <li style={{ paddingLeft: 8, marginBottom: 8 }}>Ves quién confirma y quién no.</li>
-              <li style={{ paddingLeft: 8, marginBottom: 0 }}>Si cambia algo, podés cancelar y crear uno nuevo.</li>
+            <ol className="pe-sheet-list">
+              <li className="pe-sheet-list-item">Creás un encuentro.</li>
+              <li className="pe-sheet-list-item">Compartís el enlace.</li>
+              <li className="pe-sheet-list-item">Los invitados responden.</li>
+              <li className="pe-sheet-list-item">Ves quién confirma y quién no.</li>
+              <li className="pe-sheet-list-item">Si cambia algo, podés cancelar y crear uno nuevo.</li>
             </ol>
             <button
               onClick={() => setActiveSection(null)}
@@ -52,18 +53,18 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
         );
       case 2:
         return (
-          <div style={{ animation: 'slideIn 0.2s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-              <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', marginRight: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }}>‹</span>
+          <div className="pe-sheet-slide-section">
+            <div className="pe-sheet-back-header">
+              <button onClick={() => setActiveSection(null)} className="pe-sheet-back-btn">
+                <span className="pe-sheet-back-icon">‹</span>
               </button>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>Acerca de PuntoEncuentro</h2>
+              <h2 className="pe-sheet-title">Acerca de PuntoEncuentro</h2>
             </div>
-            <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', marginBottom: 24, lineHeight: 1.6 }}>
+            <p className="pe-sheet-text">
               PuntoEncuentro es una herramienta simple para coordinar reuniones, salidas y videollamadas compartiendo un enlace.
             </p>
-            <div style={{ background: 'var(--color-primary-container)', padding: '16px', borderRadius: 12, marginBottom: 32 }}>
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-primary-dark)', fontWeight: 600 }}>Versión beta de prueba.</p>
+            <div className="pe-sheet-alert--info">
+              <p className="pe-sheet-alert-text--info">Versión beta de prueba.</p>
             </div>
             <p style={{ fontSize: 14, color: '#9CA3AF', fontWeight: 600, textAlign: 'center' }}>
               PuntoX Labs
@@ -72,19 +73,19 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
         );
       case 3:
         return (
-          <div style={{ animation: 'slideIn 0.2s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-              <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', marginRight: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }}>‹</span>
+          <div className="pe-sheet-slide-section">
+            <div className="pe-sheet-back-header">
+              <button onClick={() => setActiveSection(null)} className="pe-sheet-back-btn">
+                <span className="pe-sheet-back-icon">‹</span>
               </button>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>Privacidad</h2>
+              <h2 className="pe-sheet-title">Privacidad</h2>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ background: '#FEF2F2', padding: '16px', borderRadius: 12, border: '1px solid #FEE2E2' }}>
-                <p style={{ margin: 0, fontSize: 14, color: '#B91C1C', fontWeight: 600 }}>No compartas información sensible.</p>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#991B1B' }}>Los enlaces pueden ser abiertos por quienes los reciban.</p>
+              <div className="pe-sheet-alert--danger">
+                <p className="pe-sheet-alert-title--danger">No compartas información sensible.</p>
+                <p className="pe-sheet-alert-text--danger">Los enlaces pueden ser abiertos por quienes los reciban.</p>
               </div>
-              <p style={{ fontSize: 15, color: 'var(--color-on-surface-variant)', lineHeight: 1.6 }}>
+              <p className="pe-sheet-text">
                 Los datos se utilizan únicamente para gestionar el encuentro y mostrar las respuestas de los participantes.
               </p>
             </div>
@@ -92,24 +93,23 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
         );
       case 5:
         return (
-          <div style={{ animation: 'slideIn 0.2s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-              <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', marginRight: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: 24, lineHeight: 1 }}>‹</span>
+          <div className="pe-sheet-slide-section">
+            <div className="pe-sheet-back-header">
+              <button onClick={() => setActiveSection(null)} className="pe-sheet-back-btn">
+                <span className="pe-sheet-back-icon">‹</span>
               </button>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>Versión</h2>
+              <h2 className="pe-sheet-title">Versión</h2>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 0' }}>
-              <div style={{ width: 64, height: 64, background: 'var(--color-primary-container)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+            <div className="pe-sheet-version-container">
+              <div className="pe-sheet-version-icon-box">
                 <span style={{ fontSize: 32 }}>📍</span>
               </div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--color-on-surface)' }}>PuntoEncuentro</h3>
-              <p style={{ margin: 0, fontSize: 15, color: 'var(--color-primary)', fontWeight: 600 }}>Versión Beta</p>
+              <h3 className="pe-sheet-version-title">PuntoEncuentro</h3>
+              <p className="pe-sheet-version-subtitle">Versión Beta</p>
               
-              <div style={{ background: '#F3F4F6', padding: '12px 20px', borderRadius: 12, marginTop: 16, textAlign: 'center' }}>
-                <p style={{ margin: 0, fontSize: 12, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Build</p>
-                {/* Asumiendo que __APP_VERSION__ está inyectado por Vite según vite.config.ts */}
-                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#374151', fontWeight: 500 }}>
+              <div className="pe-sheet-build-info">
+                <p className="pe-sheet-build-label">Build</p>
+                <p className="pe-sheet-build-version">
                   {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}
                 </p>
               </div>
@@ -118,113 +118,66 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
         );
       default:
         return (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-on-surface)' }}>Información</h2>
-              <button
-                onClick={onClose}
-                style={{
-                  background: 'var(--color-surface-variant)', border: 'none',
-                  borderRadius: '50%', width: 32, height: 32,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: 'var(--color-on-surface)'
-                }}
-              >
+          <div className="pe-sheet-slide-section">
+            <div className="pe-sheet-header">
+              <h2 className="pe-sheet-title">Información</h2>
+              <button onClick={onClose} className="pe-sheet-close-btn">
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <MenuButton icon={<Info size={20} />} label="Cómo funciona" onClick={() => setActiveSection(1)} />
-              <MenuButton icon={<Info size={20} />} label="Acerca de PuntoEncuentro" onClick={() => setActiveSection(2)} />
-              <MenuButton icon={<Shield size={20} />} label="Privacidad" onClick={() => setActiveSection(3)} />
-              
-              <div style={{ height: 1, background: 'rgba(0,0,0,0.05)', margin: '8px 0' }} />
-              
-              <MenuButton 
-                icon={<MessageSquare size={20} />} 
-                label="Enviar comentario" 
-                subtitle="¿Encontraste un problema o tenés una sugerencia? Tu opinión nos ayuda a mejorar."
-                onClick={handleFeedback}
-                external
-              />
-              
-              <div style={{ height: 1, background: 'rgba(0,0,0,0.05)', margin: '8px 0' }} />
-              
-              <MenuButton icon={<Tag size={20} />} label="Versión" onClick={() => setActiveSection(5)} />
+            <div className="pe-sheet-buttons-group">
+              <button onClick={() => setActiveSection(1)} className="pe-sheet-nav-btn">
+                <div className="pe-sheet-nav-content">
+                  <span className="pe-sheet-nav-icon"><Info size={20} /></span>
+                  <span className="pe-sheet-nav-text">Cómo funciona</span>
+                </div>
+                <ChevronRight size={18} className="pe-sheet-nav-arrow" />
+              </button>
+
+              <button onClick={() => setActiveSection(2)} className="pe-sheet-nav-btn">
+                <div className="pe-sheet-nav-content">
+                  <span className="pe-sheet-nav-icon"><Tag size={20} /></span>
+                  <span className="pe-sheet-nav-text">Acerca de</span>
+                </div>
+                <ChevronRight size={18} className="pe-sheet-nav-arrow" />
+              </button>
+
+              <button onClick={() => setActiveSection(3)} className="pe-sheet-nav-btn">
+                <div className="pe-sheet-nav-content">
+                  <span className="pe-sheet-nav-icon"><Shield size={20} /></span>
+                  <span className="pe-sheet-nav-text">Privacidad y Seguridad</span>
+                </div>
+                <ChevronRight size={18} className="pe-sheet-nav-arrow" />
+              </button>
+
+              <button onClick={handleFeedback} className="pe-sheet-nav-btn">
+                <div className="pe-sheet-nav-content">
+                  <span className="pe-sheet-nav-icon"><MessageSquare size={20} /></span>
+                  <span className="pe-sheet-nav-text">Dejar sugerencia o reporte</span>
+                </div>
+                <ChevronRight size={18} className="pe-sheet-nav-arrow" />
+              </button>
+
+              <button onClick={() => setActiveSection(5)} className="pe-sheet-nav-btn">
+                <div className="pe-sheet-nav-content">
+                  <span className="pe-sheet-nav-text" style={{ color: 'var(--color-on-surface-variant)', fontSize: 14 }}>Versión 0.1 Beta</span>
+                </div>
+                <ChevronRight size={18} className="pe-sheet-nav-arrow" />
+              </button>
             </div>
-          </>
+          </div>
         );
     }
   };
 
   return (
     <>
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0, 0, 0, 0.4)', zIndex: 999,
-          backdropFilter: 'blur(2px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'fixed', left: 0, right: 0, bottom: 0,
-          margin: '0 auto', width: '100%', maxWidth: 520,
-          background: '#fff', zIndex: 1000,
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          padding: '24px 20px 30px 20px',
-          maxHeight: '85vh', overflowY: 'auto',
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.2)',
-          display: 'flex', flexDirection: 'column',
-          animation: 'slideUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards',
-        }}
-      >
-        <style dangerouslySetInnerHTML={{__html: `
-          @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-          }
-          @keyframes slideIn {
-            from { transform: translateX(20px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-        `}} />
-        <div style={{
-          width: 40, height: 4, background: 'rgba(0,0,0,0.1)',
-          borderRadius: 2, alignSelf: 'center', marginBottom: 20
-        }} />
-
+      <div onClick={onClose} className="pe-sheet-overlay" />
+      <div className="pe-sheet-container">
+        <div className="pe-sheet-handle" />
         {renderContent()}
       </div>
     </>
   );
 };
-
-const MenuButton: React.FC<{ icon: React.ReactNode; label: string; subtitle?: string; onClick: () => void; external?: boolean }> = ({ icon, label, subtitle, onClick, external }) => (
-  <button
-    onClick={onClick}
-    style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '16px', background: 'transparent', border: 'none',
-      borderRadius: 16, cursor: 'pointer', transition: 'background 0.15s ease',
-      width: '100%', textAlign: 'left'
-    }}
-    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
-    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-      <div style={{ color: 'var(--color-primary)' }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-on-surface)', display: 'block' }}>{label}</span>
-        {subtitle && <span style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', marginTop: 4, display: 'block', lineHeight: 1.4 }}>{subtitle}</span>}
-      </div>
-    </div>
-    <div style={{ color: '#9CA3AF', marginLeft: 16 }}>
-      {external ? <span style={{ fontSize: 18 }}>↗</span> : <ChevronRight size={20} />}
-    </div>
-  </button>
-);

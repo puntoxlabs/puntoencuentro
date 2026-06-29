@@ -1,0 +1,288 @@
+/* BottomSheet.css - Estilos globales para los Bottom Sheets (Etapa E1) */
+
+/* ==========================================================================
+   Animaciones Globales
+   ========================================================================== */
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideInSection {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ==========================================================================
+   Estructura Base del Sheet
+   ========================================================================== */
+.pe-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  backdrop-filter: blur(2px);
+}
+
+.pe-sheet-container {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 520px;
+  background: var(--color-surface);
+  z-index: 1000;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 24px 20px 30px 20px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  animation: slideUpSheet 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+.pe-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 2px;
+  align-self: center;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Cabecera
+   ========================================================================== */
+.pe-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.pe-sheet-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.pe-sheet-close-btn {
+  background: var(--color-surface-variant);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-on-surface);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pe-sheet-close-btn:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+/* ==========================================================================
+   Contenido, Listas y Alertas (InfoSheet / FilterSheet)
+   ========================================================================== */
+.pe-sheet-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 0;
+}
+
+.pe-sheet-text {
+  font-size: 15px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+/* Animación para cambio de sección en InfoSheet */
+.pe-sheet-slide-section {
+  animation: slideInSection 0.2s ease;
+}
+
+/* Cabecera secundaria con flecha de retorno */
+.pe-sheet-back-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pe-sheet-back-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  margin-right: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.pe-sheet-back-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* Listas ordenadas/desordenadas */
+.pe-sheet-list {
+  padding-left: 20px;
+  font-size: 15px;
+  color: var(--color-on-surface);
+  line-height: 1.8;
+  margin-bottom: 32px;
+}
+
+.pe-sheet-list-item {
+  padding-left: 8px;
+  margin-bottom: 8px;
+}
+
+.pe-sheet-list-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Alertas y Banners */
+.pe-sheet-alert--info {
+  background: var(--color-primary-container);
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+
+.pe-sheet-alert-text--info {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.pe-sheet-alert--danger {
+  background: var(--color-danger-container);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-danger-container);
+  margin-bottom: 16px;
+}
+
+.pe-sheet-alert-title--danger {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-danger-dark);
+  font-weight: 600;
+}
+
+.pe-sheet-alert-text--danger {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+/* Grupos y Bloques Auxiliares */
+.pe-sheet-buttons-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-sheet-buttons-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.pe-sheet-nav-btn {
+  background: none;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-on-surface);
+}
+
+.pe-sheet-nav-btn:hover {
+  background: var(--color-surface-variant);
+  border-color: var(--color-outline);
+}
+
+.pe-sheet-nav-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pe-sheet-nav-icon {
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+}
+
+.pe-sheet-nav-text {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.pe-sheet-nav-arrow {
+  color: var(--color-on-surface-variant);
+}
+
+/* Chips para Filtros */
+.pe-sheet-chips-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.pe-sheet-chip {
+  padding: 10px 16px;
+  border-radius: 99px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1.5px solid;
+}
+
+.pe-sheet-chip--selected {
+  background: var(--color-primary-container);
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary);
+}
+
+.pe-sheet-chip--unselected {
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
+  border-color: var(--color-outline-variant);
+}
+
+.pe-sheet-chip--unselected:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
