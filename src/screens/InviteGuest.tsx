@@ -49,6 +49,7 @@ const InviteGuest: React.FC = () => {
   // Respuestas visibles para el invitado (sólo si el host lo activó)
   const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
   const [visibleEnabled, setVisibleEnabled] = useState(false);
+  const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getSuggestedName = (user: any) => {
@@ -61,9 +62,9 @@ const InviteGuest: React.FC = () => {
   };
 
   const handleCopyVideoLink = async () => {
-    if (!encuentro?.link_virtual) return;
+    if (!allowedMeetingLink) return;
     try {
-      await navigator.clipboard.writeText(encuentro.link_virtual);
+      await navigator.clipboard.writeText(allowedMeetingLink);
       setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000);
     } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
   };
@@ -195,7 +196,17 @@ const InviteGuest: React.FC = () => {
 
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
       if (import.meta.env.DEV) console.log("Estado encuentro:", enc?.estado);
-      setEncuentro(enc);
+      
+      setEncuentro({
+        ...enc,
+        link_virtual: enc?.link_virtual || data.link_virtual || undefined,
+      });
+
+      if (data.estado === 'confirmado') {
+        const safeLink = enc?.link_virtual || data.link_virtual || '';
+        setAllowedMeetingLink(safeLink);
+      }
+
       if (data.estado !== 'pendiente') setStep('done');
     } catch (err) {
       console.error('InviteGuest error:', err);
@@ -260,9 +271,11 @@ const InviteGuest: React.FC = () => {
       }
 
       // Actualizar link_virtual usando la respuesta de la RPC directamente
-      if (response?.link_virtual) {
+      if (estado === 'confirmado' && response?.link_virtual) {
+        setAllowedMeetingLink(response.link_virtual);
         setEncuentro((prev: any) => prev ? { ...prev, link_virtual: response.link_virtual } : prev);
       } else if (estado !== 'confirmado') {
+        setAllowedMeetingLink('');
         setEncuentro((prev: any) => prev ? { ...prev, link_virtual: undefined } : prev);
       }
 
@@ -467,10 +480,11 @@ const InviteGuest: React.FC = () => {
 
       {/* ── C. Acción de videollamada (si aplica) ─────────── */}
       {(() => {
-        const meetingLink = encuentro?.link_virtual || (encuentro as any)?.linkVirtual || '';
-        const isVirtualMeeting = encuentro?.modalidad === 'virtual';
+        const encDataFromPart = Array.isArray(participante?.encuentros) ? participante.encuentros[0] : participante?.encuentros;
+        const isVirtualMeeting = encuentro?.modalidad === 'virtual' || encDataFromPart?.modalidad === 'virtual';
         const hasConfirmed = participante?.estado === 'confirmado';
-        const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(meetingLink);
+        
+        const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(allowedMeetingLink);
 
         if (!showJoinMeetingButton) return null;
 
@@ -482,10 +496,10 @@ const InviteGuest: React.FC = () => {
               fontSize: 13, color: 'var(--color-primary-dark)',
               fontWeight: 500, wordBreak: 'break-all',
             }}>
-              {meetingLink}
+              {allowedMeetingLink}
             </div>
             {/* Acción primaria */}
-            <Button fullWidth onClick={() => openExternalVideoLink(meetingLink)}>
+            <Button fullWidth onClick={() => openExternalVideoLink(allowedMeetingLink)}>
               {t('join_meeting', 'Unirme a la reunión')}
             </Button>
             {/* Acción secundaria — menos peso visual */}

@@ -55,6 +55,7 @@ const JoinGeneral: React.FC = () => {
   // Respuestas visibles para el invitado (sólo si el host lo activó y el invitado ya respondió)
   const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
   const [visibleEnabled, setVisibleEnabled] = useState(false);
+  const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { if (public_token) loadData(); }, [public_token]);
@@ -196,6 +197,19 @@ const JoinGeneral: React.FC = () => {
           if (partData) { 
             setParticipante(partData); 
             setNombre(partData.nombre_invitado || '');
+            
+            // Persistir link_virtual tras el refresh
+            const encFromPart = Array.isArray(partData.encuentros) ? partData.encuentros[0] : partData.encuentros;
+            const safeLink = encFromPart?.link_virtual || partData.link_virtual || encuentro?.link_virtual || '';
+            setEncuentro((prev: any) => ({
+              ...prev,
+              link_virtual: safeLink,
+            }));
+
+            if (partData.estado === 'confirmado' && safeLink) {
+              setAllowedMeetingLink(safeLink);
+            }
+
             if (partData.estado !== 'pendiente') {
               setStep('done'); 
               estadoUI = 'done'; 
@@ -226,9 +240,9 @@ const JoinGeneral: React.FC = () => {
   };
 
   const handleCopyVideoLink = async () => {
-    if (!encuentro?.link_virtual) return;
+    if (!allowedMeetingLink) return;
     try {
-      await navigator.clipboard.writeText(encuentro.link_virtual);
+      await navigator.clipboard.writeText(allowedMeetingLink);
       setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000);
     } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
   };
@@ -316,9 +330,11 @@ const JoinGeneral: React.FC = () => {
       }));
 
       // Actualizar link_virtual usando la respuesta de la RPC
-      if (newPart?.link_virtual) {
+      if (estado === 'confirmado' && newPart?.link_virtual) {
+        setAllowedMeetingLink(newPart.link_virtual);
         setEncuentro((prev: any) => prev ? { ...prev, link_virtual: newPart.link_virtual } : prev);
       } else if (estado !== 'confirmado') {
+        setAllowedMeetingLink('');
         setEncuentro((prev: any) => prev ? { ...prev, link_virtual: undefined } : prev);
       }
 
@@ -516,10 +532,11 @@ const JoinGeneral: React.FC = () => {
 
       {/* ── C. Acción de videollamada ─────────────────────── */}
       {(() => {
-        const meetingLink = encuentro?.link_virtual || (encuentro as any)?.linkVirtual || '';
-        const isVirtualMeeting = encuentro?.modalidad === 'virtual';
+        const encDataFromPart = Array.isArray(participante?.encuentros) ? participante.encuentros[0] : participante?.encuentros;
+        const isVirtualMeeting = encuentro?.modalidad === 'virtual' || encDataFromPart?.modalidad === 'virtual';
         const hasConfirmed = participante?.estado === 'confirmado';
-        const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(meetingLink);
+        
+        const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(allowedMeetingLink);
 
         if (!showJoinMeetingButton) return null;
 
@@ -531,9 +548,9 @@ const JoinGeneral: React.FC = () => {
               fontSize: 13, color: 'var(--color-primary-dark)',
               fontWeight: 500, wordBreak: 'break-all',
             }}>
-              {meetingLink}
+              {allowedMeetingLink}
             </div>
-            <Button fullWidth onClick={() => openExternalVideoLink(meetingLink)}>
+            <Button fullWidth onClick={() => openExternalVideoLink(allowedMeetingLink)}>
               {t('join_meeting', 'Unirme a la reunión')}
             </Button>
             <button
