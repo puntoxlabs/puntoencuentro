@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
+import './BottomSheet.css';
 import './AccountSheet.css';
 
 interface AccountSheetProps {
@@ -69,20 +70,20 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   return (
     <>
       {/* Backdrop */}
-      <div className="account-sheet-backdrop" onClick={onClose} />
+      <div className="pe-sheet-overlay" onClick={onClose} />
 
       {/* Bottom Sheet */}
-      <div className="account-sheet" role="dialog" aria-modal="true" aria-label={user ? t('account.your_account') : t('account.save_title')}>
+      <div className="pe-sheet-container" role="dialog" aria-modal="true" aria-label={user ? t('account.your_account') : t('account.save_title')}>
         {/* Drag handle */}
-        <div className="account-sheet__handle" />
+        <div className="pe-sheet-handle" />
 
         {/* Header */}
-        <div className="account-sheet__header">
-          <h2 className="account-sheet__title">
+        <div className="pe-sheet-header">
+          <h2 className="pe-sheet-title">
             {user ? t('account.your_account') : t('account.save_title')}
           </h2>
           <button
-            className="account-sheet__close-btn"
+            className="pe-sheet-close-btn"
             onClick={onClose}
             aria-label="Cerrar"
           >
