@@ -1,4 +1,4 @@
-/* DetailHost.css - Estilos para el panel del organizador (Fases C1 + C2A + C2B) */
+/* DetailHost.css - Estilos para el panel del organizador (Fases C1 + C2A + C2B + C2C) */
 
 /* ==========================================================================
    Animaciones Globales
@@ -192,6 +192,80 @@
   color: var(--color-on-surface-variant);
   margin: 0;
   line-height: 1.4;
+}
+
+/* ==========================================================================
+   Menú Contextual (Fase C2C)
+   ========================================================================== */
+.dh-context-menu-container {
+  position: relative;
+}
+
+.dh-context-menu-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-on-surface);
+  transition: background 0.15s;
+}
+
+.dh-context-menu-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.dh-context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+.dh-context-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  z-index: 100;
+  width: 140px;
+  padding: 4px 0;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.dh-context-menu-item {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dh-context-menu-item:hover {
+  background: rgba(0,0,0,0.03);
+}
+
+.dh-context-menu-item--regular {
+  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.dh-context-menu-item--danger {
+  color: var(--color-danger);
 }
 
 /* ==========================================================================
@@ -638,6 +712,203 @@
   color: var(--color-on-surface-variant);
   font-size: 14px;
   padding: 4px;
+}
+
+/* ==========================================================================
+   Opciones del Encuentro (Toggle Visibilidad) (Fase C2C)
+   ========================================================================== */
+.dh-options-card {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  margin-bottom: 24px;
+}
+
+.dh-options-label {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dh-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dh-options-text-group {
+  flex: 1;
+}
+
+.dh-options-title {
+  margin: 0 0 2px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  line-height: 1.3;
+}
+
+.dh-options-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+
+.dh-toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.dh-toggle-switch[aria-pressed="true"] {
+  background: var(--color-primary);
+}
+
+.dh-toggle-switch[aria-pressed="false"] {
+  background: #D1D5DB;
+}
+
+.dh-toggle-switch:not(:disabled) {
+  cursor: pointer;
+}
+
+.dh-toggle-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dh-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #fff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  display: block;
+}
+
+.dh-toggle-switch[aria-pressed="true"] .dh-toggle-thumb {
+  left: 23px;
+}
+
+.dh-toggle-switch[aria-pressed="false"] .dh-toggle-thumb {
+  left: 3px;
+}
+
+.dh-options-feedback {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dh-options-feedback--success {
+  color: var(--color-success-dark);
+}
+
+.dh-options-feedback--error {
+  color: var(--color-danger);
+}
+
+/* ==========================================================================
+   Modales y Bottom Sheets (Fase C2C)
+   ========================================================================== */
+.dh-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.dh-bottom-sheet {
+  background: var(--color-surface);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 24px 44px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 -4px 30px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.dh-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 2px;
+  align-self: center;
+  margin-bottom: 22px;
+}
+
+.dh-sheet-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  color: var(--color-on-surface);
+}
+
+.dh-sheet-text {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.dh-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dh-sheet-message-box {
+  background: var(--color-surface-variant);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-outline-variant);
+  margin-bottom: 24px;
+  font-size: 15px;
+  color: var(--color-on-surface);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.dh-sheet-guest-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.dh-sheet-guest-status--confirmado {
+  background: var(--color-success-container);
+  color: var(--color-success-dark);
+}
+
+.dh-sheet-guest-status--rechazado {
+  background: var(--color-danger-container);
+  color: var(--color-danger-dark);
+}
+
+.dh-sheet-guest-status--pendiente {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
 }
 
 /* ==========================================================================

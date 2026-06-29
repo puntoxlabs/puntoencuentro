@@ -665,22 +665,14 @@ const DetailHost: React.FC = () => {
   const delConfig = getDeleteConfig();
 
   const deleteModal = showDeleteModal ? (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: '24px 24px 0 0',
-        padding: '28px 24px 40px', width: '100%', maxWidth: 480,
-        boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
-      }}>
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{delConfig.title}</h3>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24 }}>
+    <div className="dh-modal-overlay">
+      <div className="dh-bottom-sheet" style={{ paddingTop: 28 }}>
+        <h3 className="dh-sheet-title">{delConfig.title}</h3>
+        <p className="dh-sheet-text">
           {delConfig.desc}
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Button fullWidth variant="primary" style={{ background: '#DC2626', color: '#fff' }} onClick={handleDeleteEncuentro} disabled={isDeleting}>
+        <div className="dh-sheet-actions">
+          <Button fullWidth variant="primary" style={{ background: 'var(--color-danger)', color: '#fff', border: 'none' }} onClick={handleDeleteEncuentro} disabled={isDeleting}>
             {isDeleting ? 'Eliminando…' : 'Eliminar'}
           </Button>
           <Button fullWidth variant="outline" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>
@@ -694,37 +686,25 @@ const DetailHost: React.FC = () => {
   // Bottom sheet de cancelación unificado:
   // 3 opciones en un solo paso para evitar la doble instancia modal → CancelSummary.
   const cancelModal = showCancelModal ? (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: '24px 24px 0 0',
-        padding: '20px 24px 44px', width: '100%', maxWidth: 480,
-        boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
-        display: 'flex', flexDirection: 'column',
-      }}>
+    <div className="dh-modal-overlay">
+      <div className="dh-bottom-sheet">
         {/* Drag handle */}
-        <div style={{
-          width: 40, height: 4, background: 'rgba(0,0,0,0.1)',
-          borderRadius: 2, alignSelf: 'center', marginBottom: 22,
-        }} />
+        <div className="dh-sheet-handle" />
 
-        <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: '#111827' }}>
+        <h3 className="dh-sheet-title">
           ¿Qué querés hacer con este encuentro?
         </h3>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 24, lineHeight: 1.5 }}>
+        <p className="dh-sheet-text">
           Si lo cancelás, el encuentro quedará marcado como cancelado.
           Después podrás compartir el aviso con los invitados.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="dh-sheet-actions">
           {/* Opción 1: Cancelar y quedar en cancel-summary */}
           <Button
             fullWidth
             variant="outline"
-            style={{ borderColor: '#DC2626', color: '#DC2626' }}
+            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
             onClick={() => { setCancellingMode('cancel'); handleCancelEncuentro(); }}
             disabled={cancelling}
           >
@@ -870,15 +850,10 @@ const DetailHost: React.FC = () => {
         showBack
         onBack={(!isHost && isParticipant) ? undefined : () => navigate('/')}
         rightAction={(!isHost && isParticipant) ? null : (
-          <div style={{ position: 'relative' }}>
+          <div className="dh-context-menu-container">
             <button
               onClick={() => setShowContextMenu(!showContextMenu)}
-              style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: '50%',
-                color: '#111827'
-              }}
+              className="dh-context-menu-btn"
             >
               <MoreVertical size={20} />
             </button>
@@ -886,32 +861,18 @@ const DetailHost: React.FC = () => {
               <>
                 <div
                   onClick={() => setShowContextMenu(false)}
-                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }}
+                  className="dh-context-menu-overlay"
                 />
-                <div style={{
-                  position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                  background: '#fff', border: '1px solid rgba(0,0,0,0.08)',
-                  borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                  zIndex: 100, width: 140, padding: '4px 0'
-                }}>
+                <div className="dh-context-menu-dropdown">
                   <button
                     onClick={() => { setShowContextMenu(false); navigate('/', { replace: true }); }}
-                    style={{
-                      width: '100%', padding: '12px 16px', border: 'none',
-                      background: 'transparent', color: '#111827', fontWeight: 600,
-                      fontSize: 14, textAlign: 'left', cursor: 'pointer',
-                      borderBottom: '1px solid rgba(0,0,0,0.05)'
-                    }}
+                    className="dh-context-menu-item dh-context-menu-item--regular"
                   >
                     Ir al inicio
                   </button>
                   <button
                     onClick={() => { setShowContextMenu(false); setShowDeleteModal(true); }}
-                    style={{
-                      width: '100%', padding: '12px 16px', border: 'none',
-                      background: 'transparent', color: '#DC2626', fontWeight: 600,
-                      fontSize: 14, textAlign: 'left', cursor: 'pointer'
-                    }}
+                    className="dh-context-menu-item dh-context-menu-item--danger"
                   >
                     Eliminar
                   </button>
@@ -1209,21 +1170,16 @@ const DetailHost: React.FC = () => {
 
           {/* 5b. OPCIONES DEL ENCUENTRO — Visibilidad para invitados */}
           {!isReadOnly && !isCancelado && (
-            <div style={{
-              background: '#fff', borderRadius: 12, padding: '12px 16px',
-              border: '1px solid rgba(0,0,0,0.06)',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              marginBottom: 24,
-            }}>
-              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div className="dh-options-card">
+              <p className="dh-options-label">
                 Opciones del encuentro
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>
+              <div className="dh-options-row">
+                <div className="dh-options-text-group">
+                  <p className="dh-options-title">
                     Invitados ven respuestas
                   </p>
-                  <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>
+                  <p className="dh-options-desc">
                     Verán confirmados, no asisten y pendientes. Los mensajes privados no se comparten.
                   </p>
                 </div>
@@ -1232,30 +1188,13 @@ const DetailHost: React.FC = () => {
                   onClick={() => handleToggleVisibilidad(!visibilidadRespuestas)}
                   disabled={savingVisibilidad}
                   aria-pressed={visibilidadRespuestas}
-                  style={{
-                    width: 44, height: 24, borderRadius: 12, border: 'none',
-                    background: visibilidadRespuestas ? 'var(--color-primary)' : '#D1D5DB',
-                    cursor: savingVisibilidad ? 'not-allowed' : 'pointer',
-                    position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-                    opacity: savingVisibilidad ? 0.6 : 1,
-                  }}
+                  className="dh-toggle-switch"
                 >
-                  <span style={{
-                    position: 'absolute', top: 3,
-                    left: visibilidadRespuestas ? 23 : 3,
-                    width: 18, height: 18, borderRadius: 9,
-                    background: '#fff',
-                    transition: 'left 0.2s',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-                    display: 'block',
-                  }} />
+                  <span className="dh-toggle-thumb" />
                 </button>
               </div>
               {visibilidadFeedback && (
-                <p className="dh-fade-in" style={{
-                  margin: '8px 0 0', fontSize: 12, fontWeight: 500,
-                  color: visibilidadFeedback === 'ok' ? '#059669' : '#DC2626',
-                }}>
+                <p className={`dh-fade-in dh-options-feedback dh-options-feedback--${visibilidadFeedback === 'ok' ? 'success' : 'error'}`}>
                   {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
                 </p>
               )}
@@ -1297,30 +1236,13 @@ const DetailHost: React.FC = () => {
 
       {/* Modal para ver mensaje de invitado */}
       {selectedGuestMessage && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: '#fff', borderRadius: '24px 24px 0 0',
-            padding: '28px 24px 40px', width: '100%', maxWidth: 480,
-            boxShadow: '0 -4px 30px rgba(0,0,0,0.15)',
-          }}>
-            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{selectedGuestMessage.nombre_invitado}</h3>
-            <span style={{ 
-              display: 'inline-block', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-              background: selectedGuestMessage.estado === 'confirmado' ? '#D1FAE5' : selectedGuestMessage.estado === 'rechazado' ? '#FEE2E2' : '#F3F4F6',
-              color: selectedGuestMessage.estado === 'confirmado' ? '#047857' : selectedGuestMessage.estado === 'rechazado' ? '#B91C1C' : '#4B5563',
-              marginBottom: 20
-            }}>
+        <div className="dh-modal-overlay">
+          <div className="dh-bottom-sheet" style={{ paddingTop: 28 }}>
+            <h3 className="dh-sheet-title">{selectedGuestMessage.nombre_invitado}</h3>
+            <span className={`dh-sheet-guest-status dh-sheet-guest-status--${selectedGuestMessage.estado}`}>
               {selectedGuestMessage.estado === 'confirmado' ? 'Confirmado' : selectedGuestMessage.estado === 'rechazado' ? 'No asiste' : 'Pendiente'}
             </span>
-            <div style={{
-              background: '#F9FAFB', padding: '16px', borderRadius: 12,
-              border: '1px solid rgba(0,0,0,0.05)', marginBottom: 24,
-              fontSize: 15, color: '#374151', lineHeight: 1.5, fontStyle: 'italic'
-            }}>
+            <div className="dh-sheet-message-box">
               "{selectedGuestMessage.mensaje_respuesta}"
             </div>
             <Button fullWidth variant="outline" onClick={() => setSelectedGuestMessage(null)}>
