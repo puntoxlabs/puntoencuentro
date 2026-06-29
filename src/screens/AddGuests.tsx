@@ -26,10 +26,8 @@ const AddGuests: React.FC = () => {
 
   return (
     <ScreenContainer>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: 'var(--color-on-surface-variant)', fontWeight: 500 }}>
-          Cargando invitaciones...
-        </p>
+      <div className="pe-centered-loader">
+        <p>Cargando invitaciones...</p>
       </div>
     </ScreenContainer>
   );

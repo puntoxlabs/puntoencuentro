@@ -35,7 +35,7 @@ const ShareLink: React.FC = () => {
   // Pantalla minima mientras auth resuelve (evita flash)
   return (
     <ScreenContainer>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="pe-centered-loader">
         <p>Cargando…</p>
       </div>
     </ScreenContainer>

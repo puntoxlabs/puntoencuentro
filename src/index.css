@@ -90,3 +90,13 @@ p {
   color: var(--color-on-surface-variant);
   line-height: 1.5;
 }
+
+/* Utilitaria global para loaders centrados simples */
+.pe-centered-loader {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+}

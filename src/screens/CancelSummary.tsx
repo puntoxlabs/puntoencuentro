@@ -15,12 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { getHostAlias } from '@/lib/hostAliasStorage';
-
-const metaRow: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8,
-  fontSize: 14, color: 'var(--color-on-surface-variant)', marginBottom: 8,
-};
-const metaIcon: React.CSSProperties = { fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 };
+import './CancelSummary.css';
 
 const CancelSummary: React.FC = () => {
   const { id } = useParams();
@@ -132,7 +127,7 @@ const CancelSummary: React.FC = () => {
 
   if (authLoading || loading) return (
     <ScreenContainer>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="pe-centered-loader">
         <p>Cargando…</p>
       </div>
     </ScreenContainer>
@@ -141,9 +136,9 @@ const CancelSummary: React.FC = () => {
   if (error || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Error" showBack />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
-        <span style={{ fontSize: 36 }}>⚠️</span>
-        <p style={{ textAlign: 'center', fontSize: 15, color: '#374151', margin: 0 }}>
+      <div className="cs-error-container">
+        <span className="cs-error-icon">⚠️</span>
+        <p className="cs-error-text">
           {error || 'Encuentro no encontrado.'}
         </p>
         <Button fullWidth onClick={() => loadData()} variant="outline">
@@ -158,37 +153,26 @@ const CancelSummary: React.FC = () => {
     <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Encuentro cancelado" showBack />
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 16, paddingBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="cs-content-wrapper">
 
         {/* Encuentro card */}
-        <div style={{
-          background: '#fff', borderRadius: 20, padding: '20px',
-          border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, flex: 1, marginRight: 10 }}>{encuentro.titulo}</h2>
+        <div className="cs-card">
+          <div className="cs-card-header">
+            <h2 className="cs-card-title">{encuentro.titulo}</h2>
             <Badge label="Cancelado" status="rejected" />
           </div>
-          <div style={metaRow}><span style={metaIcon}>📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
-          <div style={metaRow}>
-            <span style={metaIcon}>{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
+          <div className="cs-meta-row"><span className="cs-meta-icon">📅</span><span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span></div>
+          <div className="cs-meta-row">
+            <span className="cs-meta-icon">{encuentro.modalidad === 'presencial' ? '📍' : '💻'}</span>
             <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
           </div>
         </div>
 
         {/* Nota informativa: el anfitrión debe compartir el aviso manualmente */}
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          background: 'rgba(59, 130, 246, 0.06)',
-          border: '1px solid rgba(59, 130, 246, 0.18)',
-          borderRadius: 12,
-          padding: '12px 14px',
-        }}>
-          <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>ℹ️</span>
-          <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
-            <strong style={{ display: 'block', marginBottom: 2, fontWeight: 700 }}>
-              El encuentro ya fue cancelado.
-            </strong>
+        <div className="cs-info-box">
+          <span className="cs-info-icon">ℹ️</span>
+          <p className="cs-info-text">
+            <strong>El encuentro ya fue cancelado.</strong>
             Ahora compartí el aviso con los invitados para que todos estén informados.
           </p>
         </div>
@@ -196,13 +180,13 @@ const CancelSummary: React.FC = () => {
         <div style={{ flex: 1 }}></div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto', paddingTop: 8 }}>
+        <div className="cs-actions-container">
           <Button fullWidth variant={copied ? 'secondary' : 'outline'} onClick={handleShareCancel}>
             {copied ? t('share.copied_for_sharing', 'Copiado para compartir') : '📤 Compartir aviso de cancelación'}
           </Button>
 
           {shareFeedback && (
-            <p style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: '4px 0 8px', fontWeight: 500, animation: 'fadeIn 0.3s ease' }}>
+            <p className="cs-feedback-text">
               {t('share.ready_cancel', 'Listo. Los invitados podrán ver el estado actualizado.')}
             </p>
           )}
@@ -210,18 +194,11 @@ const CancelSummary: React.FC = () => {
           <Button fullWidth variant="primary" onClick={handleCreateNew}>
             ✨ Crear encuentro de reemplazo
           </Button>
-          <Button fullWidth variant="ghost" onClick={() => navigate('/')} style={{ color: 'var(--color-on-surface-variant)', border: '1px solid rgba(0,0,0,0.1)' }}>
+          <Button fullWidth variant="ghost" onClick={() => navigate('/')} style={{ color: 'var(--color-on-surface-variant)', border: '1px solid var(--color-outline-variant)' }}>
             Ir al inicio
           </Button>
         </div>
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}} />
     </ScreenContainer>
   );
 };

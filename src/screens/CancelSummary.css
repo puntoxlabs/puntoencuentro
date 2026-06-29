@@ -1,0 +1,131 @@
+/* CancelSummary.css - Estilos para la vista de resumen de cancelación (Etapa E3) */
+
+.cs-error-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 24px;
+}
+
+.cs-error-icon {
+  font-size: 36px;
+}
+
+.cs-error-text {
+  text-align: center;
+  font-size: 15px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.cs-content-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 16px;
+  padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Tarjeta del Encuentro */
+.cs-card {
+  background: var(--color-surface);
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+
+.cs-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.cs-card-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  flex: 1;
+  margin-right: 10px;
+  color: var(--color-on-surface);
+}
+
+.cs-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 8px;
+}
+
+.cs-meta-row:last-child {
+  margin-bottom: 0;
+}
+
+.cs-meta-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Caja Informativa */
+.cs-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--color-primary-container);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.cs-info-icon {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.cs-info-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-primary-container);
+  line-height: 1.5;
+}
+
+.cs-info-text strong {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
+/* Acciones Inferiores */
+.cs-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.cs-feedback-text {
+  font-size: 13px;
+  color: var(--color-primary-dark);
+  text-align: center;
+  margin: 4px 0 8px;
+  font-weight: 500;
+  animation: csFadeIn 0.3s ease;
+}
+
+@keyframes csFadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
