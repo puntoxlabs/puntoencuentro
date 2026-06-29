@@ -744,18 +744,18 @@ const DetailHost: React.FC = () => {
     const pEstado = participanteActual?.estado || 'pendiente';
     const statusLabel = pEstado === 'confirmado' ? 'Confirmaste tu asistencia' :
                         pEstado === 'rechazado' ? 'Rechazaste esta invitación' : 'Todavía no respondiste';
-    const statusIcon = pEstado === 'confirmado' ? <CheckCircle2 size={18} color="#059669" /> :
-                       pEstado === 'rechazado' ? <XCircle size={18} color="#DC2626" /> : <Clock size={18} color="#6B7280" />;
+    const statusIcon = pEstado === 'confirmado' ? <CheckCircle2 size={18} color="var(--color-success)" /> :
+                       pEstado === 'rechazado' ? <XCircle size={18} color="var(--color-danger)" /> : <Clock size={18} color="var(--color-on-surface-variant)" />;
     
     return (
       <div 
         id="participant-scroll-container" 
         onScroll={handleScroll}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '16px 20px 40px' }}
+        className="dh-participant-view-container"
       >
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1.15, color: '#111827', flex: 1, marginRight: 12 }}>
+        <div className="dh-event-header">
+          <div className="dh-title-row">
+            <h2 className="dh-title">
               {encuentro.titulo}
             </h2>
             <div className={`dh-badge ${badge.className}`}>
@@ -763,17 +763,17 @@ const DetailHost: React.FC = () => {
             </div>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#4B5563', fontSize: 15 }}>
+          <div className="dh-meta-list">
+            <div className="dh-meta-row">
               <Clock size={18} />
-              <span style={{ fontWeight: 600 }}>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+              <span className="dh-meta-text">{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#4B5563', fontSize: 15 }}>
+            <div className="dh-meta-row">
               {isVirtual ? <Video size={18} /> : <MapPin size={18} />}
               <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
             </div>
             {encuentro.descripcion && (
-              <div style={{ marginTop: 8, fontSize: 15, color: '#6B7280', lineHeight: 1.5, background: '#F9FAFB', padding: '12px 16px', borderRadius: 12 }}>
+              <div className="dh-participant-view-desc">
                 {encuentro.descripcion}
               </div>
             )}
@@ -781,46 +781,39 @@ const DetailHost: React.FC = () => {
         </div>
 
         {/* Estado personal */}
-        <div style={{
-          background: '#fff', borderRadius: 16, padding: '16px 20px', marginBottom: 32,
-          border: '1px solid rgba(0,0,0,0.04)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          display: 'flex', alignItems: 'center', gap: 12
-        }}>
+        <div className="dh-participant-status-card">
           {statusIcon}
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{statusLabel}</span>
+          <span className="dh-participant-status-label">{statusLabel}</span>
         </div>
 
         {isCancelado && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: 12, padding: '14px 16px', marginBottom: 32 }}>
-            <p style={{ margin: 0, fontSize: 14, color: '#991B1B', fontWeight: 600 }}>El organizador canceló este encuentro.</p>
+          <div className="dh-participant-banner dh-participant-banner--cancelled">
+            <p className="dh-participant-banner-text">El organizador canceló este encuentro.</p>
           </div>
         )}
 
         {isFinalizado && (
-          <div style={{ background: '#F3F4F6', borderRadius: 12, padding: '14px 16px', marginBottom: 32 }}>
-            <p style={{ margin: 0, fontSize: 14, color: '#4B5563', fontWeight: 600 }}>Este encuentro ya finalizó.</p>
+          <div className="dh-participant-banner dh-participant-banner--finished">
+            <p className="dh-participant-banner-text">Este encuentro ya finalizó.</p>
           </div>
         )}
 
         {/* Acciones para participantes */}
         {!isCancelado && !isFinalizado && isVirtual && encuentro.link_virtual && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-             <Button fullWidth style={{ height: 54, fontSize: 16, fontWeight: 700 }} onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
+          <div className="dh-participant-video-actions">
+             <Button fullWidth className="dh-participant-video-btn" onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
                Abrir videollamada
              </Button>
              <button 
                onClick={handleCopyVideoLink} 
-               style={{ 
-                 background: 'none', border: 'none', color: 'var(--color-primary)', 
-                 fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '8px' 
-               }}
+               className="dh-participant-video-copy-btn"
              >
                {copiedLink ? 'Copiado' : 'Copiar link de la reunión'}
              </button>
           </div>
         )}
 
-        <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+        <div className="dh-participant-bottom-actions">
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
