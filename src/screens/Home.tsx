@@ -8,6 +8,8 @@ import { Calendar, Sliders, Plus, User, MoreVertical } from 'lucide-react';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
+import { StatusChip } from '@/components/ui/StatusChip';
+import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
@@ -63,54 +65,38 @@ const ActiveCard: React.FC<{
 
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Vas a asistir' : miEstado === 'rechazado' ? '✖ No vas a asistir' : miEstado ? 'Respuesta registrada' : null;
-  const miEstadoColor = miEstado === 'confirmado' ? '#059669' : miEstado === 'rechazado' ? '#DC2626' : '#6B7280';
 
   return (
     <div
       onClick={onClick}
-      style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: '20px',
-        border: '1px solid rgba(0,0,0,0.04)',
-        borderLeft: `5px solid ${accentColor}`,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        cursor: 'pointer',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)';
-      }}
+      className="home-card"
+      style={{ borderLeft: `5px solid ${accentColor}` }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, flex: 1, marginRight: 8, lineHeight: 1.25, color: '#111827' }}>
+      <div className="home-card-header">
+        <h3 className="home-card-title">
           {enc.titulo}
         </h3>
-        <Badge label="Activo" status="confirmed" />
+        <Badge label="Activo" status="active" />
       </div>
 
-      <p style={{ margin: '0 0 14px 0', fontSize: 14, color: '#6B7280', fontWeight: 500 }}>
+      <p className="home-card-date">
         📅 {formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ background: '#F3F4F6', color: '#4B5563', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
-          {enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
-        </div>
+      <div className="home-card-footer">
+        <StatusChip 
+          icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
+          label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
+        />
         
         {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
         {miEstadoLabel ? (
-          <span style={{ fontSize: 13, color: miEstadoColor, fontWeight: 600 }}>
+          <span className={miEstado === 'confirmado' ? 'home-card-status--success' : miEstado === 'rechazado' ? 'home-card-status--danger' : 'home-card-status'}>
             {miEstadoLabel}
           </span>
         ) : (
           total !== null && (
-            <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+            <span className="home-card-status">
               {confirmados !== null && confirmados > 0
                 ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
                 : `${total} invitado${total !== 1 ? 's' : ''}`}
@@ -138,60 +124,42 @@ const PastCard: React.FC<{
 
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Asististe' : miEstado === 'rechazado' ? '✖ No asististe' : miEstado ? 'Respuesta registrada' : null;
-  const miEstadoColor = miEstado === 'confirmado' ? '#059669' : miEstado === 'rechazado' ? '#DC2626' : '#9CA3AF';
 
   return (
     <div
       onClick={onClick}
-      style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: '20px',
-        border: '1px solid rgba(0,0,0,0.04)',
-        borderLeft: `4px solid ${accentColor}66`, // opacity in hex
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        cursor: 'pointer',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
-      }}
+      className="home-card--past"
+      style={{ borderLeft: `4px solid ${accentColor}66` }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600, flex: 1, marginRight: 8, color: '#374151', lineHeight: 1.3 }}>
+      <div className="home-card-header">
+        <h3 className="home-card-title--past">
           {enc.titulo}
         </h3>
         {isCancelled ? (
           <Badge label="Cancelado" status="rejected" />
         ) : (
-          <div style={{ background: '#EEF1F5', color: '#6B7280', padding: '4px 12px', borderRadius: 9999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Finalizado
-          </div>
+          <Badge label="Finalizado" status="finished" />
         )}
       </div>
 
-      <p style={{ margin: '0 0 16px 0', fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+      <p className="home-card-date--past">
         📅 {formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ background: '#F3F4F6', color: '#6B7280', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 }}>
-            {enc.modalidad === 'presencial' ? '🤝 Presencial' : '💻 Virtual'}
-          </div>
+      <div className="home-card-footer">
+        <div className="home-card-footer-left">
+          <StatusChip 
+            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
+            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
+          />
           {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
           {miEstadoLabel ? (
-            <span style={{ fontSize: 12, color: miEstadoColor, fontWeight: 600 }}>
+            <span className={miEstado === 'confirmado' ? 'home-card-status--success' : miEstado === 'rechazado' ? 'home-card-status--danger' : 'home-card-status'}>
               {miEstadoLabel}
             </span>
           ) : (
             total !== null && (
-              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>
+              <span className="home-card-status">
                 {confirmados !== null && confirmados > 0
                   ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
                   : `${total} invitado${total !== 1 ? 's' : ''}`}
@@ -203,41 +171,18 @@ const PastCard: React.FC<{
         {/* Botón Repetir */}
         <button
           onClick={onRepeat}
-          style={{
-            background: `${accentColor}10`, // very light background
-            border: 'none',
-            borderRadius: 10,
-            padding: '8px 14px',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-family)',
-            fontSize: 13,
-            fontWeight: 700,
-            color: accentColor,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            transition: 'background 0.2s ease, transform 0.1s ease',
-          }}
+          className="home-card-repeat-btn"
+          style={{ background: `${accentColor}10`, color: accentColor }}
           onMouseEnter={e => {
             e.stopPropagation();
             (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}20`;
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
           }}
           onMouseLeave={e => {
             e.stopPropagation();
             (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}10`;
-            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-          }}
-          onMouseDown={e => {
-             e.stopPropagation();
-             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.96)';
-          }}
-          onMouseUp={e => {
-             e.stopPropagation();
-             (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
           }}
         >
-          🔁 Repetir encuentro
+          🔁 Repetir
         </button>
       </div>
     </div>
@@ -432,14 +377,14 @@ const Home: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#6B7280', fontWeight: 500 }}>Cargando encuentros…</p>
+      <div className="home-loading">
+        <p className="home-loading-text">Cargando encuentros…</p>
       </div>
     );
 
     if (error) return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-        <p style={{ color: '#DC2626', fontWeight: 500 }}>{error}</p>
+      <div className="home-error">
+        <p className="home-error-text">{error}</p>
         <Button variant="outline" onClick={loadData}>Reintentar</Button>
       </div>
     );
@@ -497,31 +442,16 @@ const Home: React.FC = () => {
     if (!encuentros || encuentros.length === 0) {
       const isOrganizo = activeScope === 'organizo';
       return (
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '20px 0', gap: 0,
-        }}>
-          <div style={{
-            width: 80, height: 80, borderRadius: 28,
-            background: 'var(--color-primary-container)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 24,
-          }}>
+        <div className="home-empty">
+          <div className="home-empty-icon">
             <Calendar size={40} color="var(--color-primary)" />
           </div>
-          <h2 style={{
-            fontSize: 22, fontWeight: 800, textAlign: 'center',
-            margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
-          }}>
+          <h2 className="home-empty-title">
             {isOrganizo 
               ? 'Todavía no organizaste encuentros'
               : 'Todavía no tenés invitaciones confirmadas'}
           </h2>
-          <p style={{
-            fontSize: 15, color: '#6B7280',
-            textAlign: 'center', margin: '0 0 32px', lineHeight: 1.5,
-          }}>
+          <p className="home-empty-desc">
             {isOrganizo
               ? 'Creá uno nuevo para coordinar con otros.'
               : 'Cuando confirmes asistencia, aparecerán acá.'}
@@ -547,59 +477,28 @@ const Home: React.FC = () => {
         key={activeTab}
         id="home-scroll-container"
         onScroll={handleScroll}
-        className={slideClass}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingBottom: 80, paddingTop: 16 }}
+        className={`${slideClass} home-scroll-container`}
       >
-        <style dangerouslySetInnerHTML={{__html: `
-          @keyframes slideFromLeft {
-            from { transform: translateX(-20px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes slideFromRight {
-            from { transform: translateX(20px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          .slide-from-left { animation: slideFromLeft 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
-          .slide-from-right { animation: slideFromRight 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
-        `}} />
 
         {/* Banner A: Usuario NO logueado + encuentros locales (Nudge Login) */}
         {activeTab === 'upcoming' && showAnonNudge && (
-          <div style={{
-            background: '#fff',
-            borderRadius: 14,
-            padding: '12px 16px',
-            marginBottom: 16,
-            border: '1px solid rgba(var(--color-primary-rgb), 0.15)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            animation: 'fadeIn 0.5s ease-out',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-          }}>
+          <div className="home-banner">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.2 }}>
+                <p className="home-banner-title">
                   {t('account.save_meetings_title', 'Guardá tus encuentros')}
                 </p>
-                <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>
+                <p className="home-banner-desc">
                   {t('account.save_meetings_desc', 'Iniciá sesión para acceder desde otros dispositivos.')}
                 </p>
               </div>
             </div>
             
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
+            <div className="home-banner-actions">
               <Button
                 variant="primary"
                 size="sm"
                 onClick={() => signInWithGoogle()}
-                style={{ 
-                  padding: '0 12px', 
-                  height: 32, 
-                  fontSize: 12, 
-                  borderRadius: 8,
-                  fontWeight: 600
-                }}
               >
                 <svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 6 }}>
                   <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -610,21 +509,11 @@ const Home: React.FC = () => {
                 {t('account.continue_google', 'Continuar con Google')}
               </Button>
               <button
+                className="home-banner-btn-secondary"
                 onClick={() => {
                   setLinkDismissed(true);
                   setShowHint(true);
                   setTimeout(() => setShowHint(false), 4000);
-                }}
-                style={{ 
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  color: '#9CA3AF', 
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '2px'
                 }}
               >
                 {t('account.not_now', 'Ahora no')}
@@ -635,46 +524,29 @@ const Home: React.FC = () => {
 
         {/* Banner B: Usuario logueado + encuentros locales sin vincular (Vinculación) */}
         {activeTab === 'upcoming' && hasAnonymous && (
-          <div style={{
-            background: '#fff',
-            borderRadius: 14,
-            padding: '12px 16px',
-            marginBottom: 16,
-            border: '1px solid rgba(var(--color-primary-rgb), 0.15)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            animation: 'fadeIn 0.5s ease-out',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-          }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1.2 }}>
+          <div className="home-banner">
+            <p className="home-banner-title">
               {t('account.link_title', 'Guardá tus encuentros en tu cuenta')}
             </p>
-            <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>
+            <p className="home-banner-desc">
               {t('account.link_banner', 'Tenés encuentros creados en este dispositivo. Guardálos para acceder desde otros dispositivos.')}
             </p>
             {linkError && (
-              <p style={{ margin: 0, fontSize: 11, color: 'var(--color-error, #dc2626)', fontWeight: 600 }}>
+              <p className="home-banner-error">
                 {linkError}
               </p>
             )}
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
+            <div className="home-banner-actions">
               <Button
                 variant="primary"
                 size="sm"
                 onClick={handleLinkEncuentros}
                 disabled={linking}
-                style={{ 
-                  padding: '0 12px', 
-                  height: 32, 
-                  fontSize: 12, 
-                  borderRadius: 8,
-                  fontWeight: 600
-                }}
               >
                 {linking ? '…' : t('account.link_action', 'Guardar en mi cuenta')}
               </Button>
               <button
+                className="home-banner-btn-secondary"
                 onClick={() => { 
                   setLinkDismissed(true); 
                   setLinkError(null); 
@@ -682,18 +554,6 @@ const Home: React.FC = () => {
                   setTimeout(() => setShowHint(false), 4000);
                 }}
                 disabled={linking}
-                style={{ 
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  color: '#9CA3AF', 
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '2px',
-                  opacity: linking ? 0.5 : 1
-                }}
               >
                 {t('account.link_later', 'Ahora no')}
               </button>
@@ -703,7 +563,7 @@ const Home: React.FC = () => {
 
         {activeTab === 'upcoming' ? (
           proximos.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="home-card-list">
               {proximos.map(enc => (
                 <ActiveCard
                   key={enc.id}
@@ -721,23 +581,11 @@ const Home: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              padding: '40px 20px',
-            }}>
-              <div style={{
-                width: 80, height: 80, borderRadius: 28,
-                background: 'var(--color-primary-container)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 24,
-              }}>
+            <div className="home-empty">
+              <div className="home-empty-icon">
                 <Calendar size={32} color="var(--color-primary)" />
               </div>
-              <h2 style={{
-                fontSize: 22, fontWeight: 800, textAlign: 'center',
-                margin: '0 0 12px', lineHeight: 1.3, color: '#111827'
-              }}>
+              <h2 className="home-empty-title">
                 {encuentros.length === 0 ? (
                   <>Todavía no tenés encuentros<br />programados 👇</>
                 ) : (
@@ -758,7 +606,7 @@ const Home: React.FC = () => {
           )
         ) : (
           pasados.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="home-card-list">
               {pasados.map(enc => (
                 <PastCard
                   key={enc.id}
@@ -777,10 +625,7 @@ const Home: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div style={{
-              textAlign: 'center', padding: '60px 20px', color: '#6B7280',
-              fontSize: 15, fontWeight: 600
-            }}>
+            <div className="home-empty-past">
               No hay encuentros anteriores
             </div>
           )
@@ -790,50 +635,22 @@ const Home: React.FC = () => {
   };
 
   return (
-    <ScreenContainer style={{ background: '#F4F6FB' }}>
-      <header style={{
-        background: '#F3F7FF',
-        borderBottom: '1px solid #E5E7EB',
-        padding: 'calc(20px + env(safe-area-inset-top, 0px)) 16px 16px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
+    <ScreenContainer style={{ background: 'var(--color-background)' }}>
+      <header className="home-header">
         <div>
-          <h1 style={{
-            fontSize: '20px',
-            fontWeight: 700,
-            color: '#111827',
-            letterSpacing: '-0.3px',
-            margin: 0
-          }}>
+          <h1 className="home-header-title">
             Tus encuentros
           </h1>
-          <p style={{
-            fontSize: '13px',
-            color: '#6B7280',
-            margin: '4px 0 0 0'
-          }}>
+          <p className="home-header-subtitle">
             {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="home-header-actions">
           {/* Botón de perfil/cuenta */}
           <button
             onClick={() => setIsAccountOpen(true)}
             aria-label="Cuenta"
-            style={{
-              background: user ? 'var(--color-primary)' : '#F3F4F6',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, borderRadius: '50%',
-              overflow: 'hidden',
-              transition: 'background 0.2s ease',
-              padding: 0,
-            }}
+            className={`home-header-avatar-btn ${user ? 'home-header-avatar-btn--logged' : ''}`}
             title={user ? 'Tu cuenta' : 'Iniciar sesión'}
           >
             {user && userAvatarUrl && !imgError ? (
@@ -844,22 +661,20 @@ const Home: React.FC = () => {
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             ) : user ? (
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>
+              <span className="home-header-avatar-initials">
                 {userInitials}
               </span>
             ) : (
-              <User size={18} color="#6B7280" />
+              <User size={18} color="var(--color-outline)" />
             )}
           </button>
 
           {/* Botón de filtros */}
           <button
             onClick={() => setIsFilterOpen(true)}
+            className="home-header-icon-btn"
             style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, borderRadius: '50%',
-              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : '#111827'
+              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
             }}
           >
             <Sliders size={20} />
@@ -868,12 +683,7 @@ const Home: React.FC = () => {
           {/* Botón de información */}
           <button
             onClick={() => setIsInfoOpen(true)}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, borderRadius: '50%',
-              color: '#111827'
-            }}
+            className="home-header-icon-btn"
           >
             <MoreVertical size={20} />
           </button>
@@ -884,35 +694,17 @@ const Home: React.FC = () => {
 
       {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
       {user && (
-        <div style={{ padding: '16px 20px 0 20px', background: '#F4F6FB' }}>
-          <div style={{
-            display: 'flex',
-            background: '#E5E7EB',
-            padding: 4,
-            borderRadius: 14,
-            height: 48,
-          }}>
+        <div className="home-scope-container">
+          <div className="home-scope-toggle">
             <button
               onClick={() => setActiveScope('organizo')}
-              style={{
-                flex: 1, border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                background: activeScope === 'organizo' ? '#fff' : 'transparent',
-                color: activeScope === 'organizo' ? '#111827' : '#6B7280',
-                boxShadow: activeScope === 'organizo' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                transition: 'all 0.2s ease',
-              }}
+              className={`home-scope-btn ${activeScope === 'organizo' ? 'home-scope-btn--active' : ''}`}
             >
               Organizo
             </button>
             <button
               onClick={() => setActiveScope('participo')}
-              style={{
-                flex: 1, border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                background: activeScope === 'participo' ? '#fff' : 'transparent',
-                color: activeScope === 'participo' ? '#111827' : '#6B7280',
-                boxShadow: activeScope === 'participo' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                transition: 'all 0.2s ease',
-              }}
+              className={`home-scope-btn ${activeScope === 'participo' ? 'home-scope-btn--active' : ''}`}
             >
               Participo
             </button>
@@ -922,62 +714,22 @@ const Home: React.FC = () => {
 
       {/* B. Segmented Control Toggle (Próximos / Anteriores) */}
       {!loading && (encuentros.length > 0 || filterStatus !== 'all') && (
-        <div style={{ padding: '16px 20px 0 20px', background: '#F4F6FB' }}>
-          <div style={{
-            background: '#E8EDF8',
-            borderRadius: 14,
-            padding: 4,
-            display: 'flex',
-            gap: 4
-          }}>
+        <div className="home-tabs-container">
+          <div className="home-tabs">
             <button
               onClick={() => setActiveTab('upcoming')}
-              style={{
-                flex: 1,
-                padding: '10px 0',
-                borderRadius: 11,
-                border: 'none',
-                background: activeTab === 'upcoming' ? '#fff' : 'transparent',
-                color: activeTab === 'upcoming' ? '#111827' : '#6B7280',
-                fontWeight: activeTab === 'upcoming' ? 700 : 600,
-                fontSize: 14,
-                cursor: 'pointer',
-                boxShadow: activeTab === 'upcoming' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.2s ease',
-                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6
-              }}
+              className={`home-tab ${activeTab === 'upcoming' ? 'home-tab--active' : ''}`}
             >
               <span>Próximos</span>
-              <span style={{
-                background: activeTab === 'upcoming' ? 'var(--color-primary-container)' : '#DCE4F2',
-                color: activeTab === 'upcoming' ? 'var(--color-primary)' : '#6B7280',
-                padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700
-              }}>{totalProximos}</span>
+              <span className="home-tab-badge">{totalProximos}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('past')}
-              style={{
-                flex: 1,
-                padding: '10px 0',
-                borderRadius: 11,
-                border: 'none',
-                background: activeTab === 'past' ? '#fff' : 'transparent',
-                color: activeTab === 'past' ? '#111827' : '#6B7280',
-                fontWeight: activeTab === 'past' ? 700 : 600,
-                fontSize: 14,
-                cursor: 'pointer',
-                boxShadow: activeTab === 'past' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.2s ease',
-                display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6
-              }}
+              className={`home-tab ${activeTab === 'past' ? 'home-tab--active' : ''}`}
             >
               <span>Anteriores</span>
-              <span style={{
-                background: activeTab === 'past' ? 'var(--color-primary-container)' : '#DCE4F2',
-                color: activeTab === 'past' ? 'var(--color-primary)' : '#6B7280',
-                padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700
-              }}>{totalPasados}</span>
+              <span className="home-tab-badge">{totalPasados}</span>
             </button>
           </div>
         </div>
@@ -991,63 +743,28 @@ const Home: React.FC = () => {
 
       {/* Hint Toast */}
       {showHint && (
-        <div style={{
-          position: 'fixed',
-          bottom: 100, // Above the "Add" button
-          left: 20,
-          right: 20,
-          background: '#374151',
-          color: '#fff',
-          padding: '12px 16px',
-          borderRadius: 12,
-          fontSize: 13,
-          fontWeight: 500,
-          textAlign: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 2000,
-          animation: 'fadeIn 0.3s ease'
-        }}>
+        <div className="home-hint">
           {t('account.login_later_hint', 'Podés iniciar sesión más tarde desde el ícono de cuenta.')}
         </div>
       )}
       
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: 0, right: 0, zIndex: 100,
-          display: 'flex', justifyContent: 'center', pointerEvents: 'none'
-        }}>
-          <div style={{
-            width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'flex-end',
-            padding: '0 20px'
-          }}>
+        <div className="home-fab-container">
+          <div className="home-fab-wrapper">
             <button
               onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create'); }}
-              style={{
-                pointerEvents: 'auto',
-                height: 56, borderRadius: 28, padding: '0 24px',
-                background: 'var(--color-primary)', color: '#fff',
-                border: 'none', cursor: 'pointer',
-                boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'transform 0.2s ease',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-              }}
+              className="home-fab"
             >
               <Plus size={24} />
-              <span style={{ fontSize: 16, fontWeight: 700 }}>Crear</span>
+              <span className="home-fab-text">Crear</span>
             </button>
           </div>
         </div>
       )}
       {!loading && (
-        <div style={{ textAlign: 'center', paddingBottom: 12, background: '#F4F6FB' }}>
-          <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>
+        <div className="home-build-info">
+          <span>
             Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}
           </span>
         </div>

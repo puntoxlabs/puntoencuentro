@@ -1,26 +1,42 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Primary — more intense blue for better contrast */
-  --color-primary: #1A56F0;
-  --color-primary-dark: #0B3FCC;
-  --color-primary-container: #E0EBFF;
-  --color-on-primary-container: #001050;
+  /* Primary — refined deeper blue for more premium feel */
+  --color-primary: #184CD4;
+  --color-primary-dark: #123AA1;
+  --color-primary-container: #E5EDFF;
+  --color-on-primary-container: #001254;
 
   /* Surfaces */
   --color-surface: #FFFFFF;
-  --color-background: #F4F6FC;
-  --color-surface-variant: #EEF1F9;
+  --color-background: #F5F7FA;
+  --color-surface-variant: #F0F3F9;
 
   /* Text */
-  --color-on-surface: #0F1120;
-  --color-on-surface-variant: #52566B;
-  --color-outline: #6B6F83;
-  --color-outline-variant: #C8CADB;
+  --color-on-surface: #0F1322;
+  --color-on-surface-variant: #4B5162;
+  --color-outline: #8E95A7;
+  --color-outline-variant: #D1D6E2;
 
-  --color-error: #C0392B;
+  /* Semantics */
+  --color-error: #D92D20;
+  --color-danger: #D92D20;
+  --color-danger-bg: #FEF3F2;
+  --color-success: #039855;
+  --color-success-bg: #ECFDF3;
+  --color-warning: #F79009;
+  --color-warning-bg: #FFFAEB;
 
   --font-family: 'Manrope', sans-serif;
+
+  /* Typography Scale */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
 
   --radius-sm: 0.25rem;   /* 4px  */
   --radius-md: 0.75rem;   /* 12px */
@@ -34,8 +50,19 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
 
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 19, 34, 0.05);
+  --shadow-sm: 0 2px 4px rgba(15, 19, 34, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 19, 34, 0.06);
+  --shadow-lg: 0 12px 24px rgba(15, 19, 34, 0.08);
+  --shadow-xl: 0 20px 40px rgba(15, 19, 34, 0.1);
+
+  /* Transitions */
+  --transition-base: 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+
   /* Button height standard */
-  --btn-height: 54px;
+  --btn-height: 52px;
 }
 
 * {
@@ -49,12 +76,14 @@ body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
 }
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-on-surface);
   margin-bottom: var(--spacing-sm);
   line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 p {

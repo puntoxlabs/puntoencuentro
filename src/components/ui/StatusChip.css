@@ -1,0 +1,18 @@
+.status-chip {
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.status-chip-icon {
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+}

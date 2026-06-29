@@ -16,7 +16,7 @@
   height: 52px;
   padding: 0 16px;
   border: 1.5px solid var(--color-outline-variant);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   font-family: var(--font-family);
   font-size: 16px;
   color: var(--color-on-surface);
@@ -27,7 +27,7 @@
 }
 
 .input-field::placeholder {
-  color: #B0B3C6;
+  color: var(--color-outline);
 }
 
 .input-field:focus {

@@ -3,7 +3,7 @@ import './Badge.css';
 
 interface BadgeProps {
   label: string;
-  status?: 'pending' | 'confirmed' | 'rejected' | 'default';
+  status?: 'pending' | 'confirmed' | 'rejected' | 'default' | 'active' | 'finished';
 }
 
 export const Badge: React.FC<BadgeProps> = ({ label, status = 'default' }) => {

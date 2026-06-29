@@ -14,24 +14,36 @@
 }
 
 .badge-default {
-  background-color: #EAEDF5;
-  color: #52566B;
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
 }
 
 .badge-pending {
-  background-color: #FFF3CD;
-  color: #7D5A00;
-  border: 1px solid rgba(125, 90, 0, 0.15);
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid rgba(247, 144, 9, 0.2);
 }
 
 .badge-confirmed {
-  background-color: #D1F5E0;
-  color: #0F6B35;
-  border: 1px solid rgba(15, 107, 53, 0.12);
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid rgba(3, 152, 85, 0.2);
 }
 
 .badge-rejected {
-  background-color: #FFE4E4;
-  color: #B01C1C;
-  border: 1px solid rgba(176, 28, 28, 0.12);
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid rgba(217, 45, 32, 0.2);
+}
+
+.badge-active {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid rgba(3, 152, 85, 0.2);
+}
+
+.badge-finished {
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
 }
