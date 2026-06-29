@@ -171,3 +171,64 @@
   text-align: center;
   border: 1px solid var(--color-error);
 }
+
+/* ==========================================================================
+   Tarjetas de Selección (D3)
+   ========================================================================== */
+.cw-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cw-option-card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.cw-option-card:not(.cw-option-card--disabled):hover {
+  background: var(--color-surface-variant);
+}
+
+.cw-option-card--selected {
+  background: var(--color-primary-container);
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.cw-option-card--selected:not(.cw-option-card--disabled):hover {
+  background: var(--color-primary-container);
+}
+
+.cw-option-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cw-option-card--disabled.cw-option-card--selected {
+  opacity: 1; /* Keep selected visible even if disabled during loading */
+}
+
+.cw-option-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.cw-option-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  margin-top: 0;
+  color: var(--color-on-surface);
+}
+
+.cw-option-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+}

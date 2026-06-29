@@ -8,16 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/Button';
 
-const optionCard = (selected: boolean, disabled: boolean): React.CSSProperties => ({
-  background: selected ? 'var(--color-primary-container)' : '#fff',
-  border: selected ? '2px solid var(--color-primary)' : '1.5px solid var(--color-outline-variant)',
-  borderRadius: 16,
-  padding: '18px 20px',
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  opacity: disabled && !selected ? 0.5 : 1,
-  transition: 'all 0.18s ease',
-  boxShadow: selected ? '0 0 0 3px rgba(26, 86, 240, 0.1)' : '0 2px 6px rgba(0,0,0,0.04)',
-});
+
 
 const Step4InviteType: React.FC = () => {
   const { setField, ...wizardData } = useWizardStore();
@@ -121,15 +112,15 @@ const Step4InviteType: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>¿Cómo querés invitar?</h2>
-        <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)' }}>Elegí cómo van a sumarse al encuentro.</p>
+    <div className="cw-container">
+      <div className="cw-step-header cw-step-header--padded">
+        <h2 className="cw-step-title">¿Cómo querés invitar?</h2>
+        <p className="cw-step-subtitle">Elegí cómo van a sumarse al encuentro.</p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="cw-options-grid">
         <div
-          style={optionCard(wizardData.tipo_invitacion === 'link_general', loading || !!wizardData.encuentro_id)}
+          className={`cw-option-card ${wizardData.tipo_invitacion === 'link_general' ? 'cw-option-card--selected' : ''} ${loading || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
           onClick={async () => {
             if (loading || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'link_general');
@@ -137,13 +128,13 @@ const Step4InviteType: React.FC = () => {
             await handleFinish('link_general');
           }}
         >
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
-          <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Compartir link</h4>
-          <p style={{ margin: 0, fontSize: 14 }}>Cualquiera con el link puede sumarse</p>
+          <div className="cw-option-icon">🔗</div>
+          <h4 className="cw-option-title">Compartir link</h4>
+          <p className="cw-option-desc">Cualquiera con el link puede sumarse</p>
         </div>
 
         <div
-          style={optionCard(wizardData.tipo_invitacion === 'individual', loading || !!wizardData.encuentro_id)}
+          className={`cw-option-card ${wizardData.tipo_invitacion === 'individual' ? 'cw-option-card--selected' : ''} ${loading || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
           onClick={async () => {
             if (loading || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'individual');
@@ -151,14 +142,14 @@ const Step4InviteType: React.FC = () => {
             await handleFinish('individual');
           }}
         >
-          <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
-          <h4 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Personas específicas</h4>
-          <p style={{ margin: 0, fontSize: 14 }}>Invitás a cada uno individualmente</p>
+          <div className="cw-option-icon">👤</div>
+          <h4 className="cw-option-title">Personas específicas</h4>
+          <p className="cw-option-desc">Invitás a cada uno individualmente</p>
         </div>
       </div>
 
       {hasInitialValue && (
-        <div style={{ marginTop: 24 }}>
+        <div className="cw-bottom-actions">
           <Button 
             fullWidth 
             disabled={loading}
@@ -174,20 +165,12 @@ const Step4InviteType: React.FC = () => {
       )}
       
       {error && (
-        <div style={{ 
-          marginTop: 20,
-          background: 'var(--color-error-container, #fee2e2)', 
-          color: 'var(--color-error, #dc2626)', 
-          padding: '12px 16px', 
-          borderRadius: 14, 
-          fontSize: 13, 
-          fontWeight: 600,
-          textAlign: 'center',
-          border: '1px solid var(--color-error, #dc2626)'
-        }}>
-          {error}
-          <div style={{ marginTop: 8, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setField('step', 1)}>
-            Volver a corregir fecha y hora
+        <div className="cw-bottom-actions">
+          <div className="cw-error-banner">
+            {error}
+            <div style={{ marginTop: 8, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setField('step', 1)}>
+              Volver a corregir fecha y hora
+            </div>
           </div>
         </div>
       )}
