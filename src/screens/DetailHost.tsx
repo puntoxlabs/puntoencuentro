@@ -561,33 +561,25 @@ const DetailHost: React.FC = () => {
   const renderParticipantList = (title: string, list: any[]) => {
     if (list.length === 0) return null;
     return (
-      <div style={{ marginBottom: 20 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+      <div className="dh-participant-group">
+        <h4 className="dh-participant-group-title">
           {title}
         </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="dh-participant-list">
           {list.map(p => {
             const avatarChar = p.nombre_invitado ? p.nombre_invitado.charAt(0).toUpperCase() : '?';
             const sLabel = p.estado === 'confirmado' ? 'Confirmado' : p.estado === 'rechazado' ? 'No asiste' : 'Pendiente';
-            const bgChip = p.estado === 'confirmado' ? '#D1FAE5' : p.estado === 'rechazado' ? '#FEE2E2' : '#FEF3C7';
-            const fgChip = p.estado === 'confirmado' ? '#065F46' : p.estado === 'rechazado' ? '#991B1B' : '#92400E';
-            const bgAvatar = p.estado === 'confirmado' ? '#D1FAE5' : p.estado === 'rechazado' ? '#FEE2E2' : '#F3F4F6';
-            const fgAvatar = p.estado === 'confirmado' ? '#047857' : p.estado === 'rechazado' ? '#B91C1C' : '#4B5563';
+            const statusClass = p.estado === 'confirmado' ? 'confirmado' : p.estado === 'rechazado' ? 'rechazado' : 'pendiente';
 
             return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 16,
-                  background: bgAvatar, color: fgAvatar,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700, fontSize: 13, flexShrink: 0
-                }}>
+              <div key={p.id} className="dh-participant-row">
+                <div className={`dh-participant-avatar dh-participant-avatar--${statusClass}`}>
                   {avatarChar}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 600, fontSize: 15, color: '#111827', display: 'block' }}>{p.nombre_invitado}</span>
+                <div className="dh-participant-info">
+                  <span className="dh-participant-name">{p.nombre_invitado}</span>
                   {p.user_id && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1, color: 'var(--color-primary)', fontSize: 11, fontWeight: 500 }}>
+                    <div className="dh-participant-linked">
                       <User size={12} strokeWidth={2.5} />
                       <span>{t('participant.linked_account', 'Cuenta vinculada')}</span>
                     </div>
@@ -595,67 +587,37 @@ const DetailHost: React.FC = () => {
                   {p.mensaje_respuesta && (
                     <button
                       onClick={() => setSelectedGuestMessage(p)}
-                      style={{ 
-                        marginTop: 4, 
-                        background: 'none', border: 'none', 
-                        display: 'flex', alignItems: 'center', gap: 4, 
-                        color: 'var(--color-primary)', fontSize: 13, 
-                        fontWeight: 500, cursor: 'pointer', padding: 0 
-                      }}
+                      className="dh-participant-msg-btn"
                     >
                       <MessageSquare size={14} />
                       <span>Ver mensaje</span>
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="dh-participant-actions">
                   {!isReadOnly && !isCancelado && p.token_invitacion && (
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
-                      style={{
-                        background: copiedId === p.id
-                          ? 'var(--color-primary-container)'
-                          : p.estado !== 'pendiente'
-                          ? 'transparent'
-                          : sharedInvites[p.id]
-                          ? '#F0FDF4'
-                          : 'var(--color-primary-container)',
-                        border: `1.5px solid ${
-                          copiedId === p.id
-                            ? 'var(--color-primary)'
-                            : p.estado !== 'pendiente'
-                            ? '#D1D5DB'
-                            : sharedInvites[p.id]
-                            ? '#86EFAC'
-                            : 'var(--color-primary)'
-                        }`,
-                        borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
-                        fontFamily: 'var(--font-family)', fontSize: 13, fontWeight: 600,
-                        color: copiedId === p.id
-                          ? 'var(--color-primary)'
-                          : p.estado !== 'pendiente'
-                          ? '#6B7280'
-                          : sharedInvites[p.id]
-                          ? '#16A34A'
-                          : 'var(--color-primary-dark)',
-                        transition: 'all 0.15s', whiteSpace: 'nowrap',
-                      }}
+                      className={`dh-participant-share-btn ${
+                        copiedId === p.id 
+                          ? 'dh-participant-share-btn--copied' 
+                          : p.estado !== 'pendiente' 
+                          ? 'dh-participant-share-btn--reshare' 
+                          : sharedInvites[p.id] 
+                          ? 'dh-participant-share-btn--shared' 
+                          : 'dh-participant-share-btn--pending'
+                      }`}
                     >
                       {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir')}
                     </button>
                   )}
-                  <span style={{ fontSize: 11, fontWeight: 700, background: bgChip, color: fgChip, borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                  <span className={`dh-participant-chip dh-participant-chip--${statusClass}`}>
                     {sLabel}
                   </span>
                   {!isReadOnly && !isCancelado && (
                     <button
                       onClick={() => handleDeleteGuest(p.id)}
-                      style={{
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'var(--color-on-surface-variant)', fontSize: 14,
-                        padding: '4px'
-                      }}
+                      className="dh-participant-delete-btn"
                     >
                       ✕
                     </button>
@@ -1003,13 +965,9 @@ const DetailHost: React.FC = () => {
 
           {/* 1.5 ALIAS DEL ANFITRIÓN COMPACTO */}
           {!isReadOnly && !isCancelado && (
-            <div style={{
-              background: '#fff', borderRadius: 12, padding: '10px 16px',
-              border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
-              marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-            }}>
+            <div className="dh-alias-bar">
               {isEditingAlias ? (
-                <div style={{ display: 'flex', gap: 8, width: '100%', alignItems: 'center' }}>
+                <div className="dh-alias-editing-group">
                   <input
                     value={tempAlias}
                     onChange={e => setTempAlias(e.target.value)}
@@ -1022,11 +980,7 @@ const DetailHost: React.FC = () => {
                     }}
                     placeholder="Tu nombre o apodo"
                     autoFocus
-                    style={{
-                      flex: 1, border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
-                      padding: '0 10px', height: 32, fontSize: 14, borderRadius: 6,
-                      background: '#F9FAFB', fontFamily: 'var(--font-family)',
-                    }}
+                    className="dh-alias-input"
                   />
                   <button
                     onClick={() => {
@@ -1034,30 +988,22 @@ const DetailHost: React.FC = () => {
                       setHostAliasState(tempAlias.trim().substring(0, 40));
                       setIsEditingAlias(false);
                     }}
-                    style={{
-                      background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
-                      border: '1px solid var(--color-primary)', borderRadius: 6,
-                      padding: '0 12px', height: 32, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
+                    className="dh-alias-save-btn"
                   >
                     Guardar
                   </button>
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 14, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    Invitás como: <span style={{ fontWeight: 700, color: '#111827' }}>{hostAlias || 'Sin alias'}</span>
+                  <div className="dh-alias-text">
+                    Invitás como: <span className="dh-alias-name">{hostAlias || 'Sin alias'}</span>
                   </div>
                   <button
                     onClick={() => {
                       setTempAlias(hostAlias);
                       setIsEditingAlias(true);
                     }}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--color-primary)',
-                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 8px', flexShrink: 0
-                    }}
+                    className="dh-alias-toggle-btn"
                   >
                     {hostAlias ? 'Cambiar' : 'Agregar'}
                   </button>
@@ -1071,30 +1017,12 @@ const DetailHost: React.FC = () => {
             <div style={{ marginBottom: 24 }}>
               {encuentro.tipo_invitacion === 'link_general' ? (
                 // --- Link general: compartir + mensaje del organizador ---
-                <div style={{
-                  background: '#fff',
-                  borderRadius: 16,
-                  padding: '16px 20px',
-                  border: '1px solid rgba(0,0,0,0.06)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                }}>
+                <div className="dh-invite-card">
                   {/* Acción: agregar/editar mensaje */}
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <button
                       onClick={() => setIsSheetOpen(true)}
-                      style={{
-                        background: 'none', border: 'none',
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        color: 'var(--color-primary-dark)',
-                        fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                        padding: '6px 12px', borderRadius: 10,
-                        transition: 'background 0.2s ease',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.03)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      className="dh-invite-msg-btn"
                     >
                       <PencilLine size={16} />
                       {personalMessage.trim() ? t('edit', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
@@ -1103,14 +1031,11 @@ const DetailHost: React.FC = () => {
 
                   {/* Vista previa del mensaje si existe */}
                   {personalMessage.trim() && (
-                    <div className="dh-fade-in" style={{
-                      background: '#F9FAFB', borderRadius: 10,
-                      padding: '10px 14px', border: '1px solid rgba(0,0,0,0.05)',
-                    }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                    <div className="dh-invite-msg-preview dh-fade-in">
+                      <p className="dh-invite-msg-label">
                         {t('invitation.organizer_message', 'Mensaje del organizador')}
                       </p>
-                      <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5, fontStyle: 'italic' }}>
+                      <p className="dh-invite-msg-text">
                         "{personalMessage}"
                       </p>
                     </div>
@@ -1141,53 +1066,35 @@ const DetailHost: React.FC = () => {
                   )}
 
                   {/* Aclaración breve */}
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)', textAlign: 'center', lineHeight: 1.4 }}>
+                  <p className="dh-invite-help">
                     Quienes reciban el enlace podrán confirmar o rechazar su asistencia.
                   </p>
                 </div>
               ) : (
                 // --- Invitación individual o ?guests=1 ---
-                <div style={{
-                  background: '#fff', borderRadius: 16, padding: '16px 20px',
-                  border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#111827' }}>Agregar invitados</h3>
-                  <div style={{
-                    display: 'flex', gap: 0,
-                    background: '#F9FAFB', borderRadius: 12,
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    overflow: 'hidden', marginBottom: 16,
-                  }}>
+                <div className="dh-invite-card">
+                  <h3 className="dh-invite-title">Agregar invitados</h3>
+                  <div className="dh-add-guest-input-group">
                     <input
                       ref={inputRef}
                       value={nombre}
                       onChange={e => setNombre(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleAddGuest(); }}
                       placeholder="Nombre del invitado"
-                      style={{
-                        flex: 1, minWidth: 0, border: 'none', outline: 'none',
-                        padding: '0 16px', height: 48, fontSize: 15,
-                        fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
-                        background: 'transparent',
-                      }}
+                      className="dh-add-guest-input"
                     />
                     <button
                       onClick={handleAddGuest}
                       disabled={!nombre.trim()}
-                      style={{
-                        background: nombre.trim() ? 'var(--color-primary)' : 'var(--color-surface-variant)',
-                        color: nombre.trim() ? '#fff' : 'var(--color-on-surface-variant)',
-                        border: 'none', cursor: nombre.trim() ? 'pointer' : 'not-allowed',
-                        padding: '0 16px', fontFamily: 'var(--font-family)',
-                        fontWeight: 700, fontSize: 14, transition: 'all 0.18s',
-                        whiteSpace: 'nowrap', flexShrink: 0, minWidth: 96,
-                      }}
+                      className="dh-add-guest-btn"
                     >
                       + Agregar
                     </button>
                   </div>
 
+                  <p className="dh-invite-help">
                     Agregá personas y compartiles su invitación individual.
+                  </p>
                 </div>
               )}
 
@@ -1222,15 +1129,12 @@ const DetailHost: React.FC = () => {
 
           {/* 3. LINK COMPACTO (Solo virtual) */}
           {!isCancelado && isVirtual && encuentro.link_virtual && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: '#F3F4F6', borderRadius: 10, padding: '10px 14px', marginBottom: isReadOnly ? 32 : 16
-            }}>
-              <span style={{ fontSize: 13, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>
+            <div className="dh-compact-link-bar" style={{ marginBottom: isReadOnly ? 32 : 16 }}>
+              <span className="dh-compact-link-text">
                 🔗 {encuentro.link_virtual.replace(/^https?:\/\//, '')}
               </span>
               {!isReadOnly && (
-                <button onClick={handleCopyVideoLink} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '4px 8px' }}>
+                <button onClick={handleCopyVideoLink} className="dh-compact-link-copy-btn">
                   {copiedLink ? 'Copiado' : 'Copiar enlace'}
                 </button>
               )}
@@ -1239,15 +1143,10 @@ const DetailHost: React.FC = () => {
 
           {/* 4. ACCIONES SECUNDARIAS */}
           {!isReadOnly && !isCancelado && isVirtual && (
-            <div style={{ display: 'flex', gap: 10, marginBottom: 32 }}>
+            <div className="dh-secondary-actions-group">
               <button
                 onClick={() => openExternalVideoLink(encuentro.link_virtual)}
-                style={{
-                  flex: 1, padding: 12, borderRadius: 10,
-                  background: 'var(--color-primary-container)', color: 'var(--color-primary-dark)',
-                  fontWeight: 600, border: 'none', fontSize: 14, cursor: 'pointer',
-                  transition: 'background 0.15s ease'
-                }}
+                className="dh-join-video-btn"
               >
                 Unirme a la videollamada
               </button>
@@ -1270,12 +1169,12 @@ const DetailHost: React.FC = () => {
           )}
 
           {/* 5. PARTICIPANTES */}
-          <div style={{ marginBottom: 40 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: hasAnyResponse ? 2 : 16 }}>
+          <div className="dh-participants-section">
+            <h3 className="dh-participants-title" style={{ marginBottom: hasAnyResponse ? 2 : 16 }}>
               Participantes
             </h3>
             {hasAnyResponse && (
-              <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0, marginBottom: 16 }}>
+              <p className="dh-participants-summary">
                 {[
                   formatCount(confirmados.length, 'confirmado', 'confirmados'),
                   formatCount(pendientes.length, 'pendiente', 'pendientes'),
@@ -1288,21 +1187,17 @@ const DetailHost: React.FC = () => {
               {!hasAnyResponse && (
                 (searchParams.get('guests') === '1' || encuentro.tipo_invitacion !== 'link_general')
                   ? (
-                    <div style={{
-                      padding: '10px 14px',
-                      background: 'rgba(0,0,0,0.02)',
-                      borderRadius: 10,
-                      border: '1px solid rgba(0,0,0,0.06)',
-                      marginBottom: 16,
-                    }}>
-                      <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>
+                    <div className="dh-participants-empty">
+                      <p className="dh-participants-empty-text">
                         Los invitados aparecerán acá cuando los agregues.
                       </p>
                     </div>
                   )
                   : (
-                    <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,0.02)', borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)', marginBottom: 16 }}>
-                      <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>Todavía no hay respuestas. Compartí el enlace para empezar a recibir confirmaciones.</p>
+                    <div className="dh-participants-empty">
+                      <p className="dh-participants-empty-text">
+                        Todavía no hay respuestas. Compartí el enlace para empezar a recibir confirmaciones.
+                      </p>
                     </div>
                   )
               )}
@@ -1368,12 +1263,12 @@ const DetailHost: React.FC = () => {
           )}
 
           {/* 6. ACCIONES INFERIORES */}
-          <div style={{ marginTop: 'auto', paddingTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="dh-bottom-actions">
             {!isCancelado && !isReadOnly && (
               <Button
                 variant="outline"
                 onClick={() => setShowCancelModal(true)}
-                style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
                 fullWidth
               >
                 Cancelar encuentro

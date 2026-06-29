@@ -1,4 +1,4 @@
-/* DetailHost.css - Estilos para el panel del organizador (Fase C1) */
+/* DetailHost.css - Estilos para el panel del organizador (Fases C1 + C2A + C2B) */
 
 /* ==========================================================================
    Animaciones Globales
@@ -192,4 +192,461 @@
   color: var(--color-on-surface-variant);
   margin: 0;
   line-height: 1.4;
+}
+
+/* ==========================================================================
+   Bloque Alias del Anfitrión (Fase C2B)
+   ========================================================================== */
+.dh-alias-bar {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dh-alias-editing-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.dh-alias-input {
+  flex: 1;
+  border: 1px solid var(--color-outline-variant);
+  outline: none;
+  padding: 0 10px;
+  height: 32px;
+  font-size: 14px;
+  border-radius: 6px;
+  background: var(--color-surface-variant);
+  font-family: var(--font-family);
+  color: var(--color-on-surface);
+}
+
+.dh-alias-input:focus {
+  border-color: var(--color-primary);
+}
+
+.dh-alias-save-btn {
+  background: var(--color-primary-container);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dh-alias-text {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dh-alias-name {
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+
+.dh-alias-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Bloques de Invitación (Fase C2A)
+   ========================================================================== */
+.dh-invite-card {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dh-invite-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--color-on-surface);
+  margin-top: 0;
+}
+
+.dh-invite-msg-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary-dark);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.dh-invite-msg-btn:hover {
+  background: rgba(0,0,0,0.03);
+}
+
+.dh-invite-msg-preview {
+  background: var(--color-surface-variant);
+  border-radius: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-outline-variant);
+}
+
+.dh-invite-msg-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 4px 0;
+}
+
+.dh-invite-msg-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.dh-invite-help {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.dh-add-guest-input-group {
+  display: flex;
+  gap: 0;
+  background: var(--color-surface-variant);
+  border-radius: 12px;
+  border: 1px solid var(--color-outline-variant);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.dh-add-guest-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 0 16px;
+  height: 48px;
+  font-size: 15px;
+  font-family: var(--font-family);
+  color: var(--color-on-surface);
+  background: transparent;
+}
+
+.dh-add-guest-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 0 16px;
+  font-family: var(--font-family);
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 96px;
+}
+
+.dh-add-guest-btn:disabled {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Links y Acciones Secundarias (Fase C2B)
+   ========================================================================== */
+.dh-compact-link-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface-variant);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.dh-compact-link-text {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+
+.dh-compact-link-copy-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.dh-join-video-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--color-primary-container);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dh-join-video-btn:hover {
+  background: rgba(var(--color-primary-rgb), 0.15);
+}
+
+.dh-secondary-actions-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+/* ==========================================================================
+   Participantes (Fase C2A)
+   ========================================================================== */
+.dh-participants-section {
+  margin-bottom: 40px;
+}
+
+.dh-participants-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.dh-participants-summary {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin: 4px 0 16px 0;
+}
+
+.dh-participants-empty {
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.02);
+  border-radius: 10px;
+  border: 1px solid var(--color-outline-variant);
+  margin-bottom: 16px;
+}
+
+.dh-participants-empty-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+
+.dh-participant-group {
+  margin-bottom: 20px;
+}
+
+.dh-participant-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px 0;
+}
+
+.dh-participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dh-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dh-participant-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.dh-participant-avatar--confirmado {
+  background: var(--color-success-container);
+  color: var(--color-success-dark);
+}
+
+.dh-participant-avatar--rechazado {
+  background: var(--color-danger-container);
+  color: var(--color-danger-dark);
+}
+
+.dh-participant-avatar--pendiente {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.dh-participant-info {
+  flex: 1;
+}
+
+.dh-participant-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-on-surface);
+  display: block;
+}
+
+.dh-participant-linked {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dh-participant-msg-btn {
+  margin-top: 4px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dh-participant-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dh-participant-share-btn {
+  border-radius: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.dh-participant-share-btn--copied {
+  background: var(--color-primary-container);
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.dh-participant-share-btn--shared {
+  background: var(--color-success-container);
+  border: 1.5px solid var(--color-success);
+  color: var(--color-success-dark);
+}
+
+.dh-participant-share-btn--pending {
+  background: var(--color-primary-container);
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.dh-participant-share-btn--reshare {
+  background: transparent;
+  border: 1.5px solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.dh-participant-chip {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.dh-participant-chip--confirmado {
+  background: var(--color-success-container);
+  color: var(--color-success-dark);
+}
+
+.dh-participant-chip--rechazado {
+  background: var(--color-danger-container);
+  color: var(--color-danger-dark);
+}
+
+.dh-participant-chip--pendiente {
+  background: var(--color-warning-container);
+  color: var(--color-warning-dark);
+}
+
+.dh-participant-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  padding: 4px;
+}
+
+/* ==========================================================================
+   Acciones Inferiores (Fase C2B)
+   ========================================================================== */
+.dh-bottom-actions {
+  margin-top: auto;
+  padding-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
