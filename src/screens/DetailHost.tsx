@@ -517,25 +517,29 @@ const DetailHost: React.FC = () => {
   };
 
   const handleShareLink = async (token: string, partId: string, guestName?: string) => {
-    if (!token) return;
+    if (!token || !encuentro) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
     
-    let shareText = '';
+    const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
+    const alias = getHostAlias();
+    
+    let aliasIntro = '';
     if (guestName?.trim()) {
-      const alias = getHostAlias();
-      shareText = alias 
-        ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
-        : `${guestName.trim()}, te invito a este encuentro 👇\nConfirmá si podés asistir:`;
+      aliasIntro = alias 
+        ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇`
+        : `${guestName.trim()}, te invito a este encuentro 👇`;
     } else {
-      const alias = getHostAlias();
-      shareText = alias
-        ? `${alias} te invita a este encuentro 👇\nConfirmá si podés asistir:`
-        : `Te invito a este encuentro 👇\nConfirmá si podés asistir:`;
+      aliasIntro = alias
+        ? `${alias} te invita a este encuentro 👇`
+        : `Te invito a este encuentro 👇`;
     }
+
+    const shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\nConfirmá acá:\n${shareUrl}`;
+
     if (navigator.share) {
       try {
-        await navigator.share({ text: shareText, url: shareUrl });
+        await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
         markAsShared(partId); // marcar solo si el share completó sin error
       } catch (err: any) {
         // AbortError = usuario canceló el diálogo de share → no marcar
@@ -543,7 +547,7 @@ const DetailHost: React.FC = () => {
       }
     } else {
       try {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        await navigator.clipboard.writeText(shareText);
         markAsShared(partId); // marcar solo si la copia fue exitosa
         setCopiedId(partId); setTimeout(() => setCopiedId(null), 2000);
       } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
