@@ -23,6 +23,7 @@ import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
+import { isMobileShareEnvironment } from '@/lib/shareHelper';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -382,7 +383,7 @@ const DetailHost: React.FC = () => {
       
     const msg = `${intro}\n\nConfirmá si podés asistir:\n${newLink}`;
     
-    if (navigator.share) {
+    if (isMobileShareEnvironment() && navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
     } else {
       try {
@@ -485,8 +486,7 @@ const DetailHost: React.FC = () => {
       }
       shareText += `Confirmá acá:\n${shareUrl}`;
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile && navigator.share) {
+      if (isMobileShareEnvironment() && navigator.share) {
         await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
         setShareFeedback(true);
       } else {
@@ -537,7 +537,7 @@ const DetailHost: React.FC = () => {
 
     const shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\nConfirmá acá:\n${shareUrl}`;
 
-    if (navigator.share) {
+    if (isMobileShareEnvironment() && navigator.share) {
       try {
         await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
         markAsShared(partId); // marcar solo si el share completó sin error

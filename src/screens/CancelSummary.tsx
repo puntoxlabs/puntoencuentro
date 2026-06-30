@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { getHostAlias } from '@/lib/hostAliasStorage';
+import { isMobileShareEnvironment } from '@/lib/shareHelper';
 import './CancelSummary.css';
 
 const CancelSummary: React.FC = () => {
@@ -79,7 +80,7 @@ const CancelSummary: React.FC = () => {
       const intro = alias ? `${alias} canceló el encuentro:` : 'Se canceló el encuentro:';
       const shareText = `${intro}\n\n*${encuentro.titulo}*\n\nTe aviso para que estés al tanto.\n\nVer estado:\n${shareUrl}`;
 
-      if (navigator.share) {
+      if (isMobileShareEnvironment() && navigator.share) {
         await navigator.share({
           title: encuentro.titulo || 'Cancelación',
           text: shareText,
