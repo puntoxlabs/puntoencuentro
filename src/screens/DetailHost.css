@@ -762,16 +762,14 @@
 @media (max-width: 600px) {
   .dh-participant-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
     padding: 10px 12px;
   }
   
   .dh-participant-avatar { 
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
+    display: none;
   }
   
   .dh-participant-info { 
@@ -997,6 +995,7 @@
 .dh-bottom-actions {
   margin-top: auto;
   padding-top: 32px;
+  padding-bottom: 80px; /* Previene que ScrollHint tape el contenido final */
 }
 
 .dh-bottom-actions-block {
