@@ -1,0 +1,93 @@
+.invitation-theme-selector-container {
+  margin-top: 24px;
+}
+
+.invitation-theme-selector-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.invitation-theme-selector-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  padding: 4px 8px;
+  border-radius: 100px;
+}
+
+.invitation-theme-selector-scroll {
+  /* Scroll horizontal on mobile to save space */
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin: 0 -20px;
+  padding: 0 20px 8px 20px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.invitation-theme-selector-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.invitation-theme-selector-grid {
+  display: flex;
+  gap: 12px;
+  width: max-content;
+}
+
+.invitation-theme-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  min-width: 90px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.invitation-theme-item:hover {
+  border-color: var(--color-outline);
+  background: var(--color-surface-variant);
+}
+
+.invitation-theme-item--selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.invitation-theme-item-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  transition: all var(--transition-base);
+}
+
+.invitation-theme-item--selected .invitation-theme-item-icon-wrap {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.invitation-theme-item-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  text-align: center;
+}
+
+.invitation-theme-item--selected .invitation-theme-item-label {
+  color: var(--color-primary-dark);
+}

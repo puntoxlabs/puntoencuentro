@@ -1,17 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { ThemePicker } from '@/components/ui/ThemePicker';
 import { TimePicker } from '@/components/ui/TimePicker';
 import type { TimePickerRef } from '@/components/ui/TimePicker';
+import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
 import { useWizardStore } from '@/store/wizardStore';
-import type { ThemeId } from '@/lib/themes';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 
 const Step1Data: React.FC = () => {
   const { t } = useTranslation();
-  const { titulo, fecha, hora, descripcion, tema, setField, nextStep } = useWizardStore();
+  const { titulo, fecha, hora, descripcion, tema_invitacion, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [highlightDescripcion, setHighlightDescripcion] = useState(false);
@@ -216,9 +215,9 @@ const Step1Data: React.FC = () => {
             enterKeyHint="done"
           />
         </div>
-        <ThemePicker
-          value={(tema || 'blue') as ThemeId}
-          onChange={(t) => setField('tema', t)}
+        <InvitationThemeSelector
+          value={tema_invitacion || 'classic'}
+          onChange={(t) => setField('tema_invitacion', t)}
         />
       </div>
 
