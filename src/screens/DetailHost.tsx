@@ -580,7 +580,7 @@ const DetailHost: React.FC = () => {
                 <div className={`dh-participant-avatar dh-participant-avatar--${statusClass}`}>
                   {avatarChar}
                 </div>
-                <div className="dh-participant-info">
+                <div className="dh-participant-info" title={p.nombre_invitado}>
                   <span className="dh-participant-name">{p.nombre_invitado}</span>
                   {p.user_id && (
                     <div className="dh-participant-linked">
@@ -617,7 +617,7 @@ const DetailHost: React.FC = () => {
                           : 'dh-participant-share-btn--pending'
                       }`}
                     >
-                      {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar enlace' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir enlace')}
+                      {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir')}
                     </button>
                   )}
                 </div>

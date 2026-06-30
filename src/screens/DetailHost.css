@@ -624,6 +624,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: hidden;
 }
 
 .dh-participant-name {
@@ -725,18 +726,18 @@
 }
 
 .dh-participant-chip--confirmado {
-  background-color: var(--color-success-container);
-  color: var(--color-success-dark);
+  background-color: #E6F4EA !important;
+  color: #137333 !important;
 }
 
 .dh-participant-chip--rechazado {
-  background-color: var(--color-danger-container);
-  color: var(--color-danger-dark);
+  background-color: #FCE8E6 !important;
+  color: #C5221F !important;
 }
 
 .dh-participant-chip--pendiente {
-  background-color: var(--color-warning-container);
-  color: var(--color-warning-dark);
+  background-color: #FEF7E0 !important;
+  color: #B06000 !important;
 }
 
 .dh-participant-delete-btn {
@@ -760,41 +761,34 @@
 
 @media (max-width: 600px) {
   .dh-participant-row {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas: 
-      "avatar info status"
-      "avatar share delete";
-    gap: 4px 12px;
-    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
   }
   
   .dh-participant-avatar { 
-    grid-area: avatar; 
-    width: 36px;
-    height: 36px;
-    align-self: flex-start;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
   }
   
   .dh-participant-info { 
-    grid-area: info;
-    min-width: 0;
+    flex: 1;
+    min-width: 60px;
   }
   
   .dh-participant-status-col { 
-    grid-area: status; 
-    justify-self: end;
+    flex-shrink: 0;
   }
   
   .dh-participant-share-col { 
-    grid-area: share; 
-    justify-self: flex-start;
+    flex-shrink: 0;
   }
 
   .dh-participant-delete-col {
-    grid-area: delete;
-    justify-self: end;
+    flex-shrink: 0;
   }
 }
 
