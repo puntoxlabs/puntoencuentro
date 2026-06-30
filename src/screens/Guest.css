@@ -56,20 +56,34 @@
 
 /* â”€â”€ Cards Principales â”€â”€ */
 .guest-card {
-  background: var(--color-surface);
+  position: relative;
+  background: var(--guest-card-bg, var(--color-surface));
   border-radius: var(--guest-radius, var(--radius-xl));
   padding: 24px 20px;
   border: var(--guest-card-border, 1px solid rgba(0,0,0,0.04));
   box-shadow: var(--guest-shadow, var(--shadow-sm));
   margin-bottom: 24px;
+  overflow: var(--guest-card-overflow, visible);
+}
+
+.guest-card::before {
+  content: var(--guest-decor-before, none);
+}
+.guest-card::after {
+  content: var(--guest-decor-after, none);
+}
+
+.guest-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .guest-card-eyebrow {
   font-size: 11px;
   font-weight: 700;
-  color: var(--color-on-surface-variant);
+  color: var(--guest-eyebrow-color, var(--color-on-surface-variant));
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--guest-eyebrow-spacing, 0.06em);
   margin: 0 0 8px 0;
 }
 
@@ -78,7 +92,7 @@
   font-weight: var(--guest-title-weight, 800);
   margin: 0 0 16px 0;
   line-height: 1.2;
-  color: var(--color-on-surface);
+  color: var(--guest-title-color, var(--color-on-surface));
   letter-spacing: var(--guest-title-spacing, normal);
 }
 
@@ -104,7 +118,7 @@
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  color: var(--color-primary);
+  color: var(--guest-icon-color, var(--color-primary));
 }
 
 .guest-meta-info {
@@ -434,6 +448,7 @@
   --guest-radius: var(--radius-lg);
   --guest-title-weight: 600;
   --guest-title-spacing: 0.02em;
+  --guest-icon-color: #475569;
 }
 
 .guest-theme--friends {
@@ -443,18 +458,56 @@
   --guest-accent-soft: #FFE8D6;
   --guest-border: #FFD7BA;
   --guest-radius: 24px;
-  --guest-shadow: 0 8px 24px rgba(232, 93, 4, 0.08);
+  --guest-shadow: 0 8px 32px rgba(232, 93, 4, 0.12);
   --guest-title-weight: 700;
+  --guest-icon-color: #E85D04;
+  --guest-card-overflow: hidden;
+  --guest-decor-before: "";
+}
+.guest-theme--friends .guest-card::before {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,215,186,0.5) 0%, rgba(255,215,186,0) 70%);
+  pointer-events: none;
 }
 
 .guest-theme--celebration {
-  --guest-bg: #FCF5FF;
+  --guest-bg: linear-gradient(135deg, #FCF5FF 0%, #F5F3FF 100%);
   --guest-card: #FFFFFF;
   --guest-accent: #9333EA;
   --guest-accent-soft: #F3E8FF;
   --guest-border: #E9D5FF;
-  --guest-shadow: 0 4px 20px rgba(147, 51, 234, 0.12);
+  --guest-shadow: 0 12px 40px rgba(147, 51, 234, 0.15);
   --guest-title-weight: 800;
+  --guest-icon-color: #A855F7;
+  --guest-card-border: 2px solid #F3E8FF;
+  --guest-card-overflow: hidden;
+  --guest-decor-before: "";
+  --guest-decor-after: "";
+}
+.guest-theme--celebration .guest-card::before {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: 100px;
+  height: 100px;
+  background-image: radial-gradient(circle at 50% 50%, #E9D5FF 2px, transparent 2px);
+  background-size: 16px 16px;
+  opacity: 0.6;
+}
+.guest-theme--celebration .guest-card::after {
+  position: absolute;
+  bottom: -30px;
+  right: -10px;
+  width: 80px;
+  height: 80px;
+  background-image: radial-gradient(circle at 50% 50%, #FBCFE8 3px, transparent 3px);
+  background-size: 20px 20px;
+  opacity: 0.5;
 }
 
 .guest-theme--kids_birthday {
@@ -465,15 +518,47 @@
   --guest-border: #99F6E4;
   --guest-radius: 32px;
   --guest-title-weight: 900;
+  --guest-icon-color: #14B8A6;
+  --guest-card-border: 3px solid #CCFBF1;
+  --guest-card-overflow: hidden;
+  --guest-decor-before: "";
+}
+.guest-theme--kids_birthday .guest-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 15% 20%, #FDE68A 4px, transparent 4.5px),
+    radial-gradient(circle at 85% 15%, #FBCFE8 5px, transparent 5.5px),
+    radial-gradient(circle at 90% 85%, #BAE6FD 4px, transparent 4.5px);
+  opacity: 0.7;
 }
 
 .guest-theme--family {
   --guest-bg: #F7F5F2;
-  --guest-card: #FFFFFF;
+  --guest-card-bg: #FFFCF9;
   --guest-accent: #78716C;
   --guest-accent-soft: #F5F5F4;
   --guest-border: #E7E5E4;
-  --guest-title-weight: 600;
+  --guest-title-weight: 700;
+  --guest-title-color: #57534E;
+  --guest-eyebrow-color: #A8A29E;
+  --guest-icon-color: #78716C;
+  --guest-shadow: 0 4px 24px rgba(120, 113, 108, 0.08);
+  --guest-card-border: 1px solid #F5F5F4;
+  --guest-decor-before: "";
+}
+.guest-theme--family .guest-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #D6D3D1;
+  border-top-left-radius: var(--guest-radius, var(--radius-xl));
+  border-top-right-radius: var(--guest-radius, var(--radius-xl));
 }
 
 .guest-theme--special {
@@ -485,7 +570,29 @@
   --guest-card-border: 1px solid var(--guest-border);
   --guest-title-weight: 600;
   --guest-title-spacing: 0.03em;
-  --guest-shadow: 0 12px 32px rgba(190, 18, 60, 0.08);
+  --guest-title-color: #9F1239;
+  --guest-shadow: 0 16px 40px rgba(190, 18, 60, 0.12);
+  --guest-icon-color: #BE123C;
+  --guest-decor-before: "";
+}
+.guest-theme--special .guest-card::before {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(to bottom, #FECDD3, transparent);
+}
+.guest-theme--special .guest-card::after {
+  content: "";
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(to top, #FECDD3, transparent);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Aplicación de las variables al contenedor raíz para forzar background */
