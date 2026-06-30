@@ -21,22 +21,24 @@
 }
 
 .invitation-theme-selector-scroll {
-  /* Scroll horizontal on mobile to save space */
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin: 0 -20px;
-  padding: 0 20px 8px 20px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /* Firefox */
-}
-.invitation-theme-selector-scroll::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  /* Removed horizontal scroll in favor of grid */
+  margin: 0;
 }
 
 .invitation-theme-selector-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  width: max-content;
+}
+@media (min-width: 480px) {
+  .invitation-theme-selector-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 768px) {
+  .invitation-theme-selector-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .invitation-theme-item {
@@ -45,23 +47,24 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
+  background: var(--tile-bg, var(--color-surface));
+  border: 1.5px solid var(--tile-border, var(--color-outline-variant));
+  border-radius: var(--tile-radius, var(--radius-lg));
   padding: 12px;
-  min-width: 90px;
   cursor: pointer;
   transition: all var(--transition-base);
 }
 
 .invitation-theme-item:hover {
-  border-color: var(--color-outline);
-  background: var(--color-surface-variant);
+  transform: translateY(-2px);
+  border-color: var(--tile-accent, var(--color-outline));
+  background: var(--tile-bg-hover, var(--color-surface-variant));
 }
 
 .invitation-theme-item--selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
+  border-color: var(--tile-accent, var(--color-primary));
+  background: var(--tile-bg-selected, var(--color-primary-container));
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .invitation-theme-item-icon-wrap {
@@ -71,23 +74,75 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface-variant);
-  color: var(--color-on-surface-variant);
+  background: var(--tile-icon-bg, var(--color-surface-variant));
+  color: var(--tile-icon-color, var(--color-on-surface-variant));
   transition: all var(--transition-base);
 }
 
 .invitation-theme-item--selected .invitation-theme-item-icon-wrap {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--tile-accent, var(--color-primary));
+  color: #fff;
 }
 
 .invitation-theme-item-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-on-surface);
   text-align: center;
+  line-height: 1.1;
 }
 
 .invitation-theme-item--selected .invitation-theme-item-label {
-  color: var(--color-primary-dark);
+  color: var(--tile-accent, var(--color-primary-dark));
+  font-weight: 700;
+}
+
+/* Identidades visuales de los tiles */
+.theme-tile-classic {
+  --tile-bg: var(--color-background);
+  --tile-accent: var(--color-primary);
+}
+.theme-tile-formal {
+  --tile-bg: #F0F2F5;
+  --tile-accent: #334155;
+  --tile-icon-color: #475569;
+  --tile-icon-bg: #E2E8F0;
+  --tile-bg-selected: #E2E8F0;
+}
+.theme-tile-friends {
+  --tile-bg: #FFF9F2;
+  --tile-accent: #E85D04;
+  --tile-icon-color: #E85D04;
+  --tile-icon-bg: #FFE8D6;
+  --tile-bg-selected: #FFE8D6;
+  --tile-radius: 20px;
+}
+.theme-tile-celebration {
+  --tile-bg: #FCF5FF;
+  --tile-accent: #9333EA;
+  --tile-icon-color: #A855F7;
+  --tile-icon-bg: #F3E8FF;
+  --tile-bg-selected: #F3E8FF;
+}
+.theme-tile-kids_birthday {
+  --tile-bg: #F0FDFA;
+  --tile-accent: #0D9488;
+  --tile-icon-color: #14B8A6;
+  --tile-icon-bg: #CCFBF1;
+  --tile-bg-selected: #CCFBF1;
+  --tile-radius: 24px;
+}
+.theme-tile-family {
+  --tile-bg: #F7F5F2;
+  --tile-accent: #78716C;
+  --tile-icon-color: #78716C;
+  --tile-icon-bg: #E7E5E4;
+  --tile-bg-selected: #F5F5F4;
+}
+.theme-tile-special {
+  --tile-bg: #FFF5F7;
+  --tile-accent: #BE123C;
+  --tile-icon-color: #BE123C;
+  --tile-icon-bg: #FFE4E6;
+  --tile-bg-selected: #FFE4E6;
 }

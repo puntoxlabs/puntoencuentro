@@ -25,7 +25,7 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
               <button
                 key={theme.id}
                 type="button"
-                className={`invitation-theme-item ${isSelected ? 'invitation-theme-item--selected' : ''}`}
+                className={`invitation-theme-item theme-tile-${theme.id} ${isSelected ? 'invitation-theme-item--selected' : ''}`}
                 onClick={() => onChange(theme.id as InvitationTheme)}
                 aria-pressed={isSelected}
               >

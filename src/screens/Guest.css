@@ -537,17 +537,17 @@
 }
 
 .guest-theme--family {
-  --guest-bg: #F7F5F2;
-  --guest-card-bg: #FFFCF9;
-  --guest-accent: #78716C;
-  --guest-accent-soft: #F5F5F4;
-  --guest-border: #E7E5E4;
+  --guest-bg: #F5EFEB; /* Warmer background, less grey */
+  --guest-card-bg: #FFFAF5; /* Very warm cream card */
+  --guest-accent: #9A5A4A; /* Terracotta soft accent for primary buttons (enabled) */
+  --guest-accent-soft: #F2E4DF;
+  --guest-border: #E8DCCB;
   --guest-title-weight: 700;
-  --guest-title-color: #57534E;
-  --guest-eyebrow-color: #A8A29E;
-  --guest-icon-color: #78716C;
-  --guest-shadow: 0 4px 24px rgba(120, 113, 108, 0.08);
-  --guest-card-border: 1px solid #F5F5F4;
+  --guest-title-color: #4A3E39; /* Darker, warmer grey-brown */
+  --guest-eyebrow-color: #8C7C74;
+  --guest-icon-color: #78665C; /* Warmer icon color */
+  --guest-shadow: 0 4px 30px rgba(110, 95, 85, 0.1);
+  --guest-card-border: 1px solid #F5EAE1;
   --guest-decor-before: "";
 }
 .guest-theme--family .guest-card::before {
@@ -555,8 +555,8 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: #D6D3D1;
+  height: 6px; /* Slightly thicker for more presence */
+  background: #C4A484; /* Warm wood/clay color instead of cold grey */
   border-top-left-radius: var(--guest-radius, var(--radius-xl));
   border-top-right-radius: var(--guest-radius, var(--radius-xl));
 }

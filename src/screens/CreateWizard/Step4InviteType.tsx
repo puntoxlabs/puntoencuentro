@@ -7,6 +7,7 @@ import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/Button';
+import { InvitationPreviewModal } from '@/components/ui/InvitationPreviewModal';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 
 const Step4InviteType: React.FC = () => {
@@ -15,6 +16,7 @@ const Step4InviteType: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
 
@@ -148,6 +150,21 @@ const Step4InviteType: React.FC = () => {
         </div>
       </div>
 
+      <div className="cw-preview-section" style={{ marginTop: 24, padding: '16px 20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)' }}>
+        <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 700 }}>Vista previa de la invitación</h4>
+        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)' }}>
+          Revisá cómo la verán tus invitados antes de compartirla.
+        </p>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Button variant="secondary" fullWidth onClick={() => setShowPreview(true)}>
+            Previsualizar invitación
+          </Button>
+          <Button variant="outline" fullWidth onClick={() => setField('step', 1)}>
+            Cambiar estilo
+          </Button>
+        </div>
+      </div>
+
       {hasInitialValue && (
         <div className="cw-bottom-actions">
           <Button 
@@ -179,6 +196,16 @@ const Step4InviteType: React.FC = () => {
         <div style={{ textAlign: 'center', marginTop: 24, color: 'var(--color-primary)', fontSize: 15, fontWeight: 600 }}>
           Creando encuentro…
         </div>
+      )}
+
+      {showPreview && (
+        <InvitationPreviewModal 
+          onClose={() => setShowPreview(false)}
+          onChangeStyle={() => {
+            setShowPreview(false);
+            setField('step', 1);
+          }}
+        />
       )}
     </div>
   );
