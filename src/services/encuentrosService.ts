@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { validateEncounterDate } from '@/lib/formatDate';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 
 export interface CreateEncuentroDTO {
   titulo: string;
@@ -12,6 +13,7 @@ export interface CreateEncuentroDTO {
   tipo_invitacion: 'individual' | 'link_general';
   host_id: string;
   tema?: string;
+  tema_invitacion?: InvitationTheme;
   reemplaza_a?: string | null;
 }
 

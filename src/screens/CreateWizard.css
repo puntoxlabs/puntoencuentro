@@ -1,4 +1,4 @@
-/* CreateWizard.css - Estilos para el flujo de creación de encuentros (Fases D1 + D2) */
+﻿/* CreateWizard.css - Estilos para el flujo de creaciÃ³n de encuentros (Fases D1 + D2) */
 
 /* ==========================================================================
    Contenedores Base (D1)
@@ -173,7 +173,7 @@
 }
 
 /* ==========================================================================
-   Tarjetas de Selección (D3)
+   Tarjetas de SelecciÃ³n (D3)
    ========================================================================== */
 .cw-options-grid {
   display: flex;
@@ -231,4 +231,88 @@
   margin: 0;
   font-size: 14px;
   color: var(--color-on-surface-variant);
+}
+/* ==========================================================================
+   Selector de Estilo de Invitación (Fase 3)
+   ========================================================================== */
+.cw-invitation-theme-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.cw-invitation-theme-header {
+  margin-bottom: 16px;
+}
+
+.cw-invitation-theme-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0 0 4px 0;
+}
+
+.cw-invitation-theme-help {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.cw-invitation-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.cw-invitation-theme-card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  appearance: none;
+  width: 100%;
+}
+
+.cw-invitation-theme-card:hover {
+  background: var(--color-surface-variant);
+  border-color: var(--color-outline);
+}
+
+.cw-invitation-theme-card--selected {
+  background: var(--color-primary-container);
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.cw-invitation-theme-card--selected:hover {
+  background: var(--color-primary-container);
+}
+
+.cw-invitation-theme-icon {
+  margin-bottom: 8px;
+  color: var(--color-on-surface-variant);
+}
+
+.cw-invitation-theme-card--selected .cw-invitation-theme-icon {
+  color: var(--color-primary);
+}
+
+.cw-invitation-theme-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0 0 2px 0;
+}
+
+.cw-invitation-theme-description {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  line-height: 1.3;
 }

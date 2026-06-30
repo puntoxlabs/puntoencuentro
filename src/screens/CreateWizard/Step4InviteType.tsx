@@ -7,8 +7,8 @@ import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { Button } from '@/components/ui/Button';
-
-
+import { INVITATION_THEMES } from '@/lib/invitationThemes';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 
 const Step4InviteType: React.FC = () => {
   const { setField, ...wizardData } = useWizardStore();
@@ -16,7 +16,7 @@ const Step4InviteType: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [selectedInvitationTheme, setSelectedInvitationTheme] = useState<InvitationTheme>('classic');
 
   const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
 
@@ -52,6 +52,7 @@ const Step4InviteType: React.FC = () => {
           tipo_invitacion: tipo,
           host_id: hostId,
           tema: wizardData.tema || 'blue',
+          tema_invitacion: selectedInvitationTheme,
           reemplaza_a: (() => {
             const refStr = sessionStorage.getItem('cancel_reference');
             if (refStr) {
@@ -97,6 +98,7 @@ const Step4InviteType: React.FC = () => {
           link_virtual: wizardData.link_virtual,
           tipo_invitacion: tipo,
           tema: wizardData.tema || 'blue',
+          tema_invitacion: selectedInvitationTheme,
         }, hostId);
       }
 
@@ -145,6 +147,33 @@ const Step4InviteType: React.FC = () => {
           <div className="cw-option-icon">👤</div>
           <h4 className="cw-option-title">Personas específicas</h4>
           <p className="cw-option-desc">Invitás a cada uno individualmente</p>
+        </div>
+      </div>
+
+      <div className="cw-invitation-theme-section">
+        <div className="cw-invitation-theme-header">
+          <h3 className="cw-invitation-theme-title">Estilo de invitación</h3>
+          <p className="cw-invitation-theme-help">Elegí cómo querés que vean la invitación tus invitados.</p>
+        </div>
+        
+        <div className="cw-invitation-theme-grid">
+          {INVITATION_THEMES.map((theme) => {
+            const Icon = theme.icon;
+            const isSelected = selectedInvitationTheme === theme.id;
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                className={`cw-invitation-theme-card ${isSelected ? 'cw-invitation-theme-card--selected' : ''}`}
+                onClick={() => setSelectedInvitationTheme(theme.id)}
+                aria-pressed={isSelected}
+              >
+                <Icon size={24} className="cw-invitation-theme-icon" />
+                <h4 className="cw-invitation-theme-label">{theme.label}</h4>
+                <p className="cw-invitation-theme-description">{theme.description}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
