@@ -789,6 +789,7 @@
 
   .dh-participant-delete-col {
     flex-shrink: 0;
+    margin-left: auto;
   }
 }
 
