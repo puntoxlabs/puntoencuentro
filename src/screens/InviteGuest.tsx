@@ -14,6 +14,7 @@ import { useHomeStore } from '@/store/homeStore';
 import { formatCount } from '@/lib/formatCount';
 import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
+import { normalizeInvitationTheme, getThemeEyebrow } from '@/lib/invitationThemes';
 import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
@@ -297,6 +298,7 @@ const InviteGuest: React.FC = () => {
       </div>
     </ScreenContainer>
   );
+  const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
 
   if (error || !participante || !encuentro) return (
     <ScreenContainer>
@@ -311,7 +313,7 @@ const InviteGuest: React.FC = () => {
 
   // Encuentro cancelado — mostrar info sin permitir interacción
   if (encuentro?.estado?.toLowerCase() === 'cancelado') return (
-    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
+    <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Detalle del encuentro" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 16, paddingLeft: 20, paddingRight: 20 }}>
         
@@ -357,7 +359,7 @@ const InviteGuest: React.FC = () => {
   const isFinalizado = encuentro?.estado?.toLowerCase() !== 'cancelado' && isEncuentroPasado(encuentro.fecha, encuentro.hora);
 
   if (step === 'done') return (
-    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
+    <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Respuesta enviada" />
 
       {/* ── A. Bloque de éxito ──────────────────────────────── */}
@@ -540,7 +542,7 @@ const InviteGuest: React.FC = () => {
   );
 
   return (
-    <ScreenContainer style={getThemeStyle(encuentro?.tema)}>
+    <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Invitación" />
 
       {isFinalizado && (
@@ -552,8 +554,8 @@ const InviteGuest: React.FC = () => {
 
       <div style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
         <div className="guest-card" style={{ marginBottom: 0 }}>
-          <p className="guest-card-eyebrow">Te invitan a</p>
-          <h3 className="guest-card-title">{encuentro.titulo}</h3>
+          <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
+          <h2 className="guest-card-title">{encuentro.titulo}</h2>
           
           <div className="guest-meta-list">
             <div className="guest-meta-row">

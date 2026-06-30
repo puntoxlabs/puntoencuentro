@@ -30,7 +30,7 @@
   margin: 0;
 }
 
-/* ── Banners ── */
+/* â”€â”€ Banners â”€â”€ */
 .guest-banner {
   border-radius: var(--radius-lg);
   padding: 16px 20px;
@@ -54,13 +54,13 @@
   color: inherit;
 }
 
-/* ── Cards Principales ── */
+/* â”€â”€ Cards Principales â”€â”€ */
 .guest-card {
   background: var(--color-surface);
-  border-radius: var(--radius-xl);
+  border-radius: var(--guest-radius, var(--radius-xl));
   padding: 24px 20px;
-  border: 1px solid rgba(0,0,0,0.04);
-  box-shadow: var(--shadow-sm);
+  border: var(--guest-card-border, 1px solid rgba(0,0,0,0.04));
+  box-shadow: var(--guest-shadow, var(--shadow-sm));
   margin-bottom: 24px;
 }
 
@@ -75,13 +75,14 @@
 
 .guest-card-title {
   font-size: 24px;
-  font-weight: 800;
+  font-weight: var(--guest-title-weight, 800);
   margin: 0 0 16px 0;
   line-height: 1.2;
   color: var(--color-on-surface);
+  letter-spacing: var(--guest-title-spacing, normal);
 }
 
-/* ── Metadatos del encuentro ── */
+/* â”€â”€ Metadatos del encuentro â”€â”€ */
 .guest-meta-list {
   display: flex;
   flex-direction: column;
@@ -114,7 +115,7 @@
   line-height: 1.4;
 }
 
-/* ── Bloque de Éxito / Confirmación ── */
+/* â”€â”€ Bloque de Ã‰xito / ConfirmaciÃ³n â”€â”€ */
 .guest-success-block {
   display: flex;
   flex-direction: column;
@@ -174,7 +175,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* ── Bloque de Enlace Virtual ── */
+/* â”€â”€ Bloque de Enlace Virtual â”€â”€ */
 .guest-video-box {
   display: flex;
   flex-direction: column;
@@ -194,7 +195,7 @@
   user-select: text;
 }
 
-/* ── Acciones Adicionales / Inferiores ── */
+/* â”€â”€ Acciones Adicionales / Inferiores â”€â”€ */
 .guest-action-secondary {
   background: transparent;
   border: 1px solid var(--color-outline-variant);
@@ -250,7 +251,7 @@
   padding-bottom: 24px;
 }
 
-/* ── Inputs y Formularios (Especificos Invitado) ── */
+/* â”€â”€ Inputs y Formularios (Especificos Invitado) â”€â”€ */
 .guest-form-group {
   margin-bottom: 24px;
 }
@@ -313,7 +314,7 @@
   line-height: 1.5;
 }
 
-/* ── Textos de ayuda ── */
+/* â”€â”€ Textos de ayuda â”€â”€ */
 .guest-help-text {
   font-size: var(--text-sm);
   color: var(--color-on-surface-variant);
@@ -329,7 +330,7 @@
   text-align: center;
 }
 
-/* ── Nudge de Login ── */
+/* â”€â”€ Nudge de Login â”€â”€ */
 .guest-nudge-box {
   padding: 16px;
   border-radius: var(--radius-lg);
@@ -354,7 +355,7 @@
   line-height: 1.4;
 }
 
-/* ── Respuestas (Rediseño) ── */
+/* â”€â”€ Respuestas (RediseÃ±o) â”€â”€ */
 .guest-responses-box {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -405,4 +406,100 @@
   border-radius: 100px;
   font-size: 13px;
   font-weight: 500;
+}
+
+/* -- Estilos de Invitación (Fase 4) -- */
+.guest-theme {
+  --guest-bg: var(--color-background);
+  --guest-card: var(--color-surface);
+  --guest-accent: var(--color-primary);
+  --guest-accent-soft: rgba(24, 76, 212, 0.10);
+  --guest-border: var(--color-outline-variant);
+}
+
+.guest-theme--classic {
+  --guest-bg: var(--color-background);
+  --guest-card: var(--color-surface);
+  --guest-accent: var(--color-primary);
+  --guest-border: var(--color-outline-variant);
+}
+
+.guest-theme--formal {
+  --guest-bg: #F0F2F5;
+  --guest-card: #FFFFFF;
+  --guest-accent: #334155;
+  --guest-accent-soft: #E2E8F0;
+  --guest-border: #CBD5E1;
+  --guest-card-border: 1px solid var(--guest-border);
+  --guest-radius: var(--radius-lg);
+  --guest-title-weight: 600;
+  --guest-title-spacing: 0.02em;
+}
+
+.guest-theme--friends {
+  --guest-bg: #FFF9F2;
+  --guest-card: #FFFFFF;
+  --guest-accent: #E85D04;
+  --guest-accent-soft: #FFE8D6;
+  --guest-border: #FFD7BA;
+  --guest-radius: 24px;
+  --guest-shadow: 0 8px 24px rgba(232, 93, 4, 0.08);
+  --guest-title-weight: 700;
+}
+
+.guest-theme--celebration {
+  --guest-bg: #FCF5FF;
+  --guest-card: #FFFFFF;
+  --guest-accent: #9333EA;
+  --guest-accent-soft: #F3E8FF;
+  --guest-border: #E9D5FF;
+  --guest-shadow: 0 4px 20px rgba(147, 51, 234, 0.12);
+  --guest-title-weight: 800;
+}
+
+.guest-theme--kids_birthday {
+  --guest-bg: #F0FDFA;
+  --guest-card: #FFFFFF;
+  --guest-accent: #0D9488;
+  --guest-accent-soft: #CCFBF1;
+  --guest-border: #99F6E4;
+  --guest-radius: 32px;
+  --guest-title-weight: 900;
+}
+
+.guest-theme--family {
+  --guest-bg: #F7F5F2;
+  --guest-card: #FFFFFF;
+  --guest-accent: #78716C;
+  --guest-accent-soft: #F5F5F4;
+  --guest-border: #E7E5E4;
+  --guest-title-weight: 600;
+}
+
+.guest-theme--special {
+  --guest-bg: #FFF5F7;
+  --guest-card: #FFFFFF;
+  --guest-accent: #BE123C;
+  --guest-accent-soft: #FFE4E6;
+  --guest-border: #FECDD3;
+  --guest-card-border: 1px solid var(--guest-border);
+  --guest-title-weight: 600;
+  --guest-title-spacing: 0.03em;
+  --guest-shadow: 0 12px 32px rgba(190, 18, 60, 0.08);
+}
+
+/* Aplicación de las variables al contenedor raíz para forzar background */
+.guest-theme {
+  background-color: var(--guest-bg) !important;
+}
+
+/* ── Sobreescribiendo variables nativas de UI Pro con el tema de Invitación ── */
+.guest-theme {
+  /* Forzar las variables nativas para que componentes compartidos (ej. Button) y estilos locales las adopten */
+  --color-primary: var(--guest-accent) !important;
+  --color-primary-dark: var(--guest-accent) !important;
+  --color-primary-container: var(--guest-accent-soft) !important;
+  --color-surface: var(--guest-card) !important;
+  --color-outline-variant: var(--guest-border) !important;
+  background-color: var(--guest-bg) !important;
 }

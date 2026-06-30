@@ -23,6 +23,7 @@ export interface InvitationThemeConfig {
   description: string;
   icon: any; // Using any for LucideIcon to avoid strict type issues
   cssClass: string;
+  eyebrow: string;
 }
 
 export const INVITATION_THEMES: InvitationThemeConfig[] = [
@@ -31,51 +32,64 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     label: 'Clásico',
     description: 'Profesional, neutro y claro.',
     icon: CheckCircle2,
-    cssClass: 'guest-theme--classic'
+    cssClass: 'guest-theme--classic',
+    eyebrow: 'Te invitan a un encuentro'
   },
   {
     id: 'formal',
     label: 'Formal',
     description: 'Trabajo, institucional o académico.',
     icon: Building2,
-    cssClass: 'guest-theme--formal'
+    cssClass: 'guest-theme--formal',
+    eyebrow: 'Te invitan a una reunión'
   },
   {
     id: 'friends',
     label: 'Amigos',
     description: 'Juntadas y cenas informales.',
     icon: Coffee,
-    cssClass: 'guest-theme--friends'
+    cssClass: 'guest-theme--friends',
+    eyebrow: 'Te invitan a juntarse'
   },
   {
     id: 'celebration',
     label: 'Celebración',
     description: 'Cumpleaños y festejos.',
     icon: PartyPopper,
-    cssClass: 'guest-theme--celebration'
+    cssClass: 'guest-theme--celebration',
+    eyebrow: 'Te invitan a celebrar'
   },
   {
     id: 'kids_birthday',
     label: 'Cumple Infantil',
     description: 'Fiestas y reuniones infantiles.',
     icon: Gamepad2,
-    cssClass: 'guest-theme--kids-birthday'
+    cssClass: 'guest-theme--kids-birthday',
+    eyebrow: 'Te invitan a un cumple'
   },
   {
     id: 'family',
     label: 'Familia',
     description: 'Almuerzos y reuniones familiares.',
     icon: Home,
-    cssClass: 'guest-theme--family'
+    cssClass: 'guest-theme--family',
+    eyebrow: 'Encuentro familiar'
   },
   {
     id: 'special',
     label: 'Especial',
     description: 'Cenas especiales o aniversarios.',
     icon: Star,
-    cssClass: 'guest-theme--special'
+    cssClass: 'guest-theme--special',
+    eyebrow: 'Tenés una invitación especial'
   }
 ];
+
+export function getThemeEyebrow(themeId: string | undefined | null): string {
+  const theme = normalizeInvitationTheme(themeId);
+  const config = INVITATION_THEMES.find(t => t.id === theme);
+  return config?.eyebrow || 'Te invitan a';
+}
 
 export function normalizeInvitationTheme(value: unknown): InvitationTheme {
   if (typeof value !== 'string') return 'classic';

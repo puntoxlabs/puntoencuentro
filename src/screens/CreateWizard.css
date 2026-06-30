@@ -1,4 +1,4 @@
-﻿/* CreateWizard.css - Estilos para el flujo de creaciÃ³n de encuentros (Fases D1 + D2) */
+/* CreateWizard.css - Estilos para el flujo de creaciÃ³n de encuentros (Fases D1 + D2) */
 
 /* ==========================================================================
    Contenedores Base (D1)
@@ -20,6 +20,7 @@
 
 .cw-bottom-actions {
   padding-top: 24px;
+  padding-bottom: 80px; /* Prevenir que el ScrollHint tape las acciones */
 }
 
 /* ==========================================================================
@@ -237,8 +238,22 @@
    ========================================================================== */
 .cw-invitation-theme-section {
   margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-outline-variant);
+  padding: 24px;
+  background: var(--color-surface-variant);
+  border-radius: 20px;
+  border: 1px solid var(--color-outline-variant);
+  margin-bottom: 80px; /* Prevenir que ScrollHint tape la grilla en caso de no haber bottom actions */
+}
+
+.cw-invitation-theme-optional-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 8px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .cw-invitation-theme-header {
@@ -260,15 +275,21 @@
 
 .cw-invitation-theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+@media (min-width: 600px) {
+  .cw-invitation-theme-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
 }
 
 .cw-invitation-theme-card {
   background: var(--color-surface);
   border: 1.5px solid var(--color-outline-variant);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   cursor: pointer;
   text-align: left;
   transition: all 0.18s ease;
@@ -295,7 +316,7 @@
 }
 
 .cw-invitation-theme-icon {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--color-on-surface-variant);
 }
 
@@ -304,7 +325,7 @@
 }
 
 .cw-invitation-theme-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--color-on-surface);
   margin: 0 0 2px 0;

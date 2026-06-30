@@ -152,7 +152,10 @@ const Step4InviteType: React.FC = () => {
 
       <div className="cw-invitation-theme-section">
         <div className="cw-invitation-theme-header">
-          <h3 className="cw-invitation-theme-title">Estilo de invitación</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <h3 className="cw-invitation-theme-title" style={{ margin: 0 }}>Estilo de invitación</h3>
+            <span className="cw-invitation-theme-optional-badge">Opcional</span>
+          </div>
           <p className="cw-invitation-theme-help">Elegí cómo querés que vean la invitación tus invitados.</p>
         </div>
         
