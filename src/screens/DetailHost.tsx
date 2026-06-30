@@ -1203,25 +1203,27 @@ const DetailHost: React.FC = () => {
 
           {/* 6. ACCIONES INFERIORES */}
           <div className="dh-bottom-actions">
-            {!isCancelado && !isReadOnly && (
+            <div className="dh-bottom-actions-block">
+              {!isCancelado && !isReadOnly && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelModal(true)}
+                  style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                  fullWidth
+                >
+                  Cancelar encuentro
+                </Button>
+              )}
+
               <Button
                 variant="outline"
-                onClick={() => setShowCancelModal(true)}
-                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                onClick={() => navigate('/')}
+                style={{ color: 'var(--color-on-surface-variant)', borderColor: 'var(--color-outline-variant)' }}
                 fullWidth
               >
-                Cancelar encuentro
+                Ir al inicio
               </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/')}
-              style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}
-              fullWidth
-            >
-              Ir al inicio
-            </Button>
+            </div>
           </div>
         </div>
       )}

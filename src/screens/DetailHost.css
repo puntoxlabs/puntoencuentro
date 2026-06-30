@@ -678,9 +678,9 @@
   color: var(--color-primary);
   border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   font-family: var(--font-family);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -716,11 +716,16 @@
 }
 
 .dh-participant-chip {
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 8px;
   padding: 4px 8px;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dh-participant-chip--confirmado {
@@ -764,7 +769,7 @@
     grid-template-areas: 
       "avatar info status"
       ". actions actions";
-    gap: 10px 12px;
+    gap: 8px 12px;
     padding: 12px 0;
     align-items: center;
   }
@@ -790,12 +795,15 @@
   .dh-participant-status-col { 
     grid-area: status; 
     justify-self: end; 
+    align-self: flex-start;
+    padding-top: 4px;
   }
   
   .dh-participant-actions { 
     grid-area: actions; 
     display: flex; 
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 16px;
     align-items: center;
     width: 100%;
   }
@@ -1005,6 +1013,14 @@
 .dh-bottom-actions {
   margin-top: auto;
   padding-top: 32px;
+}
+
+.dh-bottom-actions-block {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
   display: flex;
   flex-direction: column;
   gap: 12px;
