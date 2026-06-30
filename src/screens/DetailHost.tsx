@@ -603,7 +603,7 @@ const DetailHost: React.FC = () => {
                     {sLabel}
                   </span>
                 </div>
-                <div className="dh-participant-actions">
+                <div className="dh-participant-share-col">
                   {!isReadOnly && !isCancelado && p.token_invitacion && (
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
@@ -617,9 +617,11 @@ const DetailHost: React.FC = () => {
                           : 'dh-participant-share-btn--pending'
                       }`}
                     >
-                      {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir')}
+                      {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar enlace' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir enlace')}
                     </button>
                   )}
+                </div>
+                <div className="dh-participant-delete-col">
                   {!isReadOnly && !isCancelado && (
                     <button
                       onClick={() => handleDeleteGuest(p.id)}
