@@ -552,39 +552,54 @@
 }
 
 .dh-participant-group {
-  margin-bottom: 20px;
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  margin-bottom: 24px;
 }
 
 .dh-participant-group-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-on-surface-variant);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-on-surface);
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .dh-participant-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .dh-participant-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  padding: 12px 16px;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.dh-participant-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dh-participant-row:first-child {
+  padding-top: 0;
 }
 
 .dh-participant-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 
@@ -605,13 +620,20 @@
 
 .dh-participant-info {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .dh-participant-name {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 15px;
   color: var(--color-on-surface);
   display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dh-participant-linked {
@@ -638,52 +660,66 @@
   padding: 0;
 }
 
+.dh-participant-status-col {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
 .dh-participant-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .dh-participant-share-btn {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
-  padding: 5px 12px;
-  cursor: pointer;
+  padding: 6px 12px;
   font-family: var(--font-family);
   font-size: 13px;
   font-weight: 600;
-  transition: all 0.15s;
+  cursor: pointer;
+  transition: all 0.2s;
   white-space: nowrap;
+}
+
+.dh-participant-share-btn:hover {
+  background: var(--color-surface-variant);
 }
 
 .dh-participant-share-btn--copied {
   background: var(--color-primary-container);
-  border: 1.5px solid var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary);
 }
 
 .dh-participant-share-btn--shared {
-  background: var(--color-success-container);
-  border: 1.5px solid var(--color-success);
-  color: var(--color-success-dark);
+  color: var(--color-on-surface-variant);
+  border-color: var(--color-outline-variant);
 }
 
 .dh-participant-share-btn--pending {
   background: var(--color-primary-container);
-  border: 1.5px solid var(--color-primary);
   color: var(--color-primary-dark);
+  border-color: var(--color-primary);
 }
 
 .dh-participant-share-btn--reshare {
+  /* Ghost button for reshare to keep it secondary */
   background: transparent;
-  border: 1.5px solid var(--color-outline-variant);
+  border: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface-variant);
 }
 
 .dh-participant-chip {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 6px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   white-space: nowrap;
 }
 
@@ -704,15 +740,67 @@
 
 .dh-participant-delete-btn {
   background: transparent;
+  color: var(--color-on-surface-variant);
   border: none;
+  font-size: 16px;
   cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-surface-variant);
-  font-size: 14px;
-  padding: 4px;
+  transition: background 0.2s, color 0.2s;
 }
+
+.dh-participant-delete-btn:hover {
+  background: var(--color-danger-container);
+  color: var(--color-danger);
+}
+
+@media (max-width: 600px) {
+  .dh-participant-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: 
+      "avatar info status"
+      ". actions actions";
+    gap: 10px 12px;
+    padding: 12px 0;
+    align-items: center;
+  }
+  
+  .dh-participant-row:first-child {
+    padding-top: 0;
+  }
+  
+  .dh-participant-row:last-child {
+    padding-bottom: 0;
+  }
+
+  .dh-participant-avatar { 
+    grid-area: avatar; 
+    width: 36px;
+    height: 36px;
+  }
+  
+  .dh-participant-info { 
+    grid-area: info; 
+  }
+  
+  .dh-participant-status-col { 
+    grid-area: status; 
+    justify-self: end; 
+  }
+  
+  .dh-participant-actions { 
+    grid-area: actions; 
+    display: flex; 
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+}
+
 
 /* ==========================================================================
    Opciones del Encuentro (Toggle Visibilidad) (Fase C2C)

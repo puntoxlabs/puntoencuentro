@@ -598,6 +598,11 @@ const DetailHost: React.FC = () => {
                     </button>
                   )}
                 </div>
+                <div className="dh-participant-status-col">
+                  <span className={`dh-participant-chip dh-participant-chip--${statusClass}`}>
+                    {sLabel}
+                  </span>
+                </div>
                 <div className="dh-participant-actions">
                   {!isReadOnly && !isCancelado && p.token_invitacion && (
                     <button
@@ -615,13 +620,11 @@ const DetailHost: React.FC = () => {
                       {copiedId === p.id ? '✓ Copiado' : p.estado !== 'pendiente' ? 'Reenviar' : (sharedInvites[p.id] ? '✓ Compartido' : 'Compartir')}
                     </button>
                   )}
-                  <span className={`dh-participant-chip dh-participant-chip--${statusClass}`}>
-                    {sLabel}
-                  </span>
                   {!isReadOnly && !isCancelado && (
                     <button
                       onClick={() => handleDeleteGuest(p.id)}
                       className="dh-participant-delete-btn"
+                      title="Eliminar invitado"
                     >
                       ✕
                     </button>
