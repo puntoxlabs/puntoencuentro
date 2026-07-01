@@ -432,14 +432,14 @@
 }
 
 .guest-theme--classic {
-  --guest-bg: var(--color-background);
+  --guest-bg: linear-gradient(180deg, #EFF6FF 0%, #DBEAFE 100%);
   --guest-card: var(--color-surface);
   --guest-accent: var(--color-primary);
   --guest-border: var(--color-outline-variant);
 }
 
 .guest-theme--formal {
-  --guest-bg: #F0F2F5;
+  --guest-bg: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
   --guest-card: #FFFFFF;
   --guest-accent: #334155;
   --guest-accent-soft: #E2E8F0;
@@ -452,7 +452,7 @@
 }
 
 .guest-theme--friends {
-  --guest-bg: #FFF9F2;
+  --guest-bg: linear-gradient(180deg, #FFF7ED 0%, #FFEDD5 100%);
   --guest-card: #FFFFFF;
   --guest-accent: #E85D04;
   --guest-accent-soft: #FFE8D6;
@@ -476,7 +476,7 @@
 }
 
 .guest-theme--celebration {
-  --guest-bg: linear-gradient(135deg, #FCF5FF 0%, #F5F3FF 100%);
+  --guest-bg: linear-gradient(180deg, #FAF5FF 0%, #F3E8FF 100%);
   --guest-card: #FFFFFF;
   --guest-accent: #9333EA;
   --guest-accent-soft: #F3E8FF;
@@ -537,7 +537,7 @@
 }
 
 .guest-theme--family {
-  --guest-bg: #F5EFEB; /* Warmer background, less grey */
+  --guest-bg: linear-gradient(180deg, #FFFAF5 0%, #F5EFEB 100%); /* Warmer background, less grey */
   --guest-card-bg: #FFFAF5; /* Very warm cream card */
   --guest-accent: #9A5A4A; /* Terracotta soft accent for primary buttons (enabled) */
   --guest-accent-soft: #F2E4DF;
@@ -562,7 +562,7 @@
 }
 
 .guest-theme--special {
-  --guest-bg: #FFF5F7;
+  --guest-bg: linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 100%);
   --guest-card: #FFFFFF;
   --guest-accent: #BE123C;
   --guest-accent-soft: #FFE4E6;
@@ -597,7 +597,7 @@
 
 /* Aplicación de las variables al contenedor raíz para forzar background */
 .guest-theme {
-  background-color: var(--guest-bg) !important;
+  background: var(--guest-bg) !important;
 }
 
 /* ── Sobreescribiendo variables nativas de UI Pro con el tema de Invitación ── */
@@ -608,5 +608,5 @@
   --color-primary-container: var(--guest-accent-soft) !important;
   --color-surface: var(--guest-card) !important;
   --color-outline-variant: var(--guest-border) !important;
-  background-color: var(--guest-bg) !important;
+  background: var(--guest-bg) !important;
 }
