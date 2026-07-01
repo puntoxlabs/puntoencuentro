@@ -24,23 +24,42 @@ const Step1Data: React.FC = () => {
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   const locationState = useLocation().state as { autoFocusTitle?: boolean } | null;
+  const didAutoFocusRef = useRef(false);
 
   useEffect(() => {
-    if (locationState?.autoFocusTitle) {
-      const timer = window.setTimeout(() => {
-        const input = nameInputRef.current;
-        if (!input) return;
+    if (!locationState?.autoFocusTitle) return;
+    if (didAutoFocusRef.current) return;
 
-        input.focus({ preventScroll: true });
+    didAutoFocusRef.current = true;
+
+    const runFocus = () => {
+      const input = nameInputRef.current;
+      if (!input) return;
+
+      // Primero llevar el formulario arriba.
+      window.scrollTo({ top: 0, behavior: 'auto' });
+
+      // Luego enfocar el input sin preventScroll para que el teclado se abra
+      input.focus();
+
+      // Asegurar que el campo quede visible después de abrir teclado.
+      setTimeout(() => {
+        input.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+
         const length = input.value.length;
         input.setSelectionRange(length, length);
-
+        
         // Remove from history state so it doesn't fire again on step-back
         window.history.replaceState({}, document.title);
-      }, 150);
+      }, 250);
+    };
 
-      return () => window.clearTimeout(timer);
-    }
+    requestAnimationFrame(() => {
+      setTimeout(runFocus, 120);
+    });
   }, [locationState]);
 
   const now = new Date();
