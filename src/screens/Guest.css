@@ -424,18 +424,18 @@
 
 /* -- Estilos de Invitación (Fase 4) -- */
 .guest-theme {
-  --guest-bg: var(--color-background);
-  --guest-card: var(--color-surface);
-  --guest-accent: var(--color-primary);
+  --guest-bg: #F5F7FA;
+  --guest-card: #FFFFFF;
+  --guest-accent: #184CD4;
   --guest-accent-soft: rgba(24, 76, 212, 0.10);
-  --guest-border: var(--color-outline-variant);
+  --guest-border: #E2E8F0;
 }
 
 .guest-theme--classic {
   --guest-bg: linear-gradient(180deg, #EFF6FF 0%, #DBEAFE 100%);
-  --guest-card: var(--color-surface);
-  --guest-accent: var(--color-primary);
-  --guest-border: var(--color-outline-variant);
+  --guest-card: #FFFFFF;
+  --guest-accent: #184CD4;
+  --guest-border: #E2E8F0;
 }
 
 .guest-theme--formal {

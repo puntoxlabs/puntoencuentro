@@ -91,19 +91,7 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
             </div>
           )}
         </div>
-        
-        {import.meta.env.DEV && (
-          <div className="kids-debug-render-marker" style={{ background: 'red', color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
-            KIDS_PREVIEW_V3_RENDERED
-          </div>
-        )}
       </div>
-
-      {import.meta.env.DEV && (
-        <div className="kids-debug-message">
-          hostMessage: {hostMessage ? hostMessage : 'VACIO'}
-        </div>
-      )}
     </div>
   );
 };

@@ -231,17 +231,3 @@
 .theme-kids_space .kids-invitation-name { color: #1e3a8a; }
 .theme-kids_space .kids-detail-icon { background: #fef9c3; color: #eab308; }
 .theme-kids_space .kids-action-button { background: linear-gradient(135deg, #facc15, #eab308); box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3); color: #713f12; }
-
-.kids-debug-message {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-  right: 8px;
-  z-index: 30;
-  background: rgba(0,0,0,0.78);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 6px 8px;
-  border-radius: 10px;
-}
