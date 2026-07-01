@@ -63,3 +63,23 @@ export function validateEncounterDate(fecha: string, hora: string): string | nul
 
   return null;
 }
+
+export function formatKidsBirthdayDateTime(date?: string, time?: string) {
+  if (!date) return '';
+
+  const [year, month, day] = date.split('-').map(Number);
+  const localDate = new Date(year, month - 1, day);
+
+  const formattedDate = localDate.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const cleanTime = time ? time.slice(0, 5) : '';
+  const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+  return cleanTime
+    ? `${capitalize(formattedDate)} · ${cleanTime}`
+    : capitalize(formattedDate);
+}

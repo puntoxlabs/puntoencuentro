@@ -48,7 +48,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <KidsBirthdayInvitationPreview
               templateId={wizardData.invitation_template}
               childName={wizardData.titulo}
-              date={displayDateText}
+              date={wizardData.fecha}
               time={wizardData.hora}
               location={displayLocation}
               hostMessage={wizardData.descripcion}

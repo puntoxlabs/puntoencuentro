@@ -613,7 +613,7 @@ const JoinGeneral: React.FC = () => {
             <KidsBirthdayInvitationPreview
               templateId={encuentro.invitation_template}
               childName={encuentro.titulo}
-              date={formatFriendlyDate(encuentro.fecha, encuentro.hora)}
+              date={encuentro.fecha}
               time={encuentro.hora}
               location={encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}
               hostMessage={encuentro.descripcion || ''}
