@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, Palette } from 'lucide-react';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
@@ -150,16 +151,18 @@ const Step4InviteType: React.FC = () => {
         </div>
       </div>
 
-      <div className="cw-preview-section" style={{ marginTop: 24, padding: '16px 20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)' }}>
-        <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 700 }}>Vista previa de la invitación</h4>
-        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)' }}>
+      <div className="cw-preview-section" style={{ marginTop: 24, padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+        <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Vista previa de la invitación</h4>
+        <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
           Revisá cómo la verán tus invitados antes de compartirla.
         </p>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Button variant="secondary" fullWidth onClick={() => setShowPreview(true)}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
+            <Eye size={18} style={{ marginRight: 8 }} />
             Previsualizar invitación
           </Button>
-          <Button variant="outline" fullWidth onClick={() => setField('step', 1)}>
+          <Button variant="outline" fullWidth onClick={() => setField('step', 1)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+            <Palette size={18} style={{ marginRight: 8 }} />
             Cambiar estilo
           </Button>
         </div>

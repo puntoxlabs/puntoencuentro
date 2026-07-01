@@ -49,34 +49,36 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="kids-invitation-details">
-          {displayDateTime && (
-            <div className="kids-detail-row">
-              <div className="kids-detail-icon"><Calendar size={18} /></div>
-              <span className="kids-detail-text">{displayDateTime}</span>
+        <div className="kids-invitation-center-block">
+          <div className="kids-invitation-details">
+            {displayDateTime && (
+              <div className="kids-detail-row">
+                <div className="kids-detail-icon"><Calendar size={18} /></div>
+                <span className="kids-detail-text">{displayDateTime}</span>
+              </div>
+            )}
+            {location && (
+              <div className="kids-detail-row">
+                <div className="kids-detail-icon"><MapPin size={18} /></div>
+                <span className="kids-detail-text">{location}</span>
+              </div>
+            )}
+          </div>
+
+          {hostMessage && (
+            <div className="kids-invitation-message">
+              <p className="kids-message-text">{hostMessage}</p>
             </div>
           )}
-          {location && (
-            <div className="kids-detail-row">
-              <div className="kids-detail-icon"><MapPin size={18} /></div>
-              <span className="kids-detail-text">{location}</span>
+
+          {confirmationText && (
+            <div className="kids-invitation-action">
+              <button className="kids-action-button" disabled={isReadOnly}>
+                {confirmationText}
+              </button>
             </div>
           )}
         </div>
-
-        {confirmationText && (
-          <div className="kids-invitation-action">
-            <button className="kids-action-button" disabled={isReadOnly}>
-              {confirmationText}
-            </button>
-          </div>
-        )}
-
-        {hostMessage && (
-          <div className="kids-invitation-message">
-            <p className="kids-message-text">{hostMessage}</p>
-          </div>
-        )}
       </div>
     </div>
   );
