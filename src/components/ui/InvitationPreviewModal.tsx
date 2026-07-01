@@ -28,10 +28,24 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
+    window.history.pushState({ previewModal: true }, '');
+
+    let popped = false;
+    const handlePopState = () => {
+      popped = true;
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
       document.body.style.overflow = 'auto';
+      window.removeEventListener('popstate', handlePopState);
+      if (!popped) {
+        window.history.back();
+      }
     };
-  }, []);
+  }, [onClose]);
 
   const modalContent = (
     <div className={`preview-modal-overlay guest-theme guest-theme--${themeId}`}>

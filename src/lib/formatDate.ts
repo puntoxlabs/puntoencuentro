@@ -75,11 +75,12 @@ export function formatKidsBirthdayDateTime(date?: string, time?: string) {
     day: 'numeric',
     month: 'long',
   });
+  const dateWithoutComma = formattedDate.replace(',', '');
 
   const cleanTime = time ? time.slice(0, 5) : '';
   const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
   return cleanTime
-    ? `${capitalize(formattedDate)} · ${cleanTime}`
-    : capitalize(formattedDate);
+    ? `${capitalize(dateWithoutComma)} · ${cleanTime}`
+    : capitalize(dateWithoutComma);
 }
