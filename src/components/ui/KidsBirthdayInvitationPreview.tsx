@@ -34,6 +34,18 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
   const hasCumpleWord = removeAccents(normalizedTitle.toLowerCase()).includes('cumple');
 
   const displayDateTime = formatKidsBirthdayDateTime(date, time);
+  const hasHostMessage = Boolean(hostMessage?.trim());
+
+  if (import.meta.env.DEV) {
+    console.debug('KidsBirthdayInvitationPreview props:', {
+      childName: normalizedTitle,
+      date,
+      time,
+      location,
+      hostMessage,
+      hasHostMessage
+    });
+  }
 
   return (
     <div className={`kids-invitation-container theme-${template.id}`}>
@@ -44,15 +56,15 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
           <p className="kids-invitation-eyebrow">¡Estás invitado/a!</p>
           {!hasCumpleWord && <p className="kids-invitation-sub-eyebrow">Al cumpleaños de</p>}
           <div className="kids-invitation-name-wrapper">
-            {normalizedTitle && <h1 className="kids-invitation-name">{normalizedTitle}</h1>}
+            {normalizedTitle && <h1 className="kids-invitation-title">{normalizedTitle}</h1>}
             {age && <span className="kids-invitation-age">{age}</span>}
           </div>
         </div>
 
         <div className="kids-invitation-center-block">
-          {hostMessage && (
-            <div className="kids-invitation-message">
-              <p className="kids-message-text">{hostMessage}</p>
+          {hasHostMessage && (
+            <div className="kids-invitation-host-message">
+              {hostMessage.trim()}
             </div>
           )}
 
