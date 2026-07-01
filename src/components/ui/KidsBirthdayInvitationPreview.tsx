@@ -50,6 +50,12 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
         </div>
 
         <div className="kids-invitation-center-block">
+          {hostMessage && (
+            <div className="kids-invitation-message">
+              <p className="kids-message-text">{hostMessage}</p>
+            </div>
+          )}
+
           <div className="kids-invitation-details">
             {displayDateTime && (
               <div className="kids-detail-row">
@@ -64,12 +70,6 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
               </div>
             )}
           </div>
-
-          {hostMessage && (
-            <div className="kids-invitation-message">
-              <p className="kids-message-text">{hostMessage}</p>
-            </div>
-          )}
 
           {confirmationText && (
             <div className="kids-invitation-action">

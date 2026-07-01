@@ -1,7 +1,7 @@
 .kids-invitation-container {
   position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   aspect-ratio: 4/5;
   margin: 0 auto;
   border-radius: 16px;
@@ -184,6 +184,14 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 480px) {
+  .kids-invitation-container {
+    max-width: 100%;
+    border-radius: 24px;
+  }
 }
 
 /* Theme specifics */

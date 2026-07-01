@@ -71,6 +71,10 @@
   padding: 0;
 }
 
+input, textarea, select {
+  font-size: 16px;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--color-background);
