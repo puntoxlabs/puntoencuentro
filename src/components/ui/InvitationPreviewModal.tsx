@@ -69,7 +69,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               isReadOnly={true}
             />
           ) : (
-            <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%' }}>
+            <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
             <h1 className="guest-card-title">{wizardData.titulo || 'Sin título'}</h1>
             
@@ -85,17 +85,24 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             </div>
 
             <div style={{ marginTop: 24 }}>
-              <Button fullWidth disabled style={{ opacity: 1 }}>Confirmar asistencia</Button>
+              <Button 
+                fullWidth 
+                onClick={(e) => e.preventDefault()} 
+                style={{ pointerEvents: 'none' }}
+              >
+                Confirmar asistencia
+              </Button>
             </div>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button 
                 type="button" 
+                onClick={(e) => e.preventDefault()}
                 style={{ 
                   background: 'none', border: 'none', 
                   color: 'var(--color-on-surface-variant)', 
-                  fontWeight: 600, fontSize: 14 
+                  fontWeight: 600, fontSize: 14,
+                  pointerEvents: 'none'
                 }}
-                disabled
               >
                 No podré asistir
               </button>
@@ -106,7 +113,9 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         </div>
 
         <div className="preview-modal-footer">
-          <Button fullWidth onClick={onChangeStyle}>Cambiar estilo</Button>
+          <Button fullWidth variant="secondary" onClick={onChangeStyle} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            Cambiar estilo
+          </Button>
         </div>
       </div>
     </div>
