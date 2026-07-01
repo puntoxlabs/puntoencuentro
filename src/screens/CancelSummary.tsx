@@ -123,7 +123,7 @@ const CancelSummary: React.FC = () => {
     setField('link_virtual', encuentro.link_virtual || '');
     setField('tema', encuentro.tema || 'blue');
 
-    navigate('/create');
+    navigate('/create', { state: { autoFocusTitle: true } });
   };
 
   if (authLoading || loading) return (

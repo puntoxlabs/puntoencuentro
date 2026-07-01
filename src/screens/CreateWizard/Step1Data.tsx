@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { TimePicker } from '@/components/ui/TimePicker';
@@ -21,6 +22,26 @@ const Step1Data: React.FC = () => {
   const timeInputRef = useRef<TimePickerRef>(null);
   const descripcionContainerRef = useRef<HTMLDivElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const locationState = useLocation().state as { autoFocusTitle?: boolean } | null;
+
+  useEffect(() => {
+    if (locationState?.autoFocusTitle) {
+      const timer = window.setTimeout(() => {
+        const input = nameInputRef.current;
+        if (!input) return;
+
+        input.focus({ preventScroll: true });
+        const length = input.value.length;
+        input.setSelectionRange(length, length);
+
+        // Remove from history state so it doesn't fire again on step-back
+        window.history.replaceState({}, document.title);
+      }, 150);
+
+      return () => window.clearTimeout(timer);
+    }
+  }, [locationState]);
 
   const now = new Date();
   const localYear = now.getFullYear();

@@ -372,7 +372,7 @@ const Home: React.FC = () => {
   const handleRepeat = (enc: any, e: React.MouseEvent) => {
     e.stopPropagation();
     preloadWizardFromEncuentro(enc, useWizardStore.getState());
-    navigate('/create');
+    navigate('/create', { state: { autoFocusTitle: true } });
   };
 
   const renderContent = () => {
@@ -461,7 +461,7 @@ const Home: React.FC = () => {
               variant="primary"
               fullWidth
               style={{ height: 56, fontSize: 16, fontWeight: 700 }}
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create'); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
             >
               + Crear encuentro
             </Button>
@@ -597,7 +597,7 @@ const Home: React.FC = () => {
                   variant="primary"
                   fullWidth
                   style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
-                  onClick={() => { resetWizard(); navigate('/create'); }}
+                  onClick={() => { resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
                 >
                   + Crear encuentro
                 </Button>
@@ -753,7 +753,7 @@ const Home: React.FC = () => {
         <div className="home-fab-container">
           <div className="home-fab-wrapper">
             <button
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create'); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
               className="home-fab"
             >
               <Plus size={24} />
