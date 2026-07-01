@@ -75,6 +75,15 @@ export const participantesService = {
       throw error;
     }
 
+    if (data && (data as any).encuentros) {
+      const encs = Array.isArray((data as any).encuentros) ? (data as any).encuentros : [(data as any).encuentros];
+      encs.forEach((enc: any) => {
+        if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
+          enc.invitation_template = 'kids_jungle';
+        }
+      });
+    }
+
     return data;
   },
 

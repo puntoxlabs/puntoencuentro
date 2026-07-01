@@ -18,6 +18,7 @@ import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } 
 import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import './Guest.css';
 
 interface SavedData {
@@ -607,33 +608,48 @@ const JoinGeneral: React.FC = () => {
       )}
 
       <div style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
-        <div className="guest-card" style={{ marginBottom: 0 }}>
-          <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
-          <h2 className="guest-card-title">{encuentro.titulo}</h2>
-          
-          <div className="guest-meta-list">
-            <div className="guest-meta-row">
-              <CalendarCheck2 size={20} className="guest-meta-icon" />
-              <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
-            </div>
-            {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
-              <div className="guest-meta-row">
-                <MapPin size={20} className="guest-meta-icon" />
-                <span>{encuentro.lugar_texto}</span>
-              </div>
-            )}
-            <div className="guest-meta-row">
-              {encuentro.modalidad === 'presencial' ? <MapPin size={20} className="guest-meta-icon" /> : <Video size={20} className="guest-meta-icon" />}
-              <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
-            </div>
+        {encuentro?.tema_invitacion === 'kids_birthday' ? (
+          <div style={{ marginBottom: 20 }}>
+            <KidsBirthdayInvitationPreview
+              templateId={encuentro.invitation_template}
+              childName={encuentro.titulo}
+              date={formatFriendlyDate(encuentro.fecha, encuentro.hora)}
+              time={encuentro.hora}
+              location={encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}
+              hostMessage={encuentro.descripcion || ''}
+              confirmationText={undefined}
+              isReadOnly={true}
+            />
           </div>
-          
-          {encuentro.modalidad === 'virtual' && (
-            <p className="guest-meta-info">
-              {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
-            </p>
-          )}
-        </div>
+        ) : (
+          <div className="guest-card" style={{ marginBottom: 0 }}>
+            <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
+            <h2 className="guest-card-title">{encuentro.titulo}</h2>
+            
+            <div className="guest-meta-list">
+              <div className="guest-meta-row">
+                <CalendarCheck2 size={20} className="guest-meta-icon" />
+                <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+              </div>
+              {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
+                <div className="guest-meta-row">
+                  <MapPin size={20} className="guest-meta-icon" />
+                  <span>{encuentro.lugar_texto}</span>
+                </div>
+              )}
+              <div className="guest-meta-row">
+                {encuentro.modalidad === 'presencial' ? <MapPin size={20} className="guest-meta-icon" /> : <Video size={20} className="guest-meta-icon" />}
+                <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
+              </div>
+            </div>
+            
+            {encuentro.modalidad === 'virtual' && (
+              <p className="guest-meta-info">
+                {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── B. Confirmación ─────────────────────────────── */}

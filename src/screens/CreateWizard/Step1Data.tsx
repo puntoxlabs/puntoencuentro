@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/Button';
 import { TimePicker } from '@/components/ui/TimePicker';
 import type { TimePickerRef } from '@/components/ui/TimePicker';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
+import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 
 const Step1Data: React.FC = () => {
   const { t } = useTranslation();
-  const { titulo, fecha, hora, descripcion, tema_invitacion, setField, nextStep } = useWizardStore();
+  const { titulo, fecha, hora, descripcion, tema_invitacion, invitation_template, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [highlightDescripcion, setHighlightDescripcion] = useState(false);
@@ -217,8 +218,19 @@ const Step1Data: React.FC = () => {
         </div>
         <InvitationThemeSelector
           value={tema_invitacion || 'classic'}
-          onChange={(t) => setField('tema_invitacion', t)}
+          onChange={(t) => {
+            setField('tema_invitacion', t);
+            if (t === 'kids_birthday' && !invitation_template) {
+              setField('invitation_template', 'kids_jungle');
+            }
+          }}
         />
+        {tema_invitacion === 'kids_birthday' && (
+          <KidsBirthdayTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
       </div>
 
       <div className="cw-bottom-actions">

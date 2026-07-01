@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { formatFriendlyDate } from '@/lib/formatDate';
@@ -43,9 +44,19 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         </div>
 
         <div className="preview-modal-body">
-          {/* Card Mock */}
-          <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%' }}>
-            <p className="guest-card-eyebrow">{eyebrow}</p>
+          {themeId === 'kids_birthday' ? (
+            <KidsBirthdayInvitationPreview
+              templateId={wizardData.invitation_template}
+              childName={wizardData.titulo}
+              date={displayDateText}
+              time={wizardData.hora}
+              location={displayLocation}
+              hostMessage={wizardData.descripcion}
+              isReadOnly={true}
+            />
+          ) : (
+            <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%' }}>
+              <p className="guest-card-eyebrow">{eyebrow}</p>
             <h1 className="guest-card-title">{wizardData.titulo || 'Sin título'}</h1>
             
             <div className="guest-meta-list">
@@ -76,6 +87,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               </button>
             </div>
           </div>
+          )}
           <p className="preview-modal-disclaimer">Así verán la invitación tus invitados. La vista es de solo lectura.</p>
         </div>
 

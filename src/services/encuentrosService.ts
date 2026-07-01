@@ -14,6 +14,7 @@ export interface CreateEncuentroDTO {
   host_id: string;
   tema?: string;
   tema_invitacion?: InvitationTheme;
+  invitation_template?: string | null;
   reemplaza_a?: string | null;
 }
 
@@ -80,6 +81,9 @@ export const encuentrosService = {
     });
     if (error) throw error;
     if (!data) return null;
+    if (data && data.tema_invitacion === 'kids_birthday' && !data.invitation_template) {
+      data.invitation_template = 'kids_jungle';
+    }
     return data;
   },
 
@@ -97,6 +101,10 @@ export const encuentrosService = {
 
     // Parseo defensivo: Supabase puede devolver JSON como string
     const result: any = typeof data === 'string' ? JSON.parse(data) : data;
+
+    if (result && result.tema_invitacion === 'kids_birthday' && !result.invitation_template) {
+      result.invitation_template = 'kids_jungle';
+    }
 
     if (!result || result.error) {
       const code = result?.error || 'not_found';
@@ -148,7 +156,13 @@ export const encuentrosService = {
     const { data, error } = await supabase.rpc('get_encuentros_participados_seguro');
     if (error) throw error;
     if (!data || (data as any).error) return [];
-    return (data as any[]) || [];
+    const list = (data as any[]) || [];
+    list.forEach(enc => {
+      if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
+        enc.invitation_template = 'kids_jungle';
+      }
+    });
+    return list;
   },
 
   async getEncuentrosParticipadosPorTokens(tokens: string[]) {
@@ -160,7 +174,18 @@ export const encuentrosService = {
       if (import.meta.env.DEV) console.error('Error fetching encuentros por tokens:', error);
       return [];
     }
-    return (data as any[]) || [];
+    const list = (data as any[]) || [];
+    list.forEach(part => {
+      if (part.encuentros) {
+        const encs = Array.isArray(part.encuentros) ? part.encuentros : [part.encuentros];
+        encs.forEach((enc: any) => {
+          if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
+            enc.invitation_template = 'kids_jungle';
+          }
+        });
+      }
+    });
+    return list;
   },
 
   async linkAnonymousEncuentros(anonId: string, userId: string) {
