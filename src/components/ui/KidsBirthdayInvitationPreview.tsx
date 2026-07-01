@@ -1,6 +1,5 @@
 import React from 'react';
 import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
-import { Calendar, MapPin } from 'lucide-react';
 import { formatKidsBirthdayDateTime } from '@/lib/formatDate';
 import './KidsBirthdayInvitationPreview.css';
 
@@ -34,7 +33,9 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
   const hasCumpleWord = removeAccents(normalizedTitle.toLowerCase()).includes('cumple');
 
   const displayDateTime = formatKidsBirthdayDateTime(date, time);
-  const hasHostMessage = Boolean(hostMessage?.trim());
+  
+  const cleanHostMessage = hostMessage?.trim() || '';
+  const hasHostMessage = cleanHostMessage.length > 0;
 
   if (import.meta.env.DEV) {
     console.debug('KidsBirthdayInvitationPreview props:', {
@@ -43,18 +44,30 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
       time,
       location,
       hostMessage,
+      cleanHostMessage,
       hasHostMessage
     });
   }
 
   return (
     <div className={`kids-invitation-container theme-${template.id}`}>
+      {import.meta.env.DEV && (
+        <div className="kids-debug-render-marker">
+          KIDS_PREVIEW_REAL_RENDER
+        </div>
+      )}
+      {import.meta.env.DEV && (
+        <div className="kids-debug-message">
+          hostMessage: {hasHostMessage ? cleanHostMessage : 'VACIO'}
+        </div>
+      )}
+      
       <img src={template.background} alt="Background" className="kids-invitation-bg" />
       
       <div className="kids-invitation-content">
         <div className="kids-invitation-header">
           <p className="kids-invitation-eyebrow">¡Estás invitado/a!</p>
-          {!hasCumpleWord && <p className="kids-invitation-sub-eyebrow">Al cumpleaños de</p>}
+          {!hasCumpleWord && <p className="kids-invitation-subtitle">Al cumpleaños de</p>}
           <div className="kids-invitation-name-wrapper">
             {normalizedTitle && <h1 className="kids-invitation-title">{normalizedTitle}</h1>}
             {age && <span className="kids-invitation-age">{age}</span>}
@@ -64,21 +77,19 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
         <div className="kids-invitation-center-block">
           {hasHostMessage && (
             <div className="kids-invitation-host-message">
-              {hostMessage.trim()}
+              {cleanHostMessage}
             </div>
           )}
 
           <div className="kids-invitation-details">
             {displayDateTime && (
               <div className="kids-detail-row">
-                <div className="kids-detail-icon"><Calendar size={18} /></div>
                 <span className="kids-detail-text">{displayDateTime}</span>
               </div>
             )}
             {location && (
               <div className="kids-detail-row">
-                <div className="kids-detail-icon"><MapPin size={18} /></div>
-                <span className="kids-detail-text">{location}</span>
+                <span className="kids-detail-text kids-invitation-location">{location}</span>
               </div>
             )}
           </div>
