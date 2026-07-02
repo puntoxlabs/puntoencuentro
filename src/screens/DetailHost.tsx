@@ -7,7 +7,7 @@ import { MoreVertical, PencilLine, MessageSquare } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
-import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
+import { formatFechaHoraWhatsApp, preventNumberLinking } from '@/lib/formatWhatsapp';
 import { useDetailStore } from '@/store/detailStore';
 import { openExternalVideoLink } from '@/lib/openLink';
 import throttle from 'lodash/throttle';
@@ -551,8 +551,18 @@ const DetailHost: React.FC = () => {
         ? (alias ? `🎉 ${alias} te invita al cumpleaños de 👇` : `🎉 Te invito al cumpleaños de 👇`)
         : (alias ? `${alias} te invita a este encuentro 👇` : `Te invito a este encuentro 👇`);
         
-      const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}`;
-      let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n${locStr}\n\n`;
+      const cleanLocation = preventNumberLinking(encuentro.lugar_texto || 'Presencial');
+      const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? cleanLocation : 'Virtual'}`;
+      
+      let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n`;
+      if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
+        shareText += `${locStr}\n\n`;
+      } else if (encuentro.modalidad === 'virtual') {
+        shareText += `${locStr}\n\n`;
+      } else {
+        shareText += '\n'; // en caso de presencial sin lugar, evitamos salto grande si no es necesario o lo dejamos para consistencia
+      }
+      
       if (personalMessage.trim()) {
         shareText += `${personalMessage.trim()}\n\n`;
       }
@@ -616,8 +626,18 @@ const DetailHost: React.FC = () => {
       }
     }
 
-    const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}`;
-    let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n${locStr}\n\n`;
+    const cleanLocation = preventNumberLinking(encuentro.lugar_texto || 'Presencial');
+    const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? cleanLocation : 'Virtual'}`;
+    
+    let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n`;
+    if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
+      shareText += `${locStr}\n\n`;
+    } else if (encuentro.modalidad === 'virtual') {
+      shareText += `${locStr}\n\n`;
+    } else {
+      shareText += '\n';
+    }
+    
     if (personalMessage.trim()) {
       shareText += `${personalMessage.trim()}\n\n`;
     }

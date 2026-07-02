@@ -42,3 +42,15 @@ export function formatFechaHoraWhatsApp(fecha: string, hora: string): { fechaStr
   // Fallback si no pudo parsear
   return { fechaStr: fecha, horaStr };
 }
+
+/**
+ * Inserta un espacio de ancho cero entre secuencias de dígitos para 
+ * evitar que plataformas como WhatsApp los conviertan en links clickeables (como teléfonos).
+ */
+export function preventNumberLinking(text: string): string {
+  if (!text) return text;
+  // Busca cualquier dígito seguido de otro dígito y mete un \u200B en el medio.
+  // Ej: "Roffo 882" -> "Roffo 8\u200B8\u200B2"
+  // Esto rompe la detección de patrón del parser de WhatsApp sin afectar lo visual.
+  return text.replace(/(\d)(?=\d)/g, '$1\u200B');
+}

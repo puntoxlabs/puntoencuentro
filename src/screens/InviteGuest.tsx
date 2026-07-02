@@ -603,7 +603,7 @@ const InviteGuest: React.FC = () => {
           <div className="guest-card" style={{ marginBottom: 20 }}>
             <div className="guest-form-group">
               <label className="guest-form-label">
-                {t('participant.visible_name', 'Nombre visible')}
+                {t('participant.visible_name', 'Tu nombre')}
               </label>
               <Input
                 placeholder="Ej: Leandro"
@@ -611,7 +611,7 @@ const InviteGuest: React.FC = () => {
                 onChange={(e: any) => setNombre(e.target.value)}
               />
               <p className="guest-form-help">
-                {t('participant.visible_name_help', 'Este nombre será visible para el organizador.')}
+                {t('participant.visible_name_help', 'Así te verá el organizador.')}
               </p>
             </div>
 
