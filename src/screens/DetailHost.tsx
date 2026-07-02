@@ -16,7 +16,7 @@ import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
-import { MapPin, Video, CheckCircle2, XCircle, Clock, User, Eye, Palette } from 'lucide-react';
+import { MapPin, Video, CheckCircle2, XCircle, Clock, User, Eye, Palette, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
@@ -81,6 +81,8 @@ const DetailHost: React.FC = () => {
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
 
+  const [isParticipantsExpanded, setIsParticipantsExpanded] = useState(false);
+
   // Estados para alias de anfitrión
   const [hostAlias, setHostAliasState] = useState(getHostAlias());
   const [isEditingAlias, setIsEditingAlias] = useState(false);
@@ -101,6 +103,12 @@ const DetailHost: React.FC = () => {
     if (import.meta.env.DEV) console.log('[DetailHost] hostId resuelto:', resolved, '(user logueado:', !!user, ')');
     hostIdRef.current = resolved;
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (participantes && participantes.length > 0) {
+      setIsParticipantsExpanded(true);
+    }
+  }, [participantes.length]);
 
   // Carga el estado de invitaciones ya compartidas desde localStorage
   useEffect(() => {
@@ -1041,34 +1049,62 @@ const DetailHost: React.FC = () => {
           {!isReadOnly && !isCancelado && (
             <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               
-
-              {encuentro.tipo_invitacion === 'link_general' ? (
-                // --- Link general: compartir + mensaje del organizador ---
-                <div className="dh-invite-card">
-                  {/* Acción: agregar/editar mensaje */}
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      onClick={() => setIsSheetOpen(true)}
-                      className="dh-invite-msg-btn"
-                    >
-                      <PencilLine size={16} />
-                      {personalMessage.trim() ? t('edit', 'Editar mensaje') : t('invitation.add_message', 'Agregar mensaje')}
-                    </button>
-                  </div>
-
-                  {/* Vista previa del mensaje si existe */}
-                  {personalMessage.trim() && (
-                    <div className="dh-invite-msg-preview dh-fade-in">
-                      <p className="dh-invite-msg-label">
-                        {t('invitation.organizer_message', 'Mensaje del organizador')}
+              {/* BLOQUE: AGREGAR MENSAJE (solo link_general) */}
+              {encuentro.tipo_invitacion === 'link_general' && (
+                <div className="dh-invite-card" style={{ padding: '20px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MessageSquare size={18} />
+                    Mensaje del organizador
+                  </h4>
+                  {personalMessage.trim() ? (
+                    <>
+                      <div className="dh-invite-msg-preview dh-fade-in" style={{ marginBottom: 16 }}>
+                        <p className="dh-invite-msg-text" style={{ margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          "{personalMessage}"
+                        </p>
+                      </div>
+                      <Button variant="outline" fullWidth onClick={() => setIsSheetOpen(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+                        <PencilLine size={18} style={{ marginRight: 8 }} />
+                        Editar mensaje
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                        Sumá un mensaje opcional para tus invitados.
                       </p>
-                      <p className="dh-invite-msg-text">
-                        "{personalMessage}"
-                      </p>
-                    </div>
+                      <Button variant="outline" fullWidth onClick={() => setIsSheetOpen(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+                        <PencilLine size={18} style={{ marginRight: 8 }} />
+                        Agregar mensaje
+                      </Button>
+                    </>
                   )}
+                </div>
+              )}
 
-                  {/* Botón principal: compartir */}
+              {/* BLOQUE: REVISÁ ANTES DE COMPARTIR */}
+              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
+                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
+                    <Eye size={18} style={{ marginRight: 8 }} />
+                    Previsualizar invitación
+                  </Button>
+                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+                    <Palette size={18} style={{ marginRight: 8 }} />
+                    Cambiar diseño
+                  </Button>
+                </div>
+              </div>
+
+              {/* BLOQUE: COMPARTIR INVITACIÓN O AGREGAR INVITADOS */}
+              {encuentro.tipo_invitacion === 'link_general' ? (
+                // --- Link general: compartir ---
+                <div className="dh-invite-card" style={{ padding: '20px' }}>
+                  <h4 style={{ margin: '0 0 16px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Compartir invitación</h4>
                   <Button
                     fullWidth
                     variant={(fromCancelled ? copiedNewShare : copiedShare) ? 'secondary' : 'primary'}
@@ -1080,27 +1116,25 @@ const DetailHost: React.FC = () => {
                       : (fromCancelled ? 'Compartir nuevo enlace' : t('share.button_invitation', 'Compartir invitación'))}
                   </Button>
 
-                  {/* Feedback post-compartir */}
                   {shareFeedback && !copiedShare && (
-                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500 }}>
+                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', marginTop: 16, marginBottom: 0, fontWeight: 500 }}>
                       {t('share.ready_host', 'Listo. Podés volver al inicio o revisar el encuentro.')}
                     </p>
                   )}
                   {copiedShare && (
-                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', margin: 0, fontWeight: 500, lineHeight: 1.4 }}>
+                    <p className="dh-fade-in" style={{ fontSize: 13, color: 'var(--color-primary-dark)', textAlign: 'center', marginTop: 16, marginBottom: 0, fontWeight: 500, lineHeight: 1.4 }}>
                       {t('invitation.desktop_copied', 'Mensaje copiado. Pegalo en WhatsApp Web, correo o donde quieras compartirlo.')}
                     </p>
                   )}
 
-                  {/* Aclaración breve */}
-                  <p className="dh-invite-help">
+                  <p className="dh-invite-help" style={{ marginTop: 16, marginBottom: 0 }}>
                     Quienes reciban el enlace podrán confirmar o rechazar su asistencia.
                   </p>
                 </div>
               ) : (
                 // --- Invitación individual o ?guests=1 ---
-                <div className="dh-invite-card">
-                  <h3 className="dh-invite-title">Agregar invitados</h3>
+                <div className="dh-invite-card" style={{ padding: '20px' }}>
+                  <h3 className="dh-invite-title" style={{ margin: '0 0 16px 0' }}>Agregar invitados</h3>
                   <div className="dh-add-guest-input-group">
                     <input
                       ref={inputRef}
@@ -1119,7 +1153,7 @@ const DetailHost: React.FC = () => {
                     </button>
                   </div>
 
-                  <p className="dh-invite-help">
+                  <p className="dh-invite-help" style={{ marginTop: 16, marginBottom: 0 }}>
                     Agregá personas y compartiles su invitación individual.
                   </p>
                 </div>
@@ -1130,7 +1164,6 @@ const DetailHost: React.FC = () => {
                 <div className="dh-fade-in" style={{
                   background: 'var(--color-primary-container)',
                   borderRadius: 16, padding: '16px 20px',
-                  marginTop: 12,
                   border: '1px solid var(--color-primary)',
                   display: 'flex', flexDirection: 'column', gap: 10,
                 }}>
@@ -1151,24 +1184,6 @@ const DetailHost: React.FC = () => {
                   </div>
                 </div>
               )}
-              
-              {/* Bloque: Revisá antes de compartir */}
-              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
-                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
-                    <Eye size={18} style={{ marginRight: 8 }} />
-                    Previsualizar invitación
-                  </Button>
-                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
-                    <Palette size={18} style={{ marginRight: 8 }} />
-                    Cambiar diseño
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -1213,48 +1228,9 @@ const DetailHost: React.FC = () => {
             </div>
           )}
 
-          {/* 5. PARTICIPANTES */}
-          <div className="dh-participants-section">
-            <h3 className="dh-participants-title" style={{ marginBottom: hasAnyResponse ? 2 : 16 }}>
-              Participantes
-            </h3>
-            {hasAnyResponse && (
-              <p className="dh-participants-summary">
-                {[
-                  formatCount(confirmados.length, 'confirmado', 'confirmados'),
-                  formatCount(pendientes.length, 'pendiente', 'pendientes'),
-                  formatCount(rechazados.length, 'no asiste', 'no asisten'),
-                ].filter(Boolean).join(' · ')}
-              </p>
-            )}
-
-            <>
-              {!hasAnyResponse && (
-                (searchParams.get('guests') === '1' || encuentro.tipo_invitacion !== 'link_general')
-                  ? (
-                    <div className="dh-participants-empty">
-                      <p className="dh-participants-empty-text">
-                        Los invitados aparecerán acá cuando los agregues.
-                      </p>
-                    </div>
-                  )
-                  : (
-                    <div className="dh-participants-empty">
-                      <p className="dh-participants-empty-text">
-                        Todavía no hay respuestas. Compartí el enlace para empezar a recibir confirmaciones.
-                      </p>
-                    </div>
-                  )
-              )}
-              {renderParticipantList('Confirmados', confirmados)}
-              {renderParticipantList('Pendientes', pendientes)}
-              {renderParticipantList('No asisten', rechazados)}
-            </>
-          </div>
-
-          {/* 5b. OPCIONES DEL ENCUENTRO — Visibilidad para invitados */}
+          {/* 5. OPCIONES DEL ENCUENTRO — Visibilidad para invitados */}
           {!isReadOnly && !isCancelado && (
-            <div className="dh-options-card">
+            <div className="dh-options-card" style={{ marginBottom: 24 }}>
               <p className="dh-options-label">
                 Opciones del encuentro
               </p>
@@ -1284,6 +1260,72 @@ const DetailHost: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* 6. PARTICIPANTES */}
+          <div className="dh-participants-section" style={{ paddingBottom: isParticipantsExpanded ? 20 : 0 }}>
+            <button
+              onClick={() => setIsParticipantsExpanded(!isParticipantsExpanded)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'transparent',
+                border: 'none',
+                padding: '20px',
+                margin: 0,
+                textAlign: 'left',
+                cursor: 'pointer'
+              }}
+            >
+              <div>
+                <h3 className="dh-participants-title" style={{ margin: 0, marginBottom: hasAnyResponse ? 4 : 0 }}>
+                  Participantes
+                </h3>
+                {hasAnyResponse ? (
+                  <p className="dh-participants-summary" style={{ margin: 0, fontSize: 13 }}>
+                    {[
+                      formatCount(confirmados.length, 'confirmado', 'confirmados'),
+                      formatCount(pendientes.length, 'pendiente', 'pendientes'),
+                      formatCount(rechazados.length, 'no asiste', 'no asisten'),
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                ) : (
+                  <p className="dh-participants-summary" style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)' }}>
+                    Sin respuestas
+                  </p>
+                )}
+              </div>
+              <div style={{ color: 'var(--color-on-surface-variant)', display: 'flex', alignItems: 'center' }}>
+                {isParticipantsExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
+            </button>
+
+            {isParticipantsExpanded && (
+              <div style={{ padding: '0 20px' }}>
+                {!hasAnyResponse && (
+                  (searchParams.get('guests') === '1' || encuentro.tipo_invitacion !== 'link_general')
+                    ? (
+                      <div className="dh-participants-empty" style={{ margin: 0 }}>
+                        <p className="dh-participants-empty-text">
+                          Los invitados aparecerán acá cuando los agregues.
+                        </p>
+                      </div>
+                    )
+                    : (
+                      <div className="dh-participants-empty" style={{ margin: 0 }}>
+                        <p className="dh-participants-empty-text">
+                          Todavía no hay respuestas. Compartí el enlace para empezar a recibir confirmaciones.
+                        </p>
+                      </div>
+                    )
+                )}
+                {renderParticipantList('Confirmados', confirmados)}
+                {renderParticipantList('Pendientes', pendientes)}
+                {renderParticipantList('No asisten', rechazados)}
+              </div>
+            )}
+          </div>
 
           {/* 6. ACCIONES INFERIORES */}
           <div className="dh-bottom-actions">
