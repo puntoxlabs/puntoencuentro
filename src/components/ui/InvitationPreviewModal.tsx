@@ -10,21 +10,35 @@ import './InvitationPreviewModal.css';
 
 interface InvitationPreviewModalProps {
   onClose: () => void;
-  onChangeStyle: () => void;
+  onChangeStyle?: () => void; // Made optional since it's not strictly needed if we change style directly in DetailHost or maybe it's not passed.
+  previewData?: {
+    titulo?: string;
+    fecha?: string;
+    hora?: string;
+    lugar_texto?: string;
+    modalidad?: string;
+    tema_invitacion?: string;
+    invitation_template?: string;
+    descripcion?: string; // will map to hostMessage
+  };
 }
 
-export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle }) => {
+export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData }) => {
   const wizardData = useWizardStore();
-  const themeId = wizardData.tema_invitacion || 'classic';
+  
+  // Use previewData if provided, otherwise fallback to wizardData
+  const sourceData = previewData || wizardData;
+  
+  const themeId = sourceData.tema_invitacion || 'classic';
   const eyebrow = getThemeEyebrow(themeId);
   
-  const displayDateText = wizardData.fecha && wizardData.hora 
-    ? formatFriendlyDate(wizardData.fecha, wizardData.hora)
+  const displayDateText = sourceData.fecha && sourceData.hora 
+    ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
     : 'Fecha y hora a definir';
     
-  const displayLocation = wizardData.modalidad === 'virtual' 
+  const displayLocation = sourceData.modalidad === 'virtual' 
     ? 'Encuentro virtual' 
-    : (wizardData.lugar_texto || 'Lugar a definir');
+    : (sourceData.lugar_texto || 'Lugar a definir');
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -60,18 +74,18 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         <div className="preview-modal-body">
           {themeId === 'kids_birthday' ? (
             <KidsBirthdayInvitationPreview
-              templateId={wizardData.invitation_template}
-              childName={wizardData.titulo}
-              date={wizardData.fecha}
-              time={wizardData.hora}
+              templateId={sourceData.invitation_template || null}
+              childName={sourceData.titulo || ''}
+              date={sourceData.fecha || ''}
+              time={sourceData.hora || ''}
               location={displayLocation}
-              hostMessage={wizardData.descripcion}
+              hostMessage={sourceData.descripcion || ''}
               isReadOnly={true}
             />
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
-            <h1 className="guest-card-title">{wizardData.titulo || 'Sin título'}</h1>
+            <h1 className="guest-card-title">{sourceData.titulo || 'Sin título'}</h1>
             
             <div className="guest-meta-list">
               <div className="guest-meta-row">

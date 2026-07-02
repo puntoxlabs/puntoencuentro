@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Palette } from 'lucide-react';
 import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
+import { Button } from '@/components/ui/Button';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 import { getHostId } from '@/lib/auth';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
-import { Button } from '@/components/ui/Button';
-import { InvitationPreviewModal } from '@/components/ui/InvitationPreviewModal';
-import type { InvitationTheme } from '@/lib/invitationThemes';
+import '../CreateWizard.css';
 
-const Step4InviteType: React.FC = () => {
+interface Step4Props {
+  onFinish?: (encuentroId: string) => void;
+}
+
+const Step4InviteType: React.FC<Step4Props> = () => {
   const { setField, ...wizardData } = useWizardStore();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
 
-  const [hasInitialValue] = useState(!!wizardData.tipo_invitacion);
+  const hasInitialValue = !!wizardData.tipo_invitacion;
 
   const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
     if (loading) return;
@@ -151,22 +153,7 @@ const Step4InviteType: React.FC = () => {
         </div>
       </div>
 
-      <div className="cw-preview-section" style={{ marginTop: 24, padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
-        <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Vista previa de la invitación</h4>
-        <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-          Revisá cómo la verán tus invitados antes de compartirla.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
-            <Eye size={18} style={{ marginRight: 8 }} />
-            Previsualizar invitación
-          </Button>
-          <Button variant="outline" fullWidth onClick={() => setField('step', 1)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
-            <Palette size={18} style={{ marginRight: 8 }} />
-            Cambiar estilo
-          </Button>
-        </div>
-      </div>
+
 
       {hasInitialValue && (
         <div className="cw-bottom-actions">
@@ -199,16 +186,6 @@ const Step4InviteType: React.FC = () => {
         <div style={{ textAlign: 'center', marginTop: 24, color: 'var(--color-primary)', fontSize: 15, fontWeight: 600 }}>
           Creando encuentro…
         </div>
-      )}
-
-      {showPreview && (
-        <InvitationPreviewModal 
-          onClose={() => setShowPreview(false)}
-          onChangeStyle={() => {
-            setShowPreview(false);
-            setField('step', 1);
-          }}
-        />
       )}
     </div>
   );

@@ -16,10 +16,14 @@ import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
-import { MapPin, Video, CheckCircle2, XCircle, Clock, User } from 'lucide-react';
+import { MapPin, Video, CheckCircle2, XCircle, Clock, User, Eye, Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
+import { InvitationPreviewModal } from '@/components/ui/InvitationPreviewModal';
+import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
+import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
@@ -58,6 +62,12 @@ const DetailHost: React.FC = () => {
   const [copiedShare, setCopiedShare] = useState(false);
   // Estado para discriminar qué botón destructivo del bottom sheet de cancelación fue clickeado
   const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
+  
+  // UX: Preview and Theme Selector
+  const [showPreview, setShowPreview] = useState(false);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [themeSaving, setThemeSaving] = useState(false);
+
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
 
   // Estados para invitado individual
@@ -180,6 +190,41 @@ const DetailHost: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [id, authLoading]);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const handleThemeChange = async (newThemeOrTemplate: string) => {
+    if (!encuentro || themeSaving) return;
+    setThemeSaving(true);
+    const oldTema = encuentro.tema_invitacion;
+    const oldTemplate = encuentro.invitation_template;
+    
+    try {
+      const isKids = encuentro.tema_invitacion === 'kids_birthday';
+      const updates = isKids 
+        ? { invitation_template: newThemeOrTemplate }
+        : { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
+        
+      // Optimistic local update
+      setEncuentro((prev: any) => ({ ...prev, ...updates }));
+      
+      await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
+      setShowThemeSelector(false);
+    } catch (e: any) {
+      console.error('Failed to change theme', e);
+      // Rollback
+      setEncuentro((prev: any) => ({ ...prev, tema_invitacion: oldTema, invitation_template: oldTemplate }));
+      alert('Error al cambiar el diseño: ' + e.message);
+    } finally {
+      setThemeSaving(false);
+    }
+  };
 
   const loadData = async (hId?: string) => {
     const hostId = hId ?? hostIdRef.current ?? (user?.id ?? getEncuentroHost(id!) ?? getHostId());
@@ -977,7 +1022,26 @@ const DetailHost: React.FC = () => {
 
           {/* 2. BLOQUE DE INVITACIÓN UNIFICADO */}
           {!isReadOnly && !isCancelado && (
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              
+              {/* Bloque: Revisá antes de compartir */}
+              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
+                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
+                    <Eye size={18} style={{ marginRight: 8 }} />
+                    Previsualizar invitación
+                  </Button>
+                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+                    <Palette size={18} style={{ marginRight: 8 }} />
+                    Cambiar diseño
+                  </Button>
+                </div>
+              </div>
+
               {encuentro.tipo_invitacion === 'link_general' ? (
                 // --- Link general: compartir + mensaje del organizador ---
                 <div className="dh-invite-card">
@@ -1251,6 +1315,44 @@ const DetailHost: React.FC = () => {
             </div>
             <Button fullWidth variant="outline" onClick={() => setSelectedGuestMessage(null)}>
               Cerrar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para ver preview de la invitación */}
+      {showPreview && (
+        <InvitationPreviewModal
+          onClose={() => setShowPreview(false)}
+          onChangeStyle={() => {
+            setShowPreview(false);
+            setShowThemeSelector(true);
+          }}
+          previewData={{
+            ...encuentro,
+            descripcion: personalMessage
+          }}
+        />
+      )}
+
+      {/* Modal / Sheet para cambiar diseño */}
+      {showThemeSelector && (
+        <div className="dh-modal-overlay">
+          <div className="dh-bottom-sheet" style={{ padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
+            {encuentro.tema_invitacion === 'kids_birthday' ? (
+              <KidsBirthdayTemplateSelector
+                selectedTemplateId={encuentro.invitation_template || 'kids_jungle'}
+                onSelect={(templateId) => handleThemeChange(templateId)}
+              />
+            ) : (
+              <InvitationThemeSelector
+                value={encuentro.tema_invitacion || 'classic'}
+                onChange={(themeId) => handleThemeChange(themeId)}
+              />
+            )}
+            <Button fullWidth variant="outline" onClick={() => setShowThemeSelector(false)} style={{ marginTop: 24 }}>
+              Cancelar
             </Button>
           </div>
         </div>
