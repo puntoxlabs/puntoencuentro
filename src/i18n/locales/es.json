@@ -31,8 +31,8 @@
   "participant": {
     "linked_account": "Cuenta vinculada",
     "no_account": "Sin cuenta",
-    "visible_name": "Nombre visible",
-    "visible_name_help": "Este nombre será visible para el organizador."
+    "visible_name": "Tu nombre",
+    "visible_name_help": "Así te verá el organizador."
   },
   "share": {
     "copied": "Mensaje copiado",

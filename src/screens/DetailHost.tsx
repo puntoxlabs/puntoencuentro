@@ -219,23 +219,42 @@ const DetailHost: React.FC = () => {
     setThemeSaving(true);
     const oldTema = encuentro.tema_invitacion;
     const oldTemplate = encuentro.invitation_template;
-    
+
+    // Detectar si el valor recibido es un template interno (kids o celebration)
+    const kidTemplates = ['kids_jungle', 'kids_unicorn', 'kids_space'];
+    const celebrationTemplates = ['celebration_gold', 'celebration_festiva', 'celebration_blue_party'];
+    const isKidsTemplate = kidTemplates.includes(newThemeOrTemplate);
+    const isCelebrationTemplate = celebrationTemplates.includes(newThemeOrTemplate);
+
+    let updates: Record<string, string | null>;
+    if (isKidsTemplate) {
+      // Cambio de modelo dentro de kids_birthday
+      updates = { invitation_template: newThemeOrTemplate };
+    } else if (isCelebrationTemplate) {
+      // Cambio de modelo dentro de celebration — NUNCA tocar tema_invitacion
+      updates = { tema_invitacion: 'celebration', invitation_template: newThemeOrTemplate };
+    } else {
+      // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
+      updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
+      // Si cambia a kids_birthday o celebration sin template, poner default
+      if (newThemeOrTemplate === 'kids_birthday') {
+        updates.invitation_template = 'kids_jungle';
+      } else if (newThemeOrTemplate === 'celebration') {
+        updates.invitation_template = 'celebration_gold';
+      }
+    }
+
+    // Optimistic local update
+    setEncuentro((prev: any) => ({ ...prev, ...updates }));
+
     try {
-      const isKids = encuentro.tema_invitacion === 'kids_birthday';
-      const updates = isKids 
-        ? { invitation_template: newThemeOrTemplate }
-        : { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
-        
-      // Optimistic local update
-      setEncuentro((prev: any) => ({ ...prev, ...updates }));
-      
       await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
       setShowThemeSelector(false);
     } catch (e: any) {
       console.error('Failed to change theme', e);
       // Rollback
       setEncuentro((prev: any) => ({ ...prev, tema_invitacion: oldTema, invitation_template: oldTemplate }));
-      alert('Error al cambiar el diseño: ' + e.message);
+      alert('Error al cambiar el diseño: ' + (e?.message || 'Intente nuevamente'));
     } finally {
       setThemeSaving(false);
     }

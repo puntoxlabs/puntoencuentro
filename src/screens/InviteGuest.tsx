@@ -21,6 +21,7 @@ import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
+import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import './Guest.css';
 
 
@@ -302,6 +303,19 @@ const InviteGuest: React.FC = () => {
   );
   const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
 
+  // Fondo integrado para Celebración
+  const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
+    ? getCelebrationTemplateConfig(encuentro.invitation_template)
+    : null;
+  const celebrationBgStyle: React.CSSProperties = celebrationTemplate?.background
+    ? {
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
+        backgroundRepeat: 'no-repeat'
+      }
+    : {};
+
   if (error || !participante || !encuentro) return (
     <ScreenContainer>
       <AppBar title="Invitación" />
@@ -544,7 +558,10 @@ const InviteGuest: React.FC = () => {
   );
 
   return (
-    <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
+    <ScreenContainer
+      className={`guest-page guest-theme guest-theme--${invitationTheme}`}
+      style={{ ...getThemeStyle(encuentro?.tema), ...celebrationBgStyle }}
+    >
       <AppBar title="Invitación" />
 
       {isFinalizado && (
@@ -616,7 +633,18 @@ const InviteGuest: React.FC = () => {
 
       <div style={{ padding: '20px 20px 0' }}>
         {!isFinalizado && (
-          <div className="guest-card" style={{ marginBottom: 20 }}>
+          <div
+            className="guest-card"
+            style={{
+              marginBottom: 20,
+              ...(encuentro?.tema_invitacion === 'celebration' ? {
+                background: 'rgba(255, 255, 255, 0.88)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.6)'
+              } : {})
+            }}
+          >
             <div className="guest-form-group">
               <label className="guest-form-label">
                 {t('participant.visible_name', 'Tu nombre')}
