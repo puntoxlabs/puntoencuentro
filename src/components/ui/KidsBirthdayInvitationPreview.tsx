@@ -65,16 +65,16 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
       <img src={template.background} alt="Background" className="kids-invitation-bg" />
       
       <div className="kids-invitation-content">
-        <div className="kids-invitation-header">
-          <p className="kids-invitation-eyebrow">¡Estás invitado/a!</p>
-          {!hasCumpleWord && <p className="kids-invitation-subtitle">Al cumpleaños de</p>}
-          <div className="kids-invitation-name-wrapper">
-            {normalizedTitle && <h1 className="kids-invitation-title">{normalizedTitle}</h1>}
-            {age && <span className="kids-invitation-age">{age}</span>}
+        <div className="kids-invitation-main-bubble">
+          <div className="kids-invitation-header">
+            <p className="kids-invitation-eyebrow">¡Estás invitado/a!</p>
+            {!hasCumpleWord && <p className="kids-invitation-subtitle">Al cumpleaños de</p>}
+            <div className="kids-invitation-name-wrapper">
+              {normalizedTitle && <h1 className="kids-invitation-title">{normalizedTitle}</h1>}
+              {age && <span className="kids-invitation-age">{age}</span>}
+            </div>
           </div>
-        </div>
 
-        <div className="kids-invitation-center-block">
           {hasHostMessage && (
             <div className="kids-invitation-host-message">
               {cleanHostMessage}
@@ -93,15 +93,15 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
               </div>
             )}
           </div>
-
-          {confirmationText && (
-            <div className="kids-invitation-action">
-              <button className="kids-action-button" disabled={isReadOnly}>
-                {confirmationText}
-              </button>
-            </div>
-          )}
         </div>
+
+        {confirmationText && (
+          <div className="kids-invitation-action">
+            <button className="kids-action-button" disabled={isReadOnly}>
+              {confirmationText}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
