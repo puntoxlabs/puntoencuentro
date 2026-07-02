@@ -1,32 +1,44 @@
 
 
 /**
- * Formatea la hora reemplazando los dos puntos (:) por un punto (.) 
- * y añadiendo "hs" para evitar que WhatsApp lo detecte como un link clickeable.
- * Ejemplo: "21:00" -> "21.00 hs"
+ * Formatea la hora usando ":" y cortando segundos si existieran.
+ * Ejemplo: "13:15:00" -> "13:15"
  */
 export function formatHoraWhatsApp(hora: string): string {
   if (!hora) return '';
-  const cleanHora = hora.substring(0, 5); // "10:00:00" -> "10:00"
-  return cleanHora.replace(':', '.') + ' hs';
+  return hora.substring(0, 5); // "13:15:00" -> "13:15"
 }
 
 /**
  * Formatea fecha y hora por separado para facilitar su uso en plantillas de WhatsApp,
- * evitando autolinking indeseado.
+ * devolviendo el día de semana y el formato amigable.
+ * Ejemplo: Jueves 2 de julio
  */
 export function formatFechaHoraWhatsApp(fecha: string, hora: string): { fechaStr: string, horaStr: string } {
-  const parts = fecha.split('-');
-  if (parts.length !== 3) return { fechaStr: fecha, horaStr: formatHoraWhatsApp(hora) };
-  
-  const [, month, day] = parts;
-  const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const monthIndex = parseInt(month, 10) - 1;
-  
-  if (monthIndex < 0 || monthIndex > 11) return { fechaStr: fecha, horaStr: formatHoraWhatsApp(hora) };
-  
-  const fechaStr = `${parseInt(day, 10)} ${monthNames[monthIndex]}`;
   const horaStr = formatHoraWhatsApp(hora);
   
-  return { fechaStr, horaStr };
+  try {
+    const parts = fecha.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const dateObj = new Date(year, monthIndex, day);
+      
+      const weekdays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      
+      const weekday = weekdays[dateObj.getDay()];
+      const monthName = monthNames[monthIndex];
+      
+      const fechaStr = `${weekday} ${day} de ${monthName}`;
+      return { fechaStr, horaStr };
+    }
+  } catch (e) {
+    // Fallback silencioso
+  }
+
+  // Fallback si no pudo parsear
+  return { fechaStr: fecha, horaStr };
 }

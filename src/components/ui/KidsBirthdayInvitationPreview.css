@@ -36,14 +36,16 @@
   flex-direction: column;
   justify-content: center;
   margin: auto 0;
-  padding: 28px 16px;
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: clamp(22px, 5vw, 34px) clamp(16px, 4vw, 28px);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 44px 48px 42px 46px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.62);
   gap: 20px;
+  width: min(86%, 440px);
+  align-self: center;
 }
 
 .kids-invitation-header {
@@ -215,7 +217,7 @@
 .theme-kids_jungle .kids-invitation-eyebrow { color: #16a34a; }
 .theme-kids_jungle .kids-invitation-title { color: #14532d; }
 .theme-kids_jungle .kids-action-button { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3); }
-.theme-kids_jungle .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.58); }
+.theme-kids_jungle .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.52); border-color: rgba(255, 255, 255, 0.55); }
 
 .theme-kids_unicorn .kids-invitation-bg { object-position: center center; }
 .theme-kids_unicorn .kids-invitation-eyebrow { color: #d946ef; }
@@ -227,4 +229,4 @@
 .theme-kids_space .kids-invitation-eyebrow { color: #eab308; }
 .theme-kids_space .kids-invitation-title { color: #1e3a8a; }
 .theme-kids_space .kids-action-button { background: linear-gradient(135deg, #facc15, #eab308); box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3); color: #713f12; }
-.theme-kids_space .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.75); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); border-color: rgba(255, 255, 255, 0.8); }
+.theme-kids_space .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.72); box-shadow: 0 18px 45px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.7); }

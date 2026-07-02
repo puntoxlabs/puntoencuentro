@@ -546,15 +546,17 @@ const DetailHost: React.FC = () => {
       const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
       
       const alias = getHostAlias();
-      const aliasIntro = alias 
-        ? `${alias} te invita a este encuentro 👇` 
-        : 'Te invito a este encuentro 👇';
+      const isKids = encuentro.tema_invitacion === 'kids_birthday';
+      const aliasIntro = isKids
+        ? (alias ? `🎉 ${alias} te invita al cumpleaños de 👇` : `🎉 Te invito al cumpleaños de 👇`)
+        : (alias ? `${alias} te invita a este encuentro 👇` : `Te invito a este encuentro 👇`);
         
-      let shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\n`;
+      const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}`;
+      let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n${locStr}\n\n`;
       if (personalMessage.trim()) {
         shareText += `${personalMessage.trim()}\n\n`;
       }
-      shareText += `Confirmá acá:\n${shareUrl}`;
+      shareText += `👉 Confirmá acá:\n${shareUrl}`;
 
       if (isMobileShareEnvironment() && navigator.share) {
         await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
@@ -593,19 +595,33 @@ const DetailHost: React.FC = () => {
     
     const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
     const alias = getHostAlias();
+    const isKids = encuentro.tema_invitacion === 'kids_birthday';
     
     let aliasIntro = '';
-    if (guestName?.trim()) {
-      aliasIntro = alias 
-        ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇`
-        : `${guestName.trim()}, te invito a este encuentro 👇`;
+    if (isKids) {
+      if (guestName?.trim()) {
+        aliasIntro = alias 
+          ? `🎉 ${guestName.trim()}, ${alias} te invita al cumpleaños de 👇`
+          : `🎉 ${guestName.trim()}, te invito al cumpleaños de 👇`;
+      } else {
+        aliasIntro = alias ? `🎉 ${alias} te invita al cumpleaños de 👇` : `🎉 Te invito al cumpleaños de 👇`;
+      }
     } else {
-      aliasIntro = alias
-        ? `${alias} te invita a este encuentro 👇`
-        : `Te invito a este encuentro 👇`;
+      if (guestName?.trim()) {
+        aliasIntro = alias 
+          ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇`
+          : `${guestName.trim()}, te invito a este encuentro 👇`;
+      } else {
+        aliasIntro = alias ? `${alias} te invita a este encuentro 👇` : `Te invito a este encuentro 👇`;
+      }
     }
 
-    const shareText = `${aliasIntro}\n\n*${encuentro.titulo}*\n${fechaStr} · ${horaStr}\n${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}\n\nConfirmá acá:\n${shareUrl}`;
+    const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}`;
+    let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n${locStr}\n\n`;
+    if (personalMessage.trim()) {
+      shareText += `${personalMessage.trim()}\n\n`;
+    }
+    shareText += `👉 Confirmá acá:\n${shareUrl}`;
 
     if (isMobileShareEnvironment() && navigator.share) {
       try {
@@ -1385,7 +1401,6 @@ const DetailHost: React.FC = () => {
         <InvitationPreviewModal
           onClose={() => setShowPreview(false)}
           onChangeStyle={() => {
-            setShowPreview(false);
             setShowThemeSelector(true);
           }}
           previewData={{
@@ -1397,7 +1412,7 @@ const DetailHost: React.FC = () => {
 
       {/* Modal / Sheet para cambiar diseño */}
       {showThemeSelector && (
-        <div className="dh-modal-overlay">
+        <div className="dh-modal-overlay" style={{ zIndex: 10000 }}>
           <div className="dh-bottom-sheet" style={{ padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto' }}>
             <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
             {encuentro.tema_invitacion === 'kids_birthday' ? (
