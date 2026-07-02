@@ -1,7 +1,7 @@
 import React from 'react';
-import './CelebrationInvitationPreview.css';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
-import { formatFechaHoraWhatsApp } from '@/lib/formatWhatsapp';
+import { formatKidsBirthdayDateTime } from '@/lib/formatDate';
+import './CelebrationInvitationPreview.css';
 
 interface CelebrationPreviewData {
   titulo: string;
@@ -20,49 +20,61 @@ interface Props {
 }
 
 export const CelebrationInvitationPreview: React.FC<Props> = ({ previewData, className = '' }) => {
-  const templateConfig = getCelebrationTemplateConfig(previewData.invitation_template);
-  const isVirtual = previewData.modalidad === 'virtual';
+  const template = getCelebrationTemplateConfig(previewData.invitation_template);
 
-  const { fechaStr, horaStr } = formatFechaHoraWhatsApp(previewData.fecha, previewData.hora);
+  const isVirtual = previewData.modalidad === 'virtual';
+  const locationText = isVirtual
+    ? 'Virtual'
+    : (previewData.lugar_texto || '');
+
+  const displayDateTime = formatKidsBirthdayDateTime(previewData.fecha, previewData.hora);
+
+  const cleanMessage = (previewData.descripcion || '').trim();
+  const hasMessage = cleanMessage.length > 0;
 
   return (
-    <div className={`celebration-invitation-container theme-${templateConfig.id} ${className}`}>
-      {/* Background elements constructed via CSS */}
-      <div className="celebration-invitation-bg-layer celebration-base"></div>
-      <div className="celebration-invitation-bg-layer celebration-lights"></div>
-      <div className="celebration-invitation-bg-layer celebration-particles"></div>
+    <div className={`celebration-invitation-container theme-${template.id} ${className}`}>
+      {/* Imagen de fondo real — mismo patrón que kids_birthday */}
+      <img
+        src={template.background}
+        alt={template.name}
+        className="celebration-invitation-bg"
+      />
 
-      {/* Main content bubble */}
-      <div className="celebration-invitation-main-bubble">
-        
-        <div className="celebration-invitation-header">
-          <p className="celebration-invitation-eyebrow">¡ESTÁS INVITADO/A!</p>
-          <p className="celebration-invitation-subtitle">A una celebración</p>
-          <h2 className="celebration-invitation-title">{previewData.titulo}</h2>
-        </div>
+      {/* Contenido superpuesto */}
+      <div className="celebration-invitation-content">
+        <div className="celebration-invitation-main-bubble">
 
-        {previewData.descripcion && (
-          <div className="celebration-invitation-message">
-            <p>{previewData.descripcion}</p>
+          <div className="celebration-invitation-header">
+            <p className="celebration-invitation-eyebrow">¡Estás invitado/a!</p>
+            <p className="celebration-invitation-subtitle">A una celebración</p>
+            {previewData.titulo && (
+              <h2 className="celebration-invitation-title">{previewData.titulo}</h2>
+            )}
           </div>
-        )}
 
-        <div className="celebration-invitation-details">
-          <div className="celebration-detail-row">
-            <span className="celebration-detail-icon">📅</span>
-            <span>
-              {fechaStr} · {horaStr}
-            </span>
-          </div>
-          
-          {(previewData.lugar_texto || isVirtual) && (
-            <div className="celebration-detail-row">
-              <span className="celebration-detail-icon">{isVirtual ? '💻' : '📍'}</span>
-              <span>{isVirtual ? 'Virtual' : previewData.lugar_texto}</span>
+          {hasMessage && (
+            <div className="celebration-invitation-message">
+              {cleanMessage}
             </div>
           )}
-        </div>
 
+          <div className="celebration-invitation-details">
+            {displayDateTime && (
+              <div className="celebration-detail-row">
+                <span className="celebration-detail-text">{displayDateTime}</span>
+              </div>
+            )}
+            {locationText && (
+              <div className="celebration-detail-row">
+                <span className="celebration-detail-text celebration-invitation-location">
+                  {locationText}
+                </span>
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );

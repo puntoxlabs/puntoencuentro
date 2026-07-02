@@ -6,6 +6,7 @@ import { TimePicker } from '@/components/ui/TimePicker';
 import type { TimePickerRef } from '@/components/ui/TimePicker';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
+import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -263,10 +264,23 @@ const Step1Data: React.FC = () => {
             if (t === 'kids_birthday' && !invitation_template) {
               setField('invitation_template', 'kids_jungle');
             }
+            if (t === 'celebration' && !invitation_template) {
+              setField('invitation_template', 'celebration_gold');
+            }
+            // Si cambia a otro tema, limpiar invitation_template de variantes específicas
+            if (t !== 'kids_birthday' && t !== 'celebration') {
+              setField('invitation_template', null);
+            }
           }}
         />
         {tema_invitacion === 'kids_birthday' && (
           <KidsBirthdayTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'celebration' && (
+          <CelebrationTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />

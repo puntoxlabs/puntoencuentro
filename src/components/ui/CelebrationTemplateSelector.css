@@ -1,6 +1,13 @@
+/* Estilos exclusivos de CelebrationTemplateSelector */
+/* Reutiliza los mismos class names de KidsBirthdayTemplateSelector.css:
+   .template-selector-container, .template-selector-grid, .template-option,
+   .template-thumbnail-wrapper, .template-thumbnail, .template-name
+   Se importan ambos CSS para compartir la estructura. */
+
+/* Fallback de color para templates sin imagen real (ej: celebration_gold) */
 .template-color-preview {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }

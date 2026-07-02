@@ -1,189 +1,220 @@
+/* =========================================
+   CelebrationInvitationPreview
+   Misma estructura base que KidsBirthdayInvitationPreview
+   ========================================= */
+
 .celebration-invitation-container {
-  width: 100%;
-  aspect-ratio: 9/16;
-  max-height: 800px;
   position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4/5;
+  margin: 0 auto;
+  border-radius: 16px;
   overflow: hidden;
-  border-radius: 20px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  color: #1e293b;
-  font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
-.celebration-invitation-bg-layer {
+/* Imagen de fondo real */
+.celebration-invitation-bg {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  object-fit: cover;
+  z-index: 1;
 }
 
-/* === BUBBLE === */
-.celebration-invitation-main-bubble {
+/* Capa de contenido superpuesta */
+.celebration-invitation-content {
   position: relative;
-  z-index: 10;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 24px 16px;
+}
+
+/* Globo/burbuja central con texto */
+.celebration-invitation-main-bubble {
   display: flex;
   flex-direction: column;
   justify-content: center;
   margin: auto 0;
-  padding: clamp(24px, 5vw, 36px) clamp(20px, 4vw, 32px);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 40px 44px 38px 42px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  gap: 24px;
-  width: min(88%, 460px);
+  padding: clamp(20px, 5vw, 32px) clamp(16px, 4vw, 28px);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 44px 48px 42px 46px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  gap: 18px;
+  width: min(84%, 380px);
   align-self: center;
   text-align: center;
 }
 
+/* Header */
 .celebration-invitation-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .celebration-invitation-eyebrow {
-  font-size: 14px;
+  font-size: clamp(0.85rem, 3.5vw, 1.05rem);
   font-weight: 800;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
 }
 
 .celebration-invitation-subtitle {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: clamp(0.85rem, 3.5vw, 1rem);
+  font-weight: 600;
   margin: 0;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 .celebration-invitation-title {
-  font-size: clamp(32px, 8vw, 44px);
+  font-size: clamp(1.6rem, 8vw, 2.6rem);
   font-weight: 800;
   line-height: 1.1;
-  margin: 12px 0 0;
-  font-family: 'Georgia', serif;
+  margin: 8px 0 0;
+  letter-spacing: -0.01em;
 }
 
+/* Mensaje personalizado */
 .celebration-invitation-message {
-  font-size: 17px;
-  line-height: 1.4;
-  font-weight: 500;
-  padding: 16px 0;
-  border-top: 1px solid rgba(0,0,0,0.08);
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+  font-size: clamp(0.9rem, 3.8vw, 1.05rem);
+  font-weight: 600;
+  line-height: 1.45;
+  color: inherit;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 0 4px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
-.celebration-invitation-message p {
-  margin: 0;
-}
-
+/* Fecha / lugar */
 .celebration-invitation-details {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  font-size: 16px;
-  font-weight: 600;
+  gap: 6px;
 }
 
 .celebration-detail-row {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
 }
 
-.celebration-detail-icon {
-  font-size: 18px;
+.celebration-detail-text {
+  font-size: clamp(0.85rem, 3.4vw, 0.98rem);
+  font-weight: 700;
+  line-height: 1.3;
+  color: inherit;
 }
 
-
-/* ========================================= */
-/* VARIANTES                                 */
-/* ========================================= */
-
-/* 1. Dorado festivo (celebration_gold) */
-.theme-celebration_gold .celebration-base {
-  background: radial-gradient(circle at 50% 0%, #fef08a 0%, #d97706 60%, #451a03 100%);
+.celebration-invitation-location {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.theme-celebration_gold .celebration-lights {
-  background-image: 
-    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 40%),
-    radial-gradient(circle at 80% 20%, rgba(255,255,255,0.3) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(253,230,138,0.3) 0%, transparent 60%);
-  mix-blend-mode: overlay;
-}
-.theme-celebration_gold .celebration-particles {
-  /* confeti simple via radial gradients */
-  background-image: 
-    radial-gradient(circle, #fde047 2px, transparent 3px),
-    radial-gradient(circle, #fef08a 1.5px, transparent 2px),
-    radial-gradient(circle, #fff 1px, transparent 1.5px);
-  background-size: 120px 120px, 90px 90px, 50px 50px;
-  background-position: 0 0, 30px 40px, 60px 10px;
-  opacity: 0.6;
+
+/* =========================================
+   VARIANTE: celebration_gold
+   Champagne dorado — imagen cálida
+   ========================================= */
+.theme-celebration_gold .celebration-invitation-bg {
+  object-position: center center;
 }
 .theme-celebration_gold .celebration-invitation-main-bubble {
-  background: rgba(255, 252, 240, 0.88);
-  border-color: rgba(253, 230, 138, 0.7);
+  background: rgba(255, 253, 240, 0.78);
+  border-color: rgba(253, 230, 138, 0.5);
+}
+.theme-celebration_gold .celebration-invitation-eyebrow {
+  color: #92400e;
+}
+.theme-celebration_gold .celebration-invitation-subtitle {
+  color: #78350f;
+}
+.theme-celebration_gold .celebration-invitation-title {
   color: #451a03;
 }
-.theme-celebration_gold .celebration-invitation-eyebrow { color: #b45309; }
-.theme-celebration_gold .celebration-invitation-title { color: #78350f; }
+.theme-celebration_gold .celebration-invitation-message {
+  color: #78350f;
+  border-color: rgba(180, 83, 9, 0.15);
+}
+.theme-celebration_gold .celebration-detail-text {
+  color: #451a03;
+}
 
-/* 2. Fiesta colorida (celebration_festiva) */
-.theme-celebration_festiva .celebration-base {
-  background: linear-gradient(135deg, #1e1b4b 0%, #86198f 50%, #be185d 100%);
-}
-.theme-celebration_festiva .celebration-lights {
-  background: 
-    radial-gradient(circle at 80% 10%, rgba(244, 114, 182, 0.6) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.6) 0%, transparent 50%);
-  mix-blend-mode: screen;
-}
-.theme-celebration_festiva .celebration-particles {
-  background-image: 
-    radial-gradient(circle, #f472b6 3px, transparent 4px),
-    radial-gradient(circle, #38bdf8 2px, transparent 3px),
-    radial-gradient(circle, #fbbf24 2.5px, transparent 3.5px);
-  background-size: 150px 150px, 110px 110px, 80px 80px;
-  background-position: 10px 20px, 40px 60px, 90px 30px;
-  opacity: 0.8;
+/* =========================================
+   VARIANTE: celebration_festiva
+   Colorida/morada — imagen vibrante
+   ========================================= */
+.theme-celebration_festiva .celebration-invitation-bg {
+  object-position: center center;
 }
 .theme-celebration_festiva .celebration-invitation-main-bubble {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.82);
+}
+.theme-celebration_festiva .celebration-invitation-eyebrow {
+  color: #be185d;
+}
+.theme-celebration_festiva .celebration-invitation-subtitle {
+  color: #7e22ce;
+}
+.theme-celebration_festiva .celebration-invitation-title {
+  color: #4c1d95;
+}
+.theme-celebration_festiva .celebration-invitation-message {
+  color: #3b0764;
+  border-color: rgba(126, 34, 206, 0.15);
+}
+.theme-celebration_festiva .celebration-detail-text {
   color: #1e1b4b;
 }
-.theme-celebration_festiva .celebration-invitation-eyebrow { color: #db2777; }
-.theme-celebration_festiva .celebration-invitation-title { color: #4c1d95; }
 
-/* 3. Azul celebración (celebration_blue_party) */
-.theme-celebration_blue_party .celebration-base {
-  background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 50%, #082f49 100%);
-}
-.theme-celebration_blue_party .celebration-lights {
-  background: 
-    radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.2) 0%, transparent 60%),
-    radial-gradient(circle at 10% 90%, rgba(253, 224, 71, 0.15) 0%, transparent 50%);
-}
-.theme-celebration_blue_party .celebration-particles {
-  background-image: 
-    radial-gradient(circle, #fde047 1.5px, transparent 2px),
-    radial-gradient(circle, #38bdf8 1px, transparent 1.5px);
-  background-size: 100px 100px, 70px 70px;
-  background-position: 20px 20px, 50px 50px;
-  opacity: 0.5;
+/* =========================================
+   VARIANTE: celebration_blue_party
+   Azul marino + dorado
+   ========================================= */
+.theme-celebration_blue_party .celebration-invitation-bg {
+  object-position: center center;
 }
 .theme-celebration_blue_party .celebration-invitation-main-bubble {
-  background: rgba(250, 250, 250, 0.9);
-  border-color: rgba(203, 213, 225, 0.3);
+  background: rgba(255, 253, 240, 0.88);
+  border-color: rgba(203, 213, 225, 0.4);
+}
+.theme-celebration_blue_party .celebration-invitation-eyebrow {
+  color: #1e3a8a;
+}
+.theme-celebration_blue_party .celebration-invitation-subtitle {
+  color: #1e40af;
+}
+.theme-celebration_blue_party .celebration-invitation-title {
   color: #0f172a;
 }
-.theme-celebration_blue_party .celebration-invitation-eyebrow { color: #0369a1; }
-.theme-celebration_blue_party .celebration-invitation-title { color: #1e3a8a; }
+.theme-celebration_blue_party .celebration-invitation-message {
+  color: #1e3a8a;
+  border-color: rgba(30, 58, 138, 0.15);
+}
+.theme-celebration_blue_party .celebration-detail-text {
+  color: #0f172a;
+}
+
+@media (max-width: 480px) {
+  .celebration-invitation-container {
+    max-width: 100%;
+    border-radius: 24px;
+  }
+}
