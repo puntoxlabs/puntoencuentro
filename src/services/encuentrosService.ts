@@ -208,7 +208,7 @@ export const encuentrosService = {
     const { data: result, error } = await supabase.rpc('actualizar_encuentro_seguro', {
       p_encuentro_id: id,
       p_host_id: hostId,
-      p_campos: campos
+      p_data: campos
     });
     if (error) throw error;
     const res = result as any;

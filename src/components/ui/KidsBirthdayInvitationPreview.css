@@ -62,76 +62,86 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .kids-invitation-title {
-  font-size: clamp(2.4rem, 10vw, 4rem);
-  line-height: 0.95;
+  font-size: clamp(2.8rem, 12vw, 4.2rem);
+  line-height: 0.9;
   font-weight: 900;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   color: #102A43;
   text-align: center;
   text-shadow:
-    0 3px 0 rgba(255,255,255,0.9),
-    0 8px 18px rgba(15,23,42,0.16);
+    0 3px 0 rgba(255,255,255,0.95),
+    0 6px 12px rgba(15,23,42,0.15),
+    0 0 30px rgba(255,255,255,0.6);
   margin: 0;
+  transform: rotate(-2deg);
 }
 
 .kids-invitation-age {
   background: #f59e0b;
   color: white;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 16px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  font-weight: 900;
+  font-size: 18px;
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.4);
+  transform: rotate(10deg);
 }
 
 .kids-invitation-center-block {
-  margin: auto 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 0;
 }
 
 .kids-invitation-host-message {
-  margin: 10px auto 12px;
-  max-width: 86%;
-  padding: 10px 14px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(5px);
+  margin: 0 auto;
+  width: 88%;
+  padding: 14px 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #1E293B;
-  font-size: clamp(0.95rem, 4vw, 1.15rem);
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.35;
   text-align: center;
-  box-shadow: 0 8px 20px rgba(15,23,42,0.08);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.1);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.9);
 }
 
 .kids-invitation-details {
-  max-width: 86%;
+  max-width: 88%;
   margin: 0 auto;
-  padding: 12px 14px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(5px);
-  color: #1E293B;
-  font-weight: 800;
+  padding: 14px 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #0F172A;
+  font-weight: 900;
   display: flex;
   flex-direction: column;
   gap: 8px;
   text-align: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
 }
 
 .kids-detail-row {

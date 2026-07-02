@@ -125,6 +125,12 @@ const DetailHost: React.FC = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (encuentro?.descripcion && personalMessage === '') {
+      setPersonalMessage(encuentro.descripcion);
+    }
+  }, [encuentro?.descripcion]);
+
   // Efecto principal: carga inicial + polling + visibilitychange
   // Se re-ejecuta cuando auth termina (authLoading cambia a false)
   useEffect(() => {
@@ -223,6 +229,17 @@ const DetailHost: React.FC = () => {
       alert('Error al cambiar el diseño: ' + e.message);
     } finally {
       setThemeSaving(false);
+    }
+  };
+
+  const handleSavePersonalMessage = async (msg: string) => {
+    setPersonalMessage(msg);
+    if (!encuentro) return;
+    try {
+      setEncuentro((prev: any) => ({ ...prev, descripcion: msg }));
+      await encuentrosService.updateEncuentro(encuentro.id, { descripcion: msg }, hostIdRef.current!);
+    } catch (err) {
+      console.error('Error saving message', err);
     }
   };
 
@@ -1024,23 +1041,6 @@ const DetailHost: React.FC = () => {
           {!isReadOnly && !isCancelado && (
             <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               
-              {/* Bloque: Revisá antes de compartir */}
-              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
-                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
-                    <Eye size={18} style={{ marginRight: 8 }} />
-                    Previsualizar invitación
-                  </Button>
-                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
-                    <Palette size={18} style={{ marginRight: 8 }} />
-                    Cambiar diseño
-                  </Button>
-                </div>
-              </div>
 
               {encuentro.tipo_invitacion === 'link_general' ? (
                 // --- Link general: compartir + mensaje del organizador ---
@@ -1151,6 +1151,24 @@ const DetailHost: React.FC = () => {
                   </div>
                 </div>
               )}
+              
+              {/* Bloque: Revisá antes de compartir */}
+              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
+                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
+                    <Eye size={18} style={{ marginRight: 8 }} />
+                    Previsualizar invitación
+                  </Button>
+                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
+                    <Palette size={18} style={{ marginRight: 8 }} />
+                    Cambiar diseño
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1299,7 +1317,7 @@ const DetailHost: React.FC = () => {
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
         initialMessage={personalMessage}
-        onSave={setPersonalMessage}
+        onSave={handleSavePersonalMessage}
       />
 
       {/* Modal para ver mensaje de invitado */}
@@ -1330,7 +1348,7 @@ const DetailHost: React.FC = () => {
           }}
           previewData={{
             ...encuentro,
-            descripcion: personalMessage
+            descripcion: personalMessage?.trim() || encuentro.descripcion || ''
           }}
         />
       )}

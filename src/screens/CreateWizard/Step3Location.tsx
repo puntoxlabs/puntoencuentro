@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useWizardStore } from '@/store/wizardStore';
@@ -6,8 +6,20 @@ import { useWizardStore } from '@/store/wizardStore';
 const Step3Location: React.FC = () => {
   const { modalidad, lugar_texto, link_virtual, setField, nextStep } = useWizardStore();
   const [isNavigating, setIsNavigating] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
   const isPresencial = modalidad === 'presencial';
   const isValid = isPresencial ? lugar_texto.trim() !== '' : link_virtual.trim() !== '';
+
+  useEffect(() => {
+    // Timeout corto para asegurar que el teclado abra en mobile al montar la pantalla
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleNext = () => {
     if (isNavigating) return;
@@ -48,6 +60,7 @@ const Step3Location: React.FC = () => {
       <div className="cw-form-body">
         {isPresencial ? (
           <Input
+            ref={inputRef}
             label="Lugar"
             value={lugar_texto}
             onChange={(e) => setField('lugar_texto', e.target.value)}
@@ -56,19 +69,15 @@ const Step3Location: React.FC = () => {
           />
         ) : (
           <div>
-            <label className="cw-link-input-label">
-              Link de videollamada
-            </label>
-            <div className={`cw-link-input-wrapper ${link_virtual ? 'cw-link-input-wrapper--active' : ''}`}>
-              <input
-                value={link_virtual}
-                onChange={(e) => setField('link_virtual', e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="https://meet.google.com/…"
-                type="url"
-                className="cw-link-input-field"
-              />
-            </div>
+            <Input
+              ref={inputRef}
+              label="Enlace"
+              type="url"
+              value={link_virtual}
+              onChange={(e) => setField('link_virtual', e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ej: https://meet.google.com/abc"
+            />
             <p className="cw-helper-text">
               Pegá el enlace de Google Meet, Zoom o similar.
             </p>
