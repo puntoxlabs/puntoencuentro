@@ -1,0 +1,189 @@
+.celebration-invitation-container {
+  width: 100%;
+  aspect-ratio: 9/16;
+  max-height: 800px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  color: #1e293b;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.celebration-invitation-bg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* === BUBBLE === */
+.celebration-invitation-main-bubble {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: auto 0;
+  padding: clamp(24px, 5vw, 36px) clamp(20px, 4vw, 32px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 40px 44px 38px 42px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  gap: 24px;
+  width: min(88%, 460px);
+  align-self: center;
+  text-align: center;
+}
+
+.celebration-invitation-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.celebration-invitation-eyebrow {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.celebration-invitation-subtitle {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+  opacity: 0.85;
+}
+
+.celebration-invitation-title {
+  font-size: clamp(32px, 8vw, 44px);
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 12px 0 0;
+  font-family: 'Georgia', serif;
+}
+
+.celebration-invitation-message {
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 500;
+  padding: 16px 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.celebration-invitation-message p {
+  margin: 0;
+}
+
+.celebration-invitation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.celebration-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.celebration-detail-icon {
+  font-size: 18px;
+}
+
+
+/* ========================================= */
+/* VARIANTES                                 */
+/* ========================================= */
+
+/* 1. Dorado festivo (celebration_gold) */
+.theme-celebration_gold .celebration-base {
+  background: radial-gradient(circle at 50% 0%, #fef08a 0%, #d97706 60%, #451a03 100%);
+}
+.theme-celebration_gold .celebration-lights {
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(255,255,255,0.3) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(253,230,138,0.3) 0%, transparent 60%);
+  mix-blend-mode: overlay;
+}
+.theme-celebration_gold .celebration-particles {
+  /* confeti simple via radial gradients */
+  background-image: 
+    radial-gradient(circle, #fde047 2px, transparent 3px),
+    radial-gradient(circle, #fef08a 1.5px, transparent 2px),
+    radial-gradient(circle, #fff 1px, transparent 1.5px);
+  background-size: 120px 120px, 90px 90px, 50px 50px;
+  background-position: 0 0, 30px 40px, 60px 10px;
+  opacity: 0.6;
+}
+.theme-celebration_gold .celebration-invitation-main-bubble {
+  background: rgba(255, 252, 240, 0.88);
+  border-color: rgba(253, 230, 138, 0.7);
+  color: #451a03;
+}
+.theme-celebration_gold .celebration-invitation-eyebrow { color: #b45309; }
+.theme-celebration_gold .celebration-invitation-title { color: #78350f; }
+
+/* 2. Fiesta colorida (celebration_festiva) */
+.theme-celebration_festiva .celebration-base {
+  background: linear-gradient(135deg, #1e1b4b 0%, #86198f 50%, #be185d 100%);
+}
+.theme-celebration_festiva .celebration-lights {
+  background: 
+    radial-gradient(circle at 80% 10%, rgba(244, 114, 182, 0.6) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.6) 0%, transparent 50%);
+  mix-blend-mode: screen;
+}
+.theme-celebration_festiva .celebration-particles {
+  background-image: 
+    radial-gradient(circle, #f472b6 3px, transparent 4px),
+    radial-gradient(circle, #38bdf8 2px, transparent 3px),
+    radial-gradient(circle, #fbbf24 2.5px, transparent 3.5px);
+  background-size: 150px 150px, 110px 110px, 80px 80px;
+  background-position: 10px 20px, 40px 60px, 90px 30px;
+  opacity: 0.8;
+}
+.theme-celebration_festiva .celebration-invitation-main-bubble {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e1b4b;
+}
+.theme-celebration_festiva .celebration-invitation-eyebrow { color: #db2777; }
+.theme-celebration_festiva .celebration-invitation-title { color: #4c1d95; }
+
+/* 3. Azul celebración (celebration_blue_party) */
+.theme-celebration_blue_party .celebration-base {
+  background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 50%, #082f49 100%);
+}
+.theme-celebration_blue_party .celebration-lights {
+  background: 
+    radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.2) 0%, transparent 60%),
+    radial-gradient(circle at 10% 90%, rgba(253, 224, 71, 0.15) 0%, transparent 50%);
+}
+.theme-celebration_blue_party .celebration-particles {
+  background-image: 
+    radial-gradient(circle, #fde047 1.5px, transparent 2px),
+    radial-gradient(circle, #38bdf8 1px, transparent 1.5px);
+  background-size: 100px 100px, 70px 70px;
+  background-position: 20px 20px, 50px 50px;
+  opacity: 0.5;
+}
+.theme-celebration_blue_party .celebration-invitation-main-bubble {
+  background: rgba(250, 250, 250, 0.9);
+  border-color: rgba(203, 213, 225, 0.3);
+  color: #0f172a;
+}
+.theme-celebration_blue_party .celebration-invitation-eyebrow { color: #0369a1; }
+.theme-celebration_blue_party .celebration-invitation-title { color: #1e3a8a; }

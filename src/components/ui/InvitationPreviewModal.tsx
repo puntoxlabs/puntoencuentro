@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Calendar, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
+import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { formatFriendlyDate } from '@/lib/formatDate';
@@ -68,6 +69,19 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               location={displayLocation}
               hostMessage={sourceData.descripcion || ''}
               isReadOnly={true}
+            />
+          ) : themeId === 'celebration' ? (
+            <CelebrationInvitationPreview
+              previewData={{
+                titulo: sourceData.titulo || '',
+                fecha: sourceData.fecha || '',
+                hora: sourceData.hora || '',
+                lugar_texto: sourceData.lugar_texto,
+                modalidad: sourceData.modalidad,
+                descripcion: sourceData.descripcion,
+                tema_invitacion: themeId,
+                invitation_template: sourceData.invitation_template || 'celebration_gold'
+              }}
             />
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>

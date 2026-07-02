@@ -23,6 +23,7 @@ import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { InvitationPreviewModal } from '@/components/ui/InvitationPreviewModal';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
+import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
@@ -1438,7 +1439,12 @@ const DetailHost: React.FC = () => {
             {encuentro.tema_invitacion === 'kids_birthday' ? (
               <KidsBirthdayTemplateSelector
                 selectedTemplateId={encuentro.invitation_template || 'kids_jungle'}
-                onSelect={(templateId) => handleThemeChange(templateId)}
+                onSelect={(id) => handleThemeChange(id)}
+              />
+            ) : encuentro.tema_invitacion === 'celebration' ? (
+              <CelebrationTemplateSelector
+                selectedTemplateId={encuentro.invitation_template || 'celebration_gold'}
+                onSelect={(id) => handleThemeChange(id)}
               />
             ) : (
               <InvitationThemeSelector

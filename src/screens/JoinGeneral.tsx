@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
+import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import './Guest.css';
 
 interface SavedData {
@@ -619,6 +620,21 @@ const JoinGeneral: React.FC = () => {
               hostMessage={encuentro.descripcion || ''}
               confirmationText={undefined}
               isReadOnly={true}
+            />
+          </div>
+        ) : encuentro?.tema_invitacion === 'celebration' ? (
+          <div style={{ marginBottom: 20 }}>
+            <CelebrationInvitationPreview
+              previewData={{
+                titulo: encuentro.titulo || '',
+                fecha: encuentro.fecha || '',
+                hora: encuentro.hora || '',
+                lugar_texto: encuentro.lugar_texto,
+                modalidad: encuentro.modalidad,
+                descripcion: encuentro.descripcion,
+                tema_invitacion: encuentro.tema_invitacion,
+                invitation_template: encuentro.invitation_template || 'celebration_gold'
+              }}
             />
           </div>
         ) : (
