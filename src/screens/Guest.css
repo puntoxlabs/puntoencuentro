@@ -625,6 +625,23 @@
   background: var(--guest-bg) !important;
 }
 
+/* ── Fallback en capas exclusivo para romántico ── */
+.guest-theme.guest-theme--romantic {
+  background-color: #fff1f2 !important;
+  background-image:
+    var(--guest-bg-image, none),
+    var(--guest-bg) !important;
+  background-size:
+    cover,
+    auto !important;
+  background-position:
+    center,
+    top left !important;
+  background-repeat:
+    no-repeat,
+    no-repeat !important;
+}
+
 /* ── Sobreescribiendo variables nativas de UI Pro con el tema de Invitación ── */
 .guest-theme {
   /* Forzar las variables nativas para que componentes compartidos (ej. Button) y estilos locales las adopten */
@@ -633,5 +650,4 @@
   --color-primary-container: var(--guest-accent-soft) !important;
   --color-surface: var(--guest-card) !important;
   --color-outline-variant: var(--guest-border) !important;
-  background: var(--guest-bg) !important;
 }

@@ -7,6 +7,7 @@ import type { TimePickerRef } from '@/components/ui/TimePicker';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
+import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -281,6 +282,12 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'celebration' && (
           <CelebrationTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'romantic' && (
+          <RomanticTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />

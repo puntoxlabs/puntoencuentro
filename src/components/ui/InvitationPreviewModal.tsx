@@ -6,6 +6,7 @@ import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvit
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
+import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import './InvitationPreviewModal.css';
 
@@ -49,8 +50,13 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     };
   }, []);
 
+  const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(sourceData.invitation_template) : null;
+  const customStyles = romanticTemplate?.background 
+    ? { '--guest-bg-image': `url(${romanticTemplate.background})` } as React.CSSProperties
+    : {};
+
   const modalContent = (
-    <div className={`preview-modal-overlay guest-theme guest-theme--${themeId}`}>
+    <div className={`preview-modal-overlay guest-theme guest-theme--${themeId}`} style={customStyles}>
       <div className="preview-modal-content">
         <div className="preview-modal-header">
           <h3 className="preview-modal-title">Vista previa</h3>

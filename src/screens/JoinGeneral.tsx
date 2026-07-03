@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
+import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import './Guest.css';
 
 interface SavedData {
@@ -363,19 +364,28 @@ const JoinGeneral: React.FC = () => {
 
   const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
 
-  // Fondo integrado para Celebración
+  // Fondo integrado para Celebración o Romántico
   const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
     ? getCelebrationTemplateConfig(encuentro.invitation_template)
     : null;
-  const celebrationBgStyle: React.CSSProperties = celebrationTemplate?.background
-    ? {
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center top',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'scroll'
-      }
-    : {};
+  const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
+    ? getRomanticTemplateConfig(encuentro.invitation_template)
+    : null;
+
+  let templateBgStyle: React.CSSProperties = {};
+  if (celebrationTemplate?.background) {
+    templateBgStyle = {
+      backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center top',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+    };
+  } else if (romanticTemplate?.background) {
+    templateBgStyle = {
+      '--guest-bg-image': `url(${romanticTemplate.background})`,
+    } as React.CSSProperties;
+  }
 
   if (error || !encuentro) return (
     <ScreenContainer>
@@ -615,7 +625,7 @@ const JoinGeneral: React.FC = () => {
   return (
     <ScreenContainer
       className={`guest-page guest-theme guest-theme--${invitationTheme}`}
-      style={{ ...getThemeStyle(encuentro?.tema), ...celebrationBgStyle }}
+      style={{ ...getThemeStyle(encuentro?.tema), ...templateBgStyle }}
     >
       <AppBar title="Invitación" />
 
