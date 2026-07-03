@@ -48,7 +48,8 @@
   background: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-radius: 20px;
+  /* Silueta de placa orgánica y levemente asimétrica */
+  border-radius: 52% 48% 51% 49% / 18% 22% 19% 21%;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.4);
   gap: 16px;
@@ -66,7 +67,8 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
-  border-radius: 12px;
+  /* El borde interno tiene una asimetría inversa sutil para darle dinamismo */
+  border-radius: 48% 52% 49% 51% / 22% 18% 21% 19%;
   border: 1px solid rgba(255, 255, 255, 0.5);
   pointer-events: none;
   z-index: -1;
