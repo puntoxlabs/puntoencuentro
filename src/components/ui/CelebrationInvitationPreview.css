@@ -213,18 +213,25 @@
 
 /* =========================================
    VARIANTE: celebration_blue_party
-   Azul marino + dorado
+   Azul marino + dorado (V2: asset portrait nativo 820x1024)
    ========================================= */
 .theme-celebration_blue_party .celebration-invitation-bg {
   object-position: center center;
 }
 .theme-celebration_blue_party .celebration-invitation-main-bubble {
-  background: linear-gradient(135deg, rgba(255, 253, 240, 0.75), rgba(226, 232, 240, 0.55));
-  border-color: rgba(203, 213, 225, 0.4);
-  box-shadow: 0 20px 40px -10px rgba(30, 58, 138, 0.2);
+  /* El frame dorado del asset actua como protagonista visual.
+     El bubble es soporte liviano de legibilidad, no una segunda tarjeta. */
+  background: rgba(255, 252, 240, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(212, 175, 55, 0.5);
+  box-shadow: none;
+  /* 68%: encaja dentro del frame del asset con margen de respiro */
+  width: min(72%, 330px);
+  padding: clamp(16px, 4vw, 24px) clamp(12px, 3vw, 20px);
 }
 .theme-celebration_blue_party .celebration-invitation-main-bubble::before {
-  border-color: rgba(30, 58, 138, 0.2);
+  border-color: rgba(212, 175, 55, 0.35);
 }
 .theme-celebration_blue_party .celebration-invitation-eyebrow {
   color: #1e3a8a;

@@ -34,8 +34,8 @@ export const celebrationTemplates: CelebrationTemplateConfig[] = [
     name: 'Azul celebración',
     category: 'celebration',
     previewColor: 'linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)',
-    thumbnail: '/invitation-templates/celebration/celebration_blue_party.jpg',
-    background: '/invitation-templates/celebration/celebration_blue_party.jpg'
+    thumbnail: '/invitation-templates/celebration/celebration_blue_party_v2.webp',
+    background: '/invitation-templates/celebration/celebration_blue_party_v2.webp'
   }
 ];
 
