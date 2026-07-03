@@ -146,3 +146,11 @@
   --tile-icon-bg: #FFE4E6;
   --tile-bg-selected: #FFE4E6;
 }
+.theme-tile-romantic {
+  --tile-bg: #FFF1F2;
+  --tile-accent: #E11D48;
+  --tile-icon-color: #E11D48;
+  --tile-icon-bg: #FFE4E6;
+  --tile-bg-selected: #FFE4E6;
+  --tile-radius: 20px;
+}

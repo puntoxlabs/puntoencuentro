@@ -595,6 +595,31 @@
   z-index: 0;
 }
 
+.guest-theme--romantic {
+  --guest-bg: linear-gradient(180deg, #FFF1F2 0%, #FFE4E6 100%);
+  --guest-card: #FFFFFF;
+  --guest-accent: #E11D48;
+  --guest-accent-soft: #FFE4E6;
+  --guest-border: #FECDD3;
+  --guest-shadow: 0 12px 40px rgba(225, 29, 72, 0.1);
+  --guest-title-weight: 700;
+  --guest-icon-color: #F43F5E;
+  --guest-card-border: 2px solid #FFE4E6;
+  --guest-card-overflow: hidden;
+  --guest-decor-before: "";
+  --guest-decor-after: "";
+}
+.guest-theme--romantic .guest-card::before {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: 100px;
+  height: 100px;
+  background-image: radial-gradient(circle at 50% 50%, #FECDD3 2px, transparent 2px);
+  background-size: 16px 16px;
+  opacity: 0.6;
+}
+
 /* Aplicación de las variables al contenedor raíz para forzar background */
 .guest-theme {
   background: var(--guest-bg) !important;

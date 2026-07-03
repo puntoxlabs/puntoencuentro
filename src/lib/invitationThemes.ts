@@ -5,7 +5,8 @@ import {
   Gamepad2, 
   Home, 
   Star,
-  CheckCircle2
+  CheckCircle2,
+  Heart
 } from 'lucide-react';
 
 export type InvitationTheme =
@@ -15,7 +16,8 @@ export type InvitationTheme =
   | 'celebration'
   | 'kids_birthday'
   | 'family'
-  | 'special';
+  | 'special'
+  | 'romantic';
 
 export interface InvitationThemeConfig {
   id: InvitationTheme;
@@ -27,22 +29,6 @@ export interface InvitationThemeConfig {
 }
 
 export const INVITATION_THEMES: InvitationThemeConfig[] = [
-  {
-    id: 'classic',
-    label: 'Clásico',
-    description: 'Profesional, neutro y claro.',
-    icon: CheckCircle2,
-    cssClass: 'guest-theme--classic',
-    eyebrow: 'Te invitan a un encuentro'
-  },
-  {
-    id: 'formal',
-    label: 'Formal',
-    description: 'Trabajo, institucional o académico.',
-    icon: Building2,
-    cssClass: 'guest-theme--formal',
-    eyebrow: 'Te invitan a una reunión'
-  },
   {
     id: 'friends',
     label: 'Amigos',
@@ -60,12 +46,28 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     eyebrow: 'Te invitan a celebrar'
   },
   {
+    id: 'classic',
+    label: 'Clásico',
+    description: 'Profesional, neutro y claro.',
+    icon: CheckCircle2,
+    cssClass: 'guest-theme--classic',
+    eyebrow: 'Te invitan a un encuentro'
+  },
+  {
     id: 'kids_birthday',
     label: 'Cumple Infantil',
     description: 'Fiestas y reuniones infantiles.',
     icon: Gamepad2,
     cssClass: 'guest-theme--kids-birthday',
     eyebrow: 'Te invitan a un cumple'
+  },
+  {
+    id: 'special',
+    label: 'Especial',
+    description: 'Cenas especiales o aniversarios.',
+    icon: Star,
+    cssClass: 'guest-theme--special',
+    eyebrow: 'Tenés una invitación especial'
   },
   {
     id: 'family',
@@ -76,12 +78,20 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     eyebrow: 'Encuentro familiar'
   },
   {
-    id: 'special',
-    label: 'Especial',
-    description: 'Cenas especiales o aniversarios.',
-    icon: Star,
-    cssClass: 'guest-theme--special',
-    eyebrow: 'Tenés una invitación especial'
+    id: 'formal',
+    label: 'Formal',
+    description: 'Trabajo, institucional o académico.',
+    icon: Building2,
+    cssClass: 'guest-theme--formal',
+    eyebrow: 'Te invitan a una reunión'
+  },
+  {
+    id: 'romantic',
+    label: 'Romántico',
+    description: 'Cenas románticas y aniversarios.',
+    icon: Heart,
+    cssClass: 'guest-theme--romantic',
+    eyebrow: 'Te invitan a un encuentro especial'
   }
 ];
 
@@ -101,7 +111,8 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
     'celebration',
     'kids_birthday',
     'family',
-    'special'
+    'special',
+    'romantic'
   ];
   
   if (validThemes.includes(value as InvitationTheme)) {
