@@ -84,6 +84,10 @@ export const encuentrosService = {
     if (data && data.tema_invitacion === 'kids_birthday' && !data.invitation_template) {
       data.invitation_template = 'kids_jungle';
     }
+    // Fallback de compatibilidad para encuentros viejos sin template asignado
+    if (data && data.tema_invitacion === 'celebration' && !data.invitation_template) {
+      data.invitation_template = 'celebration_gold';
+    }
     return data;
   },
 
@@ -104,6 +108,10 @@ export const encuentrosService = {
 
     if (result && result.tema_invitacion === 'kids_birthday' && !result.invitation_template) {
       result.invitation_template = 'kids_jungle';
+    }
+    // Fallback de compatibilidad para encuentros viejos sin template asignado
+    if (result && result.tema_invitacion === 'celebration' && !result.invitation_template) {
+      result.invitation_template = 'celebration_gold';
     }
 
     if (!result || result.error) {
@@ -161,6 +169,10 @@ export const encuentrosService = {
       if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
         enc.invitation_template = 'kids_jungle';
       }
+      // Fallback de compatibilidad para encuentros viejos sin template asignado
+      if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
+        enc.invitation_template = 'celebration_gold';
+      }
     });
     return list;
   },
@@ -181,6 +193,10 @@ export const encuentrosService = {
         encs.forEach((enc: any) => {
           if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
             enc.invitation_template = 'kids_jungle';
+          }
+          // Fallback de compatibilidad para encuentros viejos sin template asignado
+          if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
+            enc.invitation_template = 'celebration_gold';
           }
         });
       }

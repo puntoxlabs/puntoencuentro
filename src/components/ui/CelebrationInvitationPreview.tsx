@@ -47,7 +47,7 @@ export const CelebrationInvitationPreview: React.FC<Props> = ({ previewData, cla
 
           <div className="celebration-invitation-header">
             <p className="celebration-invitation-eyebrow">¡Estás invitado/a!</p>
-            <p className="celebration-invitation-subtitle">A una celebración</p>
+            <p className="celebration-invitation-subtitle">Una invitación especial</p>
             {previewData.titulo && (
               <h2 className="celebration-invitation-title">{previewData.titulo}</h2>
             )}

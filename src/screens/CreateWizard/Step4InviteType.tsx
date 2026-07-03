@@ -56,6 +56,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           host_id: hostId,
           tema: wizardData.tema || 'blue',
           tema_invitacion: (wizardData.tema_invitacion as InvitationTheme) || 'classic',
+          invitation_template: wizardData.invitation_template || null,
           reemplaza_a: (() => {
             const refStr = sessionStorage.getItem('cancel_reference');
             if (refStr) {
@@ -102,6 +103,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           tipo_invitacion: tipo,
           tema: wizardData.tema || 'blue',
           tema_invitacion: (wizardData.tema_invitacion as InvitationTheme) || 'classic',
+          invitation_template: wizardData.invitation_template || null,
         }, hostId);
       }
 

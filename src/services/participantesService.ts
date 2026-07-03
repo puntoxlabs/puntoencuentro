@@ -81,6 +81,10 @@ export const participantesService = {
         if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
           enc.invitation_template = 'kids_jungle';
         }
+        // Fallback de compatibilidad para encuentros viejos sin template asignado
+        if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
+          enc.invitation_template = 'celebration_gold';
+        }
       });
     }
 
