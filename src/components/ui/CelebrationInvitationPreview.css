@@ -157,9 +157,13 @@
   object-position: center center;
 }
 .theme-celebration_gold .celebration-invitation-main-bubble {
-  background: linear-gradient(135deg, rgba(255, 253, 240, 0.65), rgba(253, 230, 138, 0.45));
-  border-color: rgba(253, 230, 138, 0.4);
-  box-shadow: 0 20px 40px -10px rgba(146, 64, 14, 0.15);
+  background: rgba(255, 253, 240, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1.5px solid rgba(217, 119, 6, 0.3);
+  box-shadow: none;
+  width: min(75%, 340px);
+  padding: clamp(16px, 4vw, 24px) clamp(12px, 3vw, 20px);
 }
 .theme-celebration_gold .celebration-invitation-main-bubble::before {
   border-color: rgba(217, 119, 6, 0.3);

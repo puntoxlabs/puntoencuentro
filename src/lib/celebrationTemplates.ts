@@ -18,8 +18,8 @@ export const celebrationTemplates: CelebrationTemplateConfig[] = [
     name: 'Dorado festivo',
     category: 'celebration',
     previewColor: 'linear-gradient(160deg, #fef9c3 0%, #fde68a 30%, #f59e0b 65%, #92400e 100%)',
-    thumbnail: '/invitation-templates/celebration/celebration_gold.jpg',
-    background: '/invitation-templates/celebration/celebration_gold.jpg'
+    thumbnail: '/invitation-templates/celebration/celebration_gold_v2.webp?v=2',
+    background: '/invitation-templates/celebration/celebration_gold_v2.webp?v=2'
   },
   {
     id: 'celebration_festiva',
