@@ -25,6 +25,7 @@ import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
+import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
@@ -225,9 +226,11 @@ const DetailHost: React.FC = () => {
     const kidTemplates = ['kids_jungle', 'kids_unicorn', 'kids_space'];
     const celebrationTemplates = ['celebration_gold', 'celebration_festiva', 'celebration_blue_party'];
     const romanticTemplates = ['romantic_rose', 'romantic_rainbow', 'romantic_gold'];
+    const formalTemplates = ['formal_black_tie', 'formal_ivory', 'formal_executive'];
     const isKidsTemplate = kidTemplates.includes(newThemeOrTemplate);
     const isCelebrationTemplate = celebrationTemplates.includes(newThemeOrTemplate);
     const isRomanticTemplate = romanticTemplates.includes(newThemeOrTemplate);
+    const isFormalTemplate = formalTemplates.includes(newThemeOrTemplate);
 
     let updates: Record<string, string | null>;
     if (isKidsTemplate) {
@@ -238,6 +241,8 @@ const DetailHost: React.FC = () => {
       updates = { tema_invitacion: 'celebration', invitation_template: newThemeOrTemplate };
     } else if (isRomanticTemplate) {
       updates = { tema_invitacion: 'romantic', invitation_template: newThemeOrTemplate };
+    } else if (isFormalTemplate) {
+      updates = { tema_invitacion: 'formal', invitation_template: newThemeOrTemplate };
     } else {
       // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
       updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
@@ -1472,6 +1477,11 @@ const DetailHost: React.FC = () => {
               />
             ) : encuentro.tema_invitacion === 'romantic' ? (
               <RomanticTemplateSelector
+                selectedTemplateId={encuentro.invitation_template}
+                onSelect={(id) => handleThemeChange(id)}
+              />
+            ) : encuentro.tema_invitacion === 'formal' ? (
+              <FormalTemplateSelector
                 selectedTemplateId={encuentro.invitation_template}
                 onSelect={(id) => handleThemeChange(id)}
               />

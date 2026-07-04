@@ -1,0 +1,147 @@
+/* =========================================
+   FormalInvitationPreview
+   ========================================= */
+
+.formal-invitation-container {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4/5;
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', system-ui, sans-serif;
+  isolation: isolate;
+  z-index: 0;
+}
+
+.formal-invitation-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.formal-invitation-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 24px 16px;
+}
+
+.formal-invitation-main-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: auto 0;
+  padding: clamp(24px, 6vw, 36px) clamp(20px, 5vw, 32px);
+  /* Base translúcida elegante */
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 16px;
+  width: min(90%, 360px);
+  align-self: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.formal-invitation-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formal-invitation-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.formal-invitation-title {
+  margin: 0;
+  font-size: clamp(20px, 6vw, 24px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.formal-invitation-message {
+  font-size: clamp(14px, 4vw, 15px);
+  line-height: 1.5;
+  font-weight: 400;
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+
+.formal-invitation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.formal-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.formal-detail-text {
+  font-size: clamp(13px, 4vw, 14px);
+  font-weight: 600;
+}
+
+.formal-invitation-location {
+  opacity: 0.9;
+}
+
+/* =========================================
+   Variantes Visuales
+   ========================================= */
+
+/* 1. Gala (formal_black_tie) */
+.theme-formal_black_tie .formal-invitation-main-bubble {
+  background: rgba(15, 23, 42, 0.6); /* Oscuro translúcido */
+  border-color: rgba(234, 179, 8, 0.3); /* Borde dorado sutil */
+  color: #f8fafc;
+}
+
+.theme-formal_black_tie .formal-invitation-eyebrow {
+  color: #fbbf24; /* Dorado */
+}
+
+/* 2. Marfil (formal_ivory) */
+.theme-formal_ivory .formal-invitation-main-bubble {
+  background: rgba(255, 253, 245, 0.85); /* Claro cálido */
+  border-color: rgba(217, 119, 6, 0.2);
+  color: #451a03; /* Marrón muy oscuro */
+}
+
+.theme-formal_ivory .formal-invitation-eyebrow {
+  color: #92400e;
+}
+
+/* 3. Ejecutivo (formal_executive) */
+.theme-formal_executive .formal-invitation-main-bubble {
+  background: rgba(255, 255, 255, 0.85); /* Blanco frío translúcido */
+  border-color: rgba(30, 64, 175, 0.2);
+  color: #0f172a; /* Slate oscuro */
+  border-radius: 4px; /* Más cuadrado/corporativo */
+}
+
+.theme-formal_executive .formal-invitation-eyebrow {
+  color: #1e40af; /* Azul corporativo */
+}

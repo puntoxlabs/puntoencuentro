@@ -21,7 +21,9 @@ import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
+import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
+import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import './Guest.css';
 
@@ -310,6 +312,9 @@ const InviteGuest: React.FC = () => {
     : null;
   const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
     ? getRomanticTemplateConfig(encuentro.invitation_template)
+    : null;
+  const formalTemplate = encuentro?.tema_invitacion === 'formal'
+    ? getFormalTemplateConfig(encuentro.invitation_template)
     : null;
 
   let templateBgStyle: React.CSSProperties = {};
@@ -608,6 +613,21 @@ const InviteGuest: React.FC = () => {
                 descripcion: encuentro.descripcion,
                 tema_invitacion: encuentro.tema_invitacion,
                 invitation_template: encuentro.invitation_template || 'celebration_gold'
+              }}
+            />
+          </div>
+        ) : !!formalTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <FormalInvitationPreview
+              previewData={{
+                titulo: encuentro.titulo || '',
+                fecha: encuentro.fecha || '',
+                hora: encuentro.hora || '',
+                lugar_texto: encuentro.lugar_texto,
+                modalidad: encuentro.modalidad,
+                descripcion: encuentro.descripcion,
+                tema_invitacion: encuentro.tema_invitacion,
+                invitation_template: encuentro.invitation_template
               }}
             />
           </div>

@@ -4,6 +4,8 @@ import { Calendar, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
+import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
+import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
@@ -33,6 +35,9 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const themeId = sourceData.tema_invitacion || 'classic';
   const eyebrow = getThemeEyebrow(themeId);
+  
+  const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(sourceData.invitation_template) : null;
+  const hasValidFormalTemplate = !!formalTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
     ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
@@ -87,6 +92,19 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 descripcion: sourceData.descripcion,
                 tema_invitacion: themeId,
                 invitation_template: sourceData.invitation_template || 'celebration_gold'
+              }}
+            />
+          ) : hasValidFormalTemplate ? (
+            <FormalInvitationPreview
+              previewData={{
+                titulo: sourceData.titulo || '',
+                fecha: sourceData.fecha || '',
+                hora: sourceData.hora || '',
+                lugar_texto: sourceData.lugar_texto,
+                modalidad: sourceData.modalidad,
+                descripcion: sourceData.descripcion,
+                tema_invitacion: themeId,
+                invitation_template: sourceData.invitation_template
               }}
             />
           ) : (

@@ -8,6 +8,7 @@ import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
+import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -262,16 +263,18 @@ const Step1Data: React.FC = () => {
           value={tema_invitacion || 'classic'}
           onChange={(t) => {
             setField('tema_invitacion', t);
-            if (t === 'kids_birthday' && !invitation_template) {
-              setField('invitation_template', 'kids_jungle');
+            
+            // Siempre limpiar el template al cambiar de tema principal
+            let newTemplate: string | null = null;
+            
+            // Asignar default solo para los temas que lo requieren
+            if (t === 'kids_birthday') {
+              newTemplate = 'kids_jungle';
+            } else if (t === 'celebration') {
+              newTemplate = 'celebration_gold';
             }
-            if (t === 'celebration' && !invitation_template) {
-              setField('invitation_template', 'celebration_gold');
-            }
-            // Si cambia a otro tema, limpiar invitation_template de variantes específicas
-            if (t !== 'kids_birthday' && t !== 'celebration') {
-              setField('invitation_template', null);
-            }
+            
+            setField('invitation_template', newTemplate);
           }}
         />
         {tema_invitacion === 'kids_birthday' && (
@@ -288,6 +291,12 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'romantic' && (
           <RomanticTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'formal' && (
+          <FormalTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />
