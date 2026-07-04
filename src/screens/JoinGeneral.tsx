@@ -21,8 +21,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
+import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
+import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import './Guest.css';
 
@@ -376,6 +378,9 @@ const JoinGeneral: React.FC = () => {
   const formalTemplate = encuentro?.tema_invitacion === 'formal'
     ? getFormalTemplateConfig(encuentro.invitation_template)
     : null;
+  const friendsTemplate = encuentro?.tema_invitacion === 'friends'
+    ? getFriendsTemplateConfig(encuentro.invitation_template)
+    : null;
 
   let templateBgStyle: React.CSSProperties = {};
   if (celebrationTemplate?.background) {
@@ -673,6 +678,21 @@ const JoinGeneral: React.FC = () => {
         ) : !!formalTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <FormalInvitationPreview
+              previewData={{
+                titulo: encuentro.titulo || '',
+                fecha: encuentro.fecha || '',
+                hora: encuentro.hora || '',
+                lugar_texto: encuentro.lugar_texto,
+                modalidad: encuentro.modalidad,
+                descripcion: encuentro.descripcion,
+                tema_invitacion: encuentro.tema_invitacion,
+                invitation_template: encuentro.invitation_template
+              }}
+            />
+          </div>
+        ) : !!friendsTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <FriendsInvitationPreview
               previewData={{
                 titulo: encuentro.titulo || '',
                 fecha: encuentro.fecha || '',

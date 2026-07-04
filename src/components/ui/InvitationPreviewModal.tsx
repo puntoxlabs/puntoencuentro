@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
+import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
+import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
@@ -38,6 +40,9 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(sourceData.invitation_template) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
+  
+  const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(sourceData.invitation_template) : null;
+  const hasValidFriendsTemplate = !!friendsTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
     ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
@@ -96,6 +101,19 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             />
           ) : hasValidFormalTemplate ? (
             <FormalInvitationPreview
+              previewData={{
+                titulo: sourceData.titulo || '',
+                fecha: sourceData.fecha || '',
+                hora: sourceData.hora || '',
+                lugar_texto: sourceData.lugar_texto,
+                modalidad: sourceData.modalidad,
+                descripcion: sourceData.descripcion,
+                tema_invitacion: themeId,
+                invitation_template: sourceData.invitation_template
+              }}
+            />
+          ) : hasValidFriendsTemplate ? (
+            <FriendsInvitationPreview
               previewData={{
                 titulo: sourceData.titulo || '',
                 fecha: sourceData.fecha || '',

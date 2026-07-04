@@ -9,6 +9,7 @@ import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTempla
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
 import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
+import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -267,7 +268,7 @@ const Step1Data: React.FC = () => {
             // Siempre limpiar el template al cambiar de tema principal
             let newTemplate: string | null = null;
             
-            // Asignar default solo para los temas que lo requieren
+            // Asignar default solo para los temas que lo requieren (friends y formal NO auto-asignan)
             if (t === 'kids_birthday') {
               newTemplate = 'kids_jungle';
             } else if (t === 'celebration') {
@@ -297,6 +298,12 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'formal' && (
           <FormalTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'friends' && (
+          <FriendsTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />
