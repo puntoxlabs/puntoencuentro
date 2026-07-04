@@ -229,19 +229,20 @@
   object-position: center center;
 }
 .theme-celebration_blue_party .celebration-invitation-main-bubble {
-  /* El frame dorado del asset actua como protagonista visual.
-     El bubble es soporte liviano de legibilidad, no una segunda tarjeta. */
-  background: rgba(255, 252, 240, 0.22);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1.5px solid rgba(212, 175, 55, 0.5);
+  /* V3: marco rectangular del asset hace el trabajo visual.
+     El bubble es capa de soporte invisible: solo aporta legibilidad al texto
+     sin competir con el frame dorado del fondo. */
+  background: rgba(255, 252, 240, 0.12);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: none;
   box-shadow: none;
-  /* 68%: encaja dentro del frame del asset con margen de respiro */
-  width: min(72%, 330px);
+  /* Ancho ancho para coincidir con el marco rectangular del asset */
+  width: min(78%, 360px);
   padding: clamp(16px, 4vw, 24px) clamp(12px, 3vw, 20px);
 }
 .theme-celebration_blue_party .celebration-invitation-main-bubble::before {
-  border-color: rgba(212, 175, 55, 0.35);
+  border-color: rgba(212, 175, 55, 0.2);
 }
 .theme-celebration_blue_party .celebration-invitation-eyebrow {
   color: #1e3a8a;
