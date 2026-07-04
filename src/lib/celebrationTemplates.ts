@@ -26,8 +26,8 @@ export const celebrationTemplates: CelebrationTemplateConfig[] = [
     name: 'Fiesta colorida',
     category: 'celebration',
     previewColor: 'linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #3b82f6 100%)',
-    thumbnail: '/invitation-templates/celebration/celebration_festiva.jpg',
-    background: '/invitation-templates/celebration/celebration_festiva.jpg'
+    thumbnail: '/invitation-templates/celebration/celebration_festiva_v2.webp?v=2',
+    background: '/invitation-templates/celebration/celebration_festiva_v2.webp?v=2'
   },
   {
     id: 'celebration_blue_party',
