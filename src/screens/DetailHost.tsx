@@ -276,6 +276,10 @@ const DetailHost: React.FC = () => {
         updates.invitation_template = 'kids_jungle';
       } else if (newThemeOrTemplate === 'celebration') {
         updates.invitation_template = 'celebration_gold';
+      } else if (newThemeOrTemplate === 'sports') {
+        updates.invitation_template = 'sports_field';
+      } else if (newThemeOrTemplate === 'entertainment') {
+        updates.invitation_template = 'entertainment_cinema';
       }
     }
 
@@ -356,8 +360,7 @@ const DetailHost: React.FC = () => {
       const totalHeight = document.documentElement.scrollHeight;
       
       const hasOverflow = totalHeight > viewportHeight + 12;
-      const isBottom = totalHeight - scrollY - viewportHeight < 35;
-      
+      const isBottom = totalHeight - scrollY - viewportHeight < 120;
       setShowScrollHint(hasOverflow && !isBottom);
     };
 

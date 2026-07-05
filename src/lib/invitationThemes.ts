@@ -34,6 +34,14 @@ export interface InvitationThemeConfig {
 
 export const INVITATION_THEMES: InvitationThemeConfig[] = [
   {
+    id: 'classic',
+    label: 'Clásico',
+    description: 'Profesional, neutro y claro.',
+    icon: CheckCircle2,
+    cssClass: 'guest-theme--classic',
+    eyebrow: 'Te invitan a un encuentro'
+  },
+  {
     id: 'friends',
     label: 'Amigos',
     description: 'Juntadas y cenas informales.',
@@ -50,20 +58,28 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     eyebrow: 'Te invitan a celebrar'
   },
   {
-    id: 'classic',
-    label: 'Clásico',
-    description: 'Profesional, neutro y claro.',
-    icon: CheckCircle2,
-    cssClass: 'guest-theme--classic',
-    eyebrow: 'Te invitan a un encuentro'
-  },
-  {
     id: 'kids_birthday',
     label: 'Cumple Infantil',
     description: 'Fiestas y reuniones infantiles.',
     icon: Gamepad2,
     cssClass: 'guest-theme--kids-birthday',
     eyebrow: 'Te invitan a un cumple'
+  },
+  {
+    id: 'sports',
+    label: 'Deportes',
+    description: 'Partidos, torneos y entrenamientos.',
+    icon: Trophy,
+    cssClass: 'guest-theme--sports',
+    eyebrow: 'Una invitación deportiva'
+  },
+  {
+    id: 'entertainment',
+    label: 'Entretenimiento',
+    description: 'Cine, teatro, recitales y shows.',
+    icon: Ticket,
+    cssClass: 'guest-theme--entertainment',
+    eyebrow: 'Una invitación para disfrutar'
   },
   {
     id: 'special',
@@ -96,22 +112,6 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     icon: Heart,
     cssClass: 'guest-theme--romantic',
     eyebrow: 'Te invitan a un encuentro especial'
-  },
-  {
-    id: 'sports',
-    label: 'Deportes',
-    description: 'Partidos, torneos y entrenamientos.',
-    icon: Trophy,
-    cssClass: 'guest-theme--sports',
-    eyebrow: 'Una invitación deportiva'
-  },
-  {
-    id: 'entertainment',
-    label: 'Entretenimiento',
-    description: 'Cine, teatro, recitales y shows.',
-    icon: Ticket,
-    cssClass: 'guest-theme--entertainment',
-    eyebrow: 'Una invitación para disfrutar'
   }
 ];
 

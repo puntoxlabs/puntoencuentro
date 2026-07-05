@@ -277,6 +277,10 @@ const Step1Data: React.FC = () => {
               newTemplate = 'kids_jungle';
             } else if (t === 'celebration') {
               newTemplate = 'celebration_gold';
+            } else if (t === 'sports') {
+              newTemplate = 'sports_field';
+            } else if (t === 'entertainment') {
+              newTemplate = 'entertainment_cinema';
             }
             
             setField('invitation_template', newTemplate);
