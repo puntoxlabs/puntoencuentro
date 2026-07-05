@@ -10,14 +10,18 @@ import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview
 import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
 import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview';
 import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
+import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
+import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
 import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
 import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
 import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
+import { getLearningTemplateConfig } from '@/lib/learningTemplates';
+import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { useWizardStore } from '@/store/wizardStore';
-import { getThemeEyebrow } from '@/lib/invitationThemes';
+import { getThemeEyebrow, resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import './InvitationPreviewModal.css';
@@ -54,14 +58,22 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const familyTemplateConfig = themeId === 'family' ? getFamilyTemplateConfig(sourceData.invitation_template) : null;
   const hasValidFamilyTemplate = !!familyTemplateConfig;
   
-  const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(sourceData.invitation_template) : null;
+  const resolvedTemplate = resolveInvitationTemplateForTheme(themeId, sourceData.invitation_template);
+
+  const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(resolvedTemplate) : null;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
   
-  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(sourceData.invitation_template || 'sports_field') : null;
+  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(resolvedTemplate) : null;
   const hasValidSportsTemplate = !!sportsTemplateConfig;
 
-  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(sourceData.invitation_template || 'entertainment_cinema') : null;
+  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(resolvedTemplate) : null;
   const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
+
+  const learningTemplateConfig = themeId === 'learning' ? getLearningTemplateConfig(resolvedTemplate) : null;
+  const hasValidLearningTemplate = !!learningTemplateConfig;
+
+  const wellnessTemplateConfig = themeId === 'wellness' ? getWellnessTemplateConfig(resolvedTemplate) : null;
+  const hasValidWellnessTemplate = !!wellnessTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
     ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
@@ -187,7 +199,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   modalidad: sourceData.modalidad,
                   descripcion: sourceData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template || 'sports_field'
+                  invitation_template: resolvedTemplate
                 }}
                 className="ipm-full-height-preview"
               />
@@ -203,7 +215,39 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   modalidad: sourceData.modalidad,
                   descripcion: sourceData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template || 'entertainment_cinema'
+                  invitation_template: resolvedTemplate
+                }}
+                className="ipm-full-height-preview"
+              />
+            </div>
+          ) : hasValidLearningTemplate ? (
+            <div className="ipm-scrollable-content">
+              <LearningInvitationPreview
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: resolvedTemplate
+                }}
+                className="ipm-full-height-preview"
+              />
+            </div>
+          ) : hasValidWellnessTemplate ? (
+            <div className="ipm-scrollable-content">
+              <WellnessInvitationPreview
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: resolvedTemplate
                 }}
                 className="ipm-full-height-preview"
               />

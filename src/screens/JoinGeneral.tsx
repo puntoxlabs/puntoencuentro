@@ -26,6 +26,9 @@ import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview
 import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
 import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview';
 import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
+import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
+import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
+import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
@@ -34,6 +37,8 @@ import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
 import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
+import { getLearningTemplateConfig } from '@/lib/learningTemplates';
+import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import './Guest.css';
 
 interface SavedData {
@@ -385,31 +390,6 @@ const JoinGeneral: React.FC = () => {
   const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
     ? getRomanticTemplateConfig(encuentro.invitation_template)
     : null;
-  const formalTemplateConfig = encuentro?.tema_invitacion === 'formal'
-    ? getFormalTemplateConfig(encuentro.invitation_template)
-    : null;
-  const friendsTemplateConfig = encuentro?.tema_invitacion === 'friends'
-    ? getFriendsTemplateConfig(encuentro.invitation_template)
-    : null;
-  const familyTemplateConfig = encuentro?.tema_invitacion === 'family'
-    ? getFamilyTemplateConfig(encuentro.invitation_template)
-    : null;
-  const specialTemplateConfig = encuentro?.tema_invitacion === 'special'
-    ? getSpecialTemplateConfig(encuentro.invitation_template)
-    : null;
-  const sportsTemplateConfig = encuentro?.tema_invitacion === 'sports'
-    ? getSportsTemplateConfig(encuentro.invitation_template)
-    : null;
-  const entertainmentTemplateConfig = encuentro?.tema_invitacion === 'entertainment'
-    ? getEntertainmentTemplateConfig(encuentro.invitation_template)
-    : null;
-
-  const hasValidFormalTemplate = !!formalTemplateConfig;
-  const hasValidFriendsTemplate = !!friendsTemplateConfig;
-  const hasValidFamilyTemplate = !!familyTemplateConfig;
-  const hasValidSpecialTemplate = !!specialTemplateConfig;
-  const hasValidSportsTemplate = !!sportsTemplateConfig;
-  const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
 
   let templateBgStyle: React.CSSProperties = {};
   if (celebrationTemplate?.background) {
@@ -661,6 +641,32 @@ const JoinGeneral: React.FC = () => {
     </ScreenContainer>
   );
 
+  const resolvedTemplate = resolveInvitationTemplateForTheme(encuentro?.tema_invitacion, encuentro?.invitation_template);
+
+  const formalTemplateConfig = encuentro?.tema_invitacion === 'formal' ? getFormalTemplateConfig(resolvedTemplate) : null;
+  const hasValidFormalTemplate = !!formalTemplateConfig;
+
+  const friendsTemplateConfig = encuentro?.tema_invitacion === 'friends' ? getFriendsTemplateConfig(resolvedTemplate) : null;
+  const hasValidFriendsTemplate = !!friendsTemplateConfig;
+
+  const familyTemplateConfig = encuentro?.tema_invitacion === 'family' ? getFamilyTemplateConfig(resolvedTemplate) : null;
+  const hasValidFamilyTemplate = !!familyTemplateConfig;
+
+  const specialTemplateConfig = encuentro?.tema_invitacion === 'special' ? getSpecialTemplateConfig(resolvedTemplate) : null;
+  const hasValidSpecialTemplate = !!specialTemplateConfig;
+
+  const sportsTemplateConfig = encuentro?.tema_invitacion === 'sports' ? getSportsTemplateConfig(resolvedTemplate) : null;
+  const hasValidSportsTemplate = !!sportsTemplateConfig;
+
+  const entertainmentTemplateConfig = encuentro?.tema_invitacion === 'entertainment' ? getEntertainmentTemplateConfig(resolvedTemplate) : null;
+  const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
+
+  const learningTemplateConfig = encuentro?.tema_invitacion === 'learning' ? getLearningTemplateConfig(resolvedTemplate) : null;
+  const hasValidLearningTemplate = !!learningTemplateConfig;
+
+  const wellnessTemplateConfig = encuentro?.tema_invitacion === 'wellness' ? getWellnessTemplateConfig(resolvedTemplate) : null;
+  const hasValidWellnessTemplate = !!wellnessTemplateConfig;
+
   const previewData = {
     titulo: encuentro?.titulo || '',
     fecha: encuentro?.fecha || '',
@@ -668,8 +674,8 @@ const JoinGeneral: React.FC = () => {
     lugar_texto: encuentro?.lugar_texto,
     modalidad: encuentro?.modalidad,
     descripcion: encuentro?.descripcion,
-    tema_invitacion: encuentro?.tema_invitacion,
-    invitation_template: encuentro?.invitation_template || 'default'
+    tema_invitacion: encuentro?.tema_invitacion || 'classic',
+    invitation_template: resolvedTemplate
   };
 
   return (
@@ -739,6 +745,18 @@ const JoinGeneral: React.FC = () => {
         ) : hasValidEntertainmentTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <EntertainmentInvitationPreview
+              previewData={previewData}
+            />
+          </div>
+        ) : hasValidLearningTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <LearningInvitationPreview
+              previewData={previewData}
+            />
+          </div>
+        ) : hasValidWellnessTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <WellnessInvitationPreview
               previewData={previewData}
             />
           </div>

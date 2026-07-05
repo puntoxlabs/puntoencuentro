@@ -14,6 +14,9 @@ import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
 import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
 import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
 import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
+import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
+import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
+import { getDefaultInvitationTemplate } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -270,19 +273,8 @@ const Step1Data: React.FC = () => {
             setField('tema_invitacion', t);
             
             // Siempre limpiar el template al cambiar de tema principal
-            let newTemplate: string | null = null;
-            
-            // Asignar default solo para los temas que lo requieren (friends y formal NO auto-asignan)
-            if (t === 'kids_birthday') {
-              newTemplate = 'kids_jungle';
-            } else if (t === 'celebration') {
-              newTemplate = 'celebration_gold';
-            } else if (t === 'sports') {
-              newTemplate = 'sports_field';
-            } else if (t === 'entertainment') {
-              newTemplate = 'entertainment_cinema';
-            }
-            
+            // Asignar default solo para los temas que lo requieren (via getDefaultInvitationTemplate)
+            const newTemplate = getDefaultInvitationTemplate(t);
             setField('invitation_template', newTemplate);
           }}
         />
@@ -336,6 +328,18 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'entertainment' && (
           <EntertainmentTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'learning' && (
+          <LearningTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'wellness' && (
+          <WellnessTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />

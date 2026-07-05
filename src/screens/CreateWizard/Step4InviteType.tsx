@@ -4,6 +4,7 @@ import { useWizardStore } from '@/store/wizardStore';
 import { encuentrosService } from '@/services/encuentrosService';
 import { Button } from '@/components/ui/Button';
 import type { InvitationTheme } from '@/lib/invitationThemes';
+import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getHostId } from '@/lib/auth';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,9 +57,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           host_id: hostId,
           tema: wizardData.tema || 'blue',
           tema_invitacion: (wizardData.tema_invitacion as InvitationTheme) || 'classic',
-          invitation_template: wizardData.invitation_template || (
-            wizardData.tema_invitacion === 'sports' ? 'sports_field' : 
-            wizardData.tema_invitacion === 'entertainment' ? 'entertainment_cinema' : null
+          invitation_template: resolveInvitationTemplateForTheme(
+            wizardData.tema_invitacion,
+            wizardData.invitation_template
           ),
           reemplaza_a: (() => {
             const refStr = sessionStorage.getItem('cancel_reference');
@@ -106,9 +107,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           tipo_invitacion: tipo,
           tema: wizardData.tema || 'blue',
           tema_invitacion: (wizardData.tema_invitacion as InvitationTheme) || 'classic',
-          invitation_template: wizardData.invitation_template || (
-            wizardData.tema_invitacion === 'sports' ? 'sports_field' : 
-            wizardData.tema_invitacion === 'entertainment' ? 'entertainment_cinema' : null
+          invitation_template: resolveInvitationTemplateForTheme(
+            wizardData.tema_invitacion,
+            wizardData.invitation_template
           ),
         }, hostId);
       }

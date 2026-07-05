@@ -8,8 +8,17 @@ import {
   CheckCircle2,
   Heart,
   Trophy,
-  Ticket
+  Ticket,
+  BookOpen,
+  Leaf
 } from 'lucide-react';
+
+
+import { getCelebrationTemplateConfig } from './celebrationTemplates';
+import { getSportsTemplateConfig } from './sportsTemplates';
+import { getEntertainmentTemplateConfig } from './entertainmentTemplates';
+import { getLearningTemplateConfig } from './learningTemplates';
+import { getWellnessTemplateConfig } from './wellnessTemplates';
 
 export type InvitationTheme =
   | 'classic'
@@ -21,7 +30,9 @@ export type InvitationTheme =
   | 'special'
   | 'romantic'
   | 'sports'
-  | 'entertainment';
+  | 'entertainment'
+  | 'learning'
+  | 'wellness';
 
 export interface InvitationThemeConfig {
   id: InvitationTheme;
@@ -48,6 +59,14 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     icon: Coffee,
     cssClass: 'guest-theme--friends',
     eyebrow: 'Te invitan a juntarse'
+  },
+  {
+    id: 'wellness',
+    label: 'Bienestar',
+    description: 'Actividades de calma, salud y conexión.',
+    icon: Leaf,
+    cssClass: 'guest-theme--wellness',
+    eyebrow: 'Una invitación para conectar'
   },
   {
     id: 'celebration',
@@ -106,6 +125,14 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     eyebrow: 'Te invitan a una reunión'
   },
   {
+    id: 'learning',
+    label: 'Formación',
+    description: 'Cursos, talleres y aprendizaje.',
+    icon: BookOpen,
+    cssClass: 'guest-theme--learning',
+    eyebrow: 'Una invitación para aprender'
+  },
+  {
     id: 'romantic',
     label: 'Romántico',
     description: 'Cenas románticas y aniversarios.',
@@ -134,7 +161,9 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
     'special',
     'romantic',
     'sports',
-    'entertainment'
+    'entertainment',
+    'learning',
+    'wellness'
   ];
   
   if (validThemes.includes(value as InvitationTheme)) {
@@ -142,4 +171,65 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
   }
   
   return 'classic';
+}
+
+export function getDefaultInvitationTemplate(theme?: string | null): string | null {
+  switch (theme) {
+    case 'kids_birthday': return 'kids_jungle';
+    case 'celebration': return 'celebration_gold';
+    case 'sports': return 'sports_field';
+    case 'entertainment': return 'entertainment_cinema';
+    case 'learning': return 'learning_class';
+    case 'wellness': return 'wellness_calm';
+    default: return null;
+  }
+}
+
+export function resolveInvitationTemplateForTheme(
+  theme?: string | null,
+  template?: string | null
+): string | null {
+  const defaultTemplate = getDefaultInvitationTemplate(theme);
+  
+  if (!template) {
+    return defaultTemplate;
+  }
+
+  // Verificar si el template es válido para el theme
+  let isValid = false;
+  switch (theme) {
+    case 'kids_birthday':
+      // @ts-ignore - The function currently only accepts certain types in TS, but at runtime works
+      const kidsConfig = [ 'kids_jungle', 'kids_unicorn', 'kids_space' ];
+      isValid = kidsConfig.includes(template);
+      break;
+    case 'celebration':
+      const celConfig = getCelebrationTemplateConfig(template);
+      isValid = celConfig.id === template;
+      break;
+    case 'sports':
+      const sportsConfig = getSportsTemplateConfig(template);
+      isValid = sportsConfig !== null;
+      break;
+    case 'entertainment':
+      const entConfig = getEntertainmentTemplateConfig(template);
+      isValid = entConfig !== null;
+      break;
+    case 'learning':
+      const learningConfig = getLearningTemplateConfig(template);
+      isValid = learningConfig !== null;
+      break;
+    case 'wellness':
+      const wellnessConfig = getWellnessTemplateConfig(template);
+      isValid = wellnessConfig !== null;
+      break;
+    default:
+      // Para formal, friends, family, special no hay listado estricto con helper o no lo controlamos igual,
+      // pero devolvemos el template en caso de que sean temas que lo necesiten.
+      // Actualmente family y special SÍ tienen helpers en DetailHost/InvitationPreviewModal...
+      // Para ser seguros:
+      return template;
+  }
+
+  return isValid ? template : defaultTemplate;
 }

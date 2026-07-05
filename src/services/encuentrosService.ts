@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { validateEncounterDate } from '@/lib/formatDate';
 import type { InvitationTheme } from '@/lib/invitationThemes';
+import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 
 export interface CreateEncuentroDTO {
   titulo: string;
@@ -81,18 +82,8 @@ export const encuentrosService = {
     });
     if (error) throw error;
     if (!data) return null;
-    if (data && data.tema_invitacion === 'kids_birthday' && !data.invitation_template) {
-      data.invitation_template = 'kids_jungle';
-    }
-    // Fallback de compatibilidad para encuentros viejos sin template asignado
-    if (data && data.tema_invitacion === 'celebration' && !data.invitation_template) {
-      data.invitation_template = 'celebration_gold';
-    }
-    if (data && data.tema_invitacion === 'sports' && !data.invitation_template) {
-      data.invitation_template = 'sports_field';
-    }
-    if (data && data.tema_invitacion === 'entertainment' && !data.invitation_template) {
-      data.invitation_template = 'entertainment_cinema';
+    if (data) {
+      data.invitation_template = resolveInvitationTemplateForTheme(data.tema_invitacion, data.invitation_template);
     }
     return data;
   },
@@ -112,18 +103,8 @@ export const encuentrosService = {
     // Parseo defensivo: Supabase puede devolver JSON como string
     const result: any = typeof data === 'string' ? JSON.parse(data) : data;
 
-    if (result && result.tema_invitacion === 'kids_birthday' && !result.invitation_template) {
-      result.invitation_template = 'kids_jungle';
-    }
-    // Fallback de compatibilidad para encuentros viejos sin template asignado
-    if (result && result.tema_invitacion === 'celebration' && !result.invitation_template) {
-      result.invitation_template = 'celebration_gold';
-    }
-    if (result && result.tema_invitacion === 'sports' && !result.invitation_template) {
-      result.invitation_template = 'sports_field';
-    }
-    if (result && result.tema_invitacion === 'entertainment' && !result.invitation_template) {
-      result.invitation_template = 'entertainment_cinema';
+    if (result) {
+      result.invitation_template = resolveInvitationTemplateForTheme(result.tema_invitacion, result.invitation_template);
     }
 
     if (!result || result.error) {
@@ -178,19 +159,7 @@ export const encuentrosService = {
     if (!data || (data as any).error) return [];
     const list = (data as any[]) || [];
     list.forEach(enc => {
-      if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
-        enc.invitation_template = 'kids_jungle';
-      }
-      // Fallback de compatibilidad para encuentros viejos sin template asignado
-      if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
-        enc.invitation_template = 'celebration_gold';
-      }
-      if (enc.tema_invitacion === 'sports' && !enc.invitation_template) {
-        enc.invitation_template = 'sports_field';
-      }
-      if (enc.tema_invitacion === 'entertainment' && !enc.invitation_template) {
-        enc.invitation_template = 'entertainment_cinema';
-      }
+      enc.invitation_template = resolveInvitationTemplateForTheme(enc.tema_invitacion, enc.invitation_template);
     });
     return list;
   },
@@ -209,19 +178,7 @@ export const encuentrosService = {
       if (part.encuentros) {
         const encs = Array.isArray(part.encuentros) ? part.encuentros : [part.encuentros];
         encs.forEach((enc: any) => {
-          if (enc.tema_invitacion === 'kids_birthday' && !enc.invitation_template) {
-            enc.invitation_template = 'kids_jungle';
-          }
-          // Fallback de compatibilidad para encuentros viejos sin template asignado
-          if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
-            enc.invitation_template = 'celebration_gold';
-          }
-          if (enc.tema_invitacion === 'sports' && !enc.invitation_template) {
-            enc.invitation_template = 'sports_field';
-          }
-          if (enc.tema_invitacion === 'entertainment' && !enc.invitation_template) {
-            enc.invitation_template = 'entertainment_cinema';
-          }
+          enc.invitation_template = resolveInvitationTemplateForTheme(enc.tema_invitacion, enc.invitation_template);
         });
       }
     });

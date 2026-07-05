@@ -1,0 +1,116 @@
+.learning-invitation-container {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4/5;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.learning-invitation-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.learning-invitation-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 24px;
+}
+
+/* Base text styling focusing on legibility without heavy plates */
+.learning-invitation-main-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+  padding: 32px 24px 24px;
+  margin: 0 -24px -24px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.learning-invitation-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.learning-invitation-eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.9;
+}
+
+.learning-invitation-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.learning-invitation-message {
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: center;
+  font-weight: 500;
+  opacity: 0.95;
+  white-space: pre-wrap;
+  margin: 0 auto;
+  max-width: 90%;
+}
+
+.learning-invitation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.learning-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 8px 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.learning-detail-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Variaciones por theme si es necesario (generalmente el asset trae la diferencia) */
+.theme-learning_class .learning-invitation-main-bubble {
+  background: linear-gradient(to top, rgba(20, 40, 60, 0.85) 0%, rgba(20, 40, 60, 0.4) 60%, transparent 100%);
+}
+.theme-learning_workshop .learning-invitation-main-bubble {
+  background: linear-gradient(to top, rgba(60, 40, 20, 0.85) 0%, rgba(60, 40, 20, 0.4) 60%, transparent 100%);
+}
+.theme-learning_talk .learning-invitation-main-bubble {
+  background: linear-gradient(to top, rgba(40, 20, 60, 0.85) 0%, rgba(40, 20, 60, 0.4) 60%, transparent 100%);
+}
