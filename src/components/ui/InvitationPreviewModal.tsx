@@ -7,9 +7,11 @@ import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitat
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview';
+import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
+import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
@@ -18,7 +20,7 @@ import './InvitationPreviewModal.css';
 
 interface InvitationPreviewModalProps {
   onClose: () => void;
-  onChangeStyle?: () => void; // Made optional since it's not strictly needed if we change style directly in DetailHost or maybe it's not passed.
+  onChangeStyle?: () => void;
   previewData?: {
     titulo?: string;
     fecha?: string;
@@ -27,14 +29,13 @@ interface InvitationPreviewModalProps {
     modalidad?: string;
     tema_invitacion?: string;
     invitation_template?: string;
-    descripcion?: string; // will map to hostMessage
+    descripcion?: string;
   };
 }
 
 export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData }) => {
   const wizardData = useWizardStore();
   
-  // Use previewData if provided, otherwise fallback to wizardData
   const sourceData = previewData || wizardData;
   
   const themeId = sourceData.tema_invitacion || 'classic';
@@ -48,6 +49,9 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const familyTemplateConfig = themeId === 'family' ? getFamilyTemplateConfig(sourceData.invitation_template) : null;
   const hasValidFamilyTemplate = !!familyTemplateConfig;
+  
+  const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(sourceData.invitation_template) : null;
+  const hasValidSpecialTemplate = !!specialTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
     ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
@@ -131,18 +135,37 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               }}
             />
           ) : hasValidFamilyTemplate ? (
-            <FamilyInvitationPreview
-              previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
-                tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template
-              }}
-            />
+            <div className="ipm-scrollable-content">
+              <FamilyInvitationPreview 
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: sourceData.invitation_template
+                }} 
+                className="ipm-full-height-preview" 
+              />
+            </div>
+          ) : hasValidSpecialTemplate ? (
+            <div className="ipm-scrollable-content">
+              <SpecialInvitationPreview 
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: sourceData.invitation_template
+                }} 
+                className="ipm-full-height-preview" 
+              />
+            </div>
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>

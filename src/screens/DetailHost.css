@@ -757,15 +757,25 @@
 @media (max-width: 600px) {
   .dh-participant-row {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 12px;
   }
 
   .dh-participant-info { 
-    flex: 1;
-    min-width: 60px;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .dh-participant-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    line-height: 1.25;
   }
   
   .dh-participant-status-col { 
@@ -774,11 +784,11 @@
   
   .dh-participant-share-col { 
     flex-shrink: 0;
+    margin-left: auto;
   }
 
   .dh-participant-delete-col {
     flex-shrink: 0;
-    margin-left: auto;
   }
 }
 

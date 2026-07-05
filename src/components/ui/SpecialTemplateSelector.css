@@ -1,0 +1,88 @@
+.special-template-selector {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.special-template-selector-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 12px 0;
+}
+
+.special-template-grid {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  /* Hide scrollbar for a cleaner look */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.special-template-grid::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.special-template-option {
+  flex: 0 0 auto;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.special-template-option:hover {
+  opacity: 0.9;
+}
+
+.special-template-option.selected {
+  opacity: 1;
+}
+
+.special-template-thumbnail {
+  width: 88px;
+  aspect-ratio: 4/5;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  background-color: #f1f3f5;
+}
+
+.special-template-option.selected .special-template-thumbnail {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.2);
+  transform: translateY(-2px);
+}
+
+.special-template-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--color-primary);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.special-template-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  text-align: center;
+}

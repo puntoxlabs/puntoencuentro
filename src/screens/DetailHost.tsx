@@ -28,6 +28,7 @@ import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelect
 import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
 import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
 import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
+import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
@@ -231,12 +232,14 @@ const DetailHost: React.FC = () => {
     const formalTemplates = ['formal_black_tie', 'formal_ivory', 'formal_executive'];
     const friendsTemplates = ['friends_coffee', 'friends_night', 'friends_picnic'];
     const familyTemplates = ['family_home', 'family_sunday', 'family_memories'];
+    const specialTemplates = ['special_moment', 'special_surprise', 'special_tribute'];
     const isKidsTemplate = kidTemplates.includes(newThemeOrTemplate);
     const isCelebrationTemplate = celebrationTemplates.includes(newThemeOrTemplate);
     const isRomanticTemplate = romanticTemplates.includes(newThemeOrTemplate);
     const isFormalTemplate = formalTemplates.includes(newThemeOrTemplate);
     const isFriendsTemplate = friendsTemplates.includes(newThemeOrTemplate);
     const isFamilyTemplate = familyTemplates.includes(newThemeOrTemplate);
+    const isSpecialTemplate = specialTemplates.includes(newThemeOrTemplate);
 
     let updates: Record<string, string | null>;
     if (isKidsTemplate) {
@@ -253,6 +256,8 @@ const DetailHost: React.FC = () => {
       updates = { tema_invitacion: 'friends', invitation_template: newThemeOrTemplate };
     } else if (isFamilyTemplate) {
       updates = { tema_invitacion: 'family', invitation_template: newThemeOrTemplate };
+    } else if (isSpecialTemplate) {
+      updates = { tema_invitacion: 'special', invitation_template: newThemeOrTemplate };
     } else {
       // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
       updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
@@ -1502,6 +1507,11 @@ const DetailHost: React.FC = () => {
               />
             ) : encuentro.tema_invitacion === 'family' ? (
               <FamilyTemplateSelector
+                selectedTemplateId={encuentro.invitation_template}
+                onSelect={(id) => handleThemeChange(id)}
+              />
+            ) : encuentro.tema_invitacion === 'special' ? (
+              <SpecialTemplateSelector
                 selectedTemplateId={encuentro.invitation_template}
                 onSelect={(id) => handleThemeChange(id)}
               />

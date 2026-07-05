@@ -23,10 +23,12 @@ import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitat
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview';
+import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
+import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import './Guest.css';
 
@@ -43,6 +45,7 @@ const JoinGeneral: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
+  const [mensaje, setMensaje] = useState('');
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [participante, setParticipante] = useState<any>(null);
@@ -199,6 +202,7 @@ const JoinGeneral: React.FC = () => {
           if (partData) { 
             setParticipante(partData); 
             setNombre(partData.nombre_invitado || '');
+            setMensaje(partData.mensaje_respuesta || '');
             
             // Persistir link_virtual tras el refresh
             const encFromPart = Array.isArray(partData.encuentros) ? partData.encuentros[0] : partData.encuentros;
@@ -276,7 +280,8 @@ const JoinGeneral: React.FC = () => {
       const newPart = await participantesService.responderInvitacion(
         effectiveToken,
         estado,
-        nombre.trim() || undefined
+        nombre.trim() || undefined,
+        mensaje.trim() || undefined
       );
 
       if (import.meta.env.DEV) console.log('[GENERAL] Paso 1 resultado:', newPart);
@@ -377,15 +382,23 @@ const JoinGeneral: React.FC = () => {
   const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
     ? getRomanticTemplateConfig(encuentro.invitation_template)
     : null;
-  const formalTemplate = encuentro?.tema_invitacion === 'formal'
+  const formalTemplateConfig = encuentro?.tema_invitacion === 'formal'
     ? getFormalTemplateConfig(encuentro.invitation_template)
     : null;
-  const friendsTemplate = encuentro?.tema_invitacion === 'friends'
+  const friendsTemplateConfig = encuentro?.tema_invitacion === 'friends'
     ? getFriendsTemplateConfig(encuentro.invitation_template)
     : null;
-  const familyTemplate = encuentro?.tema_invitacion === 'family'
+  const familyTemplateConfig = encuentro?.tema_invitacion === 'family'
     ? getFamilyTemplateConfig(encuentro.invitation_template)
     : null;
+  const specialTemplateConfig = encuentro?.tema_invitacion === 'special'
+    ? getSpecialTemplateConfig(encuentro.invitation_template)
+    : null;
+
+  const hasValidFormalTemplate = !!formalTemplateConfig;
+  const hasValidFriendsTemplate = !!friendsTemplateConfig;
+  const hasValidFamilyTemplate = !!familyTemplateConfig;
+  const hasValidSpecialTemplate = !!specialTemplateConfig;
 
   let templateBgStyle: React.CSSProperties = {};
   if (celebrationTemplate?.background) {
@@ -637,6 +650,17 @@ const JoinGeneral: React.FC = () => {
     </ScreenContainer>
   );
 
+  const previewData = {
+    titulo: encuentro?.titulo || '',
+    fecha: encuentro?.fecha || '',
+    hora: encuentro?.hora || '',
+    lugar_texto: encuentro?.lugar_texto,
+    modalidad: encuentro?.modalidad,
+    descripcion: encuentro?.descripcion,
+    tema_invitacion: encuentro?.tema_invitacion,
+    invitation_template: encuentro?.invitation_template || 'default'
+  };
+
   return (
     <ScreenContainer
       className={`guest-page guest-theme guest-theme--${invitationTheme}`}
@@ -668,61 +692,31 @@ const JoinGeneral: React.FC = () => {
         ) : encuentro?.tema_invitacion === 'celebration' ? (
           <div style={{ marginBottom: 20 }}>
             <CelebrationInvitationPreview
-              previewData={{
-                titulo: encuentro.titulo || '',
-                fecha: encuentro.fecha || '',
-                hora: encuentro.hora || '',
-                lugar_texto: encuentro.lugar_texto,
-                modalidad: encuentro.modalidad,
-                descripcion: encuentro.descripcion,
-                tema_invitacion: encuentro.tema_invitacion,
-                invitation_template: encuentro.invitation_template || 'celebration_gold'
-              }}
+              previewData={previewData}
             />
           </div>
-        ) : !!formalTemplate ? (
+        ) : hasValidFormalTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <FormalInvitationPreview
-              previewData={{
-                titulo: encuentro.titulo || '',
-                fecha: encuentro.fecha || '',
-                hora: encuentro.hora || '',
-                lugar_texto: encuentro.lugar_texto,
-                modalidad: encuentro.modalidad,
-                descripcion: encuentro.descripcion,
-                tema_invitacion: encuentro.tema_invitacion,
-                invitation_template: encuentro.invitation_template
-              }}
+              previewData={previewData}
             />
           </div>
-        ) : !!friendsTemplate ? (
+        ) : hasValidFriendsTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <FriendsInvitationPreview
-              previewData={{
-                titulo: encuentro.titulo || '',
-                fecha: encuentro.fecha || '',
-                hora: encuentro.hora || '',
-                lugar_texto: encuentro.lugar_texto,
-                modalidad: encuentro.modalidad,
-                descripcion: encuentro.descripcion,
-                tema_invitacion: encuentro.tema_invitacion,
-                invitation_template: encuentro.invitation_template
-              }}
+              previewData={previewData}
             />
           </div>
-        ) : !!familyTemplate ? (
+        ) : hasValidFamilyTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <FamilyInvitationPreview
-              previewData={{
-                titulo: encuentro.titulo || '',
-                fecha: encuentro.fecha || '',
-                hora: encuentro.hora || '',
-                lugar_texto: encuentro.lugar_texto,
-                modalidad: encuentro.modalidad,
-                descripcion: encuentro.descripcion,
-                tema_invitacion: encuentro.tema_invitacion,
-                invitation_template: encuentro.invitation_template
-              }}
+              previewData={previewData}
+            />
+          </div>
+        ) : hasValidSpecialTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <SpecialInvitationPreview
+              previewData={previewData}
             />
           </div>
         ) : (
@@ -771,7 +765,7 @@ const JoinGeneral: React.FC = () => {
               } : {})
             }}
           >
-            <div className="guest-form-group" style={{ marginBottom: 0 }}>
+            <div className="guest-form-group">
               <label className="guest-form-label">
                 {t('participant.visible_name', 'Tu nombre')}
               </label>
@@ -789,6 +783,19 @@ const JoinGeneral: React.FC = () => {
               <p className="guest-form-help">
                 {t('participant.visible_name_help', 'Así te verá el organizador.')}
               </p>
+            </div>
+
+            <div className="guest-form-group" style={{ marginBottom: 0 }}>
+              <label className="guest-form-label">
+                Mensaje para el organizador (opcional)
+              </label>
+              <textarea
+                placeholder="Ej: Llego 10 min tarde."
+                value={mensaje}
+                maxLength={120}
+                onChange={(e: any) => setMensaje(e.target.value)}
+                className="guest-textarea"
+              />
             </div>
           </div>
         )}
