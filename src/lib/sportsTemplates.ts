@@ -18,24 +18,24 @@ export const sportsTemplates: SportsTemplateConfig[] = [
     name: 'Cancha',
     category: 'sports',
     previewColor: 'linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 50%, #4ade80 100%)',
-    thumbnail: '/invitation-templates/sports/sports_field_v2.webp?v=2',
-    background: '/invitation-templates/sports/sports_field_v2.webp?v=2'
+    thumbnail: '/invitation-templates/sports/sports_field_v3.webp?v=3',
+    background: '/invitation-templates/sports/sports_field_v3.webp?v=3'
   },
   {
     id: 'sports_team',
     name: 'Equipo',
     category: 'sports',
     previewColor: 'linear-gradient(135deg, #eff6ff 0%, #bfdbfe 50%, #60a5fa 100%)',
-    thumbnail: '/invitation-templates/sports/sports_team_v2.webp?v=2',
-    background: '/invitation-templates/sports/sports_team_v2.webp?v=2'
+    thumbnail: '/invitation-templates/sports/sports_team_v3.webp?v=3',
+    background: '/invitation-templates/sports/sports_team_v3.webp?v=3'
   },
   {
     id: 'sports_competition',
-    name: 'Competencia',
+    name: 'Raqueta',
     category: 'sports',
     previewColor: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 50%, #f87171 100%)',
-    thumbnail: '/invitation-templates/sports/sports_competition_v2.webp?v=2',
-    background: '/invitation-templates/sports/sports_competition_v2.webp?v=2'
+    thumbnail: '/invitation-templates/sports/sports_competition_v3.webp?v=3',
+    background: '/invitation-templates/sports/sports_competition_v3.webp?v=3'
   }
 ];
 

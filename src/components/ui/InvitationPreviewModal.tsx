@@ -177,31 +177,37 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               />
             </div>
           ) : hasValidSportsTemplate ? (
-            <SportsInvitationPreview
-              previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
-                tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template
-              }}
-            />
+            <div className="ipm-scrollable-content">
+              <SportsInvitationPreview
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: sourceData.invitation_template
+                }}
+                className="ipm-full-height-preview"
+              />
+            </div>
           ) : hasValidEntertainmentTemplate ? (
-            <EntertainmentInvitationPreview
-              previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
-                tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template
-              }}
-            />
+            <div className="ipm-scrollable-content">
+              <EntertainmentInvitationPreview
+                previewData={{
+                  titulo: sourceData.titulo || '',
+                  fecha: sourceData.fecha || '',
+                  hora: sourceData.hora || '',
+                  lugar_texto: sourceData.lugar_texto,
+                  modalidad: sourceData.modalidad,
+                  descripcion: sourceData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: sourceData.invitation_template
+                }}
+                className="ipm-full-height-preview"
+              />
+            </div>
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
