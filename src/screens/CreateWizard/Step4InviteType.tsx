@@ -136,8 +136,8 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           }}
         >
           <div className="cw-option-icon">🔗</div>
-          <h4 className="cw-option-title">Compartir link</h4>
-          <p className="cw-option-desc">Cualquiera con el link puede sumarse</p>
+          <h4 className="cw-option-title">Invitación grupal</h4>
+          <p className="cw-option-desc">Un único enlace para que cualquiera pueda sumarse.</p>
         </div>
 
         <div
@@ -150,8 +150,8 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           }}
         >
           <div className="cw-option-icon">👤</div>
-          <h4 className="cw-option-title">Personas específicas</h4>
-          <p className="cw-option-desc">Invitás a cada uno individualmente</p>
+          <h4 className="cw-option-title">Invitación individual</h4>
+          <p className="cw-option-desc">Una invitación separada para cada persona.</p>
         </div>
       </div>
 
