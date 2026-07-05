@@ -18,24 +18,24 @@ export const friendsTemplates: FriendsTemplateConfig[] = [
     name: 'Café',
     category: 'friends',
     previewColor: 'linear-gradient(135deg, #d4a373 0%, #faedcb 50%, #ccd5ae 100%)',
-    thumbnail: '/invitation-templates/friends/friends_coffee.webp?v=1',
-    background: '/invitation-templates/friends/friends_coffee.webp?v=1'
+    thumbnail: '/invitation-templates/friends/friends_coffee_v2.webp?v=2',
+    background: '/invitation-templates/friends/friends_coffee_v2.webp?v=2'
   },
   {
     id: 'friends_night',
     name: 'Noche',
     category: 'friends',
     previewColor: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)',
-    thumbnail: '/invitation-templates/friends/friends_night.webp?v=1',
-    background: '/invitation-templates/friends/friends_night.webp?v=1'
+    thumbnail: '/invitation-templates/friends/friends_night_v2.webp?v=2',
+    background: '/invitation-templates/friends/friends_night_v2.webp?v=2'
   },
   {
     id: 'friends_picnic',
     name: 'Aire libre',
     category: 'friends',
     previewColor: 'linear-gradient(135deg, #a3b18a 0%, #dad7cd 50%, #fefae0 100%)',
-    thumbnail: '/invitation-templates/friends/friends_picnic.webp?v=1',
-    background: '/invitation-templates/friends/friends_picnic.webp?v=1'
+    thumbnail: '/invitation-templates/friends/friends_picnic_v2.webp?v=2',
+    background: '/invitation-templates/friends/friends_picnic_v2.webp?v=2'
   }
 ];
 
