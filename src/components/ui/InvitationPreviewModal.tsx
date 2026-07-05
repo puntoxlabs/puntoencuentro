@@ -57,10 +57,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(sourceData.invitation_template) : null;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
   
-  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(sourceData.invitation_template) : null;
+  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(sourceData.invitation_template || 'sports_field') : null;
   const hasValidSportsTemplate = !!sportsTemplateConfig;
 
-  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(sourceData.invitation_template) : null;
+  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(sourceData.invitation_template || 'entertainment_cinema') : null;
   const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
@@ -187,7 +187,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   modalidad: sourceData.modalidad,
                   descripcion: sourceData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template
+                  invitation_template: sourceData.invitation_template || 'sports_field'
                 }}
                 className="ipm-full-height-preview"
               />
@@ -203,7 +203,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   modalidad: sourceData.modalidad,
                   descripcion: sourceData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template
+                  invitation_template: sourceData.invitation_template || 'entertainment_cinema'
                 }}
                 className="ipm-full-height-preview"
               />

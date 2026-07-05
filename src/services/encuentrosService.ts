@@ -88,6 +88,12 @@ export const encuentrosService = {
     if (data && data.tema_invitacion === 'celebration' && !data.invitation_template) {
       data.invitation_template = 'celebration_gold';
     }
+    if (data && data.tema_invitacion === 'sports' && !data.invitation_template) {
+      data.invitation_template = 'sports_field';
+    }
+    if (data && data.tema_invitacion === 'entertainment' && !data.invitation_template) {
+      data.invitation_template = 'entertainment_cinema';
+    }
     return data;
   },
 
@@ -112,6 +118,12 @@ export const encuentrosService = {
     // Fallback de compatibilidad para encuentros viejos sin template asignado
     if (result && result.tema_invitacion === 'celebration' && !result.invitation_template) {
       result.invitation_template = 'celebration_gold';
+    }
+    if (result && result.tema_invitacion === 'sports' && !result.invitation_template) {
+      result.invitation_template = 'sports_field';
+    }
+    if (result && result.tema_invitacion === 'entertainment' && !result.invitation_template) {
+      result.invitation_template = 'entertainment_cinema';
     }
 
     if (!result || result.error) {
@@ -173,6 +185,12 @@ export const encuentrosService = {
       if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
         enc.invitation_template = 'celebration_gold';
       }
+      if (enc.tema_invitacion === 'sports' && !enc.invitation_template) {
+        enc.invitation_template = 'sports_field';
+      }
+      if (enc.tema_invitacion === 'entertainment' && !enc.invitation_template) {
+        enc.invitation_template = 'entertainment_cinema';
+      }
     });
     return list;
   },
@@ -197,6 +215,12 @@ export const encuentrosService = {
           // Fallback de compatibilidad para encuentros viejos sin template asignado
           if (enc.tema_invitacion === 'celebration' && !enc.invitation_template) {
             enc.invitation_template = 'celebration_gold';
+          }
+          if (enc.tema_invitacion === 'sports' && !enc.invitation_template) {
+            enc.invitation_template = 'sports_field';
+          }
+          if (enc.tema_invitacion === 'entertainment' && !enc.invitation_template) {
+            enc.invitation_template = 'entertainment_cinema';
           }
         });
       }
