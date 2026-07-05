@@ -23,9 +23,11 @@ import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvit
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
+import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
+import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import './Guest.css';
 
@@ -320,6 +322,9 @@ const InviteGuest: React.FC = () => {
     : null;
   const friendsTemplate = encuentro?.tema_invitacion === 'friends'
     ? getFriendsTemplateConfig(encuentro.invitation_template)
+    : null;
+  const familyTemplate = encuentro?.tema_invitacion === 'family'
+    ? getFamilyTemplateConfig(encuentro.invitation_template)
     : null;
 
   let templateBgStyle: React.CSSProperties = {};
@@ -639,6 +644,21 @@ const InviteGuest: React.FC = () => {
         ) : !!friendsTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <FriendsInvitationPreview
+              previewData={{
+                titulo: encuentro.titulo || '',
+                fecha: encuentro.fecha || '',
+                hora: encuentro.hora || '',
+                lugar_texto: encuentro.lugar_texto,
+                modalidad: encuentro.modalidad,
+                descripcion: encuentro.descripcion,
+                tema_invitacion: encuentro.tema_invitacion,
+                invitation_template: encuentro.invitation_template
+              }}
+            />
+          </div>
+        ) : !!familyTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <FamilyInvitationPreview
               previewData={{
                 titulo: encuentro.titulo || '',
                 fecha: encuentro.fecha || '',

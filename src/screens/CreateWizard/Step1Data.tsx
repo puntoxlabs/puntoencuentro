@@ -10,6 +10,7 @@ import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplate
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
 import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
 import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
+import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -304,6 +305,12 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'friends' && (
           <FriendsTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'family' && (
+          <FamilyTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />
