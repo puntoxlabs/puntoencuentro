@@ -214,10 +214,10 @@
 
 /* Theme specifics */
 .theme-kids_jungle .kids-invitation-bg { object-position: center bottom; }
-.theme-kids_jungle .kids-invitation-eyebrow { color: #16a34a; }
+.theme-kids_jungle .kids-invitation-eyebrow { color: #064e3b; text-shadow: 0 1px 3px rgba(255, 255, 255, 0.75); }
 .theme-kids_jungle .kids-invitation-title { color: #14532d; }
 .theme-kids_jungle .kids-action-button { background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3); }
-.theme-kids_jungle .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.25); border-color: rgba(255, 255, 255, 0.3); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.theme-kids_jungle .kids-invitation-main-bubble { background: rgba(255, 255, 255, 0.32); border-color: rgba(255, 255, 255, 0.3); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); width: min(79%, 345px); padding: clamp(20px, 4vw, 28px) clamp(16px, 4vw, 24px); }
 
 .theme-kids_unicorn .kids-invitation-bg { object-position: center center; }
 .theme-kids_unicorn .kids-invitation-eyebrow { color: #d946ef; }
