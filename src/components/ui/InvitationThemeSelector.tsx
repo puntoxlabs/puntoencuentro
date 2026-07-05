@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { INVITATION_THEMES } from '@/lib/invitationThemes';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import './InvitationThemeSelector.css';
@@ -9,6 +9,20 @@ interface InvitationThemeSelectorProps {
 }
 
 export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = ({ value, onChange }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  // Default auto-expand logic if selected theme is beyond the first 4
+  useEffect(() => {
+    if (!expanded) {
+      const selectedIndex = INVITATION_THEMES.findIndex(t => t.id === value);
+      if (selectedIndex >= 4) {
+        setExpanded(true);
+      }
+    }
+  }, [value, expanded]);
+
+  const visibleThemes = expanded ? INVITATION_THEMES : INVITATION_THEMES.slice(0, 4);
+
   return (
     <div className="invitation-theme-selector-container">
       <div className="invitation-theme-selector-header">
@@ -18,7 +32,7 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
       
       <div className="invitation-theme-selector-scroll">
         <div className="invitation-theme-selector-grid">
-          {INVITATION_THEMES.map((theme) => {
+          {visibleThemes.map((theme) => {
             const Icon = theme.icon;
             const isSelected = value === theme.id;
             return (
@@ -38,6 +52,14 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
           })}
         </div>
       </div>
+
+      <button
+        type="button"
+        className="invitation-theme-selector-toggle"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? 'Ver menos' : 'Ver más estilos'}
+      </button>
     </div>
   );
 };

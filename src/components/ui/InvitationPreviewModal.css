@@ -78,3 +78,9 @@
 .preview-modal-footer {
   padding: 16px 0 32px 0;
 }
+
+.ipm-scrollable-content {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}

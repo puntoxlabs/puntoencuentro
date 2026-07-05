@@ -8,10 +8,14 @@ import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview';
 import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
+import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview';
+import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
 import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
+import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
+import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { useWizardStore } from '@/store/wizardStore';
 import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
@@ -52,6 +56,12 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(sourceData.invitation_template) : null;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
+  
+  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(sourceData.invitation_template) : null;
+  const hasValidSportsTemplate = !!sportsTemplateConfig;
+
+  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(sourceData.invitation_template) : null;
+  const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
   
   const displayDateText = sourceData.fecha && sourceData.hora 
     ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
@@ -166,6 +176,32 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 className="ipm-full-height-preview" 
               />
             </div>
+          ) : hasValidSportsTemplate ? (
+            <SportsInvitationPreview
+              previewData={{
+                titulo: sourceData.titulo || '',
+                fecha: sourceData.fecha || '',
+                hora: sourceData.hora || '',
+                lugar_texto: sourceData.lugar_texto,
+                modalidad: sourceData.modalidad,
+                descripcion: sourceData.descripcion,
+                tema_invitacion: themeId,
+                invitation_template: sourceData.invitation_template
+              }}
+            />
+          ) : hasValidEntertainmentTemplate ? (
+            <EntertainmentInvitationPreview
+              previewData={{
+                titulo: sourceData.titulo || '',
+                fecha: sourceData.fecha || '',
+                hora: sourceData.hora || '',
+                lugar_texto: sourceData.lugar_texto,
+                modalidad: sourceData.modalidad,
+                descripcion: sourceData.descripcion,
+                tema_invitacion: themeId,
+                invitation_template: sourceData.invitation_template
+              }}
+            />
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>

@@ -1,0 +1,151 @@
+/* =========================================
+   SportsInvitationPreview
+   ========================================= */
+
+.sports-invitation-container {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4/5;
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', system-ui, sans-serif;
+  isolation: isolate;
+  z-index: 0;
+}
+
+.sports-invitation-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.sports-invitation-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 24px 16px;
+}
+
+.sports-invitation-main-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: auto 0;
+  padding: clamp(12px, 3vw, 20px) clamp(10px, 3vw, 18px);
+  /* Completamente transparente para fusionarse con el centro del asset */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  gap: 12px;
+  width: min(66%, 310px);
+  align-self: center;
+  text-align: center;
+}
+
+.sports-invitation-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sports-invitation-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sports-invitation-title {
+  margin: 0 0 4px 0;
+  font-size: clamp(20px, 6vw, 24px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sports-invitation-message {
+  font-size: clamp(14px, 4vw, 15px);
+  line-height: 1.5;
+  font-weight: 400;
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+
+.sports-invitation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sports-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sports-detail-text {
+  font-size: clamp(13px, 4vw, 14px);
+  font-weight: 600;
+}
+
+.sports-invitation-location {
+  opacity: 0.9;
+}
+
+/* =========================================
+   Variantes Visuales
+   ========================================= */
+
+/* 1. Cancha (sports_field) */
+.theme-sports_field .sports-invitation-main-bubble {
+  color: #0f172a; 
+}
+
+.theme-sports_field .sports-invitation-eyebrow {
+  color: #16a34a; 
+}
+
+.theme-sports_field .sports-invitation-title {
+  color: #064e3b; 
+}
+
+/* 2. Equipo (sports_team) */
+.theme-sports_team .sports-invitation-main-bubble {
+  color: #0f172a; 
+}
+
+.theme-sports_team .sports-invitation-eyebrow {
+  color: #2563eb; 
+}
+
+.theme-sports_team .sports-invitation-title {
+  color: #1e3a8a; 
+}
+
+/* 3. Competencia (sports_competition) */
+.theme-sports_competition .sports-invitation-main-bubble {
+  color: #0f172a; 
+}
+
+.theme-sports_competition .sports-invitation-eyebrow {
+  color: #dc2626; 
+}
+
+.theme-sports_competition .sports-invitation-title {
+  color: #7f1d1d; 
+}

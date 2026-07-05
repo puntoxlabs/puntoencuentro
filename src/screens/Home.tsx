@@ -84,10 +84,18 @@ const ActiveCard: React.FC<{
       </p>
 
       <div className="home-card-footer">
-        <StatusChip 
-          icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
-          label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
-        />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <StatusChip 
+            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
+            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
+          />
+          {enc.tipo_invitacion && (
+            <StatusChip 
+              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'} 
+              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'} 
+            />
+          )}
+        </div>
         
         {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
         {miEstadoLabel ? (
@@ -147,11 +155,17 @@ const PastCard: React.FC<{
       </p>
 
       <div className="home-card-footer">
-        <div className="home-card-footer-left">
+        <div className="home-card-footer-left" style={{ flexWrap: 'wrap' }}>
           <StatusChip 
             icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
             label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
           />
+          {enc.tipo_invitacion && (
+            <StatusChip 
+              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'} 
+              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'} 
+            />
+          )}
           {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
           {miEstadoLabel ? (
             <span className={miEstado === 'confirmado' ? 'home-card-status--success' : miEstado === 'rechazado' ? 'home-card-status--danger' : 'home-card-status'}>

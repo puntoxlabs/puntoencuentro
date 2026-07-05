@@ -25,12 +25,16 @@ import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
 import { FamilyInvitationPreview } from '@/components/ui/FamilyInvitationPreview';
 import { SpecialInvitationPreview } from '@/components/ui/SpecialInvitationPreview';
+import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview';
+import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
 import { getSpecialTemplateConfig } from '@/lib/specialTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
+import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
+import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import './Guest.css';
 
 
@@ -331,11 +335,19 @@ const InviteGuest: React.FC = () => {
   const specialTemplateConfig = encuentro?.tema_invitacion === 'special'
     ? getSpecialTemplateConfig(encuentro.invitation_template)
     : null;
+  const sportsTemplateConfig = encuentro?.tema_invitacion === 'sports'
+    ? getSportsTemplateConfig(encuentro.invitation_template)
+    : null;
+  const entertainmentTemplateConfig = encuentro?.tema_invitacion === 'entertainment'
+    ? getEntertainmentTemplateConfig(encuentro.invitation_template)
+    : null;
 
   const hasValidFormalTemplate = !!formalTemplateConfig;
   const hasValidFriendsTemplate = !!friendsTemplateConfig;
   const hasValidFamilyTemplate = !!familyTemplateConfig;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
+  const hasValidSportsTemplate = !!sportsTemplateConfig;
+  const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
 
   let templateBgStyle: React.CSSProperties = {};
   if (celebrationTemplate?.background) {
@@ -659,6 +671,18 @@ const InviteGuest: React.FC = () => {
         ) : hasValidSpecialTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <SpecialInvitationPreview
+              previewData={previewData}
+            />
+          </div>
+        ) : hasValidSportsTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <SportsInvitationPreview
+              previewData={previewData}
+            />
+          </div>
+        ) : hasValidEntertainmentTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <EntertainmentInvitationPreview
               previewData={previewData}
             />
           </div>

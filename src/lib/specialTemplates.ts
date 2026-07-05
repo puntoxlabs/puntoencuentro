@@ -18,24 +18,24 @@ export const specialTemplates: SpecialTemplateConfig[] = [
     name: 'Momento',
     category: 'special',
     previewColor: 'linear-gradient(135deg, #fdfbf7 0%, #e2d1c3 50%, #c4a484 100%)',
-    thumbnail: '/invitation-templates/special/special_moment.webp?v=1',
-    background: '/invitation-templates/special/special_moment.webp?v=1'
+    thumbnail: '/invitation-templates/special/special_moment_v3.webp?v=3',
+    background: '/invitation-templates/special/special_moment_v3.webp?v=3'
   },
   {
     id: 'special_surprise',
     name: 'Sorpresa',
     category: 'special',
     previewColor: 'linear-gradient(135deg, #fff2f0 0%, #ffcba4 50%, #d8cdb8 100%)',
-    thumbnail: '/invitation-templates/special/special_surprise.webp?v=1',
-    background: '/invitation-templates/special/special_surprise.webp?v=1'
+    thumbnail: '/invitation-templates/special/special_surprise_v2.webp?v=2',
+    background: '/invitation-templates/special/special_surprise_v2.webp?v=2'
   },
   {
     id: 'special_tribute',
     name: 'Homenaje',
     category: 'special',
     previewColor: 'linear-gradient(135deg, #d2b48c 0%, #f5deb3 50%, #deb887 100%)',
-    thumbnail: '/invitation-templates/special/special_tribute.webp?v=1',
-    background: '/invitation-templates/special/special_tribute.webp?v=1'
+    thumbnail: '/invitation-templates/special/special_tribute_v2.webp?v=2',
+    background: '/invitation-templates/special/special_tribute_v2.webp?v=2'
   }
 ];
 

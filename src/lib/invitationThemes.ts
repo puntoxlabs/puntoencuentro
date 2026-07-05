@@ -6,7 +6,9 @@ import {
   Home, 
   Star,
   CheckCircle2,
-  Heart
+  Heart,
+  Trophy,
+  Ticket
 } from 'lucide-react';
 
 export type InvitationTheme =
@@ -17,7 +19,9 @@ export type InvitationTheme =
   | 'kids_birthday'
   | 'family'
   | 'special'
-  | 'romantic';
+  | 'romantic'
+  | 'sports'
+  | 'entertainment';
 
 export interface InvitationThemeConfig {
   id: InvitationTheme;
@@ -92,6 +96,22 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     icon: Heart,
     cssClass: 'guest-theme--romantic',
     eyebrow: 'Te invitan a un encuentro especial'
+  },
+  {
+    id: 'sports',
+    label: 'Deportes',
+    description: 'Partidos, torneos y entrenamientos.',
+    icon: Trophy,
+    cssClass: 'guest-theme--sports',
+    eyebrow: 'Una invitación deportiva'
+  },
+  {
+    id: 'entertainment',
+    label: 'Entretenimiento',
+    description: 'Cine, teatro, recitales y shows.',
+    icon: Ticket,
+    cssClass: 'guest-theme--entertainment',
+    eyebrow: 'Una invitación para disfrutar'
   }
 ];
 
@@ -112,7 +132,9 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
     'kids_birthday',
     'family',
     'special',
-    'romantic'
+    'romantic',
+    'sports',
+    'entertainment'
   ];
   
   if (validThemes.includes(value as InvitationTheme)) {

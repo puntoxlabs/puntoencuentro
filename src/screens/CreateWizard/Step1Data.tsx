@@ -12,6 +12,8 @@ import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
 import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
 import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
 import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
+import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
+import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -318,6 +320,18 @@ const Step1Data: React.FC = () => {
         )}
         {tema_invitacion === 'special' && (
           <SpecialTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'sports' && (
+          <SportsTemplateSelector
+            selectedTemplateId={invitation_template}
+            onSelect={(id) => setField('invitation_template', id)}
+          />
+        )}
+        {tema_invitacion === 'entertainment' && (
+          <EntertainmentTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => setField('invitation_template', id)}
           />

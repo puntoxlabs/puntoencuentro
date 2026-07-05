@@ -154,3 +154,38 @@
   --tile-bg-selected: #FFE4E6;
   --tile-radius: 20px;
 }
+.theme-tile-sports {
+  --tile-bg: #F0FDF4;
+  --tile-accent: #15803D;
+  --tile-icon-color: #16A34A;
+  --tile-icon-bg: #DCFCE7;
+  --tile-bg-selected: #DCFCE7;
+}
+.theme-tile-entertainment {
+  --tile-bg: #F5F3FF;
+  --tile-accent: #6D28D9;
+  --tile-icon-color: #8B5CF6;
+  --tile-icon-bg: #EDE9FE;
+  --tile-bg-selected: #EDE9FE;
+}
+
+.invitation-theme-selector-toggle {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: transparent;
+  border: 1px dashed var(--color-outline);
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: center;
+}
+
+.invitation-theme-selector-toggle:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+  border-style: solid;
+}
