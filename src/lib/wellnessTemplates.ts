@@ -18,24 +18,24 @@ export const wellnessTemplates: WellnessTemplateConfig[] = [
     name: 'Calma',
     category: 'wellness',
     previewColor: 'linear-gradient(135deg, #f5f5f4 0%, #e7e5e4 50%, #d6d3d1 100%)',
-    thumbnail: '/invitation-templates/wellness/wellness_calm_v1.webp?v=1',
-    background: '/invitation-templates/wellness/wellness_calm_v1.webp?v=1'
+    thumbnail: '/invitation-templates/wellness/wellness_calm_v2.webp?v=2',
+    background: '/invitation-templates/wellness/wellness_calm_v2.webp?v=2'
   },
   {
     id: 'wellness_nature',
     name: 'Aire libre',
     category: 'wellness',
     previewColor: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%)',
-    thumbnail: '/invitation-templates/wellness/wellness_nature_v1.webp?v=1',
-    background: '/invitation-templates/wellness/wellness_nature_v1.webp?v=1'
+    thumbnail: '/invitation-templates/wellness/wellness_nature_v2.webp?v=2',
+    background: '/invitation-templates/wellness/wellness_nature_v2.webp?v=2'
   },
   {
     id: 'wellness_movement',
     name: 'Movimiento',
     category: 'wellness',
     previewColor: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 50%, #fecdd3 100%)',
-    thumbnail: '/invitation-templates/wellness/wellness_movement_v1.webp?v=1',
-    background: '/invitation-templates/wellness/wellness_movement_v1.webp?v=1'
+    thumbnail: '/invitation-templates/wellness/wellness_movement_v2.webp?v=2',
+    background: '/invitation-templates/wellness/wellness_movement_v2.webp?v=2'
   }
 ];
 
