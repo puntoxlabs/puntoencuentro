@@ -1,6 +1,6 @@
 import React from 'react';
 import { learningTemplates } from '@/lib/learningTemplates';
-import './LearningTemplateSelector.css';
+import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
 interface LearningTemplateSelectorProps {
@@ -13,20 +13,20 @@ export const LearningTemplateSelector: React.FC<LearningTemplateSelectorProps> =
   onSelect
 }) => {
   return (
-    <div className="learning-template-selector">
-      <h4 className="learning-template-selector-title">Elegí un diseño de formación</h4>
-      <div className="learning-template-grid">
+    <div className="shared-template-selector">
+      <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
+      <div className="shared-template-grid">
         {learningTemplates.map((template) => {
           const isSelected = selectedTemplateId === template.id;
           return (
             <button
               key={template.id}
               type="button"
-              className={`learning-template-option ${isSelected ? 'selected' : ''}`}
+              className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
               <div 
-                className="learning-template-thumbnail"
+                className="shared-template-thumbnail"
                 style={{ 
                   backgroundImage: `url(${template.thumbnail})`,
                   backgroundSize: 'cover',
@@ -34,12 +34,12 @@ export const LearningTemplateSelector: React.FC<LearningTemplateSelectorProps> =
                 }}
               >
                 {isSelected && (
-                  <div className="learning-template-check">
+                  <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />
                   </div>
                 )}
               </div>
-              <span className="learning-template-name">{template.name}</span>
+              <span className="shared-template-name">{template.name}</span>
             </button>
           );
         })}

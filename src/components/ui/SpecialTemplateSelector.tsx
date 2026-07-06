@@ -1,6 +1,6 @@
 import React from 'react';
 import { specialTemplates } from '@/lib/specialTemplates';
-import './SpecialTemplateSelector.css';
+import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
 interface SpecialTemplateSelectorProps {
@@ -13,20 +13,20 @@ export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = (
   onSelect
 }) => {
   return (
-    <div className="special-template-selector">
-      <h4 className="special-template-selector-title">Elegí un diseño especial</h4>
-      <div className="special-template-grid">
+    <div className="shared-template-selector">
+      <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
+      <div className="shared-template-grid">
         {specialTemplates.map((template) => {
           const isSelected = selectedTemplateId === template.id;
           return (
             <button
               key={template.id}
               type="button"
-              className={`special-template-option ${isSelected ? 'selected' : ''}`}
+              className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
               <div 
-                className="special-template-thumbnail"
+                className="shared-template-thumbnail"
                 style={{ 
                   backgroundImage: `url(${template.thumbnail})`,
                   backgroundSize: 'cover',
@@ -34,12 +34,12 @@ export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = (
                 }}
               >
                 {isSelected && (
-                  <div className="special-template-check">
+                  <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />
                   </div>
                 )}
               </div>
-              <span className="special-template-name">{template.name}</span>
+              <span className="shared-template-name">{template.name}</span>
             </button>
           );
         })}

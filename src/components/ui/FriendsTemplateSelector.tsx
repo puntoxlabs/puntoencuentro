@@ -1,6 +1,6 @@
 import React from 'react';
 import { friendsTemplates } from '@/lib/friendsTemplates';
-import './FriendsTemplateSelector.css';
+import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
 interface FriendsTemplateSelectorProps {
@@ -13,20 +13,20 @@ export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = (
   onSelect
 }) => {
   return (
-    <div className="friends-template-selector">
-      <h4 className="friends-template-selector-title">Elegí un diseño de amigos</h4>
-      <div className="friends-template-grid">
+    <div className="shared-template-selector">
+      <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
+      <div className="shared-template-grid">
         {friendsTemplates.map((template) => {
           const isSelected = selectedTemplateId === template.id;
           return (
             <button
               key={template.id}
               type="button"
-              className={`friends-template-option ${isSelected ? 'selected' : ''}`}
+              className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
               <div 
-                className="friends-template-thumbnail"
+                className="shared-template-thumbnail"
                 style={{ 
                   backgroundImage: `url(${template.thumbnail})`,
                   backgroundSize: 'cover',
@@ -34,12 +34,12 @@ export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = (
                 }}
               >
                 {isSelected && (
-                  <div className="friends-template-check">
+                  <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />
                   </div>
                 )}
               </div>
-              <span className="friends-template-name">{template.name}</span>
+              <span className="shared-template-name">{template.name}</span>
             </button>
           );
         })}

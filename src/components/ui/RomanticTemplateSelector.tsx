@@ -1,7 +1,8 @@
 import React from 'react';
 import { romanticTemplates } from '@/lib/romanticTemplates';
 import type { RomanticTemplateId } from '@/lib/romanticTemplates';
-import '@/components/ui/KidsBirthdayTemplateSelector.css';
+import './SharedTemplateSelector.css';
+import { Check } from 'lucide-react';
 
 interface Props {
   selectedTemplateId: string | null;
@@ -10,33 +11,37 @@ interface Props {
 
 export const RomanticTemplateSelector: React.FC<Props> = ({ selectedTemplateId, onSelect }) => {
   return (
-    <div className="template-selector-container">
-      <h3 className="template-selector-title">Elegí un modelo visual</h3>
-      <div className="template-selector-grid">
-        {romanticTemplates.map((template) => (
-          <button
-            key={template.id}
-            className={`template-option ${selectedTemplateId === template.id ? 'selected' : ''}`}
-            onClick={() => onSelect(template.id)}
-            type="button"
-          >
-            <div className="template-thumbnail-wrapper">
-              {template.thumbnail ? (
-                <img
-                  src={template.thumbnail}
-                  alt={template.name}
-                  className="template-thumbnail"
-                />
-              ) : (
-                <div
-                  className="template-color-preview"
-                  style={{ background: template.previewColor }}
-                />
-              )}
-            </div>
-            <span className="template-name">{template.name}</span>
-          </button>
-        ))}
+    <div className="shared-template-selector">
+      <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
+      <div className="shared-template-grid">
+        {romanticTemplates.map((template) => {
+          const isSelected = selectedTemplateId === template.id;
+          return (
+            <button
+              key={template.id}
+              type="button"
+              className={`shared-template-option ${isSelected ? 'selected' : ''}`}
+              onClick={() => onSelect(template.id)}
+            >
+              <div 
+                className="shared-template-thumbnail"
+                style={{ 
+                  ...(template.thumbnail 
+                    ? { backgroundImage: `url(${template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                    : { background: template.previewColor }
+                  )
+                }}
+              >
+                {isSelected && (
+                  <div className="shared-template-check">
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+              <span className="shared-template-name">{template.name}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
