@@ -26,6 +26,8 @@ import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import './InvitationPreviewModal.css';
 
+const SHOW_INVITATION_DEBUG = false;
+
 interface InvitationPreviewModalProps {
   onClose: () => void;
   onChangeStyle?: () => void;
@@ -126,7 +128,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           </button>
         </div>
 
-        {import.meta.env.DEV && (
+        {SHOW_INVITATION_DEBUG && import.meta.env.DEV && (
           <div className="preview-debug-badge" style={{ background: 'yellow', padding: '8px', color: 'black', fontSize: '12px', fontWeight: 'bold' }}>
             theme: {resolvedPreviewData.tema_invitacion} |
             raw: {currentPreviewData.invitation_template ?? 'null'} |
