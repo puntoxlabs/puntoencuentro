@@ -43,45 +43,59 @@ interface InvitationPreviewModalProps {
 
 export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData }) => {
   const wizardData = useWizardStore();
+  const currentPreviewData = previewData || wizardData;
   
-  const sourceData = previewData || wizardData;
-  
-  const themeId = sourceData.tema_invitacion || 'classic';
+  const resolvedTheme = currentPreviewData.tema_invitacion || 'classic';
+  const resolvedTemplate = resolveInvitationTemplateForTheme(resolvedTheme, currentPreviewData.invitation_template);
+
+  const resolvedPreviewData = {
+    ...currentPreviewData,
+    tema_invitacion: resolvedTheme,
+    invitation_template: resolvedTemplate
+  };
+
+  const themeId = resolvedPreviewData.tema_invitacion;
   const eyebrow = getThemeEyebrow(themeId);
   
-  const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(sourceData.invitation_template) : null;
+  const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
   
-  const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(sourceData.invitation_template) : null;
+  const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFriendsTemplate = !!friendsTemplateConfig;
   
-  const familyTemplateConfig = themeId === 'family' ? getFamilyTemplateConfig(sourceData.invitation_template) : null;
+  const familyTemplateConfig = themeId === 'family' ? getFamilyTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFamilyTemplate = !!familyTemplateConfig;
-  
-  const resolvedTemplate = resolveInvitationTemplateForTheme(themeId, sourceData.invitation_template);
 
-  const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(resolvedTemplate) : null;
+  const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
   
-  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(resolvedTemplate) : null;
+  const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidSportsTemplate = !!sportsTemplateConfig;
 
-  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(resolvedTemplate) : null;
+  if (import.meta.env.DEV) {
+    console.log("[PreviewModal] theme:", themeId);
+    console.log("[PreviewModal] raw template:", currentPreviewData.invitation_template);
+    console.log("[PreviewModal] resolved template:", resolvedPreviewData.invitation_template);
+    console.log("[PreviewModal] sports config:", sportsTemplateConfig);
+    console.log("[PreviewModal] render branch:", hasValidSportsTemplate ? 'sports' : 'other');
+  }
+
+  const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
 
-  const learningTemplateConfig = themeId === 'learning' ? getLearningTemplateConfig(resolvedTemplate) : null;
+  const learningTemplateConfig = themeId === 'learning' ? getLearningTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidLearningTemplate = !!learningTemplateConfig;
 
-  const wellnessTemplateConfig = themeId === 'wellness' ? getWellnessTemplateConfig(resolvedTemplate) : null;
+  const wellnessTemplateConfig = themeId === 'wellness' ? getWellnessTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidWellnessTemplate = !!wellnessTemplateConfig;
   
-  const displayDateText = sourceData.fecha && sourceData.hora 
-    ? formatFriendlyDate(sourceData.fecha, sourceData.hora)
+  const displayDateText = resolvedPreviewData.fecha && resolvedPreviewData.hora 
+    ? formatFriendlyDate(resolvedPreviewData.fecha, resolvedPreviewData.hora)
     : 'Fecha y hora a definir';
     
-  const displayLocation = sourceData.modalidad === 'virtual' 
+  const displayLocation = resolvedPreviewData.modalidad === 'virtual' 
     ? 'Encuentro virtual' 
-    : (sourceData.lugar_texto || 'Lugar a definir');
+    : (resolvedPreviewData.lugar_texto || 'Lugar a definir');
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -91,7 +105,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     };
   }, []);
 
-  const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(sourceData.invitation_template) : null;
+  const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const customStyles = romanticTemplate?.background 
     ? { '--guest-bg-image': `url(${romanticTemplate.background})` } as React.CSSProperties
     : {};
@@ -106,68 +120,75 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           </button>
         </div>
 
+        <div className="preview-debug-badge" style={{ background: 'yellow', padding: '8px', color: 'black', fontSize: '12px', fontWeight: 'bold' }}>
+          theme: {resolvedPreviewData.tema_invitacion} |
+          raw: {currentPreviewData.invitation_template ?? 'null'} |
+          resolved: {resolvedPreviewData.invitation_template ?? 'null'} |
+          branch: {themeId === 'kids_birthday' ? 'kids_birthday' : themeId === 'celebration' ? 'celebration' : hasValidFormalTemplate ? 'formal' : hasValidFriendsTemplate ? 'friends' : hasValidFamilyTemplate ? 'family' : hasValidSpecialTemplate ? 'special' : hasValidSportsTemplate ? 'sports' : hasValidEntertainmentTemplate ? 'entertainment' : hasValidLearningTemplate ? 'learning' : hasValidWellnessTemplate ? 'wellness' : 'classic'}
+        </div>
+
         <div className="preview-modal-body">
           {themeId === 'kids_birthday' ? (
             <KidsBirthdayInvitationPreview
-              templateId={sourceData.invitation_template || null}
-              childName={sourceData.titulo || ''}
-              date={sourceData.fecha || ''}
-              time={sourceData.hora || ''}
+              templateId={resolvedPreviewData.invitation_template || null}
+              childName={resolvedPreviewData.titulo || ''}
+              date={resolvedPreviewData.fecha || ''}
+              time={resolvedPreviewData.hora || ''}
               location={displayLocation}
-              hostMessage={sourceData.descripcion || ''}
+              hostMessage={resolvedPreviewData.descripcion || ''}
               isReadOnly={true}
             />
           ) : themeId === 'celebration' ? (
             <CelebrationInvitationPreview
               previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
+                titulo: resolvedPreviewData.titulo || '',
+                fecha: resolvedPreviewData.fecha || '',
+                hora: resolvedPreviewData.hora || '',
+                lugar_texto: resolvedPreviewData.lugar_texto,
+                modalidad: resolvedPreviewData.modalidad,
+                descripcion: resolvedPreviewData.descripcion,
                 tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template || 'celebration_gold'
+                invitation_template: resolvedPreviewData.invitation_template || 'celebration_gold'
               }}
             />
           ) : hasValidFormalTemplate ? (
             <FormalInvitationPreview
               previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
+                titulo: resolvedPreviewData.titulo || '',
+                fecha: resolvedPreviewData.fecha || '',
+                hora: resolvedPreviewData.hora || '',
+                lugar_texto: resolvedPreviewData.lugar_texto,
+                modalidad: resolvedPreviewData.modalidad,
+                descripcion: resolvedPreviewData.descripcion,
                 tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template
+                invitation_template: resolvedPreviewData.invitation_template
               }}
             />
           ) : hasValidFriendsTemplate ? (
             <FriendsInvitationPreview
               previewData={{
-                titulo: sourceData.titulo || '',
-                fecha: sourceData.fecha || '',
-                hora: sourceData.hora || '',
-                lugar_texto: sourceData.lugar_texto,
-                modalidad: sourceData.modalidad,
-                descripcion: sourceData.descripcion,
+                titulo: resolvedPreviewData.titulo || '',
+                fecha: resolvedPreviewData.fecha || '',
+                hora: resolvedPreviewData.hora || '',
+                lugar_texto: resolvedPreviewData.lugar_texto,
+                modalidad: resolvedPreviewData.modalidad,
+                descripcion: resolvedPreviewData.descripcion,
                 tema_invitacion: themeId,
-                invitation_template: sourceData.invitation_template
+                invitation_template: resolvedPreviewData.invitation_template
               }}
             />
           ) : hasValidFamilyTemplate ? (
             <div className="ipm-scrollable-content">
               <FamilyInvitationPreview 
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template
+                  invitation_template: resolvedPreviewData.invitation_template
                 }} 
                 className="ipm-full-height-preview" 
               />
@@ -176,14 +197,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="ipm-scrollable-content">
               <SpecialInvitationPreview 
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: sourceData.invitation_template
+                  invitation_template: resolvedPreviewData.invitation_template
                 }} 
                 className="ipm-full-height-preview" 
               />
@@ -192,14 +213,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="ipm-scrollable-content">
               <SportsInvitationPreview
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: resolvedTemplate
+                  invitation_template: resolvedPreviewData.invitation_template
                 }}
                 className="ipm-full-height-preview"
               />
@@ -208,14 +229,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="ipm-scrollable-content">
               <EntertainmentInvitationPreview
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: resolvedTemplate
+                  invitation_template: resolvedPreviewData.invitation_template
                 }}
                 className="ipm-full-height-preview"
               />
@@ -224,14 +245,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="ipm-scrollable-content">
               <LearningInvitationPreview
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: resolvedTemplate
+                  invitation_template: resolvedPreviewData.invitation_template
                 }}
                 className="ipm-full-height-preview"
               />
@@ -240,14 +261,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="ipm-scrollable-content">
               <WellnessInvitationPreview
                 previewData={{
-                  titulo: sourceData.titulo || '',
-                  fecha: sourceData.fecha || '',
-                  hora: sourceData.hora || '',
-                  lugar_texto: sourceData.lugar_texto,
-                  modalidad: sourceData.modalidad,
-                  descripcion: sourceData.descripcion,
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
-                  invitation_template: resolvedTemplate
+                  invitation_template: resolvedPreviewData.invitation_template
                 }}
                 className="ipm-full-height-preview"
               />
@@ -255,7 +276,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
-            <h1 className="guest-card-title">{sourceData.titulo || 'Sin título'}</h1>
+            <h1 className="guest-card-title">{resolvedPreviewData.titulo || 'Sin título'}</h1>
             
             <div className="guest-meta-list">
               <div className="guest-meta-row">

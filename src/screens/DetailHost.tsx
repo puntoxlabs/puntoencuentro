@@ -288,7 +288,13 @@ const DetailHost: React.FC = () => {
 
     try {
       await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
-      setShowThemeSelector(false);
+      
+      const themesWithVariants = ['kids_birthday', 'celebration', 'sports'];
+      if (themesWithVariants.includes(newThemeOrTemplate)) {
+        // Keep the bottom sheet open so the user can see the variants selector immediately.
+      } else {
+        setShowThemeSelector(false);
+      }
     } catch (e: any) {
       console.error('Failed to change theme', e);
       // Rollback
