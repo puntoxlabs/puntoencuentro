@@ -21,7 +21,7 @@ import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { useWizardStore } from '@/store/wizardStore';
-import { getThemeEyebrow, resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
+import { getThemeEyebrow, resolveInvitationTemplateForTheme, getThemeFromTemplate } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import './InvitationPreviewModal.css';
@@ -45,7 +45,13 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
   
-  const resolvedTheme = currentPreviewData.tema_invitacion || 'classic';
+  const inferredTheme = getThemeFromTemplate(currentPreviewData.invitation_template);
+
+  const resolvedTheme =
+    currentPreviewData.tema_invitacion === "classic" && inferredTheme
+      ? inferredTheme
+      : currentPreviewData.tema_invitacion || inferredTheme || "classic";
+
   const resolvedTemplate = resolveInvitationTemplateForTheme(resolvedTheme, currentPreviewData.invitation_template);
 
   const resolvedPreviewData = {

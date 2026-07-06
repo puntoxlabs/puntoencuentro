@@ -250,7 +250,7 @@ const DetailHost: React.FC = () => {
     let updates: Record<string, string | null>;
     if (isKidsTemplate) {
       // Cambio de modelo dentro de kids_birthday
-      updates = { invitation_template: newThemeOrTemplate };
+      updates = { tema_invitacion: 'kids_birthday', invitation_template: newThemeOrTemplate };
     } else if (isCelebrationTemplate) {
       // Cambio de modelo dentro de celebration — NUNCA tocar tema_invitacion
       updates = { tema_invitacion: 'celebration', invitation_template: newThemeOrTemplate };

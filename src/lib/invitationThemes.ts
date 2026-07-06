@@ -185,6 +185,24 @@ export function getDefaultInvitationTemplate(theme?: string | null): string | nu
   }
 }
 
+export function getThemeFromTemplate(template?: string | null): InvitationTheme | null {
+  if (!template) return null;
+  
+  if (template.startsWith('kids_')) return 'kids_birthday';
+  if (template.startsWith('celebration_')) return 'celebration';
+  if (template.startsWith('sports_')) return 'sports';
+  if (template.startsWith('entertainment_')) return 'entertainment';
+  if (template.startsWith('learning_')) return 'learning';
+  if (template.startsWith('wellness_')) return 'wellness';
+  if (template.startsWith('formal_')) return 'formal';
+  if (template.startsWith('friends_')) return 'friends';
+  if (template.startsWith('family_')) return 'family';
+  if (template.startsWith('special_')) return 'special';
+  if (template.startsWith('romantic_')) return 'romantic';
+  
+  return null;
+}
+
 export function resolveInvitationTemplateForTheme(
   theme?: string | null,
   template?: string | null
