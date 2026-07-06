@@ -34,6 +34,7 @@ import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemp
 import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
 import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
 import type { InvitationTheme } from '@/lib/invitationThemes';
+import { getDefaultInvitationTemplate, getThemeFromTemplate } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
@@ -239,6 +240,9 @@ const DetailHost: React.FC = () => {
     const specialTemplates = ['special_moment', 'special_surprise', 'special_tribute'];
     const sportsTemplates = ['sports_field', 'sports_team', 'sports_competition'];
     const entertainmentTemplates = ['entertainment_cinema', 'entertainment_music', 'entertainment_show'];
+    const learningTemplates = ['learning_class', 'learning_course', 'learning_talk'];
+    const wellnessTemplates = ['wellness_calm', 'wellness_nature', 'wellness_movement'];
+    
     const isKidsTemplate = kidTemplates.includes(newThemeOrTemplate);
     const isCelebrationTemplate = celebrationTemplates.includes(newThemeOrTemplate);
     const isRomanticTemplate = romanticTemplates.includes(newThemeOrTemplate);
@@ -248,13 +252,13 @@ const DetailHost: React.FC = () => {
     const isSpecialTemplate = specialTemplates.includes(newThemeOrTemplate);
     const isSportsTemplate = sportsTemplates.includes(newThemeOrTemplate);
     const isEntertainmentTemplate = entertainmentTemplates.includes(newThemeOrTemplate);
+    const isLearningTemplate = learningTemplates.includes(newThemeOrTemplate);
+    const isWellnessTemplate = wellnessTemplates.includes(newThemeOrTemplate);
 
     let updates: Record<string, string | null>;
     if (isKidsTemplate) {
-      // Cambio de modelo dentro de kids_birthday
       updates = { tema_invitacion: 'kids_birthday', invitation_template: newThemeOrTemplate };
     } else if (isCelebrationTemplate) {
-      // Cambio de modelo dentro de celebration — NUNCA tocar tema_invitacion
       updates = { tema_invitacion: 'celebration', invitation_template: newThemeOrTemplate };
     } else if (isRomanticTemplate) {
       updates = { tema_invitacion: 'romantic', invitation_template: newThemeOrTemplate };
@@ -270,18 +274,17 @@ const DetailHost: React.FC = () => {
       updates = { tema_invitacion: 'sports', invitation_template: newThemeOrTemplate };
     } else if (isEntertainmentTemplate) {
       updates = { tema_invitacion: 'entertainment', invitation_template: newThemeOrTemplate };
+    } else if (isLearningTemplate) {
+      updates = { tema_invitacion: 'learning', invitation_template: newThemeOrTemplate };
+    } else if (isWellnessTemplate) {
+      updates = { tema_invitacion: 'wellness', invitation_template: newThemeOrTemplate };
     } else {
       // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
       updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
-      // Si cambia a kids_birthday o celebration sin template, poner default
-      if (newThemeOrTemplate === 'kids_birthday') {
-        updates.invitation_template = 'kids_jungle';
-      } else if (newThemeOrTemplate === 'celebration') {
-        updates.invitation_template = 'celebration_gold';
-      } else if (newThemeOrTemplate === 'sports') {
-        updates.invitation_template = 'sports_field';
-      } else if (newThemeOrTemplate === 'entertainment') {
-        updates.invitation_template = 'entertainment_cinema';
+      
+      const defaultTemplate = getDefaultInvitationTemplate(newThemeOrTemplate);
+      if (defaultTemplate) {
+        updates.invitation_template = defaultTemplate;
       }
     }
 
@@ -1498,75 +1501,84 @@ const DetailHost: React.FC = () => {
 
       {/* Modal / Sheet para cambiar diseño */}
       {showThemeSelector && (
-        <div className="dh-modal-overlay" style={{ zIndex: 10000 }}>
-          <div className="dh-bottom-sheet" style={{ padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto' }}>
-            <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
-            {encuentro.tema_invitacion === 'kids_birthday' ? (
-              <KidsBirthdayTemplateSelector
-                selectedTemplateId={encuentro.invitation_template || 'kids_jungle'}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'celebration' ? (
+        (() => {
+          const inferred = getThemeFromTemplate(encuentro.invitation_template);
+          const resolvedSheetTheme = (encuentro.tema_invitacion === 'classic' && inferred)
+            ? inferred
+            : encuentro.tema_invitacion || inferred || 'classic';
+
+          return (
+            <div className="dh-modal-overlay" style={{ zIndex: 10000 }}>
+              <div className="dh-bottom-sheet" style={{ padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto' }}>
+                <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
+                {resolvedSheetTheme === 'kids_birthday' ? (
+                  <KidsBirthdayTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template || 'kids_jungle'}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'celebration' ? (
               <CelebrationTemplateSelector
                 selectedTemplateId={encuentro.invitation_template || 'celebration_gold'}
                 onSelect={(id) => handleThemeChange(id)}
               />
-            ) : encuentro.tema_invitacion === 'romantic' ? (
-              <RomanticTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'formal' ? (
-              <FormalTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'friends' ? (
-              <FriendsTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'family' ? (
-              <FamilyTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'special' ? (
-              <SpecialTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'sports' ? (
-              <SportsTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'entertainment' ? (
-              <EntertainmentTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'learning' ? (
-              <LearningTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : encuentro.tema_invitacion === 'wellness' ? (
-              <WellnessTemplateSelector
-                selectedTemplateId={encuentro.invitation_template}
-                onSelect={(id) => handleThemeChange(id)}
-              />
-            ) : (
-              <InvitationThemeSelector
-                value={encuentro.tema_invitacion || 'classic'}
-                onChange={(themeId) => handleThemeChange(themeId)}
-              />
-            )}
-            <Button fullWidth variant="outline" onClick={() => setShowThemeSelector(false)} style={{ marginTop: 24 }}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
+                ) : resolvedSheetTheme === 'romantic' ? (
+                  <RomanticTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'formal' ? (
+                  <FormalTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'friends' ? (
+                  <FriendsTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'family' ? (
+                  <FamilyTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'special' ? (
+                  <SpecialTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'sports' ? (
+                  <SportsTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'entertainment' ? (
+                  <EntertainmentTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'learning' ? (
+                  <LearningTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : resolvedSheetTheme === 'wellness' ? (
+                  <WellnessTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template}
+                    onSelect={(id) => handleThemeChange(id)}
+                  />
+                ) : (
+                  <InvitationThemeSelector
+                    value={resolvedSheetTheme}
+                    onChange={(themeId) => handleThemeChange(themeId)}
+                  />
+                )}
+                <Button fullWidth variant="outline" onClick={() => setShowThemeSelector(false)} style={{ marginTop: 24 }}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          );
+        })()
       )}
 
       <ScrollHint visible={showScrollHint} />
