@@ -126,12 +126,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           </button>
         </div>
 
-        <div className="preview-debug-badge" style={{ background: 'yellow', padding: '8px', color: 'black', fontSize: '12px', fontWeight: 'bold' }}>
-          theme: {resolvedPreviewData.tema_invitacion} |
-          raw: {currentPreviewData.invitation_template ?? 'null'} |
-          resolved: {resolvedPreviewData.invitation_template ?? 'null'} |
-          branch: {themeId === 'kids_birthday' ? 'kids_birthday' : themeId === 'celebration' ? 'celebration' : hasValidFormalTemplate ? 'formal' : hasValidFriendsTemplate ? 'friends' : hasValidFamilyTemplate ? 'family' : hasValidSpecialTemplate ? 'special' : hasValidSportsTemplate ? 'sports' : hasValidEntertainmentTemplate ? 'entertainment' : hasValidLearningTemplate ? 'learning' : hasValidWellnessTemplate ? 'wellness' : 'classic'}
-        </div>
+        {import.meta.env.DEV && (
+          <div className="preview-debug-badge" style={{ background: 'yellow', padding: '8px', color: 'black', fontSize: '12px', fontWeight: 'bold' }}>
+            theme: {resolvedPreviewData.tema_invitacion} |
+            raw: {currentPreviewData.invitation_template ?? 'null'} |
+            resolved: {resolvedPreviewData.invitation_template ?? 'null'} |
+            branch: {themeId === 'kids_birthday' ? 'kids_birthday' : themeId === 'celebration' ? 'celebration' : hasValidFormalTemplate ? 'formal' : hasValidFriendsTemplate ? 'friends' : hasValidFamilyTemplate ? 'family' : hasValidSpecialTemplate ? 'special' : hasValidSportsTemplate ? 'sports' : hasValidEntertainmentTemplate ? 'entertainment' : hasValidLearningTemplate ? 'learning' : hasValidWellnessTemplate ? 'wellness' : 'classic'}
+          </div>
+        )}
 
         <div className="preview-modal-body">
           {themeId === 'kids_birthday' ? (

@@ -31,6 +31,8 @@ import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
 import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
 import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
 import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
+import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
+import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
@@ -289,7 +291,7 @@ const DetailHost: React.FC = () => {
     try {
       await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
       
-      const themesWithVariants = ['kids_birthday', 'celebration', 'sports'];
+      const themesWithVariants = ['kids_birthday', 'celebration', 'sports', 'romantic', 'formal', 'friends', 'family', 'special', 'entertainment', 'learning', 'wellness'];
       if (themesWithVariants.includes(newThemeOrTemplate)) {
         // Keep the bottom sheet open so the user can see the variants selector immediately.
       } else {
@@ -1541,6 +1543,16 @@ const DetailHost: React.FC = () => {
               />
             ) : encuentro.tema_invitacion === 'entertainment' ? (
               <EntertainmentTemplateSelector
+                selectedTemplateId={encuentro.invitation_template}
+                onSelect={(id) => handleThemeChange(id)}
+              />
+            ) : encuentro.tema_invitacion === 'learning' ? (
+              <LearningTemplateSelector
+                selectedTemplateId={encuentro.invitation_template}
+                onSelect={(id) => handleThemeChange(id)}
+              />
+            ) : encuentro.tema_invitacion === 'wellness' ? (
+              <WellnessTemplateSelector
                 selectedTemplateId={encuentro.invitation_template}
                 onSelect={(id) => handleThemeChange(id)}
               />
