@@ -20,21 +20,21 @@ export const ScrollHint: React.FC<ScrollHintProps> = ({ visible, text = 'DeslizÃ
         transition: 'opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '10px 18px',
+        gap: 4,
+        padding: '6px 14px',
         borderRadius: 999,
-        background: 'rgba(255, 255, 255, 0.88)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(0, 0, 0, 0.06)',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.08)',
+        background: 'rgba(255, 255, 255, 0.65)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        border: '1px solid rgba(0, 0, 0, 0.04)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#374151', letterSpacing: '-0.01em', fontFamily: 'var(--font-family, sans-serif)' }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', letterSpacing: '0', fontFamily: 'var(--font-family, sans-serif)' }}>
         {text}
       </span>
       <ChevronDown 
-        size={15} 
+        size={13} 
         color="#374151"
         style={{
           animation: 'bounceSlow 1.8s infinite ease-in-out',
