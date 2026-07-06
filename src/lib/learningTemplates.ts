@@ -1,6 +1,6 @@
 export type LearningTemplateId =
   | 'learning_class'
-  | 'learning_workshop'
+  | 'learning_course'
   | 'learning_talk';
 
 export interface LearningTemplateConfig {
@@ -22,12 +22,12 @@ export const learningTemplates: LearningTemplateConfig[] = [
     background: '/invitation-templates/learning/learning_class_v1.webp?v=1'
   },
   {
-    id: 'learning_workshop',
-    name: 'Taller',
+    id: 'learning_course',
+    name: 'Curso',
     category: 'learning',
     previewColor: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%)',
-    thumbnail: '/invitation-templates/learning/learning_workshop_v1.webp?v=1',
-    background: '/invitation-templates/learning/learning_workshop_v1.webp?v=1'
+    thumbnail: '/invitation-templates/learning/learning_course_v1.webp?v=1',
+    background: '/invitation-templates/learning/learning_course_v1.webp?v=1'
   },
   {
     id: 'learning_talk',

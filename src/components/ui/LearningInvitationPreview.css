@@ -108,7 +108,7 @@
 .theme-learning_class .learning-invitation-main-bubble {
   background: linear-gradient(to top, rgba(20, 40, 60, 0.85) 0%, rgba(20, 40, 60, 0.4) 60%, transparent 100%);
 }
-.theme-learning_workshop .learning-invitation-main-bubble {
+.theme-learning_course .learning-invitation-main-bubble {
   background: linear-gradient(to top, rgba(60, 40, 20, 0.85) 0%, rgba(60, 40, 20, 0.4) 60%, transparent 100%);
 }
 .theme-learning_talk .learning-invitation-main-bubble {
