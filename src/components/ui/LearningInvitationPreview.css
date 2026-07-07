@@ -28,20 +28,22 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   padding: 24px;
 }
 
-/* Base text styling focusing on legibility without heavy plates */
 .learning-invitation-main-bubble {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
-  padding: 32px 24px 24px;
-  margin: 0 -24px -24px;
+  background: transparent;
+  padding: 20px;
+  margin: auto 0;
   color: white;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  width: min(85%, 340px);
+  align-self: center;
+  text-align: center;
 }
 
 .learning-invitation-header {
@@ -54,15 +56,15 @@
 .learning-invitation-eyebrow {
   margin: 0;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .learning-invitation-title {
   margin: 0;
-  font-size: 28px;
+  font-size: clamp(24px, 6vw, 32px);
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.5px;
@@ -76,7 +78,6 @@
   opacity: 0.95;
   white-space: pre-wrap;
   margin: 0 auto;
-  max-width: 90%;
 }
 
 .learning-invitation-details {
@@ -91,12 +92,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  padding: 8px 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 8px;
 }
 
 .learning-detail-text {
@@ -104,13 +100,10 @@
   font-weight: 600;
 }
 
-/* Variaciones por theme si es necesario (generalmente el asset trae la diferencia) */
-.theme-learning_class .learning-invitation-main-bubble {
-  background: linear-gradient(to top, rgba(20, 40, 60, 0.85) 0%, rgba(20, 40, 60, 0.4) 60%, transparent 100%);
+.learning-invitation-location {
+  opacity: 0.95;
 }
-.theme-learning_course .learning-invitation-main-bubble {
-  background: linear-gradient(to top, rgba(60, 40, 20, 0.85) 0%, rgba(60, 40, 20, 0.4) 60%, transparent 100%);
-}
-.theme-learning_talk .learning-invitation-main-bubble {
-  background: linear-gradient(to top, rgba(40, 20, 60, 0.85) 0%, rgba(40, 20, 60, 0.4) 60%, transparent 100%);
-}
+
+.theme-learning_class .learning-invitation-eyebrow { color: #7dd3fc; }
+.theme-learning_course .learning-invitation-eyebrow { color: #fcd34d; }
+.theme-learning_talk .learning-invitation-eyebrow { color: #d8b4fe; }
