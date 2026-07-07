@@ -26,8 +26,8 @@ export const familyTemplates: FamilyTemplateConfig[] = [
     name: 'Domingo',
     category: 'family',
     previewColor: 'linear-gradient(135deg, #f0e6d2 0%, #fffdfa 50%, #d8cdb8 100%)',
-    thumbnail: '/invitation-templates/family/family_sunday_v3.webp?v=4',
-    background: '/invitation-templates/family/family_sunday_v3.webp?v=4'
+    thumbnail: '/invitation-templates/family/family_sunday_v4.webp?v=5',
+    background: '/invitation-templates/family/family_sunday_v4.webp?v=5'
   },
   {
     id: 'family_memories',
