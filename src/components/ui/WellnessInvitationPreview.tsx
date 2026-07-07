@@ -50,7 +50,9 @@ export const WellnessInvitationPreview: React.FC<Props> = ({ previewData, classN
         <div className="wellness-invitation-main-bubble">
 
           <div className="wellness-invitation-header">
-            <p className="wellness-invitation-eyebrow">Una invitación para conectar</p>
+            <p className="wellness-invitation-eyebrow">
+              UNA INVITACIÓN<br />PARA CONECTAR
+            </p>
             {previewData.titulo && (
               <h2 className="wellness-invitation-title">{previewData.titulo}</h2>
             )}
