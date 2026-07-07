@@ -31,11 +31,11 @@ export const friendsTemplates: FriendsTemplateConfig[] = [
   },
   {
     id: 'friends_picnic',
-    name: 'Aire libre',
+    name: 'Juntada',
     category: 'friends',
     previewColor: 'linear-gradient(135deg, #a3b18a 0%, #dad7cd 50%, #fefae0 100%)',
-    thumbnail: '/invitation-templates/friends/friends_picnic_v3.webp?v=3',
-    background: '/invitation-templates/friends/friends_picnic_v3.webp?v=3'
+    thumbnail: '/invitation-templates/friends/friends_picnic_v4.webp?v=4',
+    background: '/invitation-templates/friends/friends_picnic_v4.webp?v=4'
   }
 ];
 
