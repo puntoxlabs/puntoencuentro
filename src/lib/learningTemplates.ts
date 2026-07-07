@@ -18,24 +18,24 @@ export const learningTemplates: LearningTemplateConfig[] = [
     name: 'Clase',
     category: 'learning',
     previewColor: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #38bdf8 100%)',
-    thumbnail: '/invitation-templates/learning/learning_class_v4.webp?v=4',
-    background: '/invitation-templates/learning/learning_class_v4.webp?v=4'
+    thumbnail: '/invitation-templates/learning/learning_class_thumb_v5.webp?v=5',
+    background: '/invitation-templates/learning/learning_class_bg_v5.webp?v=5'
   },
   {
     id: 'learning_course',
     name: 'Curso',
     category: 'learning',
     previewColor: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%)',
-    thumbnail: '/invitation-templates/learning/learning_course_v4.webp?v=4',
-    background: '/invitation-templates/learning/learning_course_v4.webp?v=4'
+    thumbnail: '/invitation-templates/learning/learning_course_thumb_v5.webp?v=5',
+    background: '/invitation-templates/learning/learning_course_bg_v5.webp?v=5'
   },
   {
     id: 'learning_talk',
     name: 'Charla',
     category: 'learning',
     previewColor: 'linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 50%, #c084fc 100%)',
-    thumbnail: '/invitation-templates/learning/learning_talk_v4.webp?v=4',
-    background: '/invitation-templates/learning/learning_talk_v4.webp?v=4'
+    thumbnail: '/invitation-templates/learning/learning_talk_thumb_v5.webp?v=5',
+    background: '/invitation-templates/learning/learning_talk_bg_v5.webp?v=5'
   }
 ];
 
