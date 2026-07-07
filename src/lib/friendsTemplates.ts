@@ -26,8 +26,8 @@ export const friendsTemplates: FriendsTemplateConfig[] = [
     name: 'Noche',
     category: 'friends',
     previewColor: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)',
-    thumbnail: '/invitation-templates/friends/friends_night_v3.webp?v=3',
-    background: '/invitation-templates/friends/friends_night_v3.webp?v=3'
+    thumbnail: '/invitation-templates/friends/friends_night_v4.webp?v=4',
+    background: '/invitation-templates/friends/friends_night_v4.webp?v=4'
   },
   {
     id: 'friends_picnic',
