@@ -54,7 +54,7 @@ export const VariantMiniPreviewOverlay: React.FC<VariantMiniPreviewOverlayProps>
         {eyebrow}
       </span>
       
-      <span style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+      <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {displayTitle}
       </span>
       
