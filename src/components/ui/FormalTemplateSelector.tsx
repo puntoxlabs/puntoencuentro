@@ -4,12 +4,27 @@ import type { FormalTemplateId } from '@/lib/formalTemplates';
 import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
+import { VariantMiniPreviewOverlay } from './VariantMiniPreviewOverlay';
+
 interface Props {
   selectedTemplateId: string | null;
   onSelect: (id: FormalTemplateId) => void;
+  titulo?: string;
+  descripcion?: string;
+  fecha?: string;
+  hora?: string;
+  lugar_texto?: string;
 }
 
-export const FormalTemplateSelector: React.FC<Props> = ({ selectedTemplateId, onSelect }) => {
+export const FormalTemplateSelector: React.FC<Props> = ({ 
+  selectedTemplateId, 
+  onSelect,
+  titulo,
+  descripcion,
+  fecha,
+  hora,
+  lugar_texto
+}) => {
   return (
     <div className="shared-template-selector">
       <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
@@ -26,12 +41,20 @@ export const FormalTemplateSelector: React.FC<Props> = ({ selectedTemplateId, on
               <div 
                 className="shared-template-thumbnail"
                 style={{ 
-                  ...(template.thumbnail 
-                    ? { backgroundImage: `url(${template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                  ...((template as any).background || template.thumbnail 
+                    ? { backgroundImage: `url(${(template as any).background || template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                     : { background: template.previewColor }
                   )
                 }}
               >
+                <VariantMiniPreviewOverlay
+                  titulo={titulo}
+                  descripcion={descripcion}
+                  fecha={fecha}
+                  hora={hora}
+                  lugar_texto={lugar_texto}
+                  eyebrow="REUNIÓN"
+                />
                 {isSelected && (
                   <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />

@@ -1515,56 +1515,111 @@ const DetailHost: React.FC = () => {
                   <KidsBirthdayTemplateSelector
                     selectedTemplateId={encuentro.invitation_template || 'kids_jungle'}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'celebration' ? (
-              <CelebrationTemplateSelector
-                selectedTemplateId={encuentro.invitation_template || 'celebration_gold'}
-                onSelect={(id) => handleThemeChange(id)}
-              />
+                  <CelebrationTemplateSelector
+                    selectedTemplateId={encuentro.invitation_template || 'celebration_gold'}
+                    onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
+                  />
                 ) : resolvedSheetTheme === 'romantic' ? (
                   <RomanticTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'formal' ? (
                   <FormalTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'friends' ? (
                   <FriendsTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
-                    onSelect={(id) => handleThemeChange(id)}
+                    onSelect={handleThemeChange}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'family' ? (
                   <FamilyTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'special' ? (
                   <SpecialTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'sports' ? (
                   <SportsTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'entertainment' ? (
                   <EntertainmentTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'learning' ? (
                   <LearningTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : resolvedSheetTheme === 'wellness' ? (
                   <WellnessTemplateSelector
                     selectedTemplateId={encuentro.invitation_template}
                     onSelect={(id) => handleThemeChange(id)}
+                    titulo={encuentro.titulo}
+                    descripcion={encuentro.descripcion}
+                    fecha={encuentro.fecha}
+                    hora={encuentro.hora}
+                    lugar_texto={encuentro.lugar_texto}
                   />
                 ) : (
                   <InvitationThemeSelector

@@ -1,15 +1,29 @@
 import React from 'react';
 import { romanticTemplates } from '@/lib/romanticTemplates';
-import type { RomanticTemplateId } from '@/lib/romanticTemplates';
 import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
-interface Props {
-  selectedTemplateId: string | null;
-  onSelect: (id: RomanticTemplateId) => void;
+import { VariantMiniPreviewOverlay } from './VariantMiniPreviewOverlay';
+
+interface RomanticTemplateSelectorProps {
+  selectedTemplateId?: string | null;
+  onSelect: (templateId: string) => void;
+  titulo?: string;
+  descripcion?: string;
+  fecha?: string;
+  hora?: string;
+  lugar_texto?: string;
 }
 
-export const RomanticTemplateSelector: React.FC<Props> = ({ selectedTemplateId, onSelect }) => {
+export const RomanticTemplateSelector: React.FC<RomanticTemplateSelectorProps> = ({ 
+  selectedTemplateId, 
+  onSelect,
+  titulo,
+  descripcion,
+  fecha,
+  hora,
+  lugar_texto
+}) => {
   return (
     <div className="shared-template-selector">
       <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
@@ -26,12 +40,20 @@ export const RomanticTemplateSelector: React.FC<Props> = ({ selectedTemplateId, 
               <div 
                 className="shared-template-thumbnail"
                 style={{ 
-                  ...(template.thumbnail 
-                    ? { backgroundImage: `url(${template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
-                    : { background: template.previewColor }
-                  )
+                  backgroundImage: `url(${(template as any).background || template.thumbnail})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundColor: (template as any).previewColor
                 }}
               >
+                <VariantMiniPreviewOverlay
+                  titulo={titulo}
+                  descripcion={descripcion}
+                  fecha={fecha}
+                  hora={hora}
+                  lugar_texto={lugar_texto}
+                  eyebrow="ROMÁNTICO"
+                />
                 {isSelected && (
                   <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />

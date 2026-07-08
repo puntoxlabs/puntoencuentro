@@ -1,15 +1,29 @@
 import React from 'react';
 import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
-import type { InvitationTemplateId } from '@/lib/kidsBirthdayTemplates';
 import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
-interface Props {
-  selectedTemplateId: string | null;
-  onSelect: (id: InvitationTemplateId) => void;
+import { VariantMiniPreviewOverlay } from './VariantMiniPreviewOverlay';
+
+interface KidsBirthdayTemplateSelectorProps {
+  selectedTemplateId?: string | null;
+  onSelect: (templateId: string) => void;
+  titulo?: string;
+  descripcion?: string;
+  fecha?: string;
+  hora?: string;
+  lugar_texto?: string;
 }
 
-export const KidsBirthdayTemplateSelector: React.FC<Props> = ({ selectedTemplateId, onSelect }) => {
+export const KidsBirthdayTemplateSelector: React.FC<KidsBirthdayTemplateSelectorProps> = ({
+  selectedTemplateId,
+  onSelect,
+  titulo,
+  descripcion,
+  fecha,
+  hora,
+  lugar_texto
+}) => {
   return (
     <div className="shared-template-selector">
       <h4 className="shared-template-selector-title">Elegí un modelo visual</h4>
@@ -26,12 +40,20 @@ export const KidsBirthdayTemplateSelector: React.FC<Props> = ({ selectedTemplate
               <div 
                 className="shared-template-thumbnail"
                 style={{ 
-                  ...(template.thumbnail 
-                    ? { backgroundImage: `url(${template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
-                    : { background: '#f1f5f9' }
-                  )
+                  backgroundImage: `url(${(template as any).background || template.thumbnail})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundColor: (template as any).previewColor
                 }}
               >
+                <VariantMiniPreviewOverlay
+                  titulo={titulo}
+                  descripcion={descripcion}
+                  fecha={fecha}
+                  hora={hora}
+                  lugar_texto={lugar_texto}
+                  eyebrow="CUMPLE INFANTIL"
+                />
                 {isSelected && (
                   <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />

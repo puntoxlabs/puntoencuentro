@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 
 const Step1Data: React.FC = () => {
   const { t } = useTranslation();
-  const { titulo, fecha, hora, descripcion, tema_invitacion, invitation_template, setField, nextStep } = useWizardStore();
+  const { titulo, fecha, hora, descripcion, lugar_texto, tema_invitacion, invitation_template, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [highlightDescripcion, setHighlightDescripcion] = useState(false);
@@ -282,66 +282,121 @@ const Step1Data: React.FC = () => {
           <KidsBirthdayTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'kids_birthday'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'celebration' && (
           <CelebrationTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'celebration'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'romantic' && (
           <RomanticTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'romantic'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'formal' && (
           <FormalTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'formal'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'friends' && (
           <FriendsTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'friends'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'family' && (
           <FamilyTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'family'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'special' && (
           <SpecialTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'special'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'sports' && (
           <SportsTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'sports'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'entertainment' && (
           <EntertainmentTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'entertainment'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'learning' && (
           <LearningTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'learning'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
         {tema_invitacion === 'wellness' && (
           <WellnessTemplateSelector
             selectedTemplateId={invitation_template}
             onSelect={(id) => { setField('tema_invitacion', 'wellness'); setField('invitation_template', id); }}
+            titulo={titulo}
+            descripcion={descripcion}
+            fecha={fecha}
+            hora={hora}
+            lugar_texto={lugar_texto}
           />
         )}
       </div>

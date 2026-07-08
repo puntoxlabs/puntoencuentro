@@ -181,6 +181,11 @@ export function getDefaultInvitationTemplate(theme?: string | null): string | nu
     case 'entertainment': return 'entertainment_cinema';
     case 'learning': return 'learning_class';
     case 'wellness': return 'wellness_calm';
+    case 'friends': return 'friends_coffee';
+    case 'formal': return 'formal_black_tie';
+    case 'family': return 'family_home';
+    case 'special': return 'special_moment';
+    case 'romantic': return 'romantic_rose';
     default: return null;
   }
 }

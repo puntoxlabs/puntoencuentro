@@ -3,14 +3,26 @@ import { entertainmentTemplates } from '@/lib/entertainmentTemplates';
 import './SharedTemplateSelector.css';
 import { Check } from 'lucide-react';
 
+import { VariantMiniPreviewOverlay } from './VariantMiniPreviewOverlay';
+
 interface EntertainmentTemplateSelectorProps {
   selectedTemplateId?: string | null;
   onSelect: (templateId: string) => void;
+  titulo?: string;
+  descripcion?: string;
+  fecha?: string;
+  hora?: string;
+  lugar_texto?: string;
 }
 
 export const EntertainmentTemplateSelector: React.FC<EntertainmentTemplateSelectorProps> = ({
   selectedTemplateId,
-  onSelect
+  onSelect,
+  titulo,
+  descripcion,
+  fecha,
+  hora,
+  lugar_texto
 }) => {
   return (
     <div className="shared-template-selector">
@@ -28,11 +40,20 @@ export const EntertainmentTemplateSelector: React.FC<EntertainmentTemplateSelect
               <div 
                 className="shared-template-thumbnail"
                 style={{ 
-                  backgroundImage: `url(${template.thumbnail})`,
+                  backgroundImage: `url(${(template as any).background || template.thumbnail})`,
                   backgroundSize: 'cover',
-                  backgroundPosition: 'center'
+                  backgroundPosition: 'center',
+                  backgroundColor: (template as any).previewColor
                 }}
               >
+                <VariantMiniPreviewOverlay
+                  titulo={titulo}
+                  descripcion={descripcion}
+                  fecha={fecha}
+                  hora={hora}
+                  lugar_texto={lugar_texto}
+                  eyebrow="ENTRETENIMIENTO"
+                />
                 {isSelected && (
                   <div className="shared-template-check">
                     <Check size={16} strokeWidth={3} />
