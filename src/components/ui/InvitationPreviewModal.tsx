@@ -21,9 +21,11 @@ import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { useWizardStore } from '@/store/wizardStore';
-import { getThemeEyebrow, resolveInvitationTemplateForTheme, getThemeFromTemplate } from '@/lib/invitationThemes';
+import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getAllInvitationDesignOptions, findDesignOptionIndex } from '@/lib/invitationThemes';
 import './InvitationPreviewModal.css';
 
 const SHOW_INVITATION_DEBUG = false;
@@ -41,25 +43,30 @@ interface InvitationPreviewModalProps {
     invitation_template?: string;
     descripcion?: string;
   };
+  onApplyDesign?: (theme: string, template: string | null) => void;
 }
 
-export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData }) => {
+export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData, onApplyDesign }) => {
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
   
-  const inferredTheme = getThemeFromTemplate(currentPreviewData.invitation_template);
+  const allDesignOptions = React.useMemo(() => getAllInvitationDesignOptions(), []);
 
-  const resolvedTheme =
-    currentPreviewData.tema_invitacion === "classic" && inferredTheme
-      ? inferredTheme
-      : currentPreviewData.tema_invitacion || inferredTheme || "classic";
+  const initialIndexRef = React.useRef(
+    findDesignOptionIndex(
+      currentPreviewData.tema_invitacion, 
+      currentPreviewData.invitation_template
+    )
+  );
 
-  const resolvedTemplate = resolveInvitationTemplateForTheme(resolvedTheme, currentPreviewData.invitation_template);
+  const [currentIndex, setCurrentIndex] = React.useState<number>(initialIndexRef.current);
+
+  const activeOption = allDesignOptions[currentIndex] || allDesignOptions[0];
 
   const resolvedPreviewData = {
     ...currentPreviewData,
-    tema_invitacion: resolvedTheme,
-    invitation_template: resolvedTemplate
+    tema_invitacion: activeOption.theme,
+    invitation_template: activeOption.template
   };
 
   const themeId = resolvedPreviewData.tema_invitacion;
@@ -112,6 +119,21 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       document.body.style.overflow = 'auto';
     };
   }, []);
+
+  const handlePrev = () => {
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : allDesignOptions.length - 1));
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev < allDesignOptions.length - 1 ? prev + 1 : 0));
+  };
+
+  const currentSavedIndex = findDesignOptionIndex(
+    currentPreviewData.tema_invitacion, 
+    currentPreviewData.invitation_template
+  );
+  
+  const isCurrentDesign = currentIndex === currentSavedIndex;
 
   const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const customStyles = romanticTemplate?.background 
@@ -327,10 +349,44 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           <p className="preview-modal-disclaimer">Así verán la invitación tus invitados. La vista es de solo lectura.</p>
         </div>
 
-        <div className="preview-modal-footer">
-          <Button fullWidth variant="secondary" onClick={onChangeStyle} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            Cambiar estilo
-          </Button>
+        <button 
+          onClick={handlePrev}
+          className="preview-gallery-arrow preview-gallery-arrow-left"
+          aria-label="Diseño anterior"
+          style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
+        >
+          <ChevronLeft size={24} />
+        </button>
+
+        <button 
+          onClick={handleNext}
+          className="preview-gallery-arrow preview-gallery-arrow-right"
+          aria-label="Siguiente diseño"
+          style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
+        >
+          <ChevronRight size={24} />
+        </button>
+
+        <div className="preview-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: '4px' }}>
+            {activeOption.categoryLabel} {activeOption.templateLabel && `· ${activeOption.templateLabel}`}
+          </div>
+          
+          {!isCurrentDesign ? (
+            <Button fullWidth variant="primary" onClick={() => onApplyDesign && onApplyDesign(activeOption.theme, activeOption.template)}>
+              Usar este diseño
+            </Button>
+          ) : (
+            <Button fullWidth variant="secondary" onClick={() => {}} style={{ opacity: 0.7, pointerEvents: 'none' }}>
+              Diseño actual
+            </Button>
+          )}
+
+          {onChangeStyle && (
+            <Button fullWidth variant="secondary" onClick={onChangeStyle} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              Ver todos los estilos
+            </Button>
+          )}
         </div>
       </div>
     </div>

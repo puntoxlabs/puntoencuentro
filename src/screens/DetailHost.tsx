@@ -224,6 +224,22 @@ const DetailHost: React.FC = () => {
     };
   }, []);
 
+  const handleApplyDesign = async (theme: string, template: string | null) => {
+    if (!encuentro || themeSaving) return;
+    setThemeSaving(true);
+
+    const updates = { tema_invitacion: theme as InvitationTheme, invitation_template: template };
+
+    try {
+      await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
+      setEncuentro((prev: any) => prev ? { ...prev, ...updates } : null);
+    } catch (err) {
+      console.error('Error al aplicar diseño:', err);
+    } finally {
+      setThemeSaving(false);
+    }
+  };
+
   const handleThemeChange = async (newThemeOrTemplate: string) => {
     if (!encuentro || themeSaving) return;
     setThemeSaving(true);
@@ -1492,6 +1508,7 @@ const DetailHost: React.FC = () => {
           onChangeStyle={() => {
             setShowThemeSelector(true);
           }}
+          onApplyDesign={handleApplyDesign}
           previewData={{
             ...encuentro,
             descripcion: personalMessage?.trim() || encuentro.descripcion || ''

@@ -14,11 +14,17 @@ import {
 } from 'lucide-react';
 
 
-import { getCelebrationTemplateConfig } from './celebrationTemplates';
-import { getSportsTemplateConfig } from './sportsTemplates';
-import { getEntertainmentTemplateConfig } from './entertainmentTemplates';
-import { getLearningTemplateConfig } from './learningTemplates';
-import { getWellnessTemplateConfig } from './wellnessTemplates';
+import { getCelebrationTemplateConfig, celebrationTemplates } from './celebrationTemplates';
+import { getSportsTemplateConfig, sportsTemplates } from './sportsTemplates';
+import { getEntertainmentTemplateConfig, entertainmentTemplates } from './entertainmentTemplates';
+import { getLearningTemplateConfig, learningTemplates } from './learningTemplates';
+import { getWellnessTemplateConfig, wellnessTemplates } from './wellnessTemplates';
+import { kidsBirthdayTemplates } from './kidsBirthdayTemplates';
+import { formalTemplates } from './formalTemplates';
+import { friendsTemplates } from './friendsTemplates';
+import { familyTemplates } from './familyTemplates';
+import { specialTemplates } from './specialTemplates';
+import { romanticTemplates } from './romanticTemplates';
 
 export type InvitationTheme =
   | 'classic'
@@ -255,4 +261,106 @@ export function resolveInvitationTemplateForTheme(
   }
 
   return isValid ? template : defaultTemplate;
+}
+
+export interface InvitationDesignOption {
+  theme: InvitationTheme;
+  template: string | null;
+  categoryLabel: string;
+  templateLabel: string | null;
+}
+
+export function getAllInvitationDesignOptions(): InvitationDesignOption[] {
+  const options: InvitationDesignOption[] = [];
+
+  const getThemeLabel = (id: string) => INVITATION_THEMES.find(t => t.id === id)?.label || '';
+
+  // Clásico
+  options.push({
+    theme: 'classic',
+    template: null,
+    categoryLabel: getThemeLabel('classic'),
+    templateLabel: 'Clásico'
+  });
+
+  // Amigos
+  const friendsLabel = getThemeLabel('friends');
+  friendsTemplates.forEach(t => {
+    options.push({ theme: 'friends', template: t.id, categoryLabel: friendsLabel, templateLabel: t.name });
+  });
+
+  // Bienestar
+  const wellnessLabel = getThemeLabel('wellness');
+  wellnessTemplates.forEach(t => {
+    options.push({ theme: 'wellness', template: t.id, categoryLabel: wellnessLabel, templateLabel: t.name });
+  });
+
+  // Celebración
+  const celebrationLabel = getThemeLabel('celebration');
+  celebrationTemplates.forEach(t => {
+    options.push({ theme: 'celebration', template: t.id, categoryLabel: celebrationLabel, templateLabel: t.name });
+  });
+
+  // Cumple Infantil
+  const kidsLabel = getThemeLabel('kids_birthday');
+  kidsBirthdayTemplates.forEach(t => {
+    options.push({ theme: 'kids_birthday', template: t.id, categoryLabel: kidsLabel, templateLabel: t.name });
+  });
+
+  // Deportes
+  const sportsLabel = getThemeLabel('sports');
+  sportsTemplates.forEach(t => {
+    options.push({ theme: 'sports', template: t.id, categoryLabel: sportsLabel, templateLabel: t.name });
+  });
+
+  // Entretenimiento
+  const entertainmentLabel = getThemeLabel('entertainment');
+  entertainmentTemplates.forEach(t => {
+    options.push({ theme: 'entertainment', template: t.id, categoryLabel: entertainmentLabel, templateLabel: t.name });
+  });
+
+  // Especial
+  const specialLabel = getThemeLabel('special');
+  specialTemplates.forEach(t => {
+    options.push({ theme: 'special', template: t.id, categoryLabel: specialLabel, templateLabel: t.name });
+  });
+
+  // Familia
+  const familyLabel = getThemeLabel('family');
+  familyTemplates.forEach(t => {
+    options.push({ theme: 'family', template: t.id, categoryLabel: familyLabel, templateLabel: t.name });
+  });
+
+  // Formal
+  const formalLabel = getThemeLabel('formal');
+  formalTemplates.forEach(t => {
+    options.push({ theme: 'formal', template: t.id, categoryLabel: formalLabel, templateLabel: t.name });
+  });
+
+  // Formación
+  const learningLabel = getThemeLabel('learning');
+  learningTemplates.forEach(t => {
+    options.push({ theme: 'learning', template: t.id, categoryLabel: learningLabel, templateLabel: t.name });
+  });
+
+  // Romántico
+  const romanticLabel = getThemeLabel('romantic');
+  romanticTemplates.forEach(t => {
+    options.push({ theme: 'romantic', template: t.id, categoryLabel: romanticLabel, templateLabel: t.name });
+  });
+
+  return options;
+}
+
+export function findDesignOptionIndex(theme: string | null | undefined, template: string | null | undefined): number {
+  const options = getAllInvitationDesignOptions();
+  const themeNormalized = normalizeInvitationTheme(theme);
+  
+  const index = options.findIndex(opt => opt.theme === themeNormalized && opt.template === template);
+  
+  if (index !== -1) return index;
+  
+  // If exact match not found, try to find the theme default
+  const themeIndex = options.findIndex(opt => opt.theme === themeNormalized);
+  return themeIndex !== -1 ? themeIndex : 0;
 }
