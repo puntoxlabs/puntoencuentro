@@ -39,8 +39,7 @@
   background: transparent;
   padding: 20px;
   margin: auto 0;
-  color: white;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  color: #1f2937;
   width: min(85%, 340px);
   align-self: center;
   text-align: center;
@@ -104,6 +103,6 @@
   opacity: 0.95;
 }
 
-.theme-learning_class .learning-invitation-eyebrow { color: #7dd3fc; }
-.theme-learning_course .learning-invitation-eyebrow { color: #fcd34d; }
-.theme-learning_talk .learning-invitation-eyebrow { color: #d8b4fe; }
+.theme-learning_class .learning-invitation-eyebrow { color: #0284c7; }
+.theme-learning_course .learning-invitation-eyebrow { color: #d97706; }
+.theme-learning_talk .learning-invitation-eyebrow { color: #9333ea; }
