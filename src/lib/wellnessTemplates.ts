@@ -35,7 +35,7 @@ export const wellnessTemplates: WellnessTemplateConfig[] = [
     category: 'wellness',
     previewColor: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 50%, #fecdd3 100%)',
     thumbnail: '/invitation-templates/wellness/wellness_movement_v4.webp?v=4',
-    background: '/invitation-templates/wellness/wellness_movement_v4.webp?v=4'
+    background: '/invitation-templates/wellness/wellness_movement_v5_background.webp?v=5'
   }
 ];
 
