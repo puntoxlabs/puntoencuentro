@@ -143,7 +143,7 @@
 
 /* 3. Ejecutivo (formal_executive) */
 .theme-formal_executive .formal-invitation-main-bubble {
-  background: rgba(248, 250, 252, 0.10); /* Muy sutil */
+  background: transparent;
   border: none;
   width: min(60%, 285px); /* Más angosto para el marco geométrico */
   border-radius: 6px;
