@@ -12,6 +12,7 @@ import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview
 import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
+import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
@@ -98,6 +99,9 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
 
+  const romanticTemplateConfig = themeId === 'romantic' ? getRomanticTemplateConfig(resolvedPreviewData.invitation_template) : null;
+  const hasValidRomanticTemplate = !!romanticTemplateConfig;
+
   const learningTemplateConfig = themeId === 'learning' ? getLearningTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidLearningTemplate = !!learningTemplateConfig;
 
@@ -145,7 +149,12 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       <div className="preview-modal-content">
         <div className="preview-modal-header">
           <h3 className="preview-modal-title">Vista previa</h3>
-          <button className="preview-modal-close" onClick={onClose} aria-label="Cerrar">
+          <button 
+            type="button" 
+            className="preview-modal-close" 
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} 
+            aria-label="Cerrar"
+          >
             <X size={24} />
           </button>
         </div>
@@ -305,6 +314,22 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 className="ipm-full-height-preview"
               />
             </div>
+          ) : hasValidRomanticTemplate ? (
+            <div className="ipm-scrollable-content">
+              <RomanticInvitationPreview
+                previewData={{
+                  titulo: resolvedPreviewData.titulo || '',
+                  fecha: resolvedPreviewData.fecha || '',
+                  hora: resolvedPreviewData.hora || '',
+                  lugar_texto: resolvedPreviewData.lugar_texto,
+                  modalidad: resolvedPreviewData.modalidad,
+                  descripcion: resolvedPreviewData.descripcion,
+                  tema_invitacion: themeId,
+                  invitation_template: resolvedPreviewData.invitation_template
+                }}
+                className="ipm-full-height-preview"
+              />
+            </div>
           ) : (
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
@@ -350,6 +375,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         </div>
 
         <button 
+          type="button"
           onClick={handlePrev}
           className="preview-gallery-arrow preview-gallery-arrow-left"
           aria-label="Diseño anterior"
@@ -359,6 +385,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         </button>
 
         <button 
+          type="button"
           onClick={handleNext}
           className="preview-gallery-arrow preview-gallery-arrow-right"
           aria-label="Siguiente diseño"

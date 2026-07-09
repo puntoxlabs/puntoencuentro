@@ -1,0 +1,115 @@
+.romantic-invitation-container {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  container-type: inline-size;
+}
+
+.romantic-invitation-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.romantic-invitation-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: clamp(16px, 4vw, 24px);
+}
+
+.romantic-invitation-main-bubble {
+  width: min(70%, 320px);
+  padding: clamp(16px, 4vw, 24px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(12px, 3vw, 16px);
+}
+
+.romantic-invitation-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.romantic-invitation-eyebrow {
+  margin: 0;
+  font-size: clamp(0.7rem, 2vw, 0.8rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+  color: #374151;
+}
+
+.romantic-invitation-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 5vw, 2.2rem);
+  line-height: 1.1;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  width: 100%;
+  word-wrap: break-word;
+  color: #111827;
+}
+
+.romantic-invitation-message {
+  font-size: clamp(0.875rem, 2.5vw, 1.05rem);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-width: 100%;
+  opacity: 0.85;
+  color: #4b5563;
+}
+
+.romantic-invitation-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.romantic-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.romantic-detail-text {
+  font-size: clamp(0.85rem, 2.5vw, 1rem);
+  font-weight: 500;
+  color: #374151;
+}
+
+.romantic-invitation-location {
+  opacity: 0.9;
+}

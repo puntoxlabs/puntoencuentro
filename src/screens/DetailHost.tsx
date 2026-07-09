@@ -232,7 +232,9 @@ const DetailHost: React.FC = () => {
 
     try {
       await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
-      setEncuentro((prev: any) => prev ? { ...prev, ...updates } : null);
+      const updatedEnc = { ...encuentro, ...updates };
+      setEncuentro(updatedEnc);
+      useDetailStore.getState().setDetailData(encuentro.id, updatedEnc, participantes);
     } catch (err) {
       console.error('Error al aplicar diseño:', err);
     } finally {
