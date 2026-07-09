@@ -228,11 +228,15 @@ const DetailHost: React.FC = () => {
     if (!encuentro || themeSaving) return;
     setThemeSaving(true);
 
-    const updates = { tema_invitacion: theme as InvitationTheme, invitation_template: template };
+    const payload = { 
+      tema_invitacion: theme as InvitationTheme, 
+      invitation_template: template ?? null 
+    };
 
     try {
-      await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
-      const updatedEnc = { ...encuentro, ...updates };
+      await encuentrosService.updateEncuentro(encuentro.id, payload, hostIdRef.current!);
+      const updatedEnc = { ...encuentro, ...payload };
+      
       setEncuentro(updatedEnc);
       useDetailStore.getState().setDetailData(encuentro.id, updatedEnc, participantes);
     } catch (err) {

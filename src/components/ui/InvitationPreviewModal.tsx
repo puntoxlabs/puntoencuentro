@@ -400,7 +400,11 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           </div>
           
           {!isCurrentDesign ? (
-            <Button fullWidth variant="primary" onClick={() => onApplyDesign && onApplyDesign(activeOption.theme, activeOption.template)}>
+            <Button fullWidth variant="primary" onClick={() => {
+              if (onApplyDesign) {
+                onApplyDesign(activeOption.theme, activeOption.template ?? null);
+              }
+            }}>
               Usar este diseño
             </Button>
           ) : (
