@@ -239,6 +239,7 @@ const DetailHost: React.FC = () => {
       
       setEncuentro(updatedEnc);
       useDetailStore.getState().setDetailData(encuentro.id, updatedEnc, participantes);
+      setShowPreview(false);
     } catch (err) {
       console.error('Error al aplicar diseño:', err);
     } finally {
@@ -1511,9 +1512,6 @@ const DetailHost: React.FC = () => {
       {showPreview && (
         <InvitationPreviewModal
           onClose={() => setShowPreview(false)}
-          onChangeStyle={() => {
-            setShowThemeSelector(true);
-          }}
           onApplyDesign={handleApplyDesign}
           previewData={{
             ...encuentro,

@@ -13,6 +13,17 @@ import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInv
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
 import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
+import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
+import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
+import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
+import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
+import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
+import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
+import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
+import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
+import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
+import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
+import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
 import { getFriendsTemplateConfig } from '@/lib/friendsTemplates';
 import { getFamilyTemplateConfig } from '@/lib/familyTemplates';
@@ -47,7 +58,7 @@ interface InvitationPreviewModalProps {
   onApplyDesign?: (theme: string, template: string | null) => void;
 }
 
-export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, onChangeStyle, previewData, onApplyDesign }) => {
+export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, previewData, onApplyDesign }) => {
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
   
@@ -61,8 +72,20 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   );
 
   const [currentIndex, setCurrentIndex] = React.useState<number>(initialIndexRef.current);
+  const [showVariantSelector, setShowVariantSelector] = React.useState(false);
 
   const activeOption = allDesignOptions[currentIndex] || allDesignOptions[0];
+
+  const handleSelectVariant = (templateId: string) => {
+    const selectedTheme = activeOption.theme;
+    const selectedIndex = allDesignOptions.findIndex(
+      opt => opt.theme === selectedTheme && opt.template === templateId
+    );
+    if (selectedIndex !== -1) {
+      setCurrentIndex(selectedIndex);
+    }
+    setShowVariantSelector(false);
+  };
 
   const resolvedPreviewData = {
     ...currentPreviewData,
@@ -413,13 +436,61 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             </Button>
           )}
 
-          {onChangeStyle && (
-            <Button fullWidth variant="secondary" onClick={onChangeStyle} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              Ver todos los estilos
+          {activeOption.theme !== 'classic' && (
+            <Button fullWidth variant="secondary" onClick={() => setShowVariantSelector(true)} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              Ver modelos de {activeOption.categoryLabel}
             </Button>
           )}
         </div>
       </div>
+
+      {showVariantSelector && (
+        <div className="dh-modal-overlay" style={{ zIndex: 10000, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div className="dh-bottom-sheet" style={{ background: '#fff', padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative' }}>
+            <button 
+              onClick={() => setShowVariantSelector(false)}
+              style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6B7280' }}
+            >
+              <X size={24} />
+            </button>
+            <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar modelo</h3>
+            
+            {activeOption.theme === 'kids_birthday' && (
+               <KidsBirthdayTemplateSelector selectedTemplateId={activeOption.template || 'kids_jungle'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'celebration' && (
+               <CelebrationTemplateSelector selectedTemplateId={activeOption.template || 'celebration_gold'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'romantic' && (
+               <RomanticTemplateSelector selectedTemplateId={activeOption.template || 'romantic_rose'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'formal' && (
+               <FormalTemplateSelector selectedTemplateId={activeOption.template || 'formal_black_tie'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'friends' && (
+               <FriendsTemplateSelector selectedTemplateId={activeOption.template || 'friends_coffee'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'family' && (
+               <FamilyTemplateSelector selectedTemplateId={activeOption.template || 'family_home'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'special' && (
+               <SpecialTemplateSelector selectedTemplateId={activeOption.template || 'special_moment'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'sports' && (
+               <SportsTemplateSelector selectedTemplateId={activeOption.template || 'sports_field'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'entertainment' && (
+               <EntertainmentTemplateSelector selectedTemplateId={activeOption.template || 'entertainment_cinema'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'learning' && (
+               <LearningTemplateSelector selectedTemplateId={activeOption.template || 'learning_class'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+            {activeOption.theme === 'wellness' && (
+               <WellnessTemplateSelector selectedTemplateId={activeOption.template || 'wellness_calm'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 
