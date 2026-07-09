@@ -29,6 +29,7 @@ import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview
 import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
+import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
@@ -40,6 +41,7 @@ import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
 import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
+import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
 import './Guest.css';
 
 
@@ -351,21 +353,16 @@ const InviteGuest: React.FC = () => {
   const learningTemplateConfig = encuentro?.tema_invitacion === 'learning' ? getLearningTemplateConfig(resolvedTemplate) : null;
   const hasValidLearningTemplate = !!learningTemplateConfig;
 
+  const kidsBirthdayTemplateConfig = encuentro?.tema_invitacion === 'kids_birthday' ? (kidsBirthdayTemplates.find(t => t.id === resolvedTemplate) || kidsBirthdayTemplates[0]) : null;
   const wellnessTemplateConfig = encuentro?.tema_invitacion === 'wellness' ? getWellnessTemplateConfig(resolvedTemplate) : null;
   const hasValidWellnessTemplate = !!wellnessTemplateConfig;
 
+  const activeConfig = kidsBirthdayTemplateConfig || celebrationTemplate || romanticTemplate || formalTemplateConfig || friendsTemplateConfig || familyTemplateConfig || specialTemplateConfig || sportsTemplateConfig || entertainmentTemplateConfig || learningTemplateConfig || wellnessTemplateConfig;
+  
   let templateBgStyle: React.CSSProperties = {};
-  if (celebrationTemplate?.background) {
+  if (activeConfig?.background) {
     templateBgStyle = {
-      backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center top',
-      backgroundAttachment: 'fixed',
-      backgroundRepeat: 'no-repeat',
-    };
-  } else if (romanticTemplate?.background) {
-    templateBgStyle = {
-      '--guest-bg-image': `url(${romanticTemplate.background})`,
+      '--guest-bg-image': `url(${activeConfig.background})`,
     } as React.CSSProperties;
   }
 
@@ -635,7 +632,7 @@ const InviteGuest: React.FC = () => {
         </div>
       )}
 
-      <div style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
+      <div className="guest-immersive-preview" style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
         {encuentro?.tema_invitacion === 'kids_birthday' ? (
           <div style={{ marginBottom: 20 }}>
             <KidsBirthdayInvitationPreview
@@ -700,6 +697,12 @@ const InviteGuest: React.FC = () => {
         ) : hasValidWellnessTemplate ? (
           <div style={{ marginBottom: 20 }}>
             <WellnessInvitationPreview
+              previewData={previewData}
+            />
+          </div>
+        ) : romanticTemplate ? (
+          <div style={{ marginBottom: 20 }}>
+            <RomanticInvitationPreview
               previewData={previewData}
             />
           </div>
