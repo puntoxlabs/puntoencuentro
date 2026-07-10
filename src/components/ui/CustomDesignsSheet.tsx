@@ -1,9 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
-import { X, Plus, ImageIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Plus, ImageIcon, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { customDesignsService } from '@/services/customDesignsService';
 import type { CustomInvitationTemplate } from '@/lib/customDesigns';
 import { CUSTOM_DESIGNS_CONFIG } from '@/lib/customDesigns';
+import { validateAndProcessImage } from '@/lib/imageProcessor';
+import type { ProcessedImage } from '@/lib/imageProcessor';
 import './BottomSheet.css';
 
 interface CustomDesignsSheetProps {
@@ -17,9 +19,19 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Uploader states
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [processedImage, setProcessedImage] = useState<ProcessedImage | null>(null);
+  const [designName, setDesignName] = useState('Mi diseño');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen && user) {
       loadDesigns();
+    } else if (!isOpen) {
+      resetUploader();
     }
   }, [isOpen, user]);
 
@@ -35,6 +47,66 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
       setError('No pudimos cargar tus diseños personalizados. Reintentá más tarde.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resetUploader = () => {
+    setIsCreating(false);
+    if (processedImage) {
+      URL.revokeObjectURL(processedImage.previewUrl);
+    }
+    setProcessedImage(null);
+    setDesignName('Mi diseño');
+    setIsUploading(false);
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+    try {
+      const processed = await validateAndProcessImage(file);
+      setProcessedImage(processed);
+      setIsCreating(true);
+    } catch (err: any) {
+      setError(err.message || 'Error procesando la imagen.');
+    } finally {
+      // Clear input so same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSaveDesign = async () => {
+    if (!user || !processedImage) return;
+    
+    setIsUploading(true);
+    setUploadError(null);
+    
+    try {
+      const templateId = crypto.randomUUID();
+      const imagePath = `${user.id}/${templateId}/background.webp`;
+      const thumbnailPath = `${user.id}/${templateId}/thumbnail.webp`;
+
+      await customDesignsService.createCustomDesign({
+        userId: user.id,
+        templateId,
+        name: designName.trim() || 'Mi diseño',
+        backgroundBlob: processedImage.backgroundBlob,
+        thumbnailBlob: processedImage.thumbnailBlob,
+        imagePath,
+        thumbnailPath
+      });
+
+      // Success
+      await loadDesigns();
+      resetUploader();
+    } catch (err: any) {
+      setUploadError(err.message || 'No pudimos guardar el diseño.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -77,7 +149,111 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
       );
     }
 
-    // Authenticated state
+    if (isCreating && processedImage) {
+      return (
+        <div className="pe-sheet-slide-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="pe-sheet-header">
+            <h2 className="pe-sheet-title">Crear diseño personalizado</h2>
+            <button onClick={resetUploader} disabled={isUploading} className="pe-sheet-close-btn">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', paddingTop: 16, paddingBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
+            <div style={{ 
+              position: 'relative', 
+              width: '100%', 
+              aspectRatio: '9/16', 
+              maxHeight: '40vh',
+              borderRadius: 16, 
+              overflow: 'hidden', 
+              background: '#000',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <img 
+                src={processedImage.previewUrl} 
+                alt="Preview" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} 
+              />
+              <div style={{
+                position: 'absolute',
+                top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                background: 'rgba(255,255,255,0.75)',
+                backdropFilter: 'blur(8px)',
+                padding: '16px 24px',
+                borderRadius: 12,
+                textAlign: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}>
+                <h3 style={{ margin: 0, fontSize: 18, color: '#111' }}>Tu Evento</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#444' }}>Fecha y Lugar</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-on-surface)' }}>
+                Nombre del diseño
+              </label>
+              <input 
+                type="text" 
+                value={designName}
+                onChange={(e) => setDesignName(e.target.value)}
+                maxLength={40}
+                disabled={isUploading}
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 12, border: '1px solid var(--color-outline)',
+                  background: 'var(--color-surface)', fontSize: 16, outline: 'none'
+                }}
+              />
+            </div>
+
+            {uploadError && (
+              <div className="pe-sheet-alert--danger">
+                <p className="pe-sheet-alert-text--danger">{uploadError}</p>
+              </div>
+            )}
+            
+            <div style={{ background: 'var(--color-surface-variant)', padding: 12, borderRadius: 12, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <AlertCircle size={20} color="var(--color-on-surface-variant)" style={{ flexShrink: 0 }} />
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+                La imagen será visible para quienes reciban el link de invitación. No subas imágenes privadas o sensibles.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ paddingTop: 16, borderTop: '1px solid var(--color-outline-variant)', display: 'flex', gap: 12 }}>
+            <button
+              onClick={resetUploader}
+              disabled={isUploading}
+              style={{
+                flex: 1, padding: '14px', borderRadius: 14, border: '1px solid var(--color-outline)',
+                background: 'transparent', color: 'var(--color-on-surface)', fontWeight: 700,
+                fontSize: 16, cursor: isUploading ? 'not-allowed' : 'pointer', opacity: isUploading ? 0.5 : 1
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveDesign}
+              disabled={isUploading || !designName.trim()}
+              style={{
+                flex: 1, padding: '14px', borderRadius: 14, border: 'none',
+                background: 'var(--color-primary)', color: '#fff', fontWeight: 700,
+                fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                cursor: (isUploading || !designName.trim()) ? 'not-allowed' : 'pointer', opacity: (isUploading || !designName.trim()) ? 0.5 : 1
+              }}
+            >
+              {isUploading ? <><Loader2 size={20} className="animate-spin" /> Guardando...</> : 'Guardar diseño'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Authenticated list state
     const limitReached = designs.length >= CUSTOM_DESIGNS_CONFIG.LIMIT;
 
     return (
@@ -113,9 +289,6 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
               <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-on-surface)', margin: 0 }}>
                 Todavía no tenés diseños.
               </p>
-              <p style={{ fontSize: 14, color: 'var(--color-on-surface-variant)', margin: 0, padding: '0 20px' }}>
-                En la próxima etapa vas a poder subir una imagen propia para crear tu tarjeta.
-              </p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -123,7 +296,11 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
                 <div key={design.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--color-surface-variant)', borderRadius: 12 }}>
                   <div style={{ width: 48, height: 64, borderRadius: 8, background: 'var(--color-surface)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {design.thumbnail_path ? (
-                      <div style={{ width: '100%', height: '100%', background: '#ddd' }} /> // Placeholder for future actual image
+                      <img 
+                        src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)} 
+                        alt="" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
                     ) : (
                       <ImageIcon size={20} color="var(--color-outline)" />
                     )}
@@ -144,21 +321,32 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
         </div>
 
         <div style={{ paddingTop: 16, borderTop: '1px solid var(--color-outline-variant)' }}>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept="image/jpeg,image/png,image/webp" 
+            style={{ display: 'none' }} 
+          />
           {limitReached ? (
             <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant)', textAlign: 'center', margin: 0, marginBottom: 12 }}>
-              Ya tenés 3 diseños guardados. Podés eliminar uno para crear otro.
+              Ya tenés 3 diseños guardados. Eliminá uno para crear otro.
             </p>
           ) : null}
           <button
-            disabled
+            onClick={() => fileInputRef.current?.click()}
+            disabled={limitReached}
             style={{
               width: '100%', padding: '14px', borderRadius: 14, border: 'none',
-              background: 'var(--color-surface-variant)', color: 'var(--color-on-surface-variant)', fontWeight: 700,
-              fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+              background: limitReached ? 'var(--color-surface-variant)' : 'var(--color-primary-container)', 
+              color: limitReached ? 'var(--color-on-surface-variant)' : 'var(--color-primary)', 
+              fontWeight: 700,
+              fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              cursor: limitReached ? 'not-allowed' : 'pointer'
             }}
           >
-            <Plus size={20} />
-            Subir imagen próximamente
+            {limitReached ? <Upload size={20} /> : <Plus size={20} />}
+            Subir imagen
           </button>
         </div>
       </div>

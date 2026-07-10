@@ -1,5 +1,6 @@
-﻿import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { CustomInvitationTemplate } from '@/lib/customDesigns';
+import { CUSTOM_DESIGNS_CONFIG } from '@/lib/customDesigns';
 
 export const customDesignsService = {
   async listCustomDesigns(userId: string): Promise<CustomInvitationTemplate[]> {
@@ -17,4 +18,79 @@ export const customDesignsService = {
 
     return data as CustomInvitationTemplate[];
   },
+
+  getCustomDesignPublicUrl(path: string): string {
+    const { data } = supabase.storage
+      .from(CUSTOM_DESIGNS_CONFIG.BUCKET)
+      .getPublicUrl(path);
+    return data.publicUrl;
+  },
+
+  async createCustomDesign(params: {
+    userId: string;
+    templateId: string;
+    name: string;
+    backgroundBlob: Blob;
+    thumbnailBlob: Blob;
+    imagePath: string;
+    thumbnailPath: string;
+  }): Promise<CustomInvitationTemplate> {
+    // 1. Upload background
+    const { error: bgError } = await supabase.storage
+      .from(CUSTOM_DESIGNS_CONFIG.BUCKET)
+      .upload(params.imagePath, params.backgroundBlob, {
+        contentType: 'image/webp',
+        upsert: false
+      });
+
+    if (bgError) {
+      console.error('Error uploading background:', bgError);
+      throw new Error('No pudimos subir la imagen. Reintentá más tarde.');
+    }
+
+    // 2. Upload thumbnail
+    const { error: thumbError } = await supabase.storage
+      .from(CUSTOM_DESIGNS_CONFIG.BUCKET)
+      .upload(params.thumbnailPath, params.thumbnailBlob, {
+        contentType: 'image/webp',
+        upsert: false
+      });
+
+    if (thumbError) {
+      // Intento de limpieza
+      await supabase.storage.from(CUSTOM_DESIGNS_CONFIG.BUCKET).remove([params.imagePath]);
+      console.error('Error uploading thumbnail:', thumbError);
+      throw new Error('No pudimos subir la miniatura. Reintentá más tarde.');
+    }
+
+    // 3. Insert into database
+    const { data, error: insertError } = await supabase
+      .from('custom_invitation_templates')
+      .insert({
+        id: params.templateId,
+        user_id: params.userId,
+        name: params.name,
+        image_path: params.imagePath,
+        thumbnail_path: params.thumbnailPath,
+        image_url: null,
+        thumbnail_url: null,
+        overlay_opacity: 0.35,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      // Intento de limpieza de Storage si falla el insert
+      await supabase.storage.from(CUSTOM_DESIGNS_CONFIG.BUCKET).remove([params.imagePath, params.thumbnailPath]);
+      
+      console.error('Error insertando diseño:', insertError);
+      if (insertError.message.includes('custom_templates_limit_exceeded')) {
+        throw new Error('Ya tenés 3 diseños personalizados guardados.');
+      }
+      throw new Error('No pudimos guardar el diseño.');
+    }
+
+    return data as CustomInvitationTemplate;
+  }
 };
