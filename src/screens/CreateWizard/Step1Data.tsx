@@ -269,13 +269,17 @@ const Step1Data: React.FC = () => {
         </div>
         <InvitationThemeSelector
           value={tema_invitacion || 'classic'}
-          onChange={(t) => {
+          onChange={(t, template) => {
             setField('tema_invitacion', t);
             
-            // Siempre limpiar el template al cambiar de tema principal
-            // Asignar default solo para los temas que lo requieren (via getDefaultInvitationTemplate)
-            const newTemplate = getDefaultInvitationTemplate(t);
-            setField('invitation_template', newTemplate);
+            if (template) {
+              setField('invitation_template', template);
+            } else {
+              // Siempre limpiar el template al cambiar de tema principal
+              // Asignar default solo para los temas que lo requieren (via getDefaultInvitationTemplate)
+              const newTemplate = getDefaultInvitationTemplate(t);
+              setField('invitation_template', newTemplate);
+            }
           }}
         />
         {tema_invitacion === 'kids_birthday' && (

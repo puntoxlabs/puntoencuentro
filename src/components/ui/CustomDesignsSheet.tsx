@@ -11,9 +11,10 @@ import './BottomSheet.css';
 interface CustomDesignsSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onSelectDesign?: (templateId: string) => void;
 }
 
-export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, onClose }) => {
+export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, onClose, onSelectDesign }) => {
   const { user, signInWithGoogle } = useAuth();
   const [designs, setDesigns] = useState<CustomInvitationTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -311,8 +312,15 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
                       {new Date(design.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <button disabled style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontSize: 13, fontWeight: 600 }}>
-                    Próximamente
+                  <button 
+                    onClick={() => {
+                      if (onSelectDesign) {
+                        onSelectDesign(design.id);
+                      }
+                    }}
+                    style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Usar este diseño
                   </button>
                 </div>
               ))}

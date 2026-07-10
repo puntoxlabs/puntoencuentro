@@ -19,6 +19,22 @@ export const customDesignsService = {
     return data as CustomInvitationTemplate[];
   },
 
+  async getCustomDesignById(templateId: string): Promise<CustomInvitationTemplate> {
+    const { data, error } = await supabase
+      .from('custom_invitation_templates')
+      .select('id, name, image_path, thumbnail_path, image_url, thumbnail_url, overlay_opacity, is_active, created_at')
+      .eq('id', templateId)
+      .eq('is_active', true)
+      .single();
+
+    if (error) {
+      console.error('Error fetching custom design by ID:', error);
+      throw error;
+    }
+
+    return data as CustomInvitationTemplate;
+  },
+
   getCustomDesignPublicUrl(path: string): string {
     const { data } = supabase.storage
       .from(CUSTOM_DESIGNS_CONFIG.BUCKET)

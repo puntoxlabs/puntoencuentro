@@ -13,6 +13,7 @@ import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInv
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
 import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
+import { CustomInvitationPreview } from '@/components/ui/CustomInvitationPreview';
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
@@ -98,6 +99,8 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
+  
+  const isCustomTheme = themeId === 'custom';
   
   const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFriendsTemplate = !!friendsTemplateConfig;
@@ -207,6 +210,15 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         )}
 
         <div className="preview-modal-body">
+          {themeId === 'custom' && (
+            <CustomInvitationPreview
+              titulo={resolvedPreviewData.titulo}
+              fecha={resolvedPreviewData.fecha}
+              hora={resolvedPreviewData.hora}
+              lugar_texto={resolvedPreviewData.lugar_texto}
+              templateId={resolvedPreviewData.invitation_template}
+            />
+          )}
           {themeId === 'kids_birthday' ? (
             <KidsBirthdayInvitationPreview
               templateId={resolvedPreviewData.invitation_template || null}
@@ -412,25 +424,29 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           <p className="preview-modal-disclaimer">Así verán la invitación tus invitados. La vista es de solo lectura.</p>
         </div>
 
-        <button 
-          type="button"
-          onClick={handlePrev}
-          className="preview-gallery-arrow preview-gallery-arrow-left"
-          aria-label="Diseño anterior"
-          style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
-        >
-          <ChevronLeft size={24} />
-        </button>
+        {!isCustomTheme && (
+          <>
+            <button 
+              type="button"
+              onClick={handlePrev}
+              className="preview-gallery-arrow preview-gallery-arrow-left"
+              aria-label="Diseño anterior"
+              style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
+            >
+              <ChevronLeft size={24} />
+            </button>
 
-        <button 
-          type="button"
-          onClick={handleNext}
-          className="preview-gallery-arrow preview-gallery-arrow-right"
-          aria-label="Siguiente diseño"
-          style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
-        >
-          <ChevronRight size={24} />
-        </button>
+            <button 
+              type="button"
+              onClick={handleNext}
+              className="preview-gallery-arrow preview-gallery-arrow-right"
+              aria-label="Siguiente diseño"
+              style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer', color: '#374151' }}
+            >
+              <ChevronRight size={24} />
+            </button>
+          </>
+        )}
 
         <div className="preview-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: '4px' }}>

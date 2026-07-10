@@ -1,0 +1,94 @@
+﻿.guest-theme-preview--custom {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.guest-theme-preview__background-image,
+.guest-theme-preview__background-fallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.guest-theme-preview__background-fallback {
+  background-color: #222; /* Placeholder if image is missing */
+}
+
+.guest-theme-preview__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.35); /* Base overlay for text legibility */
+  z-index: 1;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 32px 24px;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.guest-theme-preview--custom .guest-theme-preview__eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-primary);
+  margin: 0 0 12px 0;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 24px 0;
+  line-height: 1.2;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  color: #4a4a4a;
+}
+
+.guest-theme-preview--custom .guest-theme-preview__detail-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}

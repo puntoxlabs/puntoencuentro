@@ -38,7 +38,8 @@ export type InvitationTheme =
   | 'sports'
   | 'entertainment'
   | 'learning'
-  | 'wellness';
+  | 'wellness'
+  | 'custom';
 
 export interface InvitationThemeConfig {
   id: InvitationTheme;
@@ -145,6 +146,14 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     icon: Heart,
     cssClass: 'guest-theme--romantic',
     eyebrow: 'Te invitan a un encuentro especial'
+  },
+  {
+    id: 'custom',
+    label: 'Personalizado',
+    description: 'Diseño subido por el organizador.',
+    icon: Star,
+    cssClass: 'guest-theme--custom',
+    eyebrow: 'Te invitan a un evento'
   }
 ];
 
@@ -169,7 +178,8 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
     'sports',
     'entertainment',
     'learning',
-    'wellness'
+    'wellness',
+    'custom'
   ];
   
   if (validThemes.includes(value as InvitationTheme)) {
@@ -210,6 +220,7 @@ export function getThemeFromTemplate(template?: string | null): InvitationTheme 
   if (template.startsWith('family_')) return 'family';
   if (template.startsWith('special_')) return 'special';
   if (template.startsWith('romantic_')) return 'romantic';
+  if (template.startsWith('custom_')) return 'custom';
   
   return null;
 }
@@ -283,6 +294,10 @@ export function resolveInvitationTemplateForTheme(
     case 'special': {
       const specialConfig = getSpecialTemplateConfig(template);
       isValid = specialConfig !== null;
+      break;
+    }
+    case 'custom': {
+      isValid = template.startsWith('custom_');
       break;
     }
     case 'classic':

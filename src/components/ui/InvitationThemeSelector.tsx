@@ -6,7 +6,7 @@ import './InvitationThemeSelector.css';
 
 interface InvitationThemeSelectorProps {
   value: string;
-  onChange: (theme: InvitationTheme) => void;
+  onChange: (theme: InvitationTheme, template?: string) => void;
 }
 
 export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = ({ value, onChange }) => {
@@ -74,6 +74,10 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
       <CustomDesignsSheet 
         isOpen={isCustomSheetOpen} 
         onClose={() => setIsCustomSheetOpen(false)} 
+        onSelectDesign={(templateId) => {
+          onChange('custom', `custom_${templateId}`);
+          setIsCustomSheetOpen(false);
+        }}
       />
     </div>
   );

@@ -301,6 +301,8 @@ const DetailHost: React.FC = () => {
       updates = { tema_invitacion: 'learning', invitation_template: newThemeOrTemplate };
     } else if (isWellnessTemplate) {
       updates = { tema_invitacion: 'wellness', invitation_template: newThemeOrTemplate };
+    } else if (newThemeOrTemplate.startsWith('custom_')) {
+      updates = { tema_invitacion: 'custom', invitation_template: newThemeOrTemplate };
     } else {
       // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
       updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
