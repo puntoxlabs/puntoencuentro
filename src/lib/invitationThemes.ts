@@ -14,17 +14,17 @@ import {
 } from 'lucide-react';
 
 
-import { getCelebrationTemplateConfig, celebrationTemplates } from './celebrationTemplates';
+import { celebrationTemplates } from './celebrationTemplates';
 import { getSportsTemplateConfig, sportsTemplates } from './sportsTemplates';
 import { getEntertainmentTemplateConfig, entertainmentTemplates } from './entertainmentTemplates';
 import { getLearningTemplateConfig, learningTemplates } from './learningTemplates';
 import { getWellnessTemplateConfig, wellnessTemplates } from './wellnessTemplates';
 import { kidsBirthdayTemplates } from './kidsBirthdayTemplates';
-import { formalTemplates } from './formalTemplates';
-import { friendsTemplates } from './friendsTemplates';
-import { familyTemplates } from './familyTemplates';
-import { specialTemplates } from './specialTemplates';
-import { romanticTemplates } from './romanticTemplates';
+import { formalTemplates, getFormalTemplateConfig } from './formalTemplates';
+import { friendsTemplates, getFriendsTemplateConfig } from './friendsTemplates';
+import { familyTemplates, getFamilyTemplateConfig } from './familyTemplates';
+import { specialTemplates, getSpecialTemplateConfig } from './specialTemplates';
+import { romanticTemplates, getRomanticTemplateConfig } from './romanticTemplates';
 
 export type InvitationTheme =
   | 'classic'
@@ -224,39 +224,72 @@ export function resolveInvitationTemplateForTheme(
     return defaultTemplate;
   }
 
-  // Verificar si el template es válido para el theme
+  // Verificar si el template es válido para el theme.
+  // REGLA: si el template pertenece al tema actual, conservarlo.
+  // Si pertenece a otro tema, reemplazar por el default.
   let isValid = false;
   switch (theme) {
-    case 'kids_birthday':
-      // @ts-ignore - The function currently only accepts certain types in TS, but at runtime works
-      const kidsConfig = [ 'kids_jungle', 'kids_unicorn', 'kids_space' ];
+    case 'kids_birthday': {
+      const kidsConfig = ['kids_jungle', 'kids_unicorn', 'kids_space'];
       isValid = kidsConfig.includes(template);
       break;
-    case 'celebration':
-      const celConfig = getCelebrationTemplateConfig(template);
-      isValid = celConfig.id === template;
+    }
+    case 'celebration': {
+      // getCelebrationTemplateConfig nunca retorna null, verificar por id
+      const found = celebrationTemplates.find(t => t.id === template);
+      isValid = !!found;
       break;
-    case 'sports':
+    }
+    case 'sports': {
       const sportsConfig = getSportsTemplateConfig(template);
       isValid = sportsConfig !== null;
       break;
-    case 'entertainment':
+    }
+    case 'entertainment': {
       const entConfig = getEntertainmentTemplateConfig(template);
       isValid = entConfig !== null;
       break;
-    case 'learning':
+    }
+    case 'learning': {
       const learningConfig = getLearningTemplateConfig(template);
       isValid = learningConfig !== null;
       break;
-    case 'wellness':
+    }
+    case 'wellness': {
       const wellnessConfig = getWellnessTemplateConfig(template);
       isValid = wellnessConfig !== null;
       break;
+    }
+    case 'romantic': {
+      const romanticConfig = getRomanticTemplateConfig(template);
+      isValid = romanticConfig !== null;
+      break;
+    }
+    case 'formal': {
+      const formalConfig = getFormalTemplateConfig(template);
+      isValid = formalConfig !== null;
+      break;
+    }
+    case 'friends': {
+      const friendsConfig = getFriendsTemplateConfig(template);
+      isValid = friendsConfig !== null;
+      break;
+    }
+    case 'family': {
+      const familyConfig = getFamilyTemplateConfig(template);
+      isValid = familyConfig !== null;
+      break;
+    }
+    case 'special': {
+      const specialConfig = getSpecialTemplateConfig(template);
+      isValid = specialConfig !== null;
+      break;
+    }
+    case 'classic':
+      // Clásico no tiene template
+      return null;
     default:
-      // Para formal, friends, family, special no hay listado estricto con helper o no lo controlamos igual,
-      // pero devolvemos el template en caso de que sean temas que lo necesiten.
-      // Actualmente family y special SÍ tienen helpers en DetailHost/InvitationPreviewModal...
-      // Para ser seguros:
+      // Tema desconocido: conservar el template si viene
       return template;
   }
 

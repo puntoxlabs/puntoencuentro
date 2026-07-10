@@ -111,13 +111,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidSportsTemplate = !!sportsTemplateConfig;
 
-  if (import.meta.env.DEV) {
-    console.log("[PreviewModal] theme:", themeId);
-    console.log("[PreviewModal] raw template:", currentPreviewData.invitation_template);
-    console.log("[PreviewModal] resolved template:", resolvedPreviewData.invitation_template);
-    console.log("[PreviewModal] sports config:", sportsTemplateConfig);
-    console.log("[PreviewModal] render branch:", hasValidSportsTemplate ? 'sports' : 'other');
-  }
+
 
   const entertainmentTemplateConfig = themeId === 'entertainment' ? getEntertainmentTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidEntertainmentTemplate = !!entertainmentTemplateConfig;
@@ -163,8 +157,29 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const isCurrentDesign = currentIndex === currentSavedIndex;
 
   const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(resolvedPreviewData.invitation_template) : null;
-  const customStyles = romanticTemplate?.background 
-    ? { '--guest-bg-image': `url(${romanticTemplate.background})` } as React.CSSProperties
+  const friendsTemplateForBg = themeId === 'friends' ? friendsTemplateConfig : null;
+  const wellnessTemplateForBg = themeId === 'wellness' ? wellnessTemplateConfig : null;
+  const formalTemplateForBg = themeId === 'formal' ? formalTemplateConfig : null;
+  const familyTemplateForBg = themeId === 'family' ? familyTemplateConfig : null;
+  const specialTemplateForBg = themeId === 'special' ? specialTemplateConfig : null;
+  const sportsTemplateForBg = themeId === 'sports' ? sportsTemplateConfig : null;
+  const entertainmentTemplateForBg = themeId === 'entertainment' ? entertainmentTemplateConfig : null;
+  const learningTemplateForBg = themeId === 'learning' ? learningTemplateConfig : null;
+
+  const activeBgConfig =
+    romanticTemplate ||
+    friendsTemplateForBg ||
+    wellnessTemplateForBg ||
+    formalTemplateForBg ||
+    familyTemplateForBg ||
+    specialTemplateForBg ||
+    sportsTemplateForBg ||
+    entertainmentTemplateForBg ||
+    learningTemplateForBg ||
+    null;
+
+  const customStyles = activeBgConfig?.background
+    ? { '--guest-bg-image': `url(${activeBgConfig.background})` } as React.CSSProperties
     : {};
 
   const modalContent = (

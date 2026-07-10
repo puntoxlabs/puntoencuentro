@@ -322,16 +322,18 @@ const InviteGuest: React.FC = () => {
   );
   const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
 
-  // Fondo integrado para Celebración o Romántico
-  const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
-    ? getCelebrationTemplateConfig(encuentro.invitation_template)
-    : null;
-  const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
-    ? getRomanticTemplateConfig(encuentro.invitation_template)
-    : null;
-    
+  // Resolver el template validando que pertenezca al tema actual.
+  // DEBE calcularse antes de todos los template configs para garantizar consistencia.
   const resolvedTemplate = resolveInvitationTemplateForTheme(encuentro?.tema_invitacion, encuentro?.invitation_template);
 
+  // Fondo integrado para Celebración o Romántico — usan resolvedTemplate (no raw) para evitar contaminación cruzada
+  const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
+    ? getCelebrationTemplateConfig(resolvedTemplate)
+    : null;
+  const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
+    ? getRomanticTemplateConfig(resolvedTemplate)
+    : null;
+    
   const formalTemplateConfig = encuentro?.tema_invitacion === 'formal' ? getFormalTemplateConfig(resolvedTemplate) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
 
@@ -636,7 +638,7 @@ const InviteGuest: React.FC = () => {
         {encuentro?.tema_invitacion === 'kids_birthday' ? (
           <div style={{ marginBottom: 20 }}>
             <KidsBirthdayInvitationPreview
-              templateId={encuentro.invitation_template}
+              templateId={resolvedTemplate}
               childName={encuentro.titulo}
               date={encuentro.fecha}
               time={encuentro.hora}
