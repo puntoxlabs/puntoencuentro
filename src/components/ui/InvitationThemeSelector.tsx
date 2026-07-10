@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { INVITATION_THEMES } from '@/lib/invitationThemes';
 import type { InvitationTheme } from '@/lib/invitationThemes';
+import { CustomDesignsSheet } from './CustomDesignsSheet';
 import './InvitationThemeSelector.css';
 
 interface InvitationThemeSelectorProps {
@@ -10,6 +11,7 @@ interface InvitationThemeSelectorProps {
 
 export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = ({ value, onChange }) => {
   const [expanded, setExpanded] = useState(false);
+  const [isCustomSheetOpen, setIsCustomSheetOpen] = useState(false);
 
   // Default auto-expand logic if selected theme is beyond the first 4
   useEffect(() => {
@@ -60,6 +62,19 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
       >
         {expanded ? 'Ver menos' : 'Ver más estilos'}
       </button>
+
+      <button
+        type="button"
+        className="invitation-theme-selector-custom-btn"
+        onClick={() => setIsCustomSheetOpen(true)}
+      >
+        + Crear diseño personalizado
+      </button>
+
+      <CustomDesignsSheet 
+        isOpen={isCustomSheetOpen} 
+        onClose={() => setIsCustomSheetOpen(false)} 
+      />
     </div>
   );
 };
