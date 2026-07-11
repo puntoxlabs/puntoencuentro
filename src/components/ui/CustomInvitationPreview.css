@@ -12,6 +12,11 @@
   container-type: inline-size;
 }
 
+.guest-theme-preview--custom-compact {
+  aspect-ratio: 4 / 3;
+  max-height: 380px;
+}
+
 .guest-theme-preview__background-image,
 .guest-theme-preview__background-fallback {
   position: absolute;

@@ -229,7 +229,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         )}
 
         <div className="preview-modal-body">
-          {themeId === 'custom' && (
+          {themeId === 'custom' ? (
             <div className="ipm-scrollable-content">
               <CustomInvitationPreview
                 titulo={resolvedPreviewData.titulo}
@@ -237,10 +237,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 hora={resolvedPreviewData.hora}
                 lugar_texto={resolvedPreviewData.lugar_texto}
                 templateId={resolvedPreviewData.invitation_template}
+                variant="full"
               />
             </div>
-          )}
-          {themeId === 'kids_birthday' ? (
+          ) : themeId === 'kids_birthday' ? (
             <KidsBirthdayInvitationPreview
               templateId={resolvedPreviewData.invitation_template || null}
               childName={resolvedPreviewData.titulo || ''}

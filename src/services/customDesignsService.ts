@@ -46,8 +46,8 @@ export const customDesignsService = {
         return null;
       }
 
-      if (data && data.length > 0) {
-        return data[0] as CustomInvitationTemplate;
+      if (data) {
+        return data as CustomInvitationTemplate;
       }
       return null;
     } catch (err) {

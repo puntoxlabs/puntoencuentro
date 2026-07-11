@@ -10,6 +10,7 @@ interface CustomInvitationPreviewProps {
   hora?: string;
   lugar_texto?: string;
   templateId?: string | null;
+  variant?: 'compact' | 'full';
 }
 
 export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = ({
@@ -17,7 +18,8 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
   fecha,
   hora,
   lugar_texto,
-  templateId
+  templateId,
+  variant = 'full'
 }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
   }, [templateId]);
 
   return (
-    <div className="guest-theme-preview guest-theme-preview--custom">
+    <div className={`guest-theme-preview guest-theme-preview--custom guest-theme-preview--custom-${variant}`}>
       {imageUrl ? (
         <div 
           className="guest-theme-preview__background-image"

@@ -425,6 +425,7 @@ const Step1Data: React.FC = () => {
                 fecha={fecha}
                 hora={hora}
                 lugar_texto={lugar_texto}
+                variant="compact"
               />
             </div>
           </div>
