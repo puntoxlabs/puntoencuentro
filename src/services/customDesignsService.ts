@@ -35,6 +35,27 @@ export const customDesignsService = {
     return data as CustomInvitationTemplate;
   },
 
+  async getPublicCustomDesignForToken(publicToken: string): Promise<CustomInvitationTemplate | null> {
+    try {
+      const { data, error } = await supabase.rpc('get_custom_invitation_template_public', {
+        p_public_token: publicToken
+      });
+
+      if (error) {
+        console.error('Error in getPublicCustomDesignForToken:', error);
+        return null;
+      }
+
+      if (data && data.length > 0) {
+        return data[0] as CustomInvitationTemplate;
+      }
+      return null;
+    } catch (err) {
+      console.error('Exception in getPublicCustomDesignForToken:', err);
+      return null;
+    }
+  },
+
   getCustomDesignPublicUrl(path: string): string {
     const { data } = supabase.storage
       .from(CUSTOM_DESIGNS_CONFIG.BUCKET)

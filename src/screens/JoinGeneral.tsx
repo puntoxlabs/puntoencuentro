@@ -28,6 +28,7 @@ import { SportsInvitationPreview } from '@/components/ui/SportsInvitationPreview
 import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInvitationPreview';
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
+import { CustomGuestInvitationPreview } from '@/components/ui/CustomGuestInvitationPreview';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
@@ -693,7 +694,18 @@ const JoinGeneral: React.FC = () => {
       )}
 
       <div style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
-        {encuentro?.tema_invitacion === 'kids_birthday' ? (
+        {encuentro?.tema_invitacion === 'custom' ? (
+          <div style={{ marginBottom: 20 }}>
+            <CustomGuestInvitationPreview
+              invitationToken={public_token!}
+              titulo={encuentro.titulo}
+              fecha={encuentro.fecha}
+              hora={encuentro.hora}
+              lugar_texto={encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}
+              hostMessage={encuentro.descripcion || ''}
+            />
+          </div>
+        ) : encuentro?.tema_invitacion === 'kids_birthday' ? (
           <div style={{ marginBottom: 20 }}>
             <KidsBirthdayInvitationPreview
               templateId={encuentro.invitation_template}

@@ -30,6 +30,7 @@ import { EntertainmentInvitationPreview } from '@/components/ui/EntertainmentInv
 import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPreview';
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
 import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
+import { CustomGuestInvitationPreview } from '@/components/ui/CustomGuestInvitationPreview';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getFormalTemplateConfig } from '@/lib/formalTemplates';
@@ -635,7 +636,18 @@ const InviteGuest: React.FC = () => {
       )}
 
       <div className="guest-immersive-preview" style={{ padding: isFinalizado ? '16px 20px 0' : '20px 20px 0' }}>
-        {encuentro?.tema_invitacion === 'kids_birthday' ? (
+        {encuentro?.tema_invitacion === 'custom' ? (
+          <div style={{ marginBottom: 20 }}>
+            <CustomGuestInvitationPreview
+              invitationToken={token!}
+              titulo={encuentro.titulo}
+              fecha={encuentro.fecha}
+              hora={encuentro.hora}
+              lugar_texto={encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}
+              hostMessage={encuentro.descripcion || ''}
+            />
+          </div>
+        ) : encuentro?.tema_invitacion === 'kids_birthday' ? (
           <div style={{ marginBottom: 20 }}>
             <KidsBirthdayInvitationPreview
               templateId={resolvedTemplate}
