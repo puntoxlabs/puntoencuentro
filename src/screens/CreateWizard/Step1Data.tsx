@@ -16,6 +16,7 @@ import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
 import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
 import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
 import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
+import { CustomInvitationPreview } from '@/components/ui/CustomInvitationPreview';
 import { getDefaultInvitationTemplate } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
@@ -82,7 +83,8 @@ const Step1Data: React.FC = () => {
   const isToday = fecha === minDate;
   const minTime = isToday ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : undefined;
 
-  const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '';
+  const isValidTheme = tema_invitacion === 'custom' ? invitation_template?.startsWith('custom_') : true;
+  const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '' && isValidTheme;
 
   const handleNext = () => {
     if (isNavigating) return;
@@ -270,8 +272,17 @@ const Step1Data: React.FC = () => {
         <InvitationThemeSelector
           value={tema_invitacion || 'classic'}
           onChange={(t, template) => {
+            if (t === 'custom') {
+              if (!template?.startsWith('custom_')) {
+                // If it's custom but missing a valid template, ignore the change
+                return;
+              }
+              setField('tema_invitacion', t);
+              setField('invitation_template', template);
+              return;
+            }
+
             setField('tema_invitacion', t);
-            
             if (template) {
               setField('invitation_template', template);
             } else {
@@ -402,6 +413,20 @@ const Step1Data: React.FC = () => {
             hora={hora}
             lugar_texto={lugar_texto}
           />
+        )}
+        {tema_invitacion === 'custom' && invitation_template?.startsWith('custom_') && (
+          <div style={{ marginTop: 24 }}>
+            <label className="input-label" style={{ marginBottom: 12, display: 'block' }}>Previsualización</label>
+            <div style={{ borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <CustomInvitationPreview
+                templateId={invitation_template}
+                titulo={titulo}
+                fecha={fecha}
+                hora={hora}
+                lugar_texto={lugar_texto}
+              />
+            </div>
+          </div>
         )}
       </div>
 

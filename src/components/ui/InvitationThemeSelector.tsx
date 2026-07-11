@@ -23,7 +23,8 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
     }
   }, [value, expanded]);
 
-  const visibleThemes = expanded ? INVITATION_THEMES : INVITATION_THEMES.slice(0, 4);
+  const gridThemes = INVITATION_THEMES.filter(t => t.id !== 'custom');
+  const visibleThemes = expanded ? gridThemes : gridThemes.slice(0, 4);
 
   return (
     <div className="invitation-theme-selector-container">

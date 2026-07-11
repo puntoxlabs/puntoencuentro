@@ -1647,7 +1647,16 @@ const DetailHost: React.FC = () => {
                 ) : (
                   <InvitationThemeSelector
                     value={resolvedSheetTheme}
-                    onChange={(themeId) => handleThemeChange(themeId)}
+                    onChange={(themeId, templateId) => {
+                      if (themeId === 'custom') {
+                        if (templateId?.startsWith('custom_')) {
+                          handleApplyDesign(themeId, templateId);
+                          setShowThemeSelector(false);
+                        }
+                        return;
+                      }
+                      handleThemeChange(themeId);
+                    }}
                   />
                 )}
                 <Button fullWidth variant="outline" onClick={() => setShowThemeSelector(false)} style={{ marginTop: 24 }}>
