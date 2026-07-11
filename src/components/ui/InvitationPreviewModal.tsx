@@ -38,7 +38,7 @@ import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getAllInvitationDesignOptions, findDesignOptionIndex } from '@/lib/invitationThemes';
+import { getAllInvitationDesignOptions } from '@/lib/invitationThemes';
 import './InvitationPreviewModal.css';
 
 const SHOW_INVITATION_DEBUG = false;
@@ -63,13 +63,28 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
   
-  const allDesignOptions = React.useMemo(() => getAllInvitationDesignOptions(), []);
+  const allDesignOptions = React.useMemo(() => {
+    const options = getAllInvitationDesignOptions();
+    if (currentPreviewData.tema_invitacion === 'custom' && currentPreviewData.invitation_template?.startsWith('custom_')) {
+      options.unshift({
+        theme: 'custom' as any,
+        template: currentPreviewData.invitation_template,
+        categoryLabel: 'Diseño personalizado',
+        templateLabel: 'Tu diseño'
+      });
+    }
+    return options;
+  }, [currentPreviewData.tema_invitacion, currentPreviewData.invitation_template]);
 
   const initialIndexRef = React.useRef(
-    findDesignOptionIndex(
-      currentPreviewData.tema_invitacion, 
-      currentPreviewData.invitation_template
-    )
+    (() => {
+      const idx = allDesignOptions.findIndex(
+        opt => opt.theme === currentPreviewData.tema_invitacion && opt.template === currentPreviewData.invitation_template
+      );
+      if (idx !== -1) return idx;
+      const themeIdx = allDesignOptions.findIndex(opt => opt.theme === currentPreviewData.tema_invitacion);
+      return themeIdx !== -1 ? themeIdx : 0;
+    })()
   );
 
   const [currentIndex, setCurrentIndex] = React.useState<number>(initialIndexRef.current);
@@ -152,11 +167,15 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     setCurrentIndex((prev) => (prev < allDesignOptions.length - 1 ? prev + 1 : 0));
   };
 
-  const currentSavedIndex = findDesignOptionIndex(
-    currentPreviewData.tema_invitacion, 
-    currentPreviewData.invitation_template
-  );
-  
+  const currentSavedIndex = (() => {
+    const idx = allDesignOptions.findIndex(
+      opt => opt.theme === currentPreviewData.tema_invitacion && opt.template === currentPreviewData.invitation_template
+    );
+    if (idx !== -1) return idx;
+    const themeIdx = allDesignOptions.findIndex(opt => opt.theme === currentPreviewData.tema_invitacion);
+    return themeIdx !== -1 ? themeIdx : 0;
+  })();
+
   const isCurrentDesign = currentIndex === currentSavedIndex;
 
   const romanticTemplate = themeId === 'romantic' ? getRomanticTemplateConfig(resolvedPreviewData.invitation_template) : null;
@@ -211,13 +230,15 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
 
         <div className="preview-modal-body">
           {themeId === 'custom' && (
-            <CustomInvitationPreview
-              titulo={resolvedPreviewData.titulo}
-              fecha={resolvedPreviewData.fecha}
-              hora={resolvedPreviewData.hora}
-              lugar_texto={resolvedPreviewData.lugar_texto}
-              templateId={resolvedPreviewData.invitation_template}
-            />
+            <div className="ipm-scrollable-content">
+              <CustomInvitationPreview
+                titulo={resolvedPreviewData.titulo}
+                fecha={resolvedPreviewData.fecha}
+                hora={resolvedPreviewData.hora}
+                lugar_texto={resolvedPreviewData.lugar_texto}
+                templateId={resolvedPreviewData.invitation_template}
+              />
+            </div>
           )}
           {themeId === 'kids_birthday' ? (
             <KidsBirthdayInvitationPreview
