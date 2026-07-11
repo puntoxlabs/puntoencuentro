@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, ImageIcon, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { X, Plus, ImageIcon, Upload, Loader2, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { customDesignsService } from '@/services/customDesignsService';
 import type { CustomInvitationTemplate } from '@/lib/customDesigns';
@@ -27,6 +27,12 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
   const [designName, setDesignName] = useState('Mi diseño');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Manage designs states
+  const [editingDesignId, setEditingDesignId] = useState<string | null>(null);
+  const [editDesignName, setEditDesignName] = useState('');
+  const [confirmDeleteDesignId, setConfirmDeleteDesignId] = useState<string | null>(null);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -108,6 +114,41 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
       setUploadError(err.message || 'No pudimos guardar el diseño.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleStartEdit = (design: CustomInvitationTemplate) => {
+    setEditingDesignId(design.id);
+    setEditDesignName(design.name);
+    setConfirmDeleteDesignId(null);
+  };
+
+  const handleSaveEdit = async (designId: string) => {
+    if (!user) return;
+    setIsActionLoading(true);
+    try {
+      const finalName = editDesignName.trim() || 'Mi diseño';
+      await customDesignsService.updateCustomDesignName(designId, finalName.substring(0, 40));
+      setDesigns(designs.map(d => d.id === designId ? { ...d, name: finalName.substring(0, 40) } : d));
+      setEditingDesignId(null);
+    } catch (err: any) {
+      setError(err.message || 'No pudimos actualizar el nombre. Reintentá más tarde.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (designId: string) => {
+    if (!user) return;
+    setIsActionLoading(true);
+    try {
+      await customDesignsService.deactivateCustomDesign(designId);
+      setDesigns(designs.filter(d => d.id !== designId));
+      setConfirmDeleteDesignId(null);
+    } catch (err: any) {
+      setError(err.message || 'No pudimos eliminar el diseño. Reintentá más tarde.');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -293,37 +334,116 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {designs.map(design => (
-                <div key={design.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--color-surface-variant)', borderRadius: 12 }}>
-                  <div style={{ width: 48, height: 64, borderRadius: 8, background: 'var(--color-surface)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {design.thumbnail_path ? (
-                      <img 
-                        src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)} 
-                        alt="" 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
+              {designs.map(design => {
+                const isEditing = editingDesignId === design.id;
+                const isConfirmingDelete = confirmDeleteDesignId === design.id;
+
+                return (
+                  <div key={design.id} style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12, background: 'var(--color-surface-variant)', borderRadius: 12 }}>
+                    
+                    {isConfirmingDelete ? (
+                      <div style={{ padding: '8px 4px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 600, color: '#d32f2f' }}>Eliminar diseño personalizado</h4>
+                        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+                          Este diseño dejará de aparecer en tu lista y liberará un lugar para crear otro. Si lo usaste en una invitación existente, esa invitación podría dejar de mostrar esta imagen personalizada.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button 
+                            onClick={() => setConfirmDeleteDesignId(null)}
+                            disabled={isActionLoading}
+                            style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid var(--color-outline)', background: 'transparent', color: 'var(--color-on-surface)', fontSize: 13, fontWeight: 600, cursor: isActionLoading ? 'not-allowed' : 'pointer', opacity: isActionLoading ? 0.5 : 1 }}
+                          >
+                            Cancelar
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(design.id)}
+                            disabled={isActionLoading}
+                            style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: '#d32f2f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: isActionLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isActionLoading ? 0.5 : 1 }}
+                          >
+                            {isActionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Eliminar diseño'}
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <ImageIcon size={20} color="var(--color-outline)" />
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 48, height: 64, borderRadius: 8, background: 'var(--color-surface)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {design.thumbnail_path ? (
+                              <img 
+                                src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)} 
+                                alt="" 
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                              />
+                            ) : (
+                              <ImageIcon size={20} color="var(--color-outline)" />
+                            )}
+                          </div>
+                          
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {isEditing ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <input 
+                                  type="text"
+                                  value={editDesignName}
+                                  onChange={(e) => setEditDesignName(e.target.value)}
+                                  maxLength={40}
+                                  autoFocus
+                                  disabled={isActionLoading}
+                                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-primary)', fontSize: 14, outline: 'none' }}
+                                />
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button onClick={() => setEditingDesignId(null)} disabled={isActionLoading} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--color-outline)', background: 'transparent' }}>Cancelar</button>
+                                  <button onClick={() => handleSaveEdit(design.id)} disabled={isActionLoading || !editDesignName.trim()} style={{ padding: '4px 8px', fontSize: 12, borderRadius: 4, border: 'none', background: 'var(--color-primary)', color: '#fff' }}>Guardar</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{design.name}</h4>
+                                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)' }}>
+                                  {new Date(design.created_at).toLocaleDateString()}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          
+                          {!isEditing && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
+                              <button 
+                                onClick={() => {
+                                  if (onSelectDesign) onSelectDesign(design.id);
+                                }}
+                                disabled={isActionLoading}
+                                style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}
+                              >
+                                Usar este diseño
+                              </button>
+                              
+                              <div style={{ display: 'flex', gap: 4, width: '100%', justifyContent: 'space-between', marginTop: 4 }}>
+                                <button
+                                  onClick={() => handleStartEdit(design)}
+                                  disabled={isActionLoading}
+                                  style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--color-outline-variant)', background: 'transparent', color: 'var(--color-on-surface-variant)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, cursor: 'pointer' }}
+                                  title="Editar nombre"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteDesignId(design.id)}
+                                  disabled={isActionLoading}
+                                  style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--color-outline-variant)', background: 'transparent', color: '#d32f2f', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, cursor: 'pointer' }}
+                                  title="Eliminar diseño"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--color-on-surface)' }}>{design.name}</h4>
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)' }}>
-                      {new Date(design.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      if (onSelectDesign) {
-                        onSelectDesign(design.id);
-                      }
-                    }}
-                    style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Usar este diseño
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -129,5 +129,29 @@ export const customDesignsService = {
     }
 
     return data as CustomInvitationTemplate;
+  },
+
+  async updateCustomDesignName(designId: string, name: string): Promise<void> {
+    const { error } = await supabase
+      .from('custom_invitation_templates')
+      .update({ name })
+      .eq('id', designId);
+      
+    if (error) {
+      console.error('Error updating custom design name:', error);
+      throw new Error('No pudimos actualizar el nombre. Reintentá más tarde.');
+    }
+  },
+
+  async deactivateCustomDesign(designId: string): Promise<void> {
+    const { error } = await supabase
+      .from('custom_invitation_templates')
+      .update({ is_active: false })
+      .eq('id', designId);
+      
+    if (error) {
+      console.error('Error deactivating custom design:', error);
+      throw new Error('No pudimos eliminar el diseño. Reintentá más tarde.');
+    }
   }
 };
