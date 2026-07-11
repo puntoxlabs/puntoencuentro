@@ -9,6 +9,7 @@ interface CustomInvitationPreviewProps {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  descripcion?: string;
   templateId?: string | null;
   variant?: 'compact' | 'full';
 }
@@ -18,6 +19,7 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
   fecha,
   hora,
   lugar_texto,
+  descripcion,
   templateId,
   variant = 'full'
 }) => {
@@ -84,6 +86,10 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
               </div>
             )}
           </div>
+
+          {descripcion && (
+            <p className="guest-theme-preview__message">{descripcion}</p>
+          )}
         </div>
       </div>
     </div>

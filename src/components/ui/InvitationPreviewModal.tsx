@@ -110,8 +110,22 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     const templateValue = templateId.startsWith('custom_')
       ? templateId
       : `custom_${templateId}`;
-    if (onApplyDesign) {
-      onApplyDesign('custom', templateValue);
+    // Only update the preview — do NOT call onApplyDesign yet.
+    // The user must press 'Aplicar diseño' to persist.
+    const existingIndex = allDesignOptions.findIndex(
+      opt => opt.theme === 'custom' && opt.template === templateValue
+    );
+    if (existingIndex !== -1) {
+      setCurrentIndex(existingIndex);
+    } else {
+      // Inject the new custom option at position 0 and navigate there.
+      allDesignOptions.unshift({
+        theme: 'custom' as any,
+        template: templateValue,
+        categoryLabel: 'Diseño personalizado',
+        templateLabel: 'Tu diseño'
+      });
+      setCurrentIndex(0);
     }
     setShowCustomDesignsSheet(false);
   };
@@ -127,9 +141,8 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   
   const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
-  
-  const isCustomTheme = themeId === 'custom';
-  
+
+
   const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFriendsTemplate = !!friendsTemplateConfig;
   
@@ -249,6 +262,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 fecha={resolvedPreviewData.fecha}
                 hora={resolvedPreviewData.hora}
                 lugar_texto={resolvedPreviewData.lugar_texto}
+                descripcion={resolvedPreviewData.descripcion}
                 templateId={resolvedPreviewData.invitation_template}
                 variant="full"
               />
@@ -458,8 +472,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           <p className="preview-modal-disclaimer">Así verán la invitación tus invitados. La vista es de solo lectura.</p>
         </div>
 
-        {!isCustomTheme && (
-          <>
+        <>
             <button 
               type="button"
               onClick={handlePrev}
@@ -480,7 +493,6 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               <ChevronRight size={24} />
             </button>
           </>
-        )}
 
         <div className="preview-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: '4px' }}>
@@ -493,7 +505,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                 onApplyDesign(activeOption.theme, activeOption.template ?? null);
               }
             }}>
-              Usar este diseño
+              Aplicar diseño
             </Button>
           ) : (
             <Button fullWidth variant="secondary" onClick={() => {}} style={{ opacity: 0.7, pointerEvents: 'none' }}>
