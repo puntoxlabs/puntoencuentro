@@ -271,6 +271,7 @@ const Step1Data: React.FC = () => {
         </div>
         <InvitationThemeSelector
           value={tema_invitacion || 'classic'}
+          template={invitation_template}
           onChange={(t, template) => {
             if (t === 'custom') {
               if (!template?.startsWith('custom_')) {

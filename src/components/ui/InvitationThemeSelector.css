@@ -168,6 +168,13 @@
   --tile-icon-bg: #EDE9FE;
   --tile-bg-selected: #EDE9FE;
 }
+.theme-tile-custom {
+  --tile-bg: #F8FAFC;
+  --tile-accent: #2563EB;
+  --tile-icon-color: #3B82F6;
+  --tile-icon-bg: #DBEAFE;
+  --tile-bg-selected: #EFF6FF;
+}
 
 .invitation-theme-selector-toggle {
   width: 100%;

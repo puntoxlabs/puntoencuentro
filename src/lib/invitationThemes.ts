@@ -149,7 +149,7 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
   },
   {
     id: 'custom',
-    label: 'Personalizado',
+    label: 'Diseño personalizado',
     description: 'Diseño subido por el organizador.',
     icon: Star,
     cssClass: 'guest-theme--custom',

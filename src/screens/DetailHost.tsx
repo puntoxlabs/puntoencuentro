@@ -1647,6 +1647,7 @@ const DetailHost: React.FC = () => {
                 ) : (
                   <InvitationThemeSelector
                     value={resolvedSheetTheme}
+                    template={encuentro.invitation_template}
                     onChange={(themeId, templateId) => {
                       if (themeId === 'custom') {
                         if (templateId?.startsWith('custom_')) {

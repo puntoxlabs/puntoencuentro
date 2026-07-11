@@ -6,10 +6,11 @@ import './InvitationThemeSelector.css';
 
 interface InvitationThemeSelectorProps {
   value: string;
+  template?: string | null;
   onChange: (theme: InvitationTheme, template?: string) => void;
 }
 
-export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = ({ value, onChange }) => {
+export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = ({ value, template, onChange }) => {
   const [expanded, setExpanded] = useState(false);
   const [isCustomSheetOpen, setIsCustomSheetOpen] = useState(false);
 
@@ -23,8 +24,7 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
     }
   }, [value, expanded]);
 
-  const gridThemes = INVITATION_THEMES.filter(t => t.id !== 'custom');
-  const visibleThemes = expanded ? gridThemes : gridThemes.slice(0, 4);
+  const visibleThemes = expanded ? INVITATION_THEMES : INVITATION_THEMES.slice(0, 4);
 
   return (
     <div className="invitation-theme-selector-container">
@@ -37,13 +37,19 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
         <div className="invitation-theme-selector-grid">
           {visibleThemes.map((theme) => {
             const Icon = theme.icon;
-            const isSelected = value === theme.id;
+            const isSelected = value === theme.id && (theme.id !== 'custom' || (template != null && template.startsWith('custom_')));
             return (
               <button
                 key={theme.id}
                 type="button"
                 className={`invitation-theme-item theme-tile-${theme.id} ${isSelected ? 'invitation-theme-item--selected' : ''}`}
-                onClick={() => onChange(theme.id as InvitationTheme)}
+                onClick={() => {
+                  if (theme.id === 'custom') {
+                    setIsCustomSheetOpen(true);
+                  } else {
+                    onChange(theme.id as InvitationTheme);
+                  }
+                }}
                 aria-pressed={isSelected}
               >
                 <div className="invitation-theme-item-icon-wrap">
@@ -69,7 +75,7 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
         className="invitation-theme-selector-custom-btn"
         onClick={() => setIsCustomSheetOpen(true)}
       >
-        + Crear diseño personalizado
+        Crear o gestionar diseño personalizado
       </button>
 
       <CustomDesignsSheet 
