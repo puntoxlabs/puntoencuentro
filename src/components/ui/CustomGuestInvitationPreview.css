@@ -1,9 +1,13 @@
-﻿.guest-theme-preview--custom-guest {
+.guest-theme-preview--custom-guest {
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  min-height: 420px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__background-image,
@@ -19,7 +23,7 @@
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__background-fallback {
-  background-color: #f5f5f5; /* Fallback claro por defecto */
+  background-color: #e5e7eb;
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__overlay {
@@ -39,36 +43,38 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  min-height: inherit;
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 32px 24px;
   border-radius: 24px;
   width: 100%;
   max-width: 400px;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__eyebrow {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-primary);
+  color: #1d4ed8;
   margin: 0 0 12px 0;
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__title {
   font-size: 24px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #111827;
   margin: 0 0 24px 0;
   line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__details {
@@ -84,19 +90,20 @@
   justify-content: center;
   gap: 8px;
   font-size: 15px;
-  color: #4a4a4a;
+  font-weight: 600;
+  color: #374151;
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__detail-icon {
   width: 18px;
   height: 18px;
-  color: var(--color-primary);
+  color: #1d4ed8;
   flex-shrink: 0;
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__message {
   font-size: 15px;
-  color: #4a4a4a;
+  color: #4b5563;
   line-height: 1.5;
   border-top: 1px solid rgba(0,0,0,0.1);
   padding-top: 16px;

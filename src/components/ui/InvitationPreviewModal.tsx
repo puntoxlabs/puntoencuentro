@@ -14,6 +14,7 @@ import { LearningInvitationPreview } from '@/components/ui/LearningInvitationPre
 import { WellnessInvitationPreview } from '@/components/ui/WellnessInvitationPreview';
 import { RomanticInvitationPreview } from '@/components/ui/RomanticInvitationPreview';
 import { CustomInvitationPreview } from '@/components/ui/CustomInvitationPreview';
+import { CustomDesignsSheet } from '@/components/ui/CustomDesignsSheet';
 import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
 import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
 import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
@@ -89,6 +90,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
 
   const [currentIndex, setCurrentIndex] = React.useState<number>(initialIndexRef.current);
   const [showVariantSelector, setShowVariantSelector] = React.useState(false);
+  const [showCustomDesignsSheet, setShowCustomDesignsSheet] = React.useState(false);
 
   const activeOption = allDesignOptions[currentIndex] || allDesignOptions[0];
 
@@ -101,6 +103,17 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       setCurrentIndex(selectedIndex);
     }
     setShowVariantSelector(false);
+  };
+
+  const handleSelectCustomDesign = (templateId: string) => {
+    // Defensive: avoid double-prefixing (custom_custom_<uuid>)
+    const templateValue = templateId.startsWith('custom_')
+      ? templateId
+      : `custom_${templateId}`;
+    if (onApplyDesign) {
+      onApplyDesign('custom', templateValue);
+    }
+    setShowCustomDesignsSheet(false);
   };
 
   const resolvedPreviewData = {
@@ -488,11 +501,20 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             </Button>
           )}
 
-          {activeOption.theme !== 'classic' && (
+          {activeOption.theme === 'custom' ? (
+            <Button
+              fullWidth
+              variant="secondary"
+              onClick={() => setShowCustomDesignsSheet(true)}
+              style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+            >
+              Cambiar diseño personalizado
+            </Button>
+          ) : activeOption.theme !== 'classic' ? (
             <Button fullWidth variant="secondary" onClick={() => setShowVariantSelector(true)} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               Ver modelos de {activeOption.categoryLabel}
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -543,6 +565,12 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           </div>
         </div>
       )}
+
+      <CustomDesignsSheet
+        isOpen={showCustomDesignsSheet}
+        onClose={() => setShowCustomDesignsSheet(false)}
+        onSelectDesign={handleSelectCustomDesign}
+      />
     </div>
   );
 
