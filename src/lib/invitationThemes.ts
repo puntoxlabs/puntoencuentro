@@ -316,6 +316,9 @@ export interface InvitationDesignOption {
   template: string | null;
   categoryLabel: string;
   templateLabel: string | null;
+  customDesignId?: string;
+  customImagePath?: string | null;
+  customThumbnailPath?: string | null;
 }
 
 export function getAllInvitationDesignOptions(): InvitationDesignOption[] {

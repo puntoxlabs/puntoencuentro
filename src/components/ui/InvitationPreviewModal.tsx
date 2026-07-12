@@ -39,7 +39,10 @@ import { getThemeEyebrow } from '@/lib/invitationThemes';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getAllInvitationDesignOptions } from '@/lib/invitationThemes';
+import { getAllInvitationDesignOptions, getDefaultInvitationTemplate } from '@/lib/invitationThemes';
+import { useAuth } from '@/contexts/AuthContext';
+import { customDesignsService } from '@/services/customDesignsService';
+import type { CustomInvitationTemplate } from '@/lib/customDesigns';
 import './InvitationPreviewModal.css';
 
 const SHOW_INVITATION_DEBUG = false;
@@ -61,21 +64,51 @@ interface InvitationPreviewModalProps {
 }
 
 export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, previewData, onApplyDesign }) => {
+  const { user } = useAuth();
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
+  const [customDesigns, setCustomDesigns] = React.useState<CustomInvitationTemplate[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (user) {
+      customDesignsService.listCustomDesigns(user.id)
+        .then(designs => {
+          if (isMounted) setCustomDesigns(designs);
+        })
+        .catch(err => console.error('Error fetching custom designs:', err));
+    }
+    return () => { isMounted = false; };
+  }, [user]);
   
   const allDesignOptions = React.useMemo(() => {
     const options = getAllInvitationDesignOptions();
-    if (currentPreviewData.tema_invitacion === 'custom' && currentPreviewData.invitation_template?.startsWith('custom_')) {
-      options.unshift({
+    
+    customDesigns.forEach(design => {
+      options.push({
         theme: 'custom' as any,
-        template: currentPreviewData.invitation_template,
+        template: `custom_${design.id}`,
         categoryLabel: 'Diseño personalizado',
-        templateLabel: 'Tu diseño'
+        templateLabel: design.name || 'Tu diseño',
+        customDesignId: design.id,
+        customImagePath: design.image_path,
+        customThumbnailPath: design.thumbnail_path
       });
+    });
+
+    if (currentPreviewData.tema_invitacion === 'custom' && currentPreviewData.invitation_template?.startsWith('custom_')) {
+      const exists = options.some(opt => opt.theme === 'custom' && opt.template === currentPreviewData.invitation_template);
+      if (!exists) {
+        options.push({
+          theme: 'custom' as any,
+          template: currentPreviewData.invitation_template,
+          categoryLabel: 'Diseño personalizado',
+          templateLabel: 'Tu diseño'
+        });
+      }
     }
     return options;
-  }, [currentPreviewData.tema_invitacion, currentPreviewData.invitation_template]);
+  }, [currentPreviewData.tema_invitacion, currentPreviewData.invitation_template, customDesigns]);
 
   const initialIndexRef = React.useRef(
     (() => {
@@ -89,8 +122,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   );
 
   const [currentIndex, setCurrentIndex] = React.useState<number>(initialIndexRef.current);
+  const [userHasNavigated, setUserHasNavigated] = React.useState(false);
   const [showVariantSelector, setShowVariantSelector] = React.useState(false);
   const [showCustomDesignsSheet, setShowCustomDesignsSheet] = React.useState(false);
+  const [showCategorySelector, setShowCategorySelector] = React.useState(false);
 
   const activeOption = allDesignOptions[currentIndex] || allDesignOptions[0];
 
@@ -100,6 +135,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       opt => opt.theme === selectedTheme && opt.template === templateId
     );
     if (selectedIndex !== -1) {
+      setUserHasNavigated(true);
       setCurrentIndex(selectedIndex);
     }
     setShowVariantSelector(false);
@@ -112,22 +148,17 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       : `custom_${templateId}`;
     // Only update the preview — do NOT call onApplyDesign yet.
     // The user must press 'Aplicar diseño' to persist.
-    const existingIndex = allDesignOptions.findIndex(
+    let existingIndex = allDesignOptions.findIndex(
       opt => opt.theme === 'custom' && opt.template === templateValue
     );
+    
+    // If not found (e.g. from CustomDesignsSheet but not yet in allDesignOptions), find the first custom or push
     if (existingIndex !== -1) {
+      setUserHasNavigated(true);
       setCurrentIndex(existingIndex);
-    } else {
-      // Inject the new custom option at position 0 and navigate there.
-      allDesignOptions.unshift({
-        theme: 'custom' as any,
-        template: templateValue,
-        categoryLabel: 'Diseño personalizado',
-        templateLabel: 'Tu diseño'
-      });
-      setCurrentIndex(0);
     }
     setShowCustomDesignsSheet(false);
+    setShowCategorySelector(false);
   };
 
   const resolvedPreviewData = {
@@ -186,10 +217,12 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   }, []);
 
   const handlePrev = () => {
+    setUserHasNavigated(true);
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : allDesignOptions.length - 1));
   };
 
   const handleNext = () => {
+    setUserHasNavigated(true);
     setCurrentIndex((prev) => (prev < allDesignOptions.length - 1 ? prev + 1 : 0));
   };
 
@@ -201,6 +234,12 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     const themeIdx = allDesignOptions.findIndex(opt => opt.theme === currentPreviewData.tema_invitacion);
     return themeIdx !== -1 ? themeIdx : 0;
   })();
+
+  useEffect(() => {
+    if (!userHasNavigated) {
+      setCurrentIndex(currentSavedIndex);
+    }
+  }, [currentSavedIndex, userHasNavigated]);
 
   const isCurrentDesign = currentIndex === currentSavedIndex;
 
@@ -513,20 +552,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             </Button>
           )}
 
-          {activeOption.theme === 'custom' ? (
-            <Button
-              fullWidth
-              variant="secondary"
-              onClick={() => setShowCustomDesignsSheet(true)}
-              style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-            >
-              Cambiar diseño personalizado
-            </Button>
-          ) : activeOption.theme !== 'classic' ? (
-            <Button fullWidth variant="secondary" onClick={() => setShowVariantSelector(true)} style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              Ver modelos de {activeOption.categoryLabel}
-            </Button>
-          ) : null}
+          <Button
+            fullWidth
+            variant="secondary"
+            onClick={() => setShowCategorySelector(true)}
+            style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+          >
+            Cambiar diseño
+          </Button>
         </div>
       </div>
 
@@ -574,6 +607,88 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             {activeOption.theme === 'wellness' && (
                <WellnessTemplateSelector selectedTemplateId={activeOption.template || 'wellness_calm'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
             )}
+          </div>
+        </div>
+      )}
+
+      {showCategorySelector && (
+        <div className="dh-modal-overlay" style={{ zIndex: 10000, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div className="dh-bottom-sheet" style={{ background: '#fff', padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative' }}>
+            <button 
+              onClick={() => setShowCategorySelector(false)}
+              style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6B7280' }}
+            >
+              <X size={24} />
+            </button>
+            <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
+            
+            <div style={{ marginBottom: 24 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#4B5563', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mis diseños personalizados</h4>
+              {customDesigns.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {customDesigns.map(design => (
+                    <div 
+                      key={design.id} 
+                      onClick={() => handleSelectCustomDesign(design.id)}
+                      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}
+                    >
+                      <div style={{ aspectRatio: '4/5', background: '#f3f4f6', borderRadius: 8, overflow: 'hidden' }}>
+                         {design.thumbnail_path && (
+                            <img 
+                              src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)} 
+                              alt={design.name} 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                            />
+                         )}
+                      </div>
+                      <span style={{ fontSize: 12, color: '#374151', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{design.name || 'Tu diseño'}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: 14, color: '#6B7280' }}>No tienes diseños activos.</p>
+              )}
+              <Button variant="secondary" fullWidth style={{ marginTop: 12 }} onClick={() => {
+                setShowCategorySelector(false);
+                setShowCustomDesignsSheet(true);
+              }}>
+                Gestionar diseños personalizados
+              </Button>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#4B5563', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Categorías</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {Array.from(new Set(allDesignOptions.filter(opt => opt.theme !== 'custom').map(opt => opt.theme))).map(theme => {
+                  const firstOpt = allDesignOptions.find(opt => opt.theme === theme);
+                  if (!firstOpt) return null;
+                  return (
+                    <button
+                      key={theme}
+                      onClick={() => {
+                        setUserHasNavigated(true);
+                        const defaultTemplate = getDefaultInvitationTemplate(theme) || firstOpt.template;
+                        const targetIndex = allDesignOptions.findIndex(opt => opt.theme === theme && opt.template === defaultTemplate);
+                        if (targetIndex !== -1) {
+                          setCurrentIndex(targetIndex);
+                        } else {
+                          // Fallback to first option of that category
+                          setCurrentIndex(allDesignOptions.findIndex(opt => opt.theme === theme));
+                        }
+                        setShowCategorySelector(false);
+                        // Optional: automatically show variant selector for non-classic
+                        if (theme !== 'classic') {
+                          setTimeout(() => setShowVariantSelector(true), 50);
+                        }
+                      }}
+                      style={{ textAlign: 'left', padding: '12px 16px', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 15, fontWeight: 500, color: '#111827', cursor: 'pointer' }}
+                    >
+                      {firstOpt.categoryLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
