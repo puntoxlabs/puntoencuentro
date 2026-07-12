@@ -55,7 +55,7 @@ export const CustomGuestInvitationPreview: React.FC<CustomGuestInvitationPreview
       {imageUrl ? (
         <div 
           className="guest-theme-preview__background-image"
-          style={{ backgroundImage: `url(${imageUrl})` }}
+          style={{ backgroundImage: `url("${imageUrl}")` }}
         />
       ) : (
         <div className="guest-theme-preview__background-fallback" />
