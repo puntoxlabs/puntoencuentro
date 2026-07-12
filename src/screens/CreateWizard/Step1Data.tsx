@@ -83,6 +83,18 @@ const Step1Data: React.FC = () => {
   const isToday = fecha === minDate;
   const minTime = isToday ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : undefined;
 
+  const previewData = React.useMemo(() => {
+    return {
+      titulo,
+      fecha,
+      hora,
+      lugar_texto,
+      descripcion,
+      tema_invitacion,
+      invitation_template
+    };
+  }, [titulo, fecha, hora, lugar_texto, descripcion, tema_invitacion, invitation_template]);
+
   const isValidTheme = tema_invitacion === 'custom' ? invitation_template?.startsWith('custom_') : true;
   const isValid = titulo.trim() !== '' && fecha !== '' && hora !== '' && isValidTheme;
 
@@ -415,16 +427,17 @@ const Step1Data: React.FC = () => {
             lugar_texto={lugar_texto}
           />
         )}
-        {tema_invitacion === 'custom' && invitation_template?.startsWith('custom_') && (
+        {previewData.tema_invitacion === 'custom' && previewData.invitation_template?.startsWith('custom_') && (
           <div style={{ marginTop: 24 }}>
             <label className="input-label" style={{ marginBottom: 12, display: 'block' }}>Previsualización</label>
             <div style={{ borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
               <CustomInvitationPreview
-                templateId={invitation_template}
-                titulo={titulo}
-                fecha={fecha}
-                hora={hora}
-                lugar_texto={lugar_texto}
+                templateId={previewData.invitation_template}
+                titulo={previewData.titulo}
+                fecha={previewData.fecha}
+                hora={previewData.hora}
+                lugar_texto={previewData.lugar_texto}
+                descripcion={previewData.descripcion}
                 variant="compact"
               />
             </div>

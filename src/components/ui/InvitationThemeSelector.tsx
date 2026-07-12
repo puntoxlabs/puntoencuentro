@@ -82,7 +82,10 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
         isOpen={isCustomSheetOpen} 
         onClose={() => setIsCustomSheetOpen(false)} 
         onSelectDesign={(templateId) => {
-          onChange('custom', `custom_${templateId}`);
+          const templateValue = templateId.startsWith('custom_')
+            ? templateId
+            : `custom_${templateId}`;
+          onChange('custom', templateValue);
           setIsCustomSheetOpen(false);
         }}
       />
