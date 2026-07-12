@@ -235,4 +235,34 @@ export const encuentrosService = {
     // Devuelve { ok, visible } o { ok: false, error }
     return result;
   },
+
+  async getCountsPorEncuentros(encuentroIds: string[]) {
+    if (!encuentroIds || encuentroIds.length === 0) return {};
+    
+    // Solo podemos traer si hay IDs
+    const ids = [...new Set(encuentroIds)];
+    const { data, error } = await supabase
+      .from('participantes')
+      .select('encuentro_id, estado')
+      .in('encuentro_id', ids);
+      
+    if (error) {
+      if (import.meta.env.DEV) console.error('Error fetching counts:', error);
+      return {};
+    }
+    
+    const counts: Record<string, { total: number; confirmados: number }> = {};
+    
+    (data || []).forEach(p => {
+      if (!counts[p.encuentro_id]) {
+        counts[p.encuentro_id] = { total: 0, confirmados: 0 };
+      }
+      counts[p.encuentro_id].total += 1;
+      if (p.estado === 'confirmado') {
+        counts[p.encuentro_id].confirmados += 1;
+      }
+    });
+    
+    return counts;
+  },
 };

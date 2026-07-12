@@ -45,16 +45,16 @@
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__glass-card {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: 32px 24px;
-  border-radius: 24px;
-  width: 100%;
-  max-width: 400px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px 20px;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 360px;
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__eyebrow {

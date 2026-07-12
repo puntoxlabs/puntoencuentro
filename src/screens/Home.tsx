@@ -57,11 +57,12 @@ const ActiveCard: React.FC<{
   onClick: () => void;
   participantesCache: any[] | null;
   miEstado?: string | null;
-}> = ({ enc, onClick, participantesCache, miEstado }) => {
+  counts?: { total: number; confirmados: number } | null;
+}> = ({ enc, onClick, participantesCache, miEstado, counts }) => {
   if (!enc) return null;
   const accentColor = getEncuentroPrimaryColor(enc);
-  const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
-  const total = (participantesCache || []).length;
+  const confirmados = counts ? counts.confirmados : (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
+  const total = counts ? counts.total : (participantesCache || []).length;
 
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Vas a asistir' : miEstado === 'rechazado' ? '✖ No vas a asistir' : miEstado ? 'Respuesta registrada' : null;
@@ -123,12 +124,13 @@ const PastCard: React.FC<{
   onRepeat: (e: React.MouseEvent) => void;
   participantesCache: any[] | null;
   miEstado?: string | null;
-}> = ({ enc, onClick, onRepeat, participantesCache, miEstado }) => {
+  counts?: { total: number; confirmados: number } | null;
+}> = ({ enc, onClick, onRepeat, participantesCache, miEstado, counts }) => {
   if (!enc) return null;
   const isCancelled = enc.estado === 'cancelado';
   const accentColor = getEncuentroPrimaryColor(enc);
-  const confirmados = (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
-  const total = (participantesCache || []).length;
+  const confirmados = counts ? counts.confirmados : (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
+  const total = counts ? counts.total : (participantesCache || []).length;
 
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Asististe' : miEstado === 'rechazado' ? '✖ No asististe' : miEstado ? 'Respuesta registrada' : null;
@@ -236,6 +238,7 @@ const Home: React.FC = () => {
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
   const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>(validCache?.participated || staleParticipated || []);
+  const [counts, setCounts] = useState<Record<string, { total: number; confirmados: number }>>({});
 
   // Los encuentros "visibles" dependen del scope activo
   const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
@@ -366,6 +369,10 @@ const Home: React.FC = () => {
 
       const sortedOrganized = sortList(organized);
       const sortedParticipated = sortList(participated);
+
+      const allIds = [...sortedOrganized, ...sortedParticipated].map(e => e.id).filter(Boolean);
+      const newCounts = await encuentrosService.getCountsPorEncuentros(allIds);
+      setCounts(newCounts);
 
       setOrganizedEncuentros(sortedOrganized);
       setParticipatedEncuentros(sortedParticipated);
@@ -591,6 +598,7 @@ const Home: React.FC = () => {
                   }}
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
+                  counts={counts[enc.id] ?? null}
                 />
               ))}
             </div>
@@ -635,6 +643,7 @@ const Home: React.FC = () => {
                   onRepeat={(e) => handleRepeat(enc, e)}
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
+                  counts={counts[enc.id] ?? null}
                 />
               ))}
             </div>

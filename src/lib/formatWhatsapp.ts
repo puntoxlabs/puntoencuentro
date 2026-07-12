@@ -6,7 +6,15 @@
  */
 export function formatHoraWhatsApp(hora: string): string {
   if (!hora) return '';
-  return hora.substring(0, 5); // "13:15:00" -> "13:15"
+  const hsMin = hora.substring(0, 5);
+  const parts = hsMin.split(':');
+  if (parts.length === 2) {
+    if (parts[1] === '00') {
+      return `${parts[0]} hs`;
+    }
+    return `${parts[0]} h ${parts[1]}`;
+  }
+  return hsMin;
 }
 
 /**
@@ -49,8 +57,7 @@ export function formatFechaHoraWhatsApp(fecha: string, hora: string): { fechaStr
  */
 export function preventNumberLinking(text: string): string {
   if (!text) return text;
-  // Busca cualquier dígito seguido de otro dígito y mete un \u200B en el medio.
-  // Ej: "Roffo 882" -> "Roffo 8\u200B8\u200B2"
+  // Busca cualquier dígito seguido de otro dígito y mete un \u2060 (WORD JOINER) en el medio.
   // Esto rompe la detección de patrón del parser de WhatsApp sin afectar lo visual.
-  return text.replace(/(\d)(?=\d)/g, '$1\u200B');
+  return text.replace(/(\d)(?=\d)/g, '$1\u2060');
 }

@@ -266,7 +266,7 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
             </div>
           </div>
 
-          <div style={{ paddingTop: 16, borderTop: '1px solid var(--color-outline-variant)', display: 'flex', gap: 12 }}>
+          <div style={{ paddingTop: 16, paddingBottom: 'calc(24px + env(safe-area-inset-bottom))', borderTop: '1px solid var(--color-outline-variant)', display: 'flex', gap: 12 }}>
             <button
               onClick={resetUploader}
               disabled={isUploading}
@@ -448,7 +448,7 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
           )}
         </div>
 
-        <div style={{ paddingTop: 16, borderTop: '1px solid var(--color-outline-variant)' }}>
+        <div style={{ paddingTop: 16, paddingBottom: 'calc(24px + env(safe-area-inset-bottom))', borderTop: '1px solid var(--color-outline-variant)' }}>
           <input 
             type="file" 
             ref={fileInputRef} 
