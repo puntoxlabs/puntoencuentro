@@ -29,7 +29,7 @@ function getInitials(user: {
 
 export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
-  const { user, loading, signInWithGoogle, signOut } = useAuth();
+  const { user, isPermanentUser, isAnonymousUser, loading, signInWithGoogle, signOut } = useAuth();
   
   const [hostAlias, setHostAliasState] = useState('');
   const [aliasFeedback, setAliasFeedback] = useState(false);
@@ -52,8 +52,15 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   const initials = getInitials(user);
 
   const handleSignIn = async () => {
-    await signInWithGoogle();
-    // Page will reload after OAuth redirect — no need to close sheet manually
+    const result = await signInWithGoogle();
+    if (!result.ok) {
+      if (result.error === 'anonymous_account_linking_pending') {
+        alert('Próximamente podrás vincular tu cuenta. Por ahora, tus encuentros están guardados de forma segura en este dispositivo.');
+      } else {
+        alert('Hubo un problema al iniciar sesión. Por favor, intentá nuevamente.');
+      }
+    }
+    // Page will reload after OAuth redirect on success
   };
 
   const handleSignOut = async () => {
@@ -91,7 +98,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
           </button>
         </div>
 
-        {user ? (
+        {isPermanentUser ? (
           <div className="account-sheet__profile-card">
             {avatarUrl ? (
               <img
@@ -108,7 +115,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
               {displayName && (
                 <p className="account-sheet__profile-name">{displayName}</p>
               )}
-              <p className="account-sheet__profile-email">{user.email}</p>
+              <p className="account-sheet__profile-email">{user?.email}</p>
             </div>
           </div>
         ) : (
@@ -171,7 +178,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
           )}
         </div>
 
-        {user ? (
+        {isPermanentUser ? (
           <button
             className="account-sheet__signout-btn"
             onClick={handleSignOut}
@@ -179,6 +186,10 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
           >
             {t('account.sign_out')}
           </button>
+        ) : isAnonymousUser ? (
+          <div style={{ marginTop: '16px', padding: '16px', background: '#F0FDF4', color: '#166534', borderRadius: '12px', fontSize: '13px', lineHeight: '1.5', textAlign: 'center' }}>
+            Tus encuentros están protegidos en este dispositivo. La vinculación con una cuenta estará disponible próximamente.
+          </div>
         ) : (
           <>
             <button

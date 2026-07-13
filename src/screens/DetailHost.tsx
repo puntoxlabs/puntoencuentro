@@ -1306,7 +1306,12 @@ const DetailHost: React.FC = () => {
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 2 }}>
                     <Button
                       variant="primary" size="sm"
-                      onClick={() => signInWithGoogle()}
+                      onClick={async () => {
+                        const result = await signInWithGoogle();
+                        if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
+                          alert('Hubo un problema al iniciar sesión.');
+                        }
+                      }}
                       style={{ padding: '0 18px', height: 36 }}
                     >
                       {t('account.continue_google', 'Continuar con Google')}

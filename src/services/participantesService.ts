@@ -161,20 +161,26 @@ export const participantesService = {
     throw new Error('addParticipanteGenerico sin public_token está deprecado en la arquitectura RPC-first.');
   },
 
-  async linkUserToParticipante(participantId: string, userId: string) {
-    if (!participantId || !userId) return;
-    if (import.meta.env.DEV) console.log(`[LINK_PART] Vinculando participante ${participantId} a user ${userId}`);
+  async linkParticipantTokenToCurrentUser(token: string) {
+    if (!token) return;
 
-    const { error } = await supabase
-      .from('participantes')
-      .update({ user_id: userId })
-      .eq('id', participantId)
-      .is('user_id', null); // Solo vincular si aún no tiene user_id (evita sobreescribir)
+    const { data, error } = await supabase.rpc('vincular_usuario_participante_seguro', {
+      p_token: token
+    });
 
     if (error) {
-      console.error('Error linking user to participante:', error);
       throw error;
     }
+
+    const result = data as any;
+    if (!result?.ok) {
+      if (result?.error === 'participant_already_linked' || result?.error === 'invalid_participant_token') {
+        throw new Error(result.error);
+      }
+      throw new Error(result?.error || 'link_failed');
+    }
+    
+    return result;
   },
 
   /**

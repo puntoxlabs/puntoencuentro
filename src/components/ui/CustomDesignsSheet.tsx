@@ -173,7 +173,16 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
               Para guardar tus diseños personalizados necesitás iniciar sesión.
             </p>
             <button
-              onClick={() => signInWithGoogle()}
+              onClick={async () => {
+                const result = await signInWithGoogle();
+                if (!result.ok) {
+                  if (result.error === 'anonymous_account_linking_pending') {
+                    alert('Próximamente podrás vincular tu cuenta. Por ahora, tus diseños están guardados de forma segura en este dispositivo.');
+                  } else {
+                    alert('Hubo un problema al iniciar sesión. Por favor, intentá nuevamente.');
+                  }
+                }
+              }}
               style={{
                 width: '100%', padding: '14px', borderRadius: 14, border: 'none',
                 background: 'var(--color-primary)', color: '#fff', fontWeight: 700,

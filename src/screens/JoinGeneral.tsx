@@ -326,9 +326,16 @@ const JoinGeneral: React.FC = () => {
         };
         localStorage.setItem('encuentros_general', JSON.stringify(savedData));
 
-        // Guardar en sessionStorage para vinculación post-login
-        if (!user && idToSave) {
-          sessionStorage.setItem('puntoencuentro_recent_participant_id', idToSave);
+        if (tokenToSave) {
+          if (user) {
+            // Si ya hay usuario autenticado, vincular inmediatamente
+            participantesService.linkParticipantTokenToCurrentUser(tokenToSave).catch(err => {
+              console.error('Error auto-vinculando participante general:', err);
+            });
+          } else {
+            // Si no hay sesión, guardar para vinculación post-login
+            sessionStorage.setItem('pending_participant_invitation_token', tokenToSave);
+          }
         }
 
         if (import.meta.env.DEV) console.log('[GENERAL] localStorage actualizado con token_invitacion:', tokenToSave);
@@ -621,7 +628,17 @@ const JoinGeneral: React.FC = () => {
               {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={signInWithGoogle} fullWidth>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={async () => {
+              const result = await signInWithGoogle();
+              if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
+                alert('Hubo un problema al iniciar sesión.');
+              }
+            }} 
+            fullWidth
+          >
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>

@@ -5,9 +5,8 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { Button } from '@/components/ui/Button';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
-import { getHostId } from '@/lib/auth';
+import { ensureHostSession } from '@/lib/ensureHostSession';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
-import { useAuth } from '@/contexts/AuthContext';
 import { validateEncounterDate } from '@/lib/formatDate';
 import '../CreateWizard.css';
 
@@ -17,7 +16,6 @@ interface Step4Props {
 
 const Step4InviteType: React.FC<Step4Props> = () => {
   const { setField, ...wizardData } = useWizardStore();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +36,22 @@ const Step4InviteType: React.FC<Step4Props> = () => {
     }
     try {
       setLoading(true);
+      setError(null);
+
+      let hostId: string;
+      try {
+        const { user: hostUser } = await ensureHostSession();
+        hostId = hostUser.id;
+      } catch (err) {
+        console.error('Error in ensureHostSession:', err);
+        setError('No pudimos crear el encuentro. Revisá tu conexión e intentá nuevamente.');
+        setLoading(false);
+        return;
+      }
       
       let encuentroId = wizardData.encuentro_id;
 
       if (!encuentroId) {
-        // Si está logueado → user.id (UUID de Supabase Auth).
-        // Si es anónimo  → UUID local del dispositivo (sin FK en host_id).
-        const hostId = user?.id ?? getHostId();
         const payload = {
           titulo: wizardData.titulo,
           descripcion: wizardData.descripcion,
@@ -95,7 +102,6 @@ const Step4InviteType: React.FC<Step4Props> = () => {
       } else {
         if (import.meta.env.DEV) console.log('[REUSING ENCUENTRO]', encuentroId);
         // Actualizamos por si cambió algo en pasos previos (título, fecha, etc.)
-        const hostId = user?.id ?? getHostId();
         await encuentrosService.updateEncuentro(encuentroId, {
           titulo: wizardData.titulo,
           descripcion: wizardData.descripcion,

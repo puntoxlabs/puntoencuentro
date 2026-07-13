@@ -255,8 +255,16 @@ const InviteGuest: React.FC = () => {
       // La confirmación fue exitosa — guardar token y sesión antes de hacer el refresh
       useHomeStore.getState().invalidateCache();
       if (token) saveParticipatedToken(token);
-      if (!user) {
-        sessionStorage.setItem('puntoencuentro_recent_participant_id', participante.id);
+      if (token) {
+        if (user) {
+          // Si ya hay usuario autenticado, vincular inmediatamente
+          participantesService.linkParticipantTokenToCurrentUser(token).catch(err => {
+            console.error('Error auto-vinculando participante:', err);
+          });
+        } else {
+          // Si no hay sesión, guardar para vinculación post-login
+          sessionStorage.setItem('pending_participant_invitation_token', token);
+        }
       }
 
       // Refresh para obtener link_virtual (si confirmado en encuentro virtual)
@@ -589,7 +597,17 @@ const InviteGuest: React.FC = () => {
               {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={signInWithGoogle} fullWidth>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={async () => {
+              const result = await signInWithGoogle();
+              if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
+                alert('Hubo un problema al iniciar sesión.');
+              }
+            }} 
+            fullWidth
+          >
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>
