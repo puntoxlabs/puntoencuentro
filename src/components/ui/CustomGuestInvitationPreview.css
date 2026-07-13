@@ -45,16 +45,16 @@
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__glass-card {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 24px 20px;
   border-radius: 20px;
   width: 90%;
   max-width: 360px;
   text-align: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__eyebrow {
@@ -62,8 +62,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #1d4ed8;
+  color: #1e3a8a;
   margin: 0 0 12px 0;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__title {
@@ -72,7 +73,7 @@
   color: #111827;
   margin: 0 0 24px 0;
   line-height: 1.2;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8), 0 1px 12px rgba(255, 255, 255, 0.5);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__details {
@@ -89,7 +90,8 @@
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  color: #374151;
+  color: #1f2937;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
 }
 
 .guest-theme-preview--custom-guest .guest-theme-preview__detail-icon {
@@ -101,9 +103,10 @@
 
 .guest-theme-preview--custom-guest .guest-theme-preview__message {
   font-size: 15px;
-  color: #4b5563;
+  color: #374151;
   line-height: 1.5;
-  border-top: 1px solid rgba(0,0,0,0.1);
+  border-top: 1px solid rgba(0,0,0,0.15);
   padding-top: 16px;
   margin-top: 4px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
 }
