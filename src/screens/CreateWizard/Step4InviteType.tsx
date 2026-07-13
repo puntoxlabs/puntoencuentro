@@ -5,7 +5,7 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { Button } from '@/components/ui/Button';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
-import { ensureHostSession } from '@/lib/ensureHostSession';
+import { supabase } from '@/lib/supabase';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { validateEncounterDate } from '@/lib/formatDate';
 import '../CreateWizard.css';
@@ -40,10 +40,15 @@ const Step4InviteType: React.FC<Step4Props> = () => {
 
       let hostId: string;
       try {
-        const { user: hostUser } = await ensureHostSession();
-        hostId = hostUser.id;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setError('No encontramos una sesión activa. Elegí cómo continuar para poder guardar el encuentro.');
+          setLoading(false);
+          return;
+        }
+        hostId = session.user.id;
       } catch (err) {
-        console.error('Error in ensureHostSession:', err);
+        console.error('Error getting session in submit:', err);
         setError('No pudimos crear el encuentro. Revisá tu conexión e intentá nuevamente.');
         setLoading(false);
         return;

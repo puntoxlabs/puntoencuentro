@@ -4,6 +4,9 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { useWizardStore } from '@/store/wizardStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCreateEncounter } from '@/hooks/useCreateEncounter';
+import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
 
 import Step1Data from '@/screens/CreateWizard/Step1Data';
 import Step2Modality from '@/screens/CreateWizard/Step2Modality';
@@ -20,6 +23,9 @@ const CreateWizard: React.FC = () => {
   const { step, prevStep, encuentro_id } = useWizardStore();
   const navigate = useNavigate();
   const [showScrollHint, setShowScrollHint] = React.useState(false);
+  
+  const { user, loading: authLoading } = useAuth();
+  const { choiceSheetProps } = useCreateEncounter();
 
   React.useEffect(() => {
     const checkScroll = () => {
@@ -63,6 +69,29 @@ const CreateWizard: React.FC = () => {
   };
 
   const progress = (step / TOTAL_STEPS) * 100;
+
+  if (authLoading) {
+    return (
+      <ScreenContainer>
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <p>Cargando...</p>
+        </div>
+      </ScreenContainer>
+    );
+  }
+
+  if (!user) {
+    return (
+      <ScreenContainer>
+        <AppBar title="Nuevo encuentro" showBack={true} onBack={() => navigate('/')} />
+        <CreationAccountChoiceSheet
+          {...choiceSheetProps}
+          open={true}
+          onClose={() => navigate('/')}
+        />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>

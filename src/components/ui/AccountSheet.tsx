@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
@@ -29,15 +29,17 @@ function getInitials(user: {
 
 export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
-  const { user, isPermanentUser, isAnonymousUser, loading, signInWithGoogle, signOut } = useAuth();
+  const { user, isPermanentUser, isAnonymousUser, signInWithGoogle, signOut } = useAuth();
   
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [hostAlias, setHostAliasState] = useState('');
   const [aliasFeedback, setAliasFeedback] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setHostAliasState(getHostAlias());
-      setAliasFeedback(false);
     }
   }, [isOpen]);
 
@@ -52,20 +54,43 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   const initials = getInitials(user);
 
   const handleSignIn = async () => {
-    const result = await signInWithGoogle();
-    if (!result.ok) {
-      if (result.error === 'anonymous_account_linking_pending') {
-        alert('Próximamente podrás vincular tu cuenta. Por ahora, tus encuentros están guardados de forma segura en este dispositivo.');
-      } else {
-        alert('Hubo un problema al iniciar sesión. Por favor, intentá nuevamente.');
+    setLoading(true);
+    setError(null);
+    try {
+      // Guardar intención para después de oauth
+      sessionStorage.setItem('post_auth_redirect', window.location.pathname);
+      const result = await signInWithGoogle();
+      if (!result.ok) {
+        if (result.error === 'anonymous_account_linking_pending') {
+          setError('Todavía no es posible vincular automáticamente estos encuentros con Google. Para no perderlos, no cierres esta sesión ni borres los datos del navegador.');
+        } else {
+          setError(t('account.google_error', 'No se pudo iniciar sesión. Intentá nuevamente.'));
+        }
       }
+    } catch (err) {
+      console.error('Sign in error:', err);
+      setError(t('account.google_error', 'No se pudo iniciar sesión. Intentá nuevamente.'));
+    } finally {
+      setLoading(false);
     }
-    // Page will reload after OAuth redirect on success
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    onClose();
+    if (isAnonymousUser && !showSignOutConfirm) {
+      setShowSignOutConfirm(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      await signOut();
+      onClose();
+    } catch (err) {
+      console.error('Sign out error:', err);
+      setError(t('account.sign_out_error', 'No se pudo cerrar sesión.'));
+    } finally {
+      setLoading(false);
+      setShowSignOutConfirm(false);
+    }
   };
 
   const handleSaveAlias = () => {
@@ -87,7 +112,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
         {/* Header */}
         <div className="pe-sheet-header">
           <h2 className="pe-sheet-title">
-            {user ? t('account.your_account') : t('account.save_title')}
+            {user ? (isAnonymousUser ? 'Historial vinculado a este navegador' : t('account.your_account')) : 'Guardá tus encuentros con tu cuenta'}
           </h2>
           <button
             className="pe-sheet-close-btn"
@@ -118,13 +143,23 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
               <p className="account-sheet__profile-email">{user?.email}</p>
             </div>
           </div>
+        ) : isAnonymousUser ? (
+          <div className="account-sheet__benefit-box" style={{ background: '#fff8e1', borderColor: '#ffca28' }}>
+            <p className="account-sheet__benefit-title" style={{ color: '#f57f17', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={18} />
+              Advertencia
+            </p>
+            <p className="account-sheet__benefit-desc" style={{ color: '#663c00' }}>
+              Si borrás los datos, cambiás de navegador o dispositivo, usás una sesión privada o perdés esta sesión, podrías perder el acceso a tus encuentros.
+            </p>
+            <p className="account-sheet__benefit-desc" style={{ color: '#663c00', marginTop: '8px', fontWeight: 500 }}>
+              La vinculación segura con Google estará disponible próximamente.
+            </p>
+          </div>
         ) : (
           <div className="account-sheet__benefit-box">
-            <p className="account-sheet__benefit-title">
-              {t('account.save_desc')}
-            </p>
             <p className="account-sheet__benefit-desc">
-              Iniciando sesión, tus encuentros quedan vinculados a tu cuenta de Google — sin importar desde dónde los accedas.
+              Iniciá sesión con Google para conservar tu historial y acceder desde otros dispositivos.
             </p>
           </div>
         )}
@@ -178,6 +213,12 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
           )}
         </div>
 
+        {error && (
+          <p style={{ color: '#DC2626', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+            {error}
+          </p>
+        )}
+
         {isPermanentUser ? (
           <button
             className="account-sheet__signout-btn"
@@ -187,25 +228,54 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
             {t('account.sign_out')}
           </button>
         ) : isAnonymousUser ? (
-          <div style={{ marginTop: '16px', padding: '16px', background: '#F0FDF4', color: '#166534', borderRadius: '12px', fontSize: '13px', lineHeight: '1.5', textAlign: 'center' }}>
-            Tus encuentros están protegidos en este dispositivo. La vinculación con una cuenta estará disponible próximamente.
-          </div>
+          <>
+            {showSignOutConfirm ? (
+              <div style={{ marginTop: '16px', padding: '16px', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '12px' }}>
+                <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#991B1B', fontSize: 15 }}>¿Salir de esta sesión?</p>
+                <p style={{ margin: '0 0 16px', fontSize: 13, color: '#991B1B', lineHeight: 1.5 }}>
+                  Podrías perder el acceso a los encuentros creados sin cuenta. Esta acción no se puede deshacer desde otro dispositivo.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button
+                    onClick={() => setShowSignOutConfirm(false)}
+                    style={{ background: '#991B1B', color: 'white', border: 'none', padding: '10px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Permanecer en esta sesión
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    disabled={loading}
+                    style={{ background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', padding: '10px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {loading ? 'Saliendo...' : 'Salir igualmente'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="account-sheet__signout-btn"
+                onClick={handleSignOut}
+                disabled={loading}
+              >
+                Cerrar sesión anónima
+              </button>
+            )}
+          </>
         ) : (
           <>
             <button
               className="account-sheet__google-btn"
               onClick={handleSignIn}
               disabled={loading}
-              aria-label={t('account.google_btn')}
+              aria-label="Iniciar sesión con Google"
             >
-              {/* Official Google "G" logo colors */}
               <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" style={{ flexShrink: 0 }}>
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                 <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
                 <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
                 <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
               </svg>
-              {t('account.google_btn')}
+              Iniciar sesión con Google
             </button>
 
             <p className="account-sheet__disclaimer">

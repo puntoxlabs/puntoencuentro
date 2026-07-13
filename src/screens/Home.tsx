@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -11,7 +10,7 @@ import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
-import { getHostId } from '@/lib/auth';
+
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat } from '@/lib/formatDate';
@@ -21,7 +20,8 @@ import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
 import { throttle } from 'lodash';
-import { ensureHostSession } from '@/lib/ensureHostSession';
+import { useCreateEncounter } from '@/hooks/useCreateEncounter';
+import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó */
 function isEncuentroPasado(enc: any): boolean {
@@ -207,9 +207,8 @@ const PastCard: React.FC<{
 
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 const Home: React.FC = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -229,11 +228,7 @@ const Home: React.FC = () => {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'organizo' | 'participo'>('organizo');
-  const [linking, setLinking] = useState(false);
-  const [linkDismissed, setLinkDismissed] = useState(false);
-  const [linkError, setLinkError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
-  const [showHint, setShowHint] = useState(false);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
@@ -243,17 +238,11 @@ const Home: React.FC = () => {
   // Los encuentros "visibles" dependen del scope activo
   const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
 
-  const anonId = getHostId();
-  // Mostrar banner de VINCULACIÓN si: logueado + hay encuentros anónimos locales + no descartado
-  const hasAnonymous = !!user
-    && anonId !== user.id
-    && !linkDismissed
-    && (organizedEncuentros || []).some(e => e.host_id === anonId);
 
-  // Mostrar nudge de LOGIN si: NO logueado + hay encuentros locales + no descartado
-  const showAnonNudge = !user
-    && !linkDismissed
-    && (organizedEncuentros || []).length > 0;
+
+  const { startFixedEncounter, choiceSheetProps } = useCreateEncounter();
+
+  const isAnonymousUser = user?.is_anonymous === true;
 
   // Avatar helper
   const userAvatarUrl = user?.user_metadata?.avatar_url as string | undefined;
@@ -293,21 +282,6 @@ const Home: React.FC = () => {
     setScrollPosition(e.currentTarget.scrollTop);
   }, 200);
 
-  const handleLinkEncuentros = async () => {
-    if (!user || !anonId || linking) return;
-    try {
-      setLinking(true);
-      setLinkError(null);
-      await encuentrosService.linkAnonymousEncuentros(anonId, user.id);
-      await loadData();
-    } catch (err) {
-      console.error('Error linking encuentros', err);
-      setLinkError(t('account.link_error', 'No se pudieron guardar los encuentros. Intentá nuevamente.'));
-    } finally {
-      setLinking(false);
-    }
-  };
-
   const loadingRef = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -320,8 +294,13 @@ const Home: React.FC = () => {
     setError(null);
 
     try {
-      console.log('[Home] before ensureHostSession');
-      const { user } = await ensureHostSession();
+      if (!user) {
+        setOrganizedEncuentros([]);
+        setParticipatedEncuentros([]);
+        setCounts({});
+        setEncuentros([], []);
+        return;
+      }
 
       console.log('[Home] before getEncuentros');
 
@@ -377,18 +356,18 @@ const Home: React.FC = () => {
       loadingRef.current = false;
       setLoading(false); 
     }
-  }, [authLoading, setEncuentros]);
+  }, [user, authLoading]);
 
   // Recargar cuando el usuario inicia o cierra sesión
   useEffect(() => {
     if (authLoading) return;
     void loadData();
-  }, [authLoading, loadData]);
+  }, [authLoading, user?.id, user?.is_anonymous, loadData]);
 
   const handleRepeat = (enc: any, e: React.MouseEvent) => {
     e.stopPropagation();
     preloadWizardFromEncuentro(enc, useWizardStore.getState());
-    navigate('/create', { state: { autoFocusTitle: true } });
+    startFixedEncounter();
   };
 
   const renderContent = () => {
@@ -477,7 +456,7 @@ const Home: React.FC = () => {
               variant="primary"
               fullWidth
               style={{ height: 56, fontSize: 16, fontWeight: 700 }}
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); startFixedEncounter(); }}
             >
               + Crear encuentro
             </Button>
@@ -497,88 +476,17 @@ const Home: React.FC = () => {
       >
 
         {/* Banner A: Usuario NO logueado + encuentros locales (Nudge Login) */}
-        {activeTab === 'upcoming' && showAnonNudge && (
-          <div className="home-banner">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <p className="home-banner-title">
-                  {t('account.save_meetings_title', 'Guardá tus encuentros')}
-                </p>
-                <p className="home-banner-desc">
-                  {t('account.save_meetings_desc', 'Iniciá sesión para acceder desde otros dispositivos.')}
-                </p>
-              </div>
-            </div>
-            
-            <div className="home-banner-actions">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={async () => {
-                  const result = await signInWithGoogle();
-                  if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
-                    alert('Hubo un problema al iniciar sesión.');
-                  }
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true" style={{ marginRight: 6 }}>
-                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                </svg>
-                {t('account.continue_google', 'Continuar con Google')}
-              </Button>
-              <button
-                className="home-banner-btn-secondary"
-                onClick={() => {
-                  setLinkDismissed(true);
-                  setShowHint(true);
-                  setTimeout(() => setShowHint(false), 4000);
-                }}
-              >
-                {t('account.not_now', 'Ahora no')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Banner B: Usuario logueado + encuentros locales sin vincular (Vinculación) */}
-        {activeTab === 'upcoming' && hasAnonymous && (
-          <div className="home-banner">
-            <p className="home-banner-title">
-              {t('account.link_title', 'Guardá tus encuentros en tu cuenta')}
+        {isAnonymousUser && (
+          <div className="home-banner" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffca28' }}>
+            <p className="home-banner-title" style={{ color: '#f57f17' }}>
+              Protegé tu historial
             </p>
-            <p className="home-banner-desc">
-              {t('account.link_banner', 'Tenés encuentros creados en este dispositivo. Guardálos para acceder desde otros dispositivos.')}
+            <p className="home-banner-desc" style={{ color: '#663c00' }}>
+              Tus encuentros están guardados solamente en este navegador. Si borrás sus datos, cambiás de dispositivo o perdés esta sesión, podrías perder el acceso.
             </p>
-            {linkError && (
-              <p className="home-banner-error">
-                {linkError}
-              </p>
-            )}
-            <div className="home-banner-actions">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleLinkEncuentros}
-                disabled={linking}
-              >
-                {linking ? '…' : t('account.link_action', 'Guardar en mi cuenta')}
-              </Button>
-              <button
-                className="home-banner-btn-secondary"
-                onClick={() => { 
-                  setLinkDismissed(true); 
-                  setLinkError(null); 
-                  setShowHint(true);
-                  setTimeout(() => setShowHint(false), 4000);
-                }}
-                disabled={linking}
-              >
-                {t('account.link_later', 'Ahora no')}
-              </button>
-            </div>
+            <p className="home-banner-desc" style={{ color: '#663c00', marginTop: 4 }}>
+              La vinculación de los encuentros actuales con Google estará disponible próximamente.
+            </p>
           </div>
         )}
 
@@ -619,7 +527,7 @@ const Home: React.FC = () => {
                   variant="primary"
                   fullWidth
                   style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
-                  onClick={() => { resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
+                  onClick={() => { resetWizard(); startFixedEncounter(); }}
                 >
                   + Crear encuentro
                 </Button>
@@ -713,8 +621,6 @@ const Home: React.FC = () => {
         </div>
       </header>
 
-      <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
-
       {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
       {user && (
         <div className="home-scope-container">
@@ -761,22 +667,18 @@ const Home: React.FC = () => {
         {renderContent()}
       </div>
       
+      {/* Bottom Sheets */}
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
-
-      {/* Hint Toast */}
-      {showHint && (
-        <div className="home-hint">
-          {t('account.login_later_hint', 'Podés iniciar sesión más tarde desde el ícono de cuenta.')}
-        </div>
-      )}
+      <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+      <CreationAccountChoiceSheet {...choiceSheetProps} />
       
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
         <div className="home-fab-container">
           <div className="home-fab-wrapper">
             <button
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); navigate('/create', { state: { autoFocusTitle: true } }); }}
+              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); startFixedEncounter(); }}
               className="home-fab"
             >
               <Plus size={24} />

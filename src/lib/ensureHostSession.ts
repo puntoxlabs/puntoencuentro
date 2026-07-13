@@ -33,11 +33,13 @@ export async function ensureHostSession(captchaToken?: string): Promise<HostSess
       }
 
       // Si no hay sesión, creamos una cuenta anónima de Supabase
+      console.log('[HostSession] anonymous sign-in start');
       const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously({
         options: {
           captchaToken,
         },
       });
+      console.log('[HostSession] anonymous sign-in completed');
 
       if (anonError) {
         throw anonError;
