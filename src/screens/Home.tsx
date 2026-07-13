@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -14,7 +14,6 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { getHostId } from '@/lib/auth';
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat } from '@/lib/formatDate';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
@@ -22,6 +21,7 @@ import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
 import { throttle } from 'lodash';
+import { ensureHostSession } from '@/lib/ensureHostSession';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó */
 function isEncuentroPasado(enc: any): boolean {
@@ -209,7 +209,7 @@ const PastCard: React.FC<{
 const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -289,11 +289,6 @@ const Home: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Recargar cuando el usuario inicia o cierra sesión
-  useEffect(() => {
-    loadData();
-  }, [user?.id]);
-
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     setScrollPosition(e.currentTarget.scrollTop);
   }, 200);
@@ -313,52 +308,45 @@ const Home: React.FC = () => {
     }
   };
 
-  const loadData = async () => {
-    try {
-      const isCacheValid = useHomeStore.getState().getValidCache() !== null;
-      const storeState = useHomeStore.getState();
-      const hasLocalData = storeState.encuentros.length > 0 || storeState.participatedEncuentros.length > 0;
-      if (!isCacheValid && !hasLocalData) setLoading(true);
-      setError(null);
+  const loadingRef = useRef(false);
 
-      const anonId = getHostId();
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const userId = currentUser?.id;
+  const loadData = useCallback(async () => {
+    console.log('[Home] loadData invoked');
+    if (authLoading) return;
+    if (loadingRef.current) return;
+
+    loadingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('[Home] before ensureHostSession');
+      const { user } = await ensureHostSession();
+
+      console.log('[Home] before getEncuentros');
 
       let organized: any[] = [];
       let participated: any[] = [];
 
-      if (userId) {
-        // Logueado: traer organizados (user + anon) y participados
-        organized = await encuentrosService.getEncuentrosByHostIds([userId, anonId]);
-        participated = await encuentrosService.getEncuentrosParticipados(userId);
+      // El backend autoriza y filtra usando exclusivamente auth.uid().
+      // Enviamos el UUID de la sesión solo por compatibilidad de la firma de la RPC.
+      organized = await encuentrosService.getEncuentrosByHostIds([user.id]);
         
-        // Cargar también participaciones anónimas locales y hacer merge
-        try {
-          const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
-          const tokens = getAllParticipatedTokens();
-          if (tokens.length > 0) {
-            const anonParticipated = await encuentrosService.getEncuentrosParticipadosPorTokens(tokens);
-            const existingIds = new Set(participated.map(p => p.id));
-            const missing = anonParticipated.filter(p => !existingIds.has(p.id));
-            participated = [...participated, ...missing];
-          }
-        } catch (err) {
-          if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo en merge:', err);
+      if (!user.is_anonymous) {
+        participated = await encuentrosService.getEncuentrosParticipados(user.id);
+      }
+        
+      try {
+        const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
+        const tokens = getAllParticipatedTokens();
+        if (tokens.length > 0) {
+          const anonParticipated = await encuentrosService.getEncuentrosParticipadosPorTokens(tokens);
+          const existingIds = new Set(participated.map(p => p.id));
+          const missing = anonParticipated.filter(p => !existingIds.has(p.id));
+          participated = [...participated, ...missing];
         }
-      } else {
-        // Anónimo: organizados del UUID local
-        organized = await encuentrosService.getEncuentrosByHost(anonId);
-        // Anónimo: participaciones por tokens locales
-        try {
-          const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
-          const tokens = getAllParticipatedTokens();
-          if (tokens.length > 0) {
-            participated = await encuentrosService.getEncuentrosParticipadosPorTokens(tokens);
-          }
-        } catch (err) {
-          if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo:', err);
-        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo:', err);
       }
 
       const sortList = (list: any[]) => (list || []).filter(e => e && e.id).sort((a, b) => {
@@ -372,23 +360,30 @@ const Home: React.FC = () => {
 
       const allIds = [...sortedOrganized, ...sortedParticipated].map(e => e.id).filter(Boolean);
       const newCounts = await encuentrosService.getCountsPorEncuentros(allIds);
-      setCounts(newCounts);
 
+      console.log('[Home] after getEncuentros');
+
+      setCounts(newCounts);
       setOrganizedEncuentros(sortedOrganized);
       setParticipatedEncuentros(sortedParticipated);
-
-      // Reforzar mapeo local encuentroId → hostId para todos los encuentros organizados.
-      // Esto garantiza que DetailHost pueda resolver el hostId correcto al refrescar
-      // incluso si el usuario llegó a esta pantalla antes de pasar por Home.
       rememberEncuentroHostBulk(sortedOrganized);
-
-      // Actualizar el store global (principalmente para la lista de organizados que es la principal)
       setEncuentros(sortedOrganized, sortedParticipated);
-    } catch (err) {
-      console.error('Error loading home data', err);
+
+    } catch (error) {
+      console.error('[Home] loadData failed', error);
       setError('Hubo un error al cargar tus encuentros.');
-    } finally { setLoading(false); }
-  };
+    } finally { 
+      console.log('[Home] finally');
+      loadingRef.current = false;
+      setLoading(false); 
+    }
+  }, [authLoading, setEncuentros]);
+
+  // Recargar cuando el usuario inicia o cierra sesión
+  useEffect(() => {
+    if (authLoading) return;
+    void loadData();
+  }, [authLoading, loadData]);
 
   const handleRepeat = (enc: any, e: React.MouseEvent) => {
     e.stopPropagation();

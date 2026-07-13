@@ -58,24 +58,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(newSession?.user ?? null);
       setLoading(false);
 
-      // Vinculación segura de participante pendiente
-      const checkAndLinkPendingParticipant = async () => {
-        const pendingToken = sessionStorage.getItem(RECENT_PARTICIPANT_KEY);
-        if (pendingToken && newSession?.user?.id) {
-          try {
-            await participantesService.linkParticipantTokenToCurrentUser(pendingToken);
-            sessionStorage.removeItem(RECENT_PARTICIPANT_KEY); // Éxito o idempotente
-          } catch (err: any) {
-            if (err.message === 'participant_already_linked' || err.message === 'invalid_participant_token') {
-              sessionStorage.removeItem(RECENT_PARTICIPANT_KEY); // No reintentar si ya pertenece a otro o es inválido
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'TOKEN_REFRESHED'
+      ) {
+        window.setTimeout(() => {
+          void (async () => {
+            const pendingToken = sessionStorage.getItem(RECENT_PARTICIPANT_KEY);
+            if (pendingToken && newSession?.user?.id) {
+              try {
+                await participantesService.linkParticipantTokenToCurrentUser(pendingToken);
+                sessionStorage.removeItem(RECENT_PARTICIPANT_KEY); // Éxito o idempotente
+              } catch (err: any) {
+                if (err.message === 'participant_already_linked' || err.message === 'invalid_participant_token') {
+                  sessionStorage.removeItem(RECENT_PARTICIPANT_KEY); // No reintentar si ya pertenece a otro o es inválido
+                }
+                // Fallo silencioso (por ej. red temporal), conservamos el token para reintentar
+              }
             }
-            // Fallo silencioso (por ej. red temporal), conservamos el token para reintentar
-          }
-        }
-      };
-
-      if (['SIGNED_IN', 'INITIAL_SESSION', 'TOKEN_REFRESHED'].includes(event)) {
-        checkAndLinkPendingParticipant();
+          })();
+        }, 0);
       }
     });
 
