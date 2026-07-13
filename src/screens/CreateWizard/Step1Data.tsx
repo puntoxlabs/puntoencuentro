@@ -32,8 +32,10 @@ const Step1Data: React.FC = () => {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timeInputRef = useRef<TimePickerRef>(null);
+  const timeContainerRef = useRef<HTMLDivElement>(null);
   const descripcionContainerRef = useRef<HTMLDivElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const continuarContainerRef = useRef<HTMLDivElement>(null);
 
   const locationState = useLocation().state as { autoFocusTitle?: boolean } | null;
   const didAutoFocusRef = useRef(false);
@@ -108,6 +110,26 @@ const Step1Data: React.FC = () => {
     setError(null);
     setIsNavigating(true);
     nextStep();
+  };
+
+  const handleAfterThemeSelected = () => {
+    // Pequeño timeout para permitir que el modal/sheet del diseño se cierre
+    setTimeout(() => {
+      if (titulo.trim() === '') {
+        nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Solo enfocamos inputs de texto regulares si no es un mobile táctil, o siempre según comportamiento actual
+        const isMobile = window.matchMedia("(pointer: coarse)").matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        if (!isMobile) {
+          nameInputRef.current?.focus();
+        }
+      } else if (fecha === '') {
+        dateInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (hora === '') {
+        timeContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        continuarContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 150);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextRef?: React.RefObject<any>) => {
@@ -252,7 +274,7 @@ const Step1Data: React.FC = () => {
           ref={dateInputRef}
           enterKeyHint="next"
         />
-        <div>
+        <div ref={timeContainerRef}>
           <TimePicker
             label="Hora"
             value={hora}
@@ -292,6 +314,7 @@ const Step1Data: React.FC = () => {
               }
               setField('tema_invitacion', t);
               setField('invitation_template', template);
+              handleAfterThemeSelected();
               return;
             }
 
@@ -304,6 +327,7 @@ const Step1Data: React.FC = () => {
               const newTemplate = getDefaultInvitationTemplate(t);
               setField('invitation_template', newTemplate);
             }
+            handleAfterThemeSelected();
           }}
         />
         {tema_invitacion === 'kids_birthday' && (
@@ -445,7 +469,7 @@ const Step1Data: React.FC = () => {
         )}
       </div>
 
-      <div className="cw-bottom-actions">
+      <div className="cw-bottom-actions" ref={continuarContainerRef}>
         {error && (
           <div className="cw-error-banner">
             {error}
