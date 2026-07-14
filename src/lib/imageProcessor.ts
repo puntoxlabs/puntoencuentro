@@ -13,7 +13,7 @@ export const validateAndProcessImage = async (file: File): Promise<ProcessedImag
   }
 
   if (!CUSTOM_DESIGNS_CONFIG.ACCEPTED_FORMATS.includes(file.type)) {
-    throw new Error('Us· una imagen JPG, PNG o WEBP.');
+    throw new Error('Us√° una imagen JPG, PNG o WEBP.');
   }
 
   // 2. Load image into memory
@@ -38,7 +38,7 @@ export const validateAndProcessImage = async (file: File): Promise<ProcessedImag
 
   const backgroundBlob = await new Promise<Blob>((resolve, reject) => {
     bgCanvas.toBlob(
-      (blob) => blob ? resolve(blob) : reject(new Error('FallÛ compresiÛn de fondo')),
+      (blob) => blob ? resolve(blob) : reject(new Error('Fall√≥ compresi√≥n de fondo')),
       'image/webp',
       0.82
     );
@@ -63,7 +63,7 @@ export const validateAndProcessImage = async (file: File): Promise<ProcessedImag
 
   const thumbnailBlob = await new Promise<Blob>((resolve, reject) => {
     thumbCanvas.toBlob(
-      (blob) => blob ? resolve(blob) : reject(new Error('FallÛ compresiÛn de miniatura')),
+      (blob) => blob ? resolve(blob) : reject(new Error('Fall√≥ compresi√≥n de miniatura')),
       'image/webp',
       0.75
     );
@@ -89,7 +89,7 @@ const loadImage = (file: File): Promise<HTMLImageElement> => {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('No pudimos cargar la imagen. Prob· con otra.'));
+      reject(new Error('No pudimos cargar la imagen. Prob√° con otra.'));
     };
     img.src = url;
   });
