@@ -13,6 +13,7 @@ interface SpecialTemplateSelectorProps {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  displayDateLabel?: string;
 }
 
 export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = ({
@@ -22,7 +23,8 @@ export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = (
   descripcion,
   fecha,
   hora,
-  lugar_texto
+  lugar_texto,
+  displayDateLabel
 }) => {
   return (
     <div className="shared-template-selector">
@@ -37,9 +39,9 @@ export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = (
               className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
-              <div 
+              <div
                 className="shared-template-thumbnail"
-                style={{ 
+                style={{
                   backgroundImage: `url(${(template as any).background || template.thumbnail})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -52,6 +54,7 @@ export const SpecialTemplateSelector: React.FC<SpecialTemplateSelectorProps> = (
                   fecha={fecha}
                   hora={hora}
                   lugar_texto={lugar_texto}
+                  displayDateLabel={displayDateLabel}
                   eyebrow="ESPECIAL"
                 />
                 {isSelected && (

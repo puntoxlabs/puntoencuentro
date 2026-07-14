@@ -12,6 +12,7 @@ interface FriendsTemplateSelectorProps {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  displayDateLabel?: string;
 }
 
 export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = ({
@@ -21,7 +22,8 @@ export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = (
   descripcion = '',
   fecha = '',
   hora = '',
-  lugar_texto = ''
+  lugar_texto = '',
+  displayDateLabel
 }) => {
   return (
     <div className="shared-template-selector">
@@ -36,9 +38,9 @@ export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = (
               className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
-              <div 
+              <div
                 className="shared-template-thumbnail"
-                style={{ 
+                style={{
                   backgroundImage: `url(${template.background || template.thumbnail})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center'
@@ -50,6 +52,7 @@ export const FriendsTemplateSelector: React.FC<FriendsTemplateSelectorProps> = (
                   fecha={fecha}
                   hora={hora}
                   lugar_texto={lugar_texto}
+                  displayDateLabel={displayDateLabel}
                   eyebrow="TE INVITO"
                 />
                 {isSelected && (

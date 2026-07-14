@@ -1,9 +1,9 @@
-import { 
-  Building2, 
-  Coffee, 
-  PartyPopper, 
-  Gamepad2, 
-  Home, 
+import {
+  Building2,
+  Coffee,
+  PartyPopper,
+  Gamepad2,
+  Home,
   Star,
   CheckCircle2,
   Heart,
@@ -40,6 +40,18 @@ export type InvitationTheme =
   | 'learning'
   | 'wellness'
   | 'custom';
+
+export function isInvitationTheme(value: unknown): value is InvitationTheme {
+  return typeof value === 'string' && [
+    'classic', 'formal', 'friends', 'celebration', 'kids_birthday',
+    'family', 'special', 'romantic', 'sports', 'entertainment',
+    'learning', 'wellness', 'custom'
+  ].includes(value);
+}
+
+export function parseInvitationTheme(value: unknown): InvitationTheme | null {
+  return isInvitationTheme(value) ? value : null;
+}
 
 export interface InvitationThemeConfig {
   id: InvitationTheme;
@@ -165,7 +177,7 @@ export function getThemeEyebrow(themeId: string | undefined | null): string {
 
 export function normalizeInvitationTheme(value: unknown): InvitationTheme {
   if (typeof value !== 'string') return 'classic';
-  
+
   const validThemes: InvitationTheme[] = [
     'classic',
     'formal',
@@ -181,15 +193,15 @@ export function normalizeInvitationTheme(value: unknown): InvitationTheme {
     'wellness',
     'custom'
   ];
-  
+
   if (validThemes.includes(value as InvitationTheme)) {
     return value as InvitationTheme;
   }
-  
+
   return 'classic';
 }
 
-export function getDefaultInvitationTemplate(theme?: string | null): string | null {
+export function getDefaultInvitationTemplate(theme?: InvitationTheme | null): string | null {
   switch (theme) {
     case 'kids_birthday': return 'kids_jungle';
     case 'celebration': return 'celebration_gold';
@@ -208,7 +220,7 @@ export function getDefaultInvitationTemplate(theme?: string | null): string | nu
 
 export function getThemeFromTemplate(template?: string | null): InvitationTheme | null {
   if (!template) return null;
-  
+
   if (template.startsWith('kids_')) return 'kids_birthday';
   if (template.startsWith('celebration_')) return 'celebration';
   if (template.startsWith('sports_')) return 'sports';
@@ -221,91 +233,82 @@ export function getThemeFromTemplate(template?: string | null): InvitationTheme 
   if (template.startsWith('special_')) return 'special';
   if (template.startsWith('romantic_')) return 'romantic';
   if (template.startsWith('custom_')) return 'custom';
-  
+
   return null;
 }
 
+export interface InvitationTemplateOption {
+  id: string;
+  name: string;
+}
+
+export function themeRequiresTemplate(theme?: InvitationTheme | null): boolean {
+  if (!theme || theme === 'classic' || theme === 'custom') return false;
+  // All other predefined themes require a template
+  const validThemes: InvitationTheme[] = [
+    'formal', 'friends', 'celebration', 'kids_birthday', 'family',
+    'special', 'romantic', 'sports', 'entertainment', 'learning', 'wellness'
+  ];
+  return validThemes.includes(theme);
+}
+
+export function isTemplateValidForTheme(theme?: InvitationTheme | null, template?: string | null): boolean {
+  if (!theme || !template) return false;
+
+  switch (theme) {
+    case 'kids_birthday': {
+      const kidsConfig = ['kids_jungle', 'kids_unicorn', 'kids_space'];
+      return kidsConfig.includes(template);
+    }
+    case 'celebration': return !!celebrationTemplates.find(t => t.id === template);
+    case 'sports': return getSportsTemplateConfig(template) !== null;
+    case 'entertainment': return getEntertainmentTemplateConfig(template) !== null;
+    case 'learning': return getLearningTemplateConfig(template) !== null;
+    case 'wellness': return getWellnessTemplateConfig(template) !== null;
+    case 'romantic': return getRomanticTemplateConfig(template) !== null;
+    case 'formal': return getFormalTemplateConfig(template) !== null;
+    case 'friends': return getFriendsTemplateConfig(template) !== null;
+    case 'family': return getFamilyTemplateConfig(template) !== null;
+    case 'special': return getSpecialTemplateConfig(template) !== null;
+    case 'custom': return template.startsWith('custom_');
+    case 'classic': return false;
+    default: return false;
+  }
+}
+
+export function getTemplateOptionsForTheme(theme?: InvitationTheme | null): readonly InvitationTemplateOption[] {
+  if (!theme) return [];
+  switch (theme) {
+    case 'celebration': return celebrationTemplates as InvitationTemplateOption[];
+    case 'sports': return sportsTemplates as InvitationTemplateOption[];
+    case 'entertainment': return entertainmentTemplates as InvitationTemplateOption[];
+    case 'learning': return learningTemplates as InvitationTemplateOption[];
+    case 'wellness': return wellnessTemplates as InvitationTemplateOption[];
+    case 'romantic': return romanticTemplates as InvitationTemplateOption[];
+    case 'formal': return formalTemplates as InvitationTemplateOption[];
+    case 'friends': return friendsTemplates as InvitationTemplateOption[];
+    case 'family': return familyTemplates as InvitationTemplateOption[];
+    case 'special': return specialTemplates as InvitationTemplateOption[];
+    case 'kids_birthday': return kidsBirthdayTemplates as InvitationTemplateOption[];
+    default: return [];
+  }
+}
+
 export function resolveInvitationTemplateForTheme(
-  theme?: string | null,
+  theme?: InvitationTheme | null,
   template?: string | null
 ): string | null {
   const defaultTemplate = getDefaultInvitationTemplate(theme);
-  
+
   if (!template) {
     return defaultTemplate;
   }
 
-  // Verificar si el template es válido para el theme.
-  // REGLA: si el template pertenece al tema actual, conservarlo.
-  // Si pertenece a otro tema, reemplazar por el default.
-  let isValid = false;
-  switch (theme) {
-    case 'kids_birthday': {
-      const kidsConfig = ['kids_jungle', 'kids_unicorn', 'kids_space'];
-      isValid = kidsConfig.includes(template);
-      break;
-    }
-    case 'celebration': {
-      // getCelebrationTemplateConfig nunca retorna null, verificar por id
-      const found = celebrationTemplates.find(t => t.id === template);
-      isValid = !!found;
-      break;
-    }
-    case 'sports': {
-      const sportsConfig = getSportsTemplateConfig(template);
-      isValid = sportsConfig !== null;
-      break;
-    }
-    case 'entertainment': {
-      const entConfig = getEntertainmentTemplateConfig(template);
-      isValid = entConfig !== null;
-      break;
-    }
-    case 'learning': {
-      const learningConfig = getLearningTemplateConfig(template);
-      isValid = learningConfig !== null;
-      break;
-    }
-    case 'wellness': {
-      const wellnessConfig = getWellnessTemplateConfig(template);
-      isValid = wellnessConfig !== null;
-      break;
-    }
-    case 'romantic': {
-      const romanticConfig = getRomanticTemplateConfig(template);
-      isValid = romanticConfig !== null;
-      break;
-    }
-    case 'formal': {
-      const formalConfig = getFormalTemplateConfig(template);
-      isValid = formalConfig !== null;
-      break;
-    }
-    case 'friends': {
-      const friendsConfig = getFriendsTemplateConfig(template);
-      isValid = friendsConfig !== null;
-      break;
-    }
-    case 'family': {
-      const familyConfig = getFamilyTemplateConfig(template);
-      isValid = familyConfig !== null;
-      break;
-    }
-    case 'special': {
-      const specialConfig = getSpecialTemplateConfig(template);
-      isValid = specialConfig !== null;
-      break;
-    }
-    case 'custom': {
-      isValid = template.startsWith('custom_');
-      break;
-    }
-    case 'classic':
-      // Clásico no tiene template
-      return null;
-    default:
-      // Tema desconocido: conservar el template si viene
-      return template;
+  const isValid = isTemplateValidForTheme(theme, template);
+
+  if (theme === 'classic') return null;
+  if (!isValid && theme !== 'custom' && !themeRequiresTemplate(theme)) {
+    return template; // unknown theme
   }
 
   return isValid ? template : defaultTemplate;
@@ -406,11 +409,11 @@ export function getAllInvitationDesignOptions(): InvitationDesignOption[] {
 export function findDesignOptionIndex(theme: string | null | undefined, template: string | null | undefined): number {
   const options = getAllInvitationDesignOptions();
   const themeNormalized = normalizeInvitationTheme(theme);
-  
+
   const index = options.findIndex(opt => opt.theme === themeNormalized && opt.template === template);
-  
+
   if (index !== -1) return index;
-  
+
   // If exact match not found, try to find the theme default
   const themeIndex = options.findIndex(opt => opt.theme === themeNormalized);
   return themeIndex !== -1 ? themeIndex : 0;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 
 interface WizardState {
   step: number;
@@ -12,7 +13,7 @@ interface WizardState {
   link_virtual: string;
   tipo_invitacion: 'individual' | 'link_general' | null;
   tema: string;
-  tema_invitacion: string;
+  tema_invitacion: InvitationTheme;
   invitation_template: string | null;
   encuentro_id: string | null;
   setField: (field: string, value: any) => void;
@@ -64,9 +65,9 @@ export const useWizardStore = create<WizardState>()(
           try {
             const val = localStorage.getItem(name);
             if (!val) return null;
-            // Validate it's at least an object with expected properties if needed, 
+            // Validate it's at least an object with expected properties if needed,
             // but migrate handles the object structure.
-            JSON.parse(val); 
+            JSON.parse(val);
             return val;
           } catch (e) {
             console.warn('wizardStore: Invalid local storage data, clearing...', e);
@@ -83,7 +84,7 @@ export const useWizardStore = create<WizardState>()(
       })),
       migrate: (persistedState: any, version: number) => {
         console.log(`[wizardStore] Migrating version ${version}`, persistedState);
-        
+
         // Initial state for fallback
         const initialState: WizardState = {
           step: 1,

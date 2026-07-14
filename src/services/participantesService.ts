@@ -41,7 +41,7 @@ export const participantesService = {
     if (!hostId) {
       throw new Error('hostId requerido para eliminar participante bajo arquitectura RPC-first');
     }
-    
+
     const { data, error } = await supabase.rpc('eliminar_participante_seguro', {
       p_participante_id: participanteId,
       p_host_id: hostId
@@ -51,14 +51,14 @@ export const participantesService = {
       console.error('Error deleting participante (RPC):', error);
       throw error;
     }
-    
+
     const result = data as any;
     if (!result?.ok) {
       const msg = result?.error || 'delete_failed';
       console.error('[DELETE PART] RPC Error:', msg);
       throw new Error(msg);
     }
-    
+
     return result;
   },
 
@@ -179,7 +179,7 @@ export const participantesService = {
       }
       throw new Error(result?.error || 'link_failed');
     }
-    
+
     return result;
   },
 

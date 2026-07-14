@@ -1,4 +1,4 @@
-﻿export const CUSTOM_DESIGNS_CONFIG = {
+export const CUSTOM_DESIGNS_CONFIG = {
   ENABLED: true,
   LIMIT: 3,
   PREMIUM_REQUIRED: false,

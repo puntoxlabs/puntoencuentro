@@ -175,7 +175,7 @@ const InviteGuest: React.FC = () => {
       const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
       const totalHeight = document.documentElement.scrollHeight;
-      
+
       const hasOverflow = totalHeight > viewportHeight + 12;
       const isBottom = totalHeight - scrollY - viewportHeight < 120;
       setShowScrollHint(hasOverflow && !isBottom);
@@ -200,7 +200,7 @@ const InviteGuest: React.FC = () => {
       if (import.meta.env.DEV) console.log('[INDIVIDUAL_INVITE] invitación encontrada: ok');
       if (!data) throw new Error("No encontrado");
       setParticipante(data);
-      
+
       // Establecer nombre inicial y mensaje
       let initialName = data.nombre_invitado || '';
       if (user && !initialName) {
@@ -211,7 +211,7 @@ const InviteGuest: React.FC = () => {
 
       let enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
       if (import.meta.env.DEV) console.log("Estado encuentro:", enc?.estado);
-      
+
       setEncuentro({
         ...enc,
         link_virtual: enc?.link_virtual || data.link_virtual || undefined,
@@ -342,7 +342,7 @@ const InviteGuest: React.FC = () => {
   const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
     ? getRomanticTemplateConfig(resolvedTemplate)
     : null;
-    
+
   const formalTemplateConfig = encuentro?.tema_invitacion === 'formal' ? getFormalTemplateConfig(resolvedTemplate) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
 
@@ -369,7 +369,7 @@ const InviteGuest: React.FC = () => {
   const hasValidWellnessTemplate = !!wellnessTemplateConfig;
 
   const activeConfig = kidsBirthdayTemplateConfig || celebrationTemplate || romanticTemplate || formalTemplateConfig || friendsTemplateConfig || familyTemplateConfig || specialTemplateConfig || sportsTemplateConfig || entertainmentTemplateConfig || learningTemplateConfig || wellnessTemplateConfig;
-  
+
   let templateBgStyle: React.CSSProperties = {};
   if (activeConfig?.background) {
     templateBgStyle = {
@@ -393,7 +393,7 @@ const InviteGuest: React.FC = () => {
     <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
       <AppBar title="Detalle del encuentro" />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingTop: 16, paddingLeft: 20, paddingRight: 20 }}>
-        
+
         {/* Banner destacado */}
         <div className="guest-banner guest-banner--danger">
           <span className="guest-banner-icon"><CalendarX2 size={32} /></span>
@@ -452,8 +452,8 @@ const InviteGuest: React.FC = () => {
         {/* Textos */}
         <div>
           <h2 className="guest-success-title">
-            {participante.estado === 'confirmado' 
-              ? t('already_confirmed', 'Confirmaste tu asistencia') 
+            {participante.estado === 'confirmado'
+              ? t('already_confirmed', 'Confirmaste tu asistencia')
               : t('already_rejected', 'Indicaste que no podés asistir')}
           </h2>
           <p className="guest-success-desc" style={{ marginTop: 8 }}>
@@ -509,7 +509,7 @@ const InviteGuest: React.FC = () => {
         const encDataFromPart = Array.isArray(participante?.encuentros) ? participante.encuentros[0] : participante?.encuentros;
         const isVirtualMeeting = encuentro?.modalidad === 'virtual' || encDataFromPart?.modalidad === 'virtual';
         const hasConfirmed = participante?.estado === 'confirmado';
-        
+
         const showJoinMeetingButton = isVirtualMeeting && hasConfirmed && Boolean(allowedMeetingLink);
 
         if (!showJoinMeetingButton) return null;
@@ -550,7 +550,7 @@ const InviteGuest: React.FC = () => {
                   formatCount(respuestasVisibles.filter(p => p.estado === 'pendiente').length, 'falta responder', 'faltan responder')
                 ].filter(Boolean).join(' · ')}
               </p>
-              
+
               {respuestasVisibles.filter(p => p.estado === 'confirmado').length > 0 && (
                 <div className="guest-responses-group">
                   <p className="guest-responses-group-title guest-responses-group-title--success">Confirmaron</p>
@@ -597,22 +597,22 @@ const InviteGuest: React.FC = () => {
               {t('access_anywhere', 'Accedé a este encuentro desde cualquier dispositivo iniciando sesión.')}
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={async () => {
               const result = await signInWithGoogle();
               if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
                 alert('Hubo un problema al iniciar sesión.');
               }
-            }} 
+            }}
             fullWidth
           >
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>
       )}
-      
+
       {/* ── F. Acciones Inferiores ────────────────────────────── */}
       <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
@@ -742,7 +742,7 @@ const InviteGuest: React.FC = () => {
           <div className="guest-card" style={{ marginBottom: 0 }}>
             <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
             <h2 className="guest-card-title">{encuentro.titulo}</h2>
-            
+
             <div className="guest-meta-list">
               <div className="guest-meta-row">
                 <CalendarCheck2 size={20} className="guest-meta-icon" />
@@ -759,7 +759,7 @@ const InviteGuest: React.FC = () => {
                 <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
               </div>
             </div>
-            
+
             {encuentro.modalidad === 'virtual' && (
               <p className="guest-meta-info">
                 {t('virtual_link_pending', 'Confirmá tu asistencia para acceder al enlace de la videollamada.')}
@@ -827,7 +827,7 @@ const InviteGuest: React.FC = () => {
           </button>
         </div>
       )}
-      
+
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );

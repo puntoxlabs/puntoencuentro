@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 export const getHostId = (): string => {
   const HOST_KEY = 'puntoencuentro_host_id';
   let hostId = localStorage.getItem(HOST_KEY);
-  
+
   if (!hostId) {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       hostId = crypto.randomUUID();
@@ -16,7 +16,7 @@ export const getHostId = (): string => {
     }
     localStorage.setItem(HOST_KEY, hostId);
   }
-  
+
   return hostId;
 };
 

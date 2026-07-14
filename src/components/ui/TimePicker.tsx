@@ -111,7 +111,7 @@ const DEFAULT_FUTURE_TIME = '20:00';
         const closestTime = TIME_OPTIONS.reduce((prev, curr) => (curr <= targetTime ? curr : prev), TIME_OPTIONS[0]);
         el = document.getElementById(`time-opt-${closestTime}`);
       }
-      
+
       if (el) {
         const targetOffset = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
         container.scrollTop = targetOffset;
@@ -135,7 +135,7 @@ const DEFAULT_FUTURE_TIME = '20:00';
     if (normalizedMinTime && time < normalizedMinTime) return;
     onChange(time);
     setIsOpen(false);
-    
+
     // Devolvemos el foco al container despues de seleccionar
     setTimeout(() => {
       containerRef.current?.focus();
@@ -156,7 +156,7 @@ const DEFAULT_FUTURE_TIME = '20:00';
   return (
     <div className="input-group">
       {label && <label className="input-label">{label}</label>}
-      
+
       {/* Visual input */}
       <div
         ref={containerRef}
@@ -205,15 +205,15 @@ const DEFAULT_FUTURE_TIME = '20:00';
             alignItems: 'center',
           }
         } as React.CSSProperties}>
-          
+
           {/* Overlay */}
-          <div 
+          <div
             style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)' }}
             onClick={() => setIsOpen(false)}
           />
 
           {/* Dialog */}
-          <div 
+          <div
             role="dialog"
             aria-modal="true"
             aria-label={t('select_schedule', 'Seleccionar horario')}
@@ -236,18 +236,18 @@ const DEFAULT_FUTURE_TIME = '20:00';
             } as React.CSSProperties}
           >
             {/* Header */}
-            <div style={{ 
-              padding: '20px 20px 16px', 
+            <div style={{
+              padding: '20px 20px 16px',
               borderBottom: '1px solid rgba(0,0,0,0.08)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{t('select_schedule', 'Seleccionar horario')}</h3>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
-                style={{ 
-                  background: '#F3F4F6', border: 'none', width: 32, height: 32, 
+                style={{
+                  background: '#F3F4F6', border: 'none', width: 32, height: 32,
                   borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer', color: '#4B5563'
                 }}
@@ -258,14 +258,14 @@ const DEFAULT_FUTURE_TIME = '20:00';
             </div>
 
             {/* List */}
-            <div 
+            <div
               ref={scrollRef}
               style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}
             >
               {TIME_OPTIONS.map((time) => {
                 const isSelected = normalizedValue === time;
                 const isDisabled = normalizedMinTime ? time < normalizedMinTime : false;
-                
+
                 return (
                   <button
                     key={time}
@@ -299,7 +299,7 @@ const DEFAULT_FUTURE_TIME = '20:00';
                 );
               })}
             </div>
-            
+
             <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
               <Button fullWidth variant="outline" onClick={() => setIsOpen(false)}>
                 {t('cancel', 'Cancelar')}

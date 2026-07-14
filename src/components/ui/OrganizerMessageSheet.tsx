@@ -119,19 +119,19 @@ export const OrganizerMessageSheet: React.FC<OrganizerMessageSheetProps> = ({
             <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
               {t('invitation.message_help', 'Este mensaje se agregará a la invitación que compartas.')}
             </p>
-            <p style={{ 
-              fontSize: 12, 
+            <p style={{
+              fontSize: 12,
               fontWeight: 600,
-              color: isOverLimit ? '#EF4444' : '#6B7280', 
-              margin: 0 
+              color: isOverLimit ? '#EF4444' : '#6B7280',
+              margin: 0
             }}>
               {t('invitation.message_counter', '{{count}}/250', { count: charCount })}
             </p>
           </div>
-          <p style={{ 
-            fontSize: 11, 
-            color: 'var(--color-on-surface-variant)', 
-            marginTop: 12, 
+          <p style={{
+            fontSize: 11,
+            color: 'var(--color-on-surface-variant)',
+            marginTop: 12,
             marginBottom: 0,
             fontStyle: 'italic',
             opacity: 0.8

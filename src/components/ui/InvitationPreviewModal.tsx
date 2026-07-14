@@ -80,10 +80,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     }
     return () => { isMounted = false; };
   }, [user]);
-  
+
   const allDesignOptions = React.useMemo(() => {
     const options = getAllInvitationDesignOptions();
-    
+
     customDesigns.forEach(design => {
       options.push({
         theme: 'custom' as any,
@@ -151,7 +151,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
     let existingIndex = allDesignOptions.findIndex(
       opt => opt.theme === 'custom' && opt.template === templateValue
     );
-    
+
     // If not found (e.g. from CustomDesignsSheet but not yet in allDesignOptions), find the first custom or push
     if (existingIndex !== -1) {
       setUserHasNavigated(true);
@@ -169,20 +169,20 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
 
   const themeId = resolvedPreviewData.tema_invitacion;
   const eyebrow = getThemeEyebrow(themeId);
-  
+
   const formalTemplateConfig = themeId === 'formal' ? getFormalTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFormalTemplate = !!formalTemplateConfig;
 
 
   const friendsTemplateConfig = themeId === 'friends' ? getFriendsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFriendsTemplate = !!friendsTemplateConfig;
-  
+
   const familyTemplateConfig = themeId === 'family' ? getFamilyTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidFamilyTemplate = !!familyTemplateConfig;
 
   const specialTemplateConfig = themeId === 'special' ? getSpecialTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidSpecialTemplate = !!specialTemplateConfig;
-  
+
   const sportsTemplateConfig = themeId === 'sports' ? getSportsTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidSportsTemplate = !!sportsTemplateConfig;
 
@@ -199,13 +199,13 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
 
   const wellnessTemplateConfig = themeId === 'wellness' ? getWellnessTemplateConfig(resolvedPreviewData.invitation_template) : null;
   const hasValidWellnessTemplate = !!wellnessTemplateConfig;
-  
-  const displayDateText = resolvedPreviewData.fecha && resolvedPreviewData.hora 
+
+  const displayDateText = resolvedPreviewData.fecha && resolvedPreviewData.hora
     ? formatFriendlyDate(resolvedPreviewData.fecha, resolvedPreviewData.hora)
     : 'Fecha y hora a definir';
-    
-  const displayLocation = resolvedPreviewData.modalidad === 'virtual' 
-    ? 'Encuentro virtual' 
+
+  const displayLocation = resolvedPreviewData.modalidad === 'virtual'
+    ? 'Encuentro virtual'
     : (resolvedPreviewData.lugar_texto || 'Lugar a definir');
 
   useEffect(() => {
@@ -274,10 +274,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       <div className="preview-modal-content">
         <div className="preview-modal-header">
           <h3 className="preview-modal-title">Vista previa</h3>
-          <button 
-            type="button" 
-            className="preview-modal-close" 
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} 
+          <button
+            type="button"
+            className="preview-modal-close"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
             aria-label="Cerrar"
           >
             <X size={24} />
@@ -357,7 +357,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             />
           ) : hasValidFamilyTemplate ? (
             <div className="ipm-scrollable-content">
-              <FamilyInvitationPreview 
+              <FamilyInvitationPreview
                 previewData={{
                   titulo: resolvedPreviewData.titulo || '',
                   fecha: resolvedPreviewData.fecha || '',
@@ -367,13 +367,13 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
                   invitation_template: resolvedPreviewData.invitation_template
-                }} 
-                className="ipm-full-height-preview" 
+                }}
+                className="ipm-full-height-preview"
               />
             </div>
           ) : hasValidSpecialTemplate ? (
             <div className="ipm-scrollable-content">
-              <SpecialInvitationPreview 
+              <SpecialInvitationPreview
                 previewData={{
                   titulo: resolvedPreviewData.titulo || '',
                   fecha: resolvedPreviewData.fecha || '',
@@ -383,8 +383,8 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                   descripcion: resolvedPreviewData.descripcion,
                   tema_invitacion: themeId,
                   invitation_template: resolvedPreviewData.invitation_template
-                }} 
-                className="ipm-full-height-preview" 
+                }}
+                className="ipm-full-height-preview"
               />
             </div>
           ) : hasValidSportsTemplate ? (
@@ -471,7 +471,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             <div className="guest-card" style={{ margin: '0 auto', maxWidth: '400px', width: '100%', boxShadow: '0 12px 32px rgba(0,0,0,0.1)' }}>
               <p className="guest-card-eyebrow">{eyebrow}</p>
             <h1 className="guest-card-title">{resolvedPreviewData.titulo || 'Sin título'}</h1>
-            
+
             <div className="guest-meta-list">
               <div className="guest-meta-row">
                 <div className="guest-meta-icon"><Calendar size={18} /></div>
@@ -484,21 +484,21 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             </div>
 
             <div style={{ marginTop: 24 }}>
-              <Button 
-                fullWidth 
-                onClick={(e) => e.preventDefault()} 
+              <Button
+                fullWidth
+                onClick={(e) => e.preventDefault()}
                 style={{ pointerEvents: 'none' }}
               >
                 Confirmar asistencia
               </Button>
             </div>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={(e) => e.preventDefault()}
-                style={{ 
-                  background: 'none', border: 'none', 
-                  color: 'var(--color-on-surface-variant)', 
+                style={{
+                  background: 'none', border: 'none',
+                  color: 'var(--color-on-surface-variant)',
                   fontWeight: 600, fontSize: 14,
                   pointerEvents: 'none'
                 }}
@@ -512,7 +512,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
         </div>
 
         <>
-            <button 
+            <button
               type="button"
               onClick={handlePrev}
               className="preview-gallery-arrow preview-gallery-arrow-left"
@@ -522,7 +522,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
               <ChevronLeft size={24} />
             </button>
 
-            <button 
+            <button
               type="button"
               onClick={handleNext}
               className="preview-gallery-arrow preview-gallery-arrow-right"
@@ -537,7 +537,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-on-surface-variant)', marginBottom: '4px' }}>
             {activeOption.categoryLabel} {activeOption.templateLabel && `· ${activeOption.templateLabel}`}
           </div>
-          
+
           {!isCurrentDesign ? (
             <Button fullWidth variant="primary" onClick={() => {
               if (onApplyDesign) {
@@ -566,14 +566,14 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       {showVariantSelector && (
         <div className="dh-modal-overlay" style={{ zIndex: 10000, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div className="dh-bottom-sheet" style={{ background: '#fff', padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative' }}>
-            <button 
+            <button
               onClick={() => setShowVariantSelector(false)}
               style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6B7280' }}
             >
               <X size={24} />
             </button>
             <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar modelo</h3>
-            
+
             {activeOption.theme === 'kids_birthday' && (
                <KidsBirthdayTemplateSelector selectedTemplateId={activeOption.template || 'kids_jungle'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
             )}
@@ -614,30 +614,30 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
       {showCategorySelector && (
         <div className="dh-modal-overlay" style={{ zIndex: 10000, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div className="dh-bottom-sheet" style={{ background: '#fff', padding: '24px 20px', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', position: 'relative' }}>
-            <button 
+            <button
               onClick={() => setShowCategorySelector(false)}
               style={{ position: 'absolute', right: '16px', top: '16px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#6B7280' }}
             >
               <X size={24} />
             </button>
             <h3 className="dh-sheet-title" style={{ marginBottom: 16 }}>Cambiar diseño</h3>
-            
+
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 14, fontWeight: 600, color: '#4B5563', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mis diseños personalizados</h4>
               {customDesigns.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   {customDesigns.map(design => (
-                    <div 
-                      key={design.id} 
+                    <div
+                      key={design.id}
                       onClick={() => handleSelectCustomDesign(design.id)}
                       style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}
                     >
                       <div style={{ aspectRatio: '4/5', background: '#f3f4f6', borderRadius: 8, overflow: 'hidden' }}>
                          {design.thumbnail_path && (
-                            <img 
-                              src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)} 
-                              alt={design.name} 
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                            <img
+                              src={customDesignsService.getCustomDesignPublicUrl(design.thumbnail_path)}
+                              alt={design.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
                          )}
                       </div>

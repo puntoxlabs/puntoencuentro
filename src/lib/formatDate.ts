@@ -3,17 +3,46 @@ export function formatFriendlyDate(fecha: string, hora: string): string {
 
   const parts = fecha.split('-');
   if (parts.length !== 3) return `${fecha} a las ${hora}`;
-  
+
   const [, month, day] = parts;
   const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const monthIndex = parseInt(month, 10) - 1;
-  
+
   if (monthIndex < 0 || monthIndex > 11) return `${fecha} a las ${hora}`;
-  
+
   const monthName = monthNames[monthIndex];
   const formattedHora = hora.substring(0, 5); // "10:00:00" -> "10:00"
-  
+
   return `${parseInt(day, 10)} ${monthName} • ${formattedHora}`;
+}
+
+export function formatFriendlyDeadline(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+
+    const formatter = new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    // El resultado de es-AR suele ser "14 de julio, 19:15" o "14 de julio de 2026, 19:15"
+    // Lo parseamos manualmente para asegurar "14 de julio · 19:15" exacto:
+    const parts = formatter.formatToParts(d);
+
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const hour = parts.find(p => p.type === 'hour')?.value || '';
+    const minute = parts.find(p => p.type === 'minute')?.value || '';
+
+    return `${day} de ${month} · ${hour}:${minute}`;
+  } catch {
+    return '';
+  }
 }
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó, considerando una ventana de gracia */
@@ -22,10 +51,10 @@ export function isEncuentroPasado(fecha: string, hora: string, graceMinutes: num
   try {
     const fechaHora = new Date(`${fecha}T${hora}`);
     if (isNaN(fechaHora.getTime())) return false;
-    
+
     // Sumamos los minutos de gracia al tiempo del encuentro
     fechaHora.setMinutes(fechaHora.getMinutes() + graceMinutes);
-    
+
     return fechaHora < new Date();
   } catch (e) {
     return false;
@@ -40,7 +69,7 @@ export function validateEncounterDate(fecha: string, hora: string): string | nul
   if (!fecha || !hora) return null;
 
   const now = new Date();
-  
+
   // Obtenemos la fecha local en formato YYYY-MM-DD
   const localYear = now.getFullYear();
   const localMonth = String(now.getMonth() + 1).padStart(2, '0');
@@ -53,10 +82,10 @@ export function validateEncounterDate(fecha: string, hora: string): string | nul
 
   // Si la hora viene con segundos (ej: "10:00:00"), nos quedamos con HH:mm
   const cleanHora = hora.substring(0, 5);
-  
+
   // Combinamos fecha y hora para la comparación completa
   const encounterDateTime = new Date(`${fecha}T${cleanHora}`);
-  
+
   if (encounterDateTime <= now) {
     return "La fecha y hora deben ser futuras";
   }

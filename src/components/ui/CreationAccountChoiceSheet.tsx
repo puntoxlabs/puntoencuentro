@@ -36,10 +36,10 @@ export const CreationAccountChoiceSheet: React.FC<CreationAccountChoiceSheetProp
   return (
     <>
       <div className="pe-sheet-overlay open" onClick={handleBackdropClick} />
-      <div 
-        className="pe-sheet-container open creation-choice-sheet" 
-        role="dialog" 
-        aria-modal="true" 
+      <div
+        className="pe-sheet-container open creation-choice-sheet"
+        role="dialog"
+        aria-modal="true"
         aria-label="¿Cómo querés guardar tus encuentros?"
       >
         <div className="pe-sheet-handle" />
@@ -98,7 +98,7 @@ export const CreationAccountChoiceSheet: React.FC<CreationAccountChoiceSheetProp
                 </>
               )}
             </Button>
-            
+
             <div className="creation-choice-secondary-action">
               <button
                 className="creation-choice-btn-secondary"

@@ -8,6 +8,7 @@ export interface VariantMiniPreviewOverlayProps {
   hora?: string;
   lugar_texto?: string;
   eyebrow?: string;
+  displayDateLabel?: string;
 }
 
 export const VariantMiniPreviewOverlay: React.FC<VariantMiniPreviewOverlayProps> = ({
@@ -16,16 +17,17 @@ export const VariantMiniPreviewOverlay: React.FC<VariantMiniPreviewOverlayProps>
   fecha = '',
   hora = '',
   lugar_texto = '',
-  eyebrow = 'TE INVITO'
+  eyebrow = 'TE INVITO',
+  displayDateLabel
 }) => {
   const displayTitle = titulo.trim() || 'Tu encuentro';
-  
+
   let displayDetail = descripcion.trim();
   if (displayDetail.length > 40) {
     displayDetail = displayDetail.substring(0, 37) + '...';
   }
 
-  let displayDate = 'Fecha';
+  let displayDate = displayDateLabel || 'Fecha';
   if (fecha) {
     try {
       displayDate = formatFriendlyDate(fecha, hora);
@@ -53,11 +55,11 @@ export const VariantMiniPreviewOverlay: React.FC<VariantMiniPreviewOverlayProps>
       <span style={{ fontSize: '8px', fontWeight: 600, letterSpacing: '0.08em', opacity: 0.8, textTransform: 'uppercase' }}>
         {eyebrow}
       </span>
-      
+
       <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {displayTitle}
       </span>
-      
+
       {displayDetail && (
         <span style={{ fontSize: '9px', fontWeight: 500, opacity: 0.9, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {displayDetail}

@@ -1,0 +1,92 @@
+.mode-choice-sheet {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mode-choice-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+
+.mode-choice-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--pe-border);
+  border-radius: 12px;
+  background-color: var(--pe-bg);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-choice-card:hover {
+  border-color: var(--pe-primary);
+  background-color: var(--pe-primary-container);
+}
+
+.mode-choice-card:active {
+  transform: scale(0.98);
+}
+
+.mode-choice-icon-wrapper {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--pe-primary-container);
+  color: var(--pe-primary-dark);
+}
+
+.mode-choice-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mode-choice-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.mode-choice-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pe-text);
+}
+
+.mode-choice-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mode-choice-badge.badge-fast {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.mode-choice-badge.badge-account {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.mode-choice-card-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--pe-text-muted);
+  line-height: 1.4;
+}

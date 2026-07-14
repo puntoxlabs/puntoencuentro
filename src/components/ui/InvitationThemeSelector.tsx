@@ -32,7 +32,7 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
         <label className="input-label" style={{ marginBottom: 4 }}>Estilo de invitación</label>
         <span className="invitation-theme-selector-badge">Opcional</span>
       </div>
-      
+
       <div className="invitation-theme-selector-scroll">
         <div className="invitation-theme-selector-grid">
           {visibleThemes.map((theme) => {
@@ -78,9 +78,9 @@ export const InvitationThemeSelector: React.FC<InvitationThemeSelectorProps> = (
         Crear o gestionar diseño personalizado
       </button>
 
-      <CustomDesignsSheet 
-        isOpen={isCustomSheetOpen} 
-        onClose={() => setIsCustomSheetOpen(false)} 
+      <CustomDesignsSheet
+        isOpen={isCustomSheetOpen}
+        onClose={() => setIsCustomSheetOpen(false)}
         onSelectDesign={(templateId) => {
           const templateValue = templateId.startsWith('custom_')
             ? templateId

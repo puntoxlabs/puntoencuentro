@@ -30,13 +30,13 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
 
     const fetchImage = async () => {
       if (!templateId || !templateId.startsWith('custom_')) return;
-      
+
       const id = templateId.replace('custom_', '');
-      
+
       // Usar servicio para obtener el diseño por ID (autenticado)
       try {
         const design = await customDesignsService.getCustomDesignById(id);
-        
+
         if (design && design.image_path && isMounted) {
           const url = customDesignsService.getCustomDesignPublicUrl(design.image_path);
           setImageUrl(url);
@@ -56,21 +56,21 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
   return (
     <div className={`guest-theme-preview guest-theme-preview--custom guest-theme-preview--custom-${variant}`}>
       {imageUrl ? (
-        <div 
+        <div
           className="guest-theme-preview__background-image"
           style={{ backgroundImage: `url("${imageUrl}")` }}
         />
       ) : (
         <div className="guest-theme-preview__background-fallback" />
       )}
-      
+
       <div className="guest-theme-preview__overlay" />
-      
+
       <div className="guest-theme-preview__content">
         <div className="guest-theme-preview__glass-card">
           <p className="guest-theme-preview__eyebrow">Te invitan a un evento</p>
           <h2 className="guest-theme-preview__title">{titulo || 'Título del encuentro'}</h2>
-          
+
           <div className="guest-theme-preview__details">
             <div className="guest-theme-preview__detail-item">
               <Calendar className="guest-theme-preview__detail-icon" />
@@ -78,7 +78,7 @@ export const CustomInvitationPreview: React.FC<CustomInvitationPreviewProps> = (
                 {fecha ? formatFriendlyDate(fecha, hora || '') : 'Fecha a definir'}
               </span>
             </div>
-            
+
             {lugar_texto && (
               <div className="guest-theme-preview__detail-item">
                 <MapPin className="guest-theme-preview__detail-icon" />

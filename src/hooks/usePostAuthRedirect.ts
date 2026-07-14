@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { POST_AUTH_REDIRECT_KEY } from './useCreateEncounter';
+
 
 const ALLOWED_POST_AUTH_ROUTES = new Set([
   '/create',
+  '/create/coordination',
 ]);
 
 export function usePostAuthRedirect() {
@@ -16,11 +17,11 @@ export function usePostAuthRedirect() {
 
     // Requiere usuario permanente para procesar el redirect post-auth de Google
     if (user && !user.is_anonymous) {
-      const redirectPath = sessionStorage.getItem(POST_AUTH_REDIRECT_KEY);
-      
+      const redirectPath = sessionStorage.getItem('post_auth_redirect');
+
       if (redirectPath) {
-        sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
-        
+        sessionStorage.removeItem('post_auth_redirect');
+
         if (ALLOWED_POST_AUTH_ROUTES.has(redirectPath)) {
           navigate(redirectPath, { replace: true });
         } else {

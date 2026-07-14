@@ -27,7 +27,7 @@ export const openExternalVideoLink = async (url: string) => {
           console.error("Capacitor Browser.open error:", err);
         }
       }
-      
+
       const App = Capacitor.Plugins?.App;
       if (App && App.openUrl) {
         try {

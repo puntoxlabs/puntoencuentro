@@ -29,10 +29,10 @@ export const CustomGuestInvitationPreview: React.FC<CustomGuestInvitationPreview
 
     const fetchImage = async () => {
       if (!invitationToken) return;
-      
+
       try {
         const design = await customDesignsService.getPublicCustomDesignForToken(invitationToken);
-        
+
         if (design && design.image_path && isMounted) {
           const url = customDesignsService.getCustomDesignPublicUrl(design.image_path);
           setImageUrl(url);
@@ -53,24 +53,24 @@ export const CustomGuestInvitationPreview: React.FC<CustomGuestInvitationPreview
   return (
     <div className="guest-theme-preview guest-theme-preview--custom-guest">
       {imageUrl ? (
-        <div 
+        <div
           className="guest-theme-preview__background-image"
           style={{ backgroundImage: `url("${imageUrl}")` }}
         />
       ) : (
         <div className="guest-theme-preview__background-fallback" />
       )}
-      
-      <div 
-        className="guest-theme-preview__overlay" 
+
+      <div
+        className="guest-theme-preview__overlay"
         style={{ background: `rgba(0, 0, 0, ${opacity})` }}
       />
-      
+
       <div className="guest-theme-preview__content">
         <div className="guest-theme-preview__glass-card">
           <p className="guest-theme-preview__eyebrow">Te invitan a un evento</p>
           <h2 className="guest-theme-preview__title">{titulo || 'Título del encuentro'}</h2>
-          
+
           <div className="guest-theme-preview__details">
             <div className="guest-theme-preview__detail-item">
               <Calendar className="guest-theme-preview__detail-icon" />
@@ -78,7 +78,7 @@ export const CustomGuestInvitationPreview: React.FC<CustomGuestInvitationPreview
                 {fecha ? formatFriendlyDate(fecha, hora || '') : 'Fecha a definir'}
               </span>
             </div>
-            
+
             {lugar_texto && (
               <div className="guest-theme-preview__detail-item">
                 <MapPin className="guest-theme-preview__detail-icon" />
@@ -86,7 +86,7 @@ export const CustomGuestInvitationPreview: React.FC<CustomGuestInvitationPreview
               </div>
             )}
           </div>
-          
+
           {hostMessage && (
             <div className="guest-theme-preview__message">
               <p>{hostMessage}</p>

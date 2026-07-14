@@ -38,7 +38,7 @@ import { getDefaultInvitationTemplate, getThemeFromTemplate } from '@/lib/invita
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
-import { isMobileShareEnvironment } from '@/lib/shareHelper';
+import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -73,7 +73,7 @@ const DetailHost: React.FC = () => {
   const [copiedShare, setCopiedShare] = useState(false);
   // Estado para discriminar qué botón destructivo del bottom sheet de cancelación fue clickeado
   const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
-  
+
   // UX: Preview and Theme Selector
   const [showPreview, setShowPreview] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
@@ -228,15 +228,15 @@ const DetailHost: React.FC = () => {
     if (!encuentro || themeSaving) return;
     setThemeSaving(true);
 
-    const payload = { 
-      tema_invitacion: theme as InvitationTheme, 
-      invitation_template: template ?? null 
+    const payload = {
+      tema_invitacion: theme as InvitationTheme,
+      invitation_template: template ?? null
     };
 
     try {
       await encuentrosService.updateEncuentro(encuentro.id, payload, hostIdRef.current!);
       const updatedEnc = { ...encuentro, ...payload };
-      
+
       setEncuentro(updatedEnc);
       useDetailStore.getState().setDetailData(encuentro.id, updatedEnc, participantes);
       setShowPreview(false);
@@ -265,7 +265,7 @@ const DetailHost: React.FC = () => {
     const entertainmentTemplates = ['entertainment_cinema', 'entertainment_music', 'entertainment_show'];
     const learningTemplates = ['learning_class', 'learning_course', 'learning_talk'];
     const wellnessTemplates = ['wellness_calm', 'wellness_nature', 'wellness_movement'];
-    
+
     const isKidsTemplate = kidTemplates.includes(newThemeOrTemplate);
     const isCelebrationTemplate = celebrationTemplates.includes(newThemeOrTemplate);
     const isRomanticTemplate = romanticTemplates.includes(newThemeOrTemplate);
@@ -306,8 +306,8 @@ const DetailHost: React.FC = () => {
     } else {
       // Cambio de tema principal (classic, formal, friends, celebration, kids_birthday, etc.)
       updates = { tema_invitacion: newThemeOrTemplate as InvitationTheme, invitation_template: null };
-      
-      const defaultTemplate = getDefaultInvitationTemplate(newThemeOrTemplate);
+
+      const defaultTemplate = getDefaultInvitationTemplate(newThemeOrTemplate as InvitationTheme);
       if (defaultTemplate) {
         updates.invitation_template = defaultTemplate;
       }
@@ -318,7 +318,7 @@ const DetailHost: React.FC = () => {
 
     try {
       await encuentrosService.updateEncuentro(encuentro.id, updates, hostIdRef.current!);
-      
+
       const themesWithVariants = ['kids_birthday', 'celebration', 'sports', 'romantic', 'formal', 'friends', 'family', 'special', 'entertainment', 'learning', 'wellness'];
       if (themesWithVariants.includes(newThemeOrTemplate)) {
         // Keep the bottom sheet open so the user can see the variants selector immediately.
@@ -394,7 +394,7 @@ const DetailHost: React.FC = () => {
       const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
       const totalHeight = document.documentElement.scrollHeight;
-      
+
       const hasOverflow = totalHeight > viewportHeight + 12;
       const isBottom = totalHeight - scrollY - viewportHeight < 120;
       setShowScrollHint(hasOverflow && !isBottom);
@@ -417,14 +417,14 @@ const DetailHost: React.FC = () => {
       setCancelling(true);
       const hostId = user?.id ?? getHostId();
       await encuentrosService.cancelarEncuentro(id, hostId);
-      
+
       // Refetch obligatorio para asegurar datos reales de Supabase
       const updatedEnc = await encuentrosService.getDetalleHostSeguro(id, hostId);
-      
+
       useHomeStore.getState().invalidateCache();
       setEncuentro(updatedEnc);
       useDetailStore.getState().setDetailData(id, updatedEnc, participantes);
-      
+
       setShowCancelModal(false);
       navigate(`/cancel-summary/${id}`);
     } catch (err: any) {
@@ -444,9 +444,9 @@ const DetailHost: React.FC = () => {
       setNombre('');
       setTimeout(() => inputRef.current?.focus(), 0);
       refreshParticipantes();
-    } catch (error) { 
-      console.error('Error adding guest', error); 
-      alert('Error al agregar invitado'); 
+    } catch (error) {
+      console.error('Error adding guest', error);
+      alert('Error al agregar invitado');
     }
   };
 
@@ -538,15 +538,15 @@ const DetailHost: React.FC = () => {
     const newLink = encuentro.public_token
       ? `${baseUrl}/join/${encuentro.public_token}`
       : `${baseUrl}/meet/${encuentro.id}`;
-    
-    
+
+
     const alias = getHostAlias();
-    const intro = alias 
-      ? `${alias} creó un nuevo encuentro en reemplazo del anterior 👇` 
+    const intro = alias
+      ? `${alias} creó un nuevo encuentro en reemplazo del anterior 👇`
       : 'Creé un nuevo encuentro en reemplazo del anterior 👇';
-      
+
     const msg = `${intro}\n\nConfirmá si podés asistir:\n${newLink}`;
-    
+
     if (isMobileShareEnvironment() && navigator.share) {
       try { await navigator.share({ text: msg }); } catch (err) { console.error('Share error:', err); }
     } else {
@@ -603,12 +603,12 @@ const DetailHost: React.FC = () => {
     const now = new Date();
     const eventDate = new Date(`${encuentro.fecha}T${encuentro.hora}`);
     const diffMinutes = Math.round((eventDate.getTime() - now.getTime()) / 60000);
-    
+
     if (diffMinutes < -45) return { label: 'Finalizado', className: 'dh-badge--finished' };
     if (diffMinutes <= 0) return { label: '🟢 En curso ahora', className: 'dh-badge--live' };
     if (diffMinutes <= 15) return { label: '🟢 Encuentro activo', className: 'dh-badge--live' };
     if (diffMinutes <= 60) return { label: `🟡 Empieza en ${diffMinutes} min`, className: 'dh-badge--soon' };
-    
+
     return { label: 'Activo', className: 'dh-badge--active' };
   };
 
@@ -636,18 +636,19 @@ const DetailHost: React.FC = () => {
   const handleShareGeneral = async () => {
     if (!encuentro) return;
     try {
-      const shareUrl = `${window.location.origin}/join/${encuentro.public_token}`;
+      const shareUrl = buildGeneralInvitationUrl(encuentro.public_token);
+      if (!shareUrl) return;
       const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
-      
+
       const alias = getHostAlias();
       const isKids = encuentro.tema_invitacion === 'kids_birthday';
       const aliasIntro = isKids
         ? (alias ? `🎉 ${alias} te invita al cumpleaños de 👇` : `🎉 Te invito al cumpleaños de 👇`)
         : (alias ? `${alias} te invita a este encuentro 👇` : `Te invito a este encuentro 👇`);
-        
+
       const cleanLocation = preventNumberLinking(encuentro.lugar_texto || 'Presencial');
       const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? cleanLocation : 'Virtual'}`;
-      
+
       let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n`;
       if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
         shareText += `${locStr}\n\n`;
@@ -656,7 +657,7 @@ const DetailHost: React.FC = () => {
       } else {
         shareText += '\n'; // en caso de presencial sin lugar, evitamos salto grande si no es necesario o lo dejamos para consistencia
       }
-      
+
       if (personalMessage.trim()) {
         shareText += `${personalMessage.trim()}\n\n`;
       }
@@ -696,15 +697,15 @@ const DetailHost: React.FC = () => {
     if (!token || !encuentro) return;
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const shareUrl = `${baseUrl}/invite/${token}`;
-    
+
     const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
     const alias = getHostAlias();
     const isKids = encuentro.tema_invitacion === 'kids_birthday';
-    
+
     let aliasIntro = '';
     if (isKids) {
       if (guestName?.trim()) {
-        aliasIntro = alias 
+        aliasIntro = alias
           ? `🎉 ${guestName.trim()}, ${alias} te invita al cumpleaños de 👇`
           : `🎉 ${guestName.trim()}, te invito al cumpleaños de 👇`;
       } else {
@@ -712,7 +713,7 @@ const DetailHost: React.FC = () => {
       }
     } else {
       if (guestName?.trim()) {
-        aliasIntro = alias 
+        aliasIntro = alias
           ? `${guestName.trim()}, ${alias} te invita a este encuentro 👇`
           : `${guestName.trim()}, te invito a este encuentro 👇`;
       } else {
@@ -722,7 +723,7 @@ const DetailHost: React.FC = () => {
 
     const cleanLocation = preventNumberLinking(encuentro.lugar_texto || 'Presencial');
     const locStr = `${encuentro.modalidad === 'presencial' ? '📍' : '💻'} ${encuentro.modalidad === 'presencial' ? cleanLocation : 'Virtual'}`;
-    
+
     let shareText = `${aliasIntro}\n\n*${encuentro.titulo.trim()}*\n📅 ${fechaStr} · ${horaStr}\n`;
     if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
       shareText += `${locStr}\n\n`;
@@ -731,7 +732,7 @@ const DetailHost: React.FC = () => {
     } else {
       shareText += '\n';
     }
-    
+
     if (personalMessage.trim()) {
       shareText += `${personalMessage.trim()}\n\n`;
     }
@@ -808,12 +809,12 @@ const DetailHost: React.FC = () => {
                     <button
                       onClick={() => handleShareLink(p.token_invitacion, p.id, p.nombre_invitado)}
                       className={`dh-participant-share-btn ${
-                        copiedId === p.id 
-                          ? 'dh-participant-share-btn--copied' 
-                          : p.estado !== 'pendiente' 
-                          ? 'dh-participant-share-btn--reshare' 
-                          : sharedInvites[p.id] 
-                          ? 'dh-participant-share-btn--shared' 
+                        copiedId === p.id
+                          ? 'dh-participant-share-btn--copied'
+                          : p.estado !== 'pendiente'
+                          ? 'dh-participant-share-btn--reshare'
+                          : sharedInvites[p.id]
+                          ? 'dh-participant-share-btn--shared'
                           : 'dh-participant-share-btn--pending'
                       }`}
                     >
@@ -853,7 +854,7 @@ const DetailHost: React.FC = () => {
         desc: 'Este encuentro ya finalizó. Al eliminarlo, dejará de aparecer en tu historial. Esta acción no se puede deshacer.'
       };
     }
-    
+
     // Activo o Próximo
     let desc = 'Este encuentro está programado o en curso. ';
     if (participantes.length > 0) {
@@ -955,10 +956,10 @@ const DetailHost: React.FC = () => {
                         pEstado === 'rechazado' ? 'Rechazaste esta invitación' : 'Todavía no respondiste';
     const statusIcon = pEstado === 'confirmado' ? <CheckCircle2 size={18} color="var(--color-success)" /> :
                        pEstado === 'rechazado' ? <XCircle size={18} color="var(--color-danger)" /> : <Clock size={18} color="var(--color-on-surface-variant)" />;
-    
+
     return (
-      <div 
-        id="participant-scroll-container" 
+      <div
+        id="participant-scroll-container"
         onScroll={handleScroll}
         className="dh-participant-view-container"
       >
@@ -971,7 +972,7 @@ const DetailHost: React.FC = () => {
               {badge.label}
             </div>
           </div>
-          
+
           <div className="dh-meta-list">
             <div className="dh-meta-row">
               <Clock size={18} />
@@ -1013,8 +1014,8 @@ const DetailHost: React.FC = () => {
              <Button fullWidth className="dh-participant-video-btn" onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
                Abrir videollamada
              </Button>
-             <button 
-               onClick={handleCopyVideoLink} 
+             <button
+               onClick={handleCopyVideoLink}
                className="dh-participant-video-copy-btn"
              >
                {copiedLink ? 'Copiado' : 'Copiar link de la reunión'}
@@ -1178,7 +1179,7 @@ const DetailHost: React.FC = () => {
           {/* 2. BLOQUE DE INVITACIÓN UNIFICADO */}
           {!isReadOnly && !isCancelado && (
             <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              
+
               {/* BLOQUE: AGREGAR MENSAJE (solo link_general) */}
               {encuentro.tipo_invitacion === 'link_general' && (
                 <div className="dh-invite-card" style={{ padding: '20px' }}>

@@ -33,7 +33,7 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
   const hasCumpleWord = removeAccents(normalizedTitle.toLowerCase()).includes('cumple');
 
   const displayDateTime = formatKidsBirthdayDateTime(date, time);
-  
+
   const cleanHostMessage = hostMessage?.trim() || '';
   const hasHostMessage = cleanHostMessage.length > 0;
 
@@ -61,9 +61,9 @@ export const KidsBirthdayInvitationPreview: React.FC<Props> = ({
           hostMessage: {hasHostMessage ? cleanHostMessage : 'VACIO'}
         </div>
       )}
-      
+
       <img src={template.background} alt="Background" className="kids-invitation-bg" />
-      
+
       <div className="kids-invitation-content">
         <div className="kids-invitation-main-bubble">
           <div className="kids-invitation-header">

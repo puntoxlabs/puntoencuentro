@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { validateEncounterDate } from '@/lib/formatDate';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
+import { isValidDateTime } from '@/lib/argentinaDateTime';
 
 export interface CreateEncuentroDTO {
   titulo: string;
@@ -17,6 +18,250 @@ export interface CreateEncuentroDTO {
   tema_invitacion?: InvitationTheme;
   invitation_template?: string | null;
   reemplaza_a?: string | null;
+}
+
+export interface CoordinationCreatePayload {
+  titulo: string;
+  descripcion?: string | null;
+  modalidad: 'presencial' | 'virtual';
+  lugar_texto?: string | null;
+  link_virtual?: string | null;
+  tipo_invitacion: 'individual' | 'link_general';
+  tema?: string | null;
+  tema_invitacion?: string | null;
+  invitation_template?: string | null;
+  response_deadline?: string | null;
+}
+
+export interface CoordinationOptionPayload {
+  fecha: string;
+  hora_inicio: string;
+}
+
+export type CoordinationDateMode = 'coordination';
+export type CoordinationStatus = 'open' | 'closed';
+
+export interface CoordinationCreatedEncounter {
+  id: string;
+  public_token: string;
+  date_mode: 'coordination';
+  coordination_status: 'open';
+  response_deadline: string | null;
+}
+
+export interface CoordinationCreatedOption {
+  id: string;
+  fecha: string;
+  hora_inicio: string;
+  orden: number;
+}
+
+export type CoordinationCreateResult =
+  | {
+      ok: true;
+      encuentro: CoordinationCreatedEncounter;
+      opciones: CoordinationCreatedOption[];
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizePostgresTimeToHHMM(timeString: string): string | null {
+  if (typeof timeString !== 'string') return null;
+  // Regex to match HH:MM or HH:MM:SS or HH:MM:SS.ffffff
+  const match = timeString.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d+)?)?$/);
+  if (!match) return null;
+  return `${match[1]}:${match[2]}`;
+}
+
+export function validateCoordinationCreateResult(value: unknown): CoordinationCreateResult {
+  if (!isUnknownRecord(value)) {
+    return { ok: false, error: 'invalid_response_format' };
+  }
+
+  const record = value;
+
+  if (record.ok === false) {
+    return {
+      ok: false,
+      error: typeof record.error === 'string' ? record.error : 'unknown_error'
+    };
+  }
+
+  if (record.ok === true) {
+    if (!isUnknownRecord(record.encuentro)) return { ok: false, error: 'invalid_response_format' };
+    const enc = record.encuentro;
+
+    if (typeof enc.id !== 'string' || !enc.id.trim()) return { ok: false, error: 'invalid_encounter_id' };
+    if (typeof enc.public_token !== 'string' || !enc.public_token.trim()) return { ok: false, error: 'invalid_public_token' };
+    if (enc.date_mode !== 'coordination') return { ok: false, error: 'invalid_date_mode' };
+    if (enc.coordination_status !== 'open') return { ok: false, error: 'invalid_coordination_status' };
+    if (enc.response_deadline !== null && typeof enc.response_deadline !== 'string') return { ok: false, error: 'invalid_response_deadline' };
+
+    if (!Array.isArray(record.opciones)) return { ok: false, error: 'invalid_options_format' };
+    const rawOps = record.opciones;
+
+    if (rawOps.length < 2 || rawOps.length > 3) return { ok: false, error: 'invalid_options_length' };
+
+    const ops: CoordinationCreatedOption[] = [];
+    const seenIds = new Set<string>();
+    const seenOrders = new Set<number>();
+
+    for (const rawOp of rawOps) {
+      if (!isUnknownRecord(rawOp)) return { ok: false, error: 'invalid_option_format' };
+
+      const { id, fecha, hora_inicio, orden } = rawOp;
+
+      if (typeof id !== 'string' || !id.trim()) return { ok: false, error: 'invalid_option_id' };
+      if (typeof fecha !== 'string' || typeof hora_inicio !== 'string') return { ok: false, error: 'invalid_option_date' };
+
+      const normalizedTime = normalizePostgresTimeToHHMM(hora_inicio);
+      if (!normalizedTime) return { ok: false, error: 'invalid_option_date' };
+
+      if (!isValidDateTime(fecha, normalizedTime)) return { ok: false, error: 'invalid_option_date' };
+      if (
+        typeof orden !== 'number' ||
+        !Number.isInteger(orden) ||
+        orden < 1 ||
+        orden > 3
+      ) {
+        return {
+          ok: false,
+          error: 'invalid_option_order',
+        };
+      }
+
+      if (seenIds.has(id)) return { ok: false, error: 'duplicate_option_id' };
+      seenIds.add(id);
+
+      if (seenOrders.has(orden)) return { ok: false, error: 'duplicate_option_order' };
+      seenOrders.add(orden);
+
+      ops.push({
+        id,
+        fecha,
+        hora_inicio: normalizedTime,
+        orden
+      });
+    }
+
+    const sortedOrders = [...seenOrders].sort((a, b) => a - b);
+    const hasExpectedOrders = sortedOrders.every((order, index) => order === index + 1);
+
+    if (!hasExpectedOrders) {
+      return {
+        ok: false,
+        error: 'invalid_option_order_sequence',
+      };
+    }
+
+    const validatedEncounter: CoordinationCreatedEncounter = {
+      id: enc.id,
+      public_token: enc.public_token,
+      date_mode: 'coordination',
+      coordination_status: 'open',
+      response_deadline: enc.response_deadline as string | null
+    };
+
+    return {
+      ok: true,
+      encuentro: validatedEncounter,
+      opciones: ops,
+    };
+  }
+
+  return { ok: false, error: 'invalid_response_format' };
+}
+
+export function getCoordinationCreateErrorMessage(errorCode: string): string {
+  switch (errorCode) {
+    case 'not_authenticated':
+      return 'Necesitás iniciar sesión para coordinar una fecha.';
+    case 'permanent_account_required':
+      return 'Necesitás una cuenta permanente para coordinar una fecha.';
+    case 'invalid_data':
+      return 'Revisá los datos del encuentro.';
+    case 'invalid_options':
+      return 'Revisá las opciones propuestas.';
+    case 'minimum_two_options':
+      return 'Agregá al menos dos opciones.';
+    case 'maximum_three_options':
+      return 'Podés proponer hasta tres opciones.';
+    case 'invalid_option_date':
+      return 'Revisá la fecha de las opciones.';
+    case 'invalid_option_time':
+      return 'Revisá el horario de las opciones.';
+    case 'option_in_past':
+      return 'Todas las opciones deben ser futuras.';
+    case 'duplicate_options':
+      return 'No puede haber dos opciones iguales.';
+    case 'invalid_deadline':
+      return 'Revisá el plazo para responder.';
+    case 'deadline_after_first_option':
+      return 'El plazo debe finalizar antes de la primera opción.';
+    case 'invalid_modality':
+      return 'Revisá la modalidad del encuentro.';
+    case 'location_required':
+      return 'Indicá el lugar del encuentro.';
+    case 'virtual_link_required':
+      return 'Indicá el enlace de la reunión.';
+    case 'invalid_invitation_type':
+      return 'Revisá el tipo de invitación.';
+    case 'invalid_theme':
+      return 'Revisá el diseño de la invitación.';
+    case 'invalid_date_mode':
+      return 'Este encuentro no corresponde a una coordinación.';
+    case 'not_owner':
+      return 'No tenés permiso para administrar este encuentro.';
+    case 'invalid_option_order':
+    case 'duplicate_option_order':
+    case 'invalid_option_order_sequence':
+    default:
+      return 'No pudimos crear la coordinación. Intentá nuevamente.';
+  }
+}
+
+export interface CoordinationHostOption {
+  id: string;
+  fecha: string;
+  hora_inicio: string;
+  orden: number;
+  selected: boolean;
+  available_count: number;
+  maybe_count: number;
+  unavailable_count: number;
+  preferred_count: number;
+}
+
+export interface CoordinationHostDetail {
+  ok: boolean;
+  error?: string;
+  encuentro?: {
+    id: string;
+    titulo: string;
+    descripcion: string | null;
+    estado: string;
+    modalidad: string;
+    lugar_texto: string | null;
+    link_virtual: string | null;
+    tema: string | null;
+    tipo_invitacion: string;
+    tema_invitacion: string;
+    invitation_template: string | null;
+    public_token?: string;
+  };
+  coordination_status?: string;
+  response_deadline?: string | null;
+  selected_option_id?: string | null;
+  fecha?: string | null;
+  hora?: string | null;
+  derived_status?: string;
+  opciones?: CoordinationHostOption[];
 }
 
 export const encuentrosService = {
@@ -242,14 +487,50 @@ export const encuentrosService = {
     const { data, error } = await supabase.rpc('get_counts_participantes_host_seguro', {
       p_encuentro_ids: ids
     });
-      
+
     if (error) {
       if (import.meta.env.DEV) console.error('Error fetching counts:', error);
       return {};
     }
-    
+
     // La RPC ya devuelve el diccionario { [id]: { total, confirmados } }
     return (data as Record<string, { total: number; confirmados: number }>) || {};
-    
+
   },
+
+  async crearEncuentroConOpciones(payload: CoordinationCreatePayload, opciones: CoordinationOptionPayload[]): Promise<CoordinationCreateResult> {
+    const { data, error } = await supabase.rpc('crear_encuentro_con_opciones_seguro', {
+      p_data: payload,
+      p_opciones: opciones
+    });
+
+    if (error) {
+      console.error('[encuentrosService] Error en crear_encuentro_con_opciones_seguro:', error);
+      return { ok: false, error: 'rpc_error' };
+    }
+
+    return validateCoordinationCreateResult(data);
+  },
+
+  async getCoordinacionHost(encuentroId: string): Promise<CoordinationHostDetail> {
+    const { data, error } = await supabase.rpc('get_coordinacion_host_seguro', {
+      p_encuentro_id: encuentroId
+    });
+
+    if (error) {
+      console.error('Error in get_coordinacion_host_seguro (RPC):', error);
+      throw error;
+    }
+
+    const result = (typeof data === 'string' ? JSON.parse(data) : data) as CoordinationHostDetail;
+
+    if (result && result.encuentro) {
+      result.encuentro.invitation_template = resolveInvitationTemplateForTheme(
+        result.encuentro.tema_invitacion as InvitationTheme,
+        result.encuentro.invitation_template
+      );
+    }
+
+    return result;
+  }
 };

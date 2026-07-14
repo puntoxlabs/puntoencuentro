@@ -12,6 +12,7 @@ interface CelebrationTemplateSelectorProps {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  displayDateLabel?: string;
 }
 
 export const CelebrationTemplateSelector: React.FC<CelebrationTemplateSelectorProps> = ({
@@ -21,7 +22,8 @@ export const CelebrationTemplateSelector: React.FC<CelebrationTemplateSelectorPr
   descripcion,
   fecha,
   hora,
-  lugar_texto
+  lugar_texto,
+  displayDateLabel
 }) => {
   return (
     <div className="shared-template-selector">
@@ -36,9 +38,9 @@ export const CelebrationTemplateSelector: React.FC<CelebrationTemplateSelectorPr
               className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
-              <div 
+              <div
                 className="shared-template-thumbnail"
-                style={{ 
+                style={{
                   backgroundImage: `url(${(template as any).background || template.thumbnail})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -51,6 +53,7 @@ export const CelebrationTemplateSelector: React.FC<CelebrationTemplateSelectorPr
                   fecha={fecha}
                   hora={hora}
                   lugar_texto={lugar_texto}
+                  displayDateLabel={displayDateLabel}
                   eyebrow="A CELEBRAR"
                 />
                 {isSelected && (

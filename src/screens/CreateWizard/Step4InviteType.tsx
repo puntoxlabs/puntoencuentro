@@ -53,7 +53,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         setLoading(false);
         return;
       }
-      
+
       let encuentroId = wizardData.encuentro_id;
 
       if (!encuentroId) {
@@ -177,8 +177,8 @@ const Step4InviteType: React.FC<Step4Props> = () => {
 
       {hasInitialValue && (
         <div className="cw-bottom-actions">
-          <Button 
-            fullWidth 
+          <Button
+            fullWidth
             disabled={loading}
             onClick={async () => {
               if (loading) return;
@@ -190,7 +190,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
           </Button>
         </div>
       )}
-      
+
       {error && (
         <div className="cw-bottom-actions">
           <div className="cw-error-banner">

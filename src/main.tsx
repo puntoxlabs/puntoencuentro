@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 try {
   const CURRENT_STORAGE_VERSION = '1.2';
   const version = localStorage.getItem('app_storage_version');
-  
+
   if (version !== CURRENT_STORAGE_VERSION) {
     console.warn(`Storage version mismatch (${version} vs ${CURRENT_STORAGE_VERSION}). Clearing cache...`);
     localStorage.removeItem('wizard-storage');

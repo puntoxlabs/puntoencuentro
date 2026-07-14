@@ -33,8 +33,8 @@ export const ScrollHint: React.FC<ScrollHintProps> = ({ visible, text = 'Desliz√
       <span style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', letterSpacing: '0', fontFamily: 'var(--font-family, sans-serif)' }}>
         {text}
       </span>
-      <ChevronDown 
-        size={13} 
+      <ChevronDown
+        size={13}
         color="#374151"
         style={{
           animation: 'bounceSlow 1.8s infinite ease-in-out',

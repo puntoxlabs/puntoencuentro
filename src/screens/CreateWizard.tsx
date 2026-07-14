@@ -23,7 +23,7 @@ const CreateWizard: React.FC = () => {
   const { step, prevStep, encuentro_id } = useWizardStore();
   const navigate = useNavigate();
   const [showScrollHint, setShowScrollHint] = React.useState(false);
-  
+
   const { user, loading: authLoading } = useAuth();
   const { choiceSheetProps } = useCreateEncounter();
 
@@ -32,7 +32,7 @@ const CreateWizard: React.FC = () => {
       const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
       const totalHeight = document.documentElement.scrollHeight;
-      
+
       const hasOverflow = totalHeight > viewportHeight + 12;
       const isBottom = totalHeight - scrollY - viewportHeight < 120;
       setShowScrollHint(hasOverflow && !isBottom);
@@ -99,9 +99,9 @@ const CreateWizard: React.FC = () => {
 
       {/* Progress bar */}
       <div className="cw-progress-track">
-        <div 
+        <div
           className="cw-progress-fill"
-          style={{ width: `${progress}%` }} 
+          style={{ width: `${progress}%` }}
         />
       </div>
 

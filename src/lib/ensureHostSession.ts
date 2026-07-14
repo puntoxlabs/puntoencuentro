@@ -17,7 +17,7 @@ export async function ensureHostSession(captchaToken?: string): Promise<HostSess
     try {
       // Intentar obtener la sesión actual
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError) {
         throw sessionError;
       }

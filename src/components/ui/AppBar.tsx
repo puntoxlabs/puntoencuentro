@@ -31,7 +31,7 @@ export const AppBar: React.FC<AppBarProps> = ({ title, subtitle, showBack = fals
       ) : (
         <div style={{ width: 36 }} />
       )}
-      
+
       <div className="app-bar-center">
         <h1 className="app-bar-title">{title}</h1>
         {subtitle && <p className="app-bar-subtitle">{subtitle}</p>}

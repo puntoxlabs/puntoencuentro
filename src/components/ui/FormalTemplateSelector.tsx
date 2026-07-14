@@ -14,16 +14,18 @@ interface Props {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  displayDateLabel?: string;
 }
 
-export const FormalTemplateSelector: React.FC<Props> = ({ 
-  selectedTemplateId, 
+export const FormalTemplateSelector: React.FC<Props> = ({
+  selectedTemplateId,
   onSelect,
   titulo,
   descripcion,
   fecha,
   hora,
-  lugar_texto
+  lugar_texto,
+  displayDateLabel
 }) => {
   return (
     <div className="shared-template-selector">
@@ -38,11 +40,11 @@ export const FormalTemplateSelector: React.FC<Props> = ({
               className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
-              <div 
+              <div
                 className="shared-template-thumbnail"
-                style={{ 
-                  ...((template as any).background || template.thumbnail 
-                    ? { backgroundImage: `url(${(template as any).background || template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                style={{
+                  ...((template as any).background || template.thumbnail
+                    ? { backgroundImage: `url(${(template as any).background || template.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' }
                     : { background: template.previewColor }
                   )
                 }}
@@ -53,6 +55,7 @@ export const FormalTemplateSelector: React.FC<Props> = ({
                   fecha={fecha}
                   hora={hora}
                   lugar_texto={lugar_texto}
+                  displayDateLabel={displayDateLabel}
                   eyebrow="REUNIÓN"
                 />
                 {isSelected && (

@@ -8,6 +8,8 @@ import ShareLink from '@/screens/ShareLink';
 import InviteGuest from '@/screens/InviteGuest';
 import JoinGeneral from '@/screens/JoinGeneral';
 import CancelSummary from '@/screens/CancelSummary';
+import CreateCoordinationWizard from '@/screens/CreateCoordinationWizard';
+import DetailHostCoordination from '@/screens/DetailHostCoordination';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { usePostAuthRedirect } from '@/hooks/usePostAuthRedirect';
 
@@ -18,7 +20,9 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/create" element={<CreateWizard />} />
+      <Route path="/create/coordination" element={<CreateCoordinationWizard />} />
       <Route path="/meet/:id" element={<DetailHost />} />
+      <Route path="/coordination/:id" element={<DetailHostCoordination />} />
       <Route path="/add-guests/:id" element={<AddGuests />} />
       <Route path="/share/:id" element={<ShareLink />} />
       <Route path="/invite/:token" element={<InviteGuest />} />

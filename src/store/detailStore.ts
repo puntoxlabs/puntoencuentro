@@ -19,7 +19,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const useDetailStore = create<DetailState>((set, get) => ({
   cache: {},
-  setDetailData: (id, encuentro, participantes) => 
+  setDetailData: (id, encuentro, participantes) =>
     set((state) => ({
       cache: {
         ...state.cache,
@@ -49,7 +49,7 @@ export const useDetailStore = create<DetailState>((set, get) => ({
     }
     return null;
   },
-  invalidateCache: (id) => 
+  invalidateCache: (id) =>
     set((state) => {
       const newCache = { ...state.cache };
       if (newCache[id]) {

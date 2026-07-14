@@ -45,8 +45,8 @@ const Step2Modality: React.FC = () => {
 
       {hasInitialValue && (
         <div className="cw-bottom-actions">
-          <Button 
-            fullWidth 
+          <Button
+            fullWidth
             onClick={() => {
               if (!isNavigating) {
                 setIsNavigating(true);

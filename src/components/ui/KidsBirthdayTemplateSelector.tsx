@@ -13,6 +13,7 @@ interface KidsBirthdayTemplateSelectorProps {
   fecha?: string;
   hora?: string;
   lugar_texto?: string;
+  displayDateLabel?: string;
 }
 
 export const KidsBirthdayTemplateSelector: React.FC<KidsBirthdayTemplateSelectorProps> = ({
@@ -22,7 +23,8 @@ export const KidsBirthdayTemplateSelector: React.FC<KidsBirthdayTemplateSelector
   descripcion,
   fecha,
   hora,
-  lugar_texto
+  lugar_texto,
+  displayDateLabel
 }) => {
   return (
     <div className="shared-template-selector">
@@ -37,9 +39,9 @@ export const KidsBirthdayTemplateSelector: React.FC<KidsBirthdayTemplateSelector
               className={`shared-template-option ${isSelected ? 'selected' : ''}`}
               onClick={() => onSelect(template.id)}
             >
-              <div 
+              <div
                 className="shared-template-thumbnail"
-                style={{ 
+                style={{
                   backgroundImage: `url(${(template as any).background || template.thumbnail})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -52,6 +54,7 @@ export const KidsBirthdayTemplateSelector: React.FC<KidsBirthdayTemplateSelector
                   fecha={fecha}
                   hora={hora}
                   lugar_texto={lugar_texto}
+                  displayDateLabel={displayDateLabel}
                   eyebrow="CUMPLE INFANTIL"
                 />
                 {isSelected && (

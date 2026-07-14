@@ -16,7 +16,7 @@ export const setHostAlias = (alias: string) => {
     if (cleanAlias.length > 40) {
       cleanAlias = cleanAlias.substring(0, 40).trim();
     }
-    
+
     if (cleanAlias === '') {
       localStorage.removeItem(HOST_ALIAS_KEY);
     } else {

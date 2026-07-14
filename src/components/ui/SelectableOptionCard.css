@@ -1,0 +1,108 @@
+.pe-selectable-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px;
+  background-color: var(--pe-bg);
+  border: 2px solid var(--pe-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-align: left;
+  min-height: 44px;
+}
+
+.pe-selectable-card:focus-visible {
+  outline: 2px solid var(--pe-primary);
+  outline-offset: 2px;
+}
+
+.pe-selectable-card:active {
+  transform: scale(0.98);
+}
+
+.pe-selectable-card--selected {
+  background-color: var(--pe-primary-container);
+  border-color: var(--pe-primary);
+}
+
+.pe-selectable-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pe-selectable-card__content-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.pe-selectable-card__icon {
+  color: var(--pe-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-selectable-card--selected .pe-selectable-card__icon {
+  color: var(--pe-primary-dark);
+}
+
+.pe-selectable-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.pe-selectable-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-selectable-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pe-text);
+}
+
+.pe-selectable-card--selected .pe-selectable-card__title {
+  color: var(--pe-primary-dark);
+}
+
+.pe-selectable-card__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--pe-bg-hover);
+  color: var(--pe-text-muted);
+}
+
+.pe-selectable-card__description {
+  font-size: 14px;
+  color: var(--pe-text-muted);
+  line-height: 1.4;
+}
+
+.pe-selectable-card__check {
+  color: var(--pe-primary);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-selectable-card__check--visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.pe-selectable-card--compact {
+  padding: 12px;
+}

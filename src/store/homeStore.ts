@@ -25,10 +25,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   scrollPosition: 0,
   filterStatus: 'all',
   sortBy: 'date_upcoming',
-  setEncuentros: (organized, participated = []) => set({ 
-    encuentros: organized, 
+  setEncuentros: (organized, participated = []) => set({
+    encuentros: organized,
     participatedEncuentros: participated,
-    lastFetch: Date.now() 
+    lastFetch: Date.now()
   }),
   setScrollPosition: (position) => set({ scrollPosition: position }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -38,9 +38,9 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   getValidCache: () => {
     const { encuentros, participatedEncuentros, lastFetch } = get();
     if (lastFetch > 0 && (Date.now() - lastFetch < CACHE_DURATION)) {
-      return { 
-        organized: encuentros || [], 
-        participated: participatedEncuentros || [] 
+      return {
+        organized: encuentros || [],
+        participated: participatedEncuentros || []
       };
     }
     return null;

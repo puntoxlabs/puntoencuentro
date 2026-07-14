@@ -106,7 +106,7 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
               </div>
               <h3 className="pe-sheet-version-title">PuntoEncuentro</h3>
               <p className="pe-sheet-version-subtitle">Versión Beta</p>
-              
+
               <div className="pe-sheet-build-info">
                 <p className="pe-sheet-build-label">Build</p>
                 <p className="pe-sheet-build-version">

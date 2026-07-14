@@ -5,17 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { TimePicker } from '@/components/ui/TimePicker';
 import type { TimePickerRef } from '@/components/ui/TimePicker';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
-import { KidsBirthdayTemplateSelector } from '@/components/ui/KidsBirthdayTemplateSelector';
-import { CelebrationTemplateSelector } from '@/components/ui/CelebrationTemplateSelector';
-import { RomanticTemplateSelector } from '@/components/ui/RomanticTemplateSelector';
-import { FormalTemplateSelector } from '@/components/ui/FormalTemplateSelector';
-import { FriendsTemplateSelector } from '@/components/ui/FriendsTemplateSelector';
-import { FamilyTemplateSelector } from '@/components/ui/FamilyTemplateSelector';
-import { SpecialTemplateSelector } from '@/components/ui/SpecialTemplateSelector';
-import { SportsTemplateSelector } from '@/components/ui/SportsTemplateSelector';
-import { EntertainmentTemplateSelector } from '@/components/ui/EntertainmentTemplateSelector';
-import { LearningTemplateSelector } from '@/components/ui/LearningTemplateSelector';
-import { WellnessTemplateSelector } from '@/components/ui/WellnessTemplateSelector';
+import { ActiveThemeTemplateSelector } from '@/components/ui/ActiveThemeTemplateSelector';
 import { CustomInvitationPreview } from '@/components/ui/CustomInvitationPreview';
 import { getDefaultInvitationTemplate } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
@@ -65,7 +55,7 @@ const Step1Data: React.FC = () => {
 
         const length = input.value.length;
         input.setSelectionRange(length, length);
-        
+
         // Remove from history state so it doesn't fire again on step-back
         window.history.replaceState({}, document.title);
       }, 250);
@@ -196,7 +186,7 @@ const Step1Data: React.FC = () => {
   const handleFechaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setField('fecha', val);
-    
+
     // Si cambia a una fecha donde la hora actual ya no es válida, validamos
     const err = validateEncounterDate(val, hora);
     setError(err === "La fecha y hora deben ser futuras" ? t('invalid_datetime', 'La fecha y hora deben ser futuras') : err);
@@ -240,7 +230,7 @@ const Step1Data: React.FC = () => {
 
 
   return (
-    <form 
+    <form
       onSubmit={(e) => e.preventDefault()}
       className="cw-container"
     >
@@ -330,127 +320,19 @@ const Step1Data: React.FC = () => {
             handleAfterThemeSelected();
           }}
         />
-        {tema_invitacion === 'kids_birthday' && (
-          <KidsBirthdayTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'kids_birthday'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'celebration' && (
-          <CelebrationTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'celebration'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'romantic' && (
-          <RomanticTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'romantic'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'formal' && (
-          <FormalTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'formal'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'friends' && (
-          <FriendsTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'friends'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'family' && (
-          <FamilyTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'family'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'special' && (
-          <SpecialTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'special'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'sports' && (
-          <SportsTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'sports'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'entertainment' && (
-          <EntertainmentTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'entertainment'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'learning' && (
-          <LearningTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'learning'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
-        {tema_invitacion === 'wellness' && (
-          <WellnessTemplateSelector
-            selectedTemplateId={invitation_template}
-            onSelect={(id) => { setField('tema_invitacion', 'wellness'); setField('invitation_template', id); }}
-            titulo={titulo}
-            descripcion={descripcion}
-            fecha={fecha}
-            hora={hora}
-            lugar_texto={lugar_texto}
-          />
-        )}
+        <ActiveThemeTemplateSelector
+          theme={tema_invitacion}
+          template={invitation_template}
+          onSelect={(id) => {
+            setField('tema_invitacion', tema_invitacion);
+            setField('invitation_template', id);
+          }}
+          titulo={titulo}
+          descripcion={descripcion}
+          fecha={fecha}
+          hora={hora}
+          lugar_texto={lugar_texto}
+        />
         {previewData.tema_invitacion === 'custom' && previewData.invitation_template?.startsWith('custom_') && (
           <div style={{ marginTop: 24 }}>
             <label className="input-label" style={{ marginBottom: 12, display: 'block' }}>Previsualización</label>

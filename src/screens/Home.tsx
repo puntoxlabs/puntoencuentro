@@ -13,15 +13,24 @@ import { encuentrosService } from '@/services/encuentrosService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat } from '@/lib/formatDate';
+import { useCreateEncounter } from '@/hooks/useCreateEncounter';
+import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat, formatFriendlyDeadline } from '@/lib/formatDate';
+import {
+  isCoordinationEncounter,
+  encounterComparator
+} from '@/lib/encuentroHelper';
+import type { EncuentroBase } from '@/lib/encuentroHelper';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
 import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
 import { throttle } from 'lodash';
-import { useCreateEncounter } from '@/hooks/useCreateEncounter';
 import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
+import { DATE_COORDINATION_ENABLED } from '@/config/features';
+import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceSheet';
+import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
+import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
 
 /** Devuelve true si la fecha+hora del encuentro ya pasó */
 function isEncuentroPasado(enc: any): boolean {
@@ -77,27 +86,32 @@ const ActiveCard: React.FC<{
         <h3 className="home-card-title">
           {enc.titulo}
         </h3>
-        <Badge label="Activo" status="active" />
+        <Badge label={isCoordinationEncounter(enc) ? "Coordinando fecha" : "Activo"} status="active" />
       </div>
 
       <p className="home-card-date">
-        📅 {formatFriendlyDate(enc.fecha, enc.hora)}
+        📅 {isCoordinationEncounter(enc) ? 'Opciones de fecha propuestas' : formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
+      {isCoordinationEncounter(enc) && enc.response_deadline && (
+        <p className="home-card-date" style={{ color: 'var(--pe-error)', fontSize: 13, marginTop: 4 }}>
+          ⏳ Responder antes del {formatFriendlyDeadline(enc.response_deadline)}
+        </p>
+      )}
 
       <div className="home-card-footer">
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <StatusChip 
-            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
-            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
+          <StatusChip
+            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'}
+            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
           />
           {enc.tipo_invitacion && (
-            <StatusChip 
-              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'} 
-              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'} 
+            <StatusChip
+              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'}
+              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'}
             />
           )}
         </div>
-        
+
         {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
         {miEstadoLabel ? (
           <span className={miEstado === 'confirmado' ? 'home-card-status--success' : miEstado === 'rechazado' ? 'home-card-status--danger' : 'home-card-status'}>
@@ -153,19 +167,19 @@ const PastCard: React.FC<{
       </div>
 
       <p className="home-card-date--past">
-        📅 {formatFriendlyDate(enc.fecha, enc.hora)}
+        📅 {isCoordinationEncounter(enc) ? 'Opciones de fecha propuestas' : formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
 
       <div className="home-card-footer">
         <div className="home-card-footer-left" style={{ flexWrap: 'wrap' }}>
-          <StatusChip 
-            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'} 
-            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'} 
+          <StatusChip
+            icon={enc.modalidad === 'presencial' ? '🤝' : '💻'}
+            label={enc.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
           />
           {enc.tipo_invitacion && (
-            <StatusChip 
-              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'} 
-              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'} 
+            <StatusChip
+              icon={enc.tipo_invitacion === 'individual' ? '👤' : '👥'}
+              label={enc.tipo_invitacion === 'individual' ? 'Individual' : 'Grupal'}
             />
           )}
           {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
@@ -217,7 +231,7 @@ const Home: React.FC = () => {
   const storeState = useHomeStore.getState();
   const staleOrganized = storeState.encuentros;
   const staleParticipated = storeState.participatedEncuentros;
-  
+
   // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
   const [loading, setLoading] = useState(
     !validCache && staleOrganized.length === 0 && staleParticipated.length === 0
@@ -241,6 +255,19 @@ const Home: React.FC = () => {
 
 
   const { startFixedEncounter, choiceSheetProps } = useCreateEncounter();
+  const { startCoordinationEncounter, coordinationWarningProps } = useStartCoordinationEncounter();
+
+  const [isModeChoiceOpen, setIsModeChoiceOpen] = useState(false);
+
+  const handleCreateClick = () => {
+    sessionStorage.removeItem('cancel_reference');
+    resetWizard();
+    if (DATE_COORDINATION_ENABLED) {
+      setIsModeChoiceOpen(true);
+    } else {
+      startFixedEncounter();
+    }
+  };
 
   const isAnonymousUser = user?.is_anonymous === true;
 
@@ -264,7 +291,7 @@ const Home: React.FC = () => {
         if (container) container.scrollTop = scrollPosition;
       });
     }
-    
+
     // Limpiar cualquier contexto de reemplazo abandonado o completado al volver a la Home
     sessionStorage.removeItem('cancel_reference');
 
@@ -310,11 +337,11 @@ const Home: React.FC = () => {
       // El backend autoriza y filtra usando exclusivamente auth.uid().
       // Enviamos el UUID de la sesión solo por compatibilidad de la firma de la RPC.
       organized = await encuentrosService.getEncuentrosByHostIds([user.id]);
-        
+
       if (!user.is_anonymous) {
         participated = await encuentrosService.getEncuentrosParticipados(user.id);
       }
-        
+
       try {
         const { getAllParticipatedTokens } = await import('@/lib/participatedTokens');
         const tokens = getAllParticipatedTokens();
@@ -328,11 +355,9 @@ const Home: React.FC = () => {
         if (import.meta.env.DEV) console.error('[HOME] Error cargando participo anónimo:', err);
       }
 
-      const sortList = (list: any[]) => (list || []).filter(e => e && e.id).sort((a, b) => {
-        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
-        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
-        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
-      });
+      const sortList = (list: EncuentroBase[]) => {
+        return (list || []).filter(e => e && e.id).sort(encounterComparator);
+      };
 
       const sortedOrganized = sortList(organized);
       const sortedParticipated = sortList(participated);
@@ -351,10 +376,10 @@ const Home: React.FC = () => {
     } catch (error) {
       console.error('[Home] loadData failed', error);
       setError('Hubo un error al cargar tus encuentros.');
-    } finally { 
+    } finally {
       console.log('[Home] finally');
       loadingRef.current = false;
-      setLoading(false); 
+      setLoading(false);
     }
   }, [user, authLoading]);
 
@@ -442,7 +467,7 @@ const Home: React.FC = () => {
             <Calendar size={40} color="var(--color-primary)" />
           </div>
           <h2 className="home-empty-title">
-            {isOrganizo 
+            {isOrganizo
               ? 'Todavía no organizaste encuentros'
               : 'Todavía no tenés invitaciones confirmadas'}
           </h2>
@@ -456,7 +481,7 @@ const Home: React.FC = () => {
               variant="primary"
               fullWidth
               style={{ height: 56, fontSize: 16, fontWeight: 700 }}
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); startFixedEncounter(); }}
+              onClick={handleCreateClick}
             >
               + Crear encuentro
             </Button>
@@ -500,6 +525,8 @@ const Home: React.FC = () => {
                   onClick={() => {
                     if (activeScope === 'participo' && enc._mi_token_invitacion) {
                       navigate(`/invite/${enc._mi_token_invitacion}`);
+                    } else if (isCoordinationEncounter(enc)) {
+                      navigate(`/coordination/${enc.id}`);
                     } else {
                       navigate(`/meet/${enc.id}`);
                     }
@@ -527,7 +554,7 @@ const Home: React.FC = () => {
                   variant="primary"
                   fullWidth
                   style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
-                  onClick={() => { resetWizard(); startFixedEncounter(); }}
+                  onClick={handleCreateClick}
                 >
                   + Crear encuentro
                 </Button>
@@ -544,6 +571,8 @@ const Home: React.FC = () => {
                   onClick={() => {
                     if (activeScope === 'participo' && enc._mi_token_invitacion) {
                       navigate(`/invite/${enc._mi_token_invitacion}`);
+                    } else if (isCoordinationEncounter(enc)) {
+                      navigate(`/coordination/${enc.id}`);
                     } else {
                       navigate(`/meet/${enc.id}`);
                     }
@@ -666,19 +695,38 @@ const Home: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
         {renderContent()}
       </div>
-      
+
       {/* Bottom Sheets */}
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
       <CreationAccountChoiceSheet {...choiceSheetProps} />
-      
+      <EncounterModeChoiceSheet
+        open={isModeChoiceOpen}
+        onSelectFixed={() => {
+          setIsModeChoiceOpen(false);
+          startFixedEncounter();
+        }}
+        onSelectCoordination={() => {
+          setIsModeChoiceOpen(false);
+          startCoordinationEncounter();
+        }}
+        onClose={() => setIsModeChoiceOpen(false)}
+      />
+      <AnonymousCoordinationWarningSheet
+        {...coordinationWarningProps}
+        onSelectFixed={() => {
+          coordinationWarningProps.onClose();
+          startFixedEncounter();
+        }}
+      />
+
       {/* FAB Botón Crear */}
       {!loading && encuentros && encuentros.length > 0 && (
         <div className="home-fab-container">
           <div className="home-fab-wrapper">
             <button
-              onClick={() => { sessionStorage.removeItem('cancel_reference'); resetWizard(); startFixedEncounter(); }}
+              onClick={handleCreateClick}
               className="home-fab"
             >
               <Plus size={24} />

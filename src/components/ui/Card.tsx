@@ -10,8 +10,8 @@ interface CardProps {
 
 export const Card: React.FC<CardProps> = ({ children, className = '', onClick, style }) => {
   return (
-    <div 
-      className={`card ${onClick ? 'card-clickable' : ''} ${className}`} 
+    <div
+      className={`card ${onClick ? 'card-clickable' : ''} ${className}`}
       onClick={onClick}
       style={style}
     >

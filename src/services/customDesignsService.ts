@@ -120,7 +120,7 @@ export const customDesignsService = {
     if (insertError) {
       // Intento de limpieza de Storage si falla el insert
       await supabase.storage.from(CUSTOM_DESIGNS_CONFIG.BUCKET).remove([params.imagePath, params.thumbnailPath]);
-      
+
       console.error('Error insertando diseño:', insertError);
       if (insertError.message.includes('custom_templates_limit_exceeded')) {
         throw new Error('Ya tenés 3 diseños personalizados guardados.');
@@ -136,7 +136,7 @@ export const customDesignsService = {
       .from('custom_invitation_templates')
       .update({ name })
       .eq('id', designId);
-      
+
     if (error) {
       console.error('Error updating custom design name:', error);
       throw new Error('No pudimos actualizar el nombre. Reintentá más tarde.');
@@ -148,7 +148,7 @@ export const customDesignsService = {
       .from('custom_invitation_templates')
       .update({ is_active: false })
       .eq('id', designId);
-      
+
     if (error) {
       console.error('Error deactivating custom design:', error);
       throw new Error('No pudimos eliminar el diseño. Reintentá más tarde.');

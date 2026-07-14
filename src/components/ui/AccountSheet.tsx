@@ -30,7 +30,7 @@ function getInitials(user: {
 export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, isAnonymousUser, signInWithGoogle, signOut } = useAuth();
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -199,7 +199,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
                 color: 'var(--color-primary-dark)',
                 border: '1px solid var(--color-primary)',
                 cursor: 'pointer', padding: '0 16px', height: 40, borderRadius: 8,
-                fontFamily: 'var(--font-family)', fontWeight: 600, fontSize: 13, 
+                fontFamily: 'var(--font-family)', fontWeight: 600, fontSize: 13,
                 transition: 'all 0.15s', whiteSpace: 'nowrap',
               }}
             >

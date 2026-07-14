@@ -7,7 +7,7 @@ const Step3Location: React.FC = () => {
   const { modalidad, lugar_texto, link_virtual, setField, nextStep } = useWizardStore();
   const [isNavigating, setIsNavigating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  
+
   const isPresencial = modalidad === 'presencial';
   const isValid = isPresencial ? lugar_texto.trim() !== '' : link_virtual.trim() !== '';
 
