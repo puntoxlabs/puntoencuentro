@@ -5,7 +5,7 @@
 -- ============================================================
 -- 1. FUNCIONES REMOTAS Y METADATOS
 -- ============================================================
-SELECT 
+SELECT
     p.oid,
     p.oid::regprocedure AS firma_exacta,
     n.nspname AS schema,
@@ -82,7 +82,7 @@ ORDER BY firma_exacta, grantee, privilege_type;
 -- ============================================================
 -- 3. ESQUEMA REMOTO: COLUMNAS
 -- ============================================================
-SELECT 
+SELECT
     table_name,
     ordinal_position,
     column_name,
@@ -98,7 +98,7 @@ ORDER BY table_name, ordinal_position;
 -- ============================================================
 -- 4. ESQUEMA REMOTO: CONSTRAINTS
 -- ============================================================
-SELECT 
+SELECT
     conrelid::regclass AS table_name,
     conname AS constraint_name,
     contype AS constraint_type,
@@ -115,7 +115,7 @@ ORDER BY table_name, constraint_name;
 -- ============================================================
 -- 5. ESQUEMA REMOTO: ÍNDICES
 -- ============================================================
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -128,8 +128,8 @@ ORDER BY tablename, indexname;
 -- ============================================================
 -- 6. RLS
 -- ============================================================
-SELECT 
-    relname AS table_name, 
+SELECT
+    relname AS table_name,
     relrowsecurity,
     relforcerowsecurity
 FROM pg_class
@@ -140,7 +140,7 @@ ORDER BY table_name;
 -- ============================================================
 -- 7. POLÍTICAS
 -- ============================================================
-SELECT 
+SELECT
     tablename,
     policyname,
     roles,
@@ -155,7 +155,7 @@ ORDER BY tablename, policyname;
 -- ============================================================
 -- 8. GRANTS DIRECTOS DE TABLAS
 -- ============================================================
-SELECT 
+SELECT
     table_name,
     grantee,
     privilege_type
@@ -169,7 +169,7 @@ ORDER BY table_name, grantee, privilege_type;
 -- 9. ESTADÍSTICAS REMOTAS NO SENSIBLES
 -- ============================================================
 WITH enc_stats AS (
-    SELECT 
+    SELECT
         e.id,
         e.date_mode,
         e.coordination_status,
@@ -179,7 +179,7 @@ WITH enc_stats AS (
     FROM public.encuentros e
 ),
 part_stats AS (
-    SELECT 
+    SELECT
         p.id,
         p.encuentro_id,
         p.tipo_invitacion,
@@ -200,20 +200,20 @@ part_stats AS (
         (SELECT count(*) FROM public.participante_disponibilidades pd WHERE pd.participante_id = p.id AND pd.respuesta NOT IN ('available', 'maybe', 'unavailable')) as count_bad_respuestas,
         (SELECT count(*) FROM public.participante_disponibilidades pd WHERE pd.participante_id = p.id AND pd.encuentro_id <> p.encuentro_id) as count_bad_encuentro,
         (
-            SELECT count(*) 
-            FROM public.participante_disponibilidades pd 
-            LEFT JOIN public.encuentro_opciones_fecha op ON pd.opcion_fecha_id = op.id 
+            SELECT count(*)
+            FROM public.participante_disponibilidades pd
+            LEFT JOIN public.encuentro_opciones_fecha op ON pd.opcion_fecha_id = op.id
             WHERE pd.participante_id = p.id AND op.id IS NULL
         ) as count_opcion_inexistente,
         (
-            SELECT count(*) 
-            FROM public.participante_disponibilidades pd 
-            JOIN public.encuentro_opciones_fecha op ON pd.opcion_fecha_id = op.id 
+            SELECT count(*)
+            FROM public.participante_disponibilidades pd
+            JOIN public.encuentro_opciones_fecha op ON pd.opcion_fecha_id = op.id
             WHERE pd.participante_id = p.id AND op.encuentro_id IS DISTINCT FROM pd.encuentro_id
         ) as count_opcion_otro_encuentro
     FROM public.participantes p
 )
-SELECT 
+SELECT
     -- A. Encuentros
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination') AS encuentros_coord_total,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND coordination_status = 'open') AS encuentros_coord_open,
@@ -221,14 +221,14 @@ SELECT
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND estado = 'cancelado') AS encuentros_coord_cancelados,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND tipo_invitacion = 'link_general') AS encuentros_coord_link_general,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND tipo_invitacion = 'individual') AS encuentros_coord_individual,
-    
+
     -- B. Opciones
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND option_count = 0) AS coord_0_opciones,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND option_count = 1) AS coord_1_opcion,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND option_count = 2) AS coord_2_opciones,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND option_count = 3) AS coord_3_opciones,
     (SELECT count(*) FROM enc_stats WHERE date_mode = 'coordination' AND option_count > 3) AS coord_mas_3_opciones,
-    
+
     -- C. Participantes
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination') AS participantes_coord_total,
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND p.tipo_invitacion = 'individual') AS participantes_coord_individual,
@@ -239,11 +239,11 @@ SELECT
     -- D. Disponibilidades
     (SELECT count(*) FROM public.participante_disponibilidades pd JOIN enc_stats e ON pd.encuentro_id = e.id WHERE e.date_mode = 'coordination') AS disponibilidades_total,
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND p.total_respuestas = 0) AS participantes_sin_respuestas,
-    
+
     -- Respuestas Parciales / Completas usando dist_respuestas_validas y option_count > 0
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND p.dist_respuestas_validas > 0 AND p.dist_respuestas_validas < e.option_count) AS participantes_respuestas_parciales,
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND e.option_count > 0 AND p.dist_respuestas_validas = e.option_count) AS participantes_respuestas_completas,
-    
+
     -- Inconsistencias
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND p.dist_respuestas_totales > e.option_count) AS participantes_exceso_respuestas,
     (SELECT count(*) FROM part_stats p JOIN enc_stats e ON p.encuentro_id = e.id WHERE e.date_mode = 'coordination' AND p.total_respuestas > p.dist_respuestas_totales) AS participantes_opciones_duplicadas,
