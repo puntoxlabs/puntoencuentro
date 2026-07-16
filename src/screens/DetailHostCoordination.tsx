@@ -8,10 +8,13 @@ import type { CoordinationHostDetail } from '@/services/encuentrosService';
 import { Clock, MapPin, Video, Link, Users, Share2, Plus } from 'lucide-react';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
+import { useTranslation } from 'react-i18next';
+import { formatCoordinationDuration } from '@/lib/formatDuration';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [detail, setDetail] = useState<CoordinationHostDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +150,17 @@ const DetailHostCoordination: React.FC = () => {
             <div>
               <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
                 {isLinkGeneral ? 'Link general' : 'Invitados individuales'}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <Clock size={20} color="var(--pe-text-muted)" />
+            <div>
+              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                Duración estimada
+              </span>
+              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                {formatCoordinationDuration(encuentro.duration_minutes, t) || 'Duración flexible'}
               </span>
             </div>
           </div>

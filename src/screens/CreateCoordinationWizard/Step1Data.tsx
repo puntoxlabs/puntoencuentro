@@ -127,6 +127,55 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
             />
           </div>
         )}
+
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--pe-text)', marginTop: 24, marginBottom: 16 }}>
+          Duración estimada
+        </h3>
+        <div style={{ marginBottom: 24 }}>
+          <select
+            className="input-field"
+            value={draft.durationMinutes === null ? 'flexible' : [30, 45, 60, 90, 120].includes(draft.durationMinutes) ? draft.durationMinutes.toString() : 'custom'}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'flexible') updateDraft({ durationMinutes: null });
+              else if (val === 'custom') updateDraft({ durationMinutes: 15 });
+              else updateDraft({ durationMinutes: parseInt(val, 10) });
+            }}
+          >
+            <option value="flexible">Flexible</option>
+            <option value="30">30 minutos</option>
+            <option value="45">45 minutos</option>
+            <option value="60">1 hora</option>
+            <option value="90">1 hora y 30 minutos</option>
+            <option value="120">2 horas</option>
+            <option value="custom">Personalizada</option>
+          </select>
+
+          {draft.durationMinutes !== null && ![30, 45, 60, 90, 120].includes(draft.durationMinutes) && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }} className="slide-from-right">
+              <input
+                type="number"
+                className="input-field"
+                style={{ width: 100 }}
+                min={15}
+                max={1440}
+                value={draft.durationMinutes}
+                onChange={(e) => {
+                  let val = parseInt(e.target.value, 10);
+                  if (isNaN(val)) val = 15;
+                  updateDraft({ durationMinutes: val });
+                }}
+                onBlur={(e) => {
+                  let val = parseInt(e.target.value, 10);
+                  if (isNaN(val) || val < 15) val = 15;
+                  if (val > 1440) val = 1440;
+                  updateDraft({ durationMinutes: val });
+                }}
+              />
+              <span style={{ fontSize: 14, color: 'var(--pe-text-muted)' }}>minutos</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ position: 'sticky', bottom: 0, padding: '16px 0', background: 'var(--pe-bg)', marginTop: 'auto', display: 'flex', gap: 12 }}>

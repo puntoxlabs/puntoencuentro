@@ -18,6 +18,7 @@ export interface CoordinationDraft {
   virtualLink: string;
   options: CoordinationDateOption[];
   responseDeadline: string | null;
+  durationMinutes: number | null;
   invitationType: 'individual' | 'link_general';
   invitationTheme: InvitationTheme;
   invitationTemplate: string;
@@ -43,6 +44,7 @@ const initialDraft: CoordinationDraft = {
   virtualLink: '',
   options: [],
   responseDeadline: null,
+  durationMinutes: null,
   invitationType: 'link_general',
   invitationTheme: 'classic',
   invitationTemplate: '',

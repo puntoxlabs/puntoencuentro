@@ -223,12 +223,10 @@ export default function JoinCoordination() {
               <span>{encuentro?.lugar_texto}</span>
             </div>
           )}
-          {formattedDuration && (
-            <div className="coordination-guest-info-row">
-              <Clock size={18} className="coordination-guest-info-icon" />
-              <span>{t('coordination.duration_label', 'Duración aproximada:')} {formattedDuration}</span>
-            </div>
-          )}
+          <div className="coordination-guest-info-row">
+            <Clock size={18} className="coordination-guest-info-icon" />
+            <span>{t('coordination.duration_label', 'Duración aproximada:')} {formattedDuration || 'Duración flexible'}</span>
+          </div>
           {data.response_deadline && (
             <div className="coordination-guest-info-row">
               <AlertCircle size={18} className="coordination-guest-info-icon" />

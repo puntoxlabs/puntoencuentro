@@ -31,6 +31,7 @@ export interface CoordinationCreatePayload {
   tema_invitacion?: string | null;
   invitation_template?: string | null;
   response_deadline?: string | null;
+  duration_minutes?: number | null;
 }
 
 export interface CoordinationOptionPayload {
@@ -254,6 +255,7 @@ export interface CoordinationHostDetail {
     tema_invitacion: string;
     invitation_template: string | null;
     public_token?: string;
+    duration_minutes?: number | null;
   };
   coordination_status?: string;
   response_deadline?: string | null;

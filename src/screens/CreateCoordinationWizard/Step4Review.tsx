@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Calendar, Clock, MapPin, Video, Link, Users, Palette } from 'lucide-react';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { getAllInvitationDesignOptions, findDesignOptionIndex } from '@/lib/invitationThemes';
+import { useTranslation } from 'react-i18next';
+import { formatCoordinationDuration } from '@/lib/formatDuration';
 
 interface Step4ReviewProps {
   onBack: () => void;
@@ -16,6 +18,7 @@ interface Step4ReviewProps {
 const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
   const { draft, resetDraft } = useCoordinationWizardStore();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = React.useRef(false);
@@ -38,10 +41,11 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         lugar_texto: isPresencial ? (draft.locationText || null) : null,
         link_virtual: !isPresencial ? (draft.virtualLink || null) : null,
         tipo_invitacion: draft.invitationType,
-        tema: 'blue',
+        tema: draft.invitationTheme || null,
         tema_invitacion: draft.invitationTheme || null,
         invitation_template: draft.invitationTemplate || null,
         response_deadline: draft.responseDeadline || null,
+        duration_minutes: draft.durationMinutes,
       };
 
       const options: CoordinationOptionPayload[] = draft.options.map(opt => ({
@@ -108,29 +112,47 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
           </div>
         )}
 
-        <div style={{ background: 'var(--pe-bg-hover)', borderRadius: 12, padding: 20, border: '1px solid var(--pe-border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--pe-text)' }}>
-              {draft.title}
-            </h3>
-            {onNavigate && (
-              <button onClick={() => onNavigate(1)} style={{ background: 'none', border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}>
-                Editar
-              </button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-            {draft.modality === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" /> : <Video size={20} color="var(--pe-text-muted)" />}
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                {draft.modality === 'presencial' ? 'Presencial' : 'Virtual'}
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {draft.modality === 'presencial' ? draft.locationText : draft.virtualLink}
-              </span>
+        <div style={{ background: 'var(--pe-bg-hover)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--pe-text)' }}>
+                {draft.title}
+              </h3>
+              {onNavigate && (
+                <button onClick={() => onNavigate(1)} style={{ background: 'none', border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}>
+                  Editar
+                </button>
+              )}
             </div>
-          </div>
+
+            {draft.description && (
+              <p style={{ fontSize: 15, color: 'var(--pe-text-muted)', marginBottom: 20, whiteSpace: 'pre-wrap' }}>
+                {draft.description}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+              {draft.modality === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" /> : <Video size={20} color="var(--pe-text-muted)" />}
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  {draft.modality === 'presencial' ? 'Presencial' : 'Virtual'}
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {draft.modality === 'presencial' ? draft.locationText : draft.virtualLink}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+              <Clock size={20} color="var(--pe-text-muted)" />
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Duración estimada
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {formatCoordinationDuration(draft.durationMinutes, t) || 'Duración flexible'}
+                </span>
+              </div>
+            </div>
 
           <div style={{ height: 1, background: 'var(--pe-border)', margin: '20px 0' }} />
 
