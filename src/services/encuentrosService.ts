@@ -290,7 +290,6 @@ export type CoordinationPublicReadResult =
   | {
       ok: true;
       encuentro: {
-        id: string;
         titulo: string;
         descripcion: string | null;
         estado: string;
@@ -754,7 +753,6 @@ export const encuentrosService = {
 
     if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
     const enc = rawResult.encuentro;
-    if (!isNonEmptyString(enc.id)) return { ok: false, error: 'invalid_response_format' };
     if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
     if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
     if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
@@ -805,7 +803,6 @@ export const encuentrosService = {
     return {
       ok: true,
       encuentro: {
-        id: enc.id as string,
         titulo: enc.titulo as string,
         descripcion: enc.descripcion as string | null,
         estado: enc.estado as string,
