@@ -65,7 +65,7 @@ const DetailHostCoordination: React.FC = () => {
   const { encuentro, opciones, response_deadline } = detail;
   const isLinkGeneral = encuentro.tipo_invitacion === 'link_general';
 
-  const shareUrl = buildGeneralInvitationUrl(encuentro.public_token);
+  const shareUrl = buildGeneralInvitationUrl(encuentro.public_token, 'coordination');
 
   const handleShare = async () => {
     if (isLinkGeneral) {

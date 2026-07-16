@@ -524,7 +524,11 @@ const Home: React.FC = () => {
                   enc={enc}
                   onClick={() => {
                     if (activeScope === 'participo' && enc._mi_token_invitacion) {
-                      navigate(`/invite/${enc._mi_token_invitacion}`);
+                      if (isCoordinationEncounter(enc)) {
+                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
+                      } else {
+                        navigate(`/invite/${enc._mi_token_invitacion}`);
+                      }
                     } else if (isCoordinationEncounter(enc)) {
                       navigate(`/coordination/${enc.id}`);
                     } else {
@@ -570,7 +574,11 @@ const Home: React.FC = () => {
                   enc={enc}
                   onClick={() => {
                     if (activeScope === 'participo' && enc._mi_token_invitacion) {
-                      navigate(`/invite/${enc._mi_token_invitacion}`);
+                      if (isCoordinationEncounter(enc)) {
+                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
+                      } else {
+                        navigate(`/invite/${enc._mi_token_invitacion}`);
+                      }
                     } else if (isCoordinationEncounter(enc)) {
                       navigate(`/coordination/${enc.id}`);
                     } else {

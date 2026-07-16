@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { participantesService } from '@/services/participantesService';
+import { encuentrosService } from '@/services/encuentrosService';
 import { saveParticipatedToken } from '@/lib/participatedTokens';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +49,7 @@ import './Guest.css';
 
 const InviteGuest: React.FC = () => {
   const { token } = useParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { user, signInWithGoogle } = useAuth();
   const [participante, setParticipante] = useState<any>(null);
@@ -195,6 +197,13 @@ const InviteGuest: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
+
+      const coordCheck = await encuentrosService.getCoordinacionParticipante(token!);
+      if (coordCheck.ok) {
+        navigate(`/coordination/invite/${token}`, { replace: true });
+        return;
+      }
+
       if (import.meta.env.DEV) console.log('[INDIVIDUAL_INVITE] token leído:', token);
       const data = await participantesService.getParticipanteByToken(token!);
       if (import.meta.env.DEV) console.log('[INDIVIDUAL_INVITE] invitación encontrada: ok');

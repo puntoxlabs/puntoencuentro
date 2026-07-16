@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -49,6 +49,7 @@ interface SavedData {
 
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { user, signInWithGoogle } = useAuth();
   const [encuentro, setEncuentro] = useState<any>(null);
@@ -181,6 +182,13 @@ const JoinGeneral: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
+
+      const coordCheck = await encuentrosService.getCoordinacionPublica(public_token!);
+      if (coordCheck.ok) {
+        navigate(`/coordination/join/${public_token}`, { replace: true });
+        return;
+      }
+
       if (import.meta.env.DEV) console.log('[GENERAL_LINK] cargando token...');
       const data = await encuentrosService.getEncuentroByPublicToken(public_token!);
       if (!data) throw new Error("No encontrado");
