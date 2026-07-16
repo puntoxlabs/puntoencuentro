@@ -41,7 +41,6 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         lugar_texto: isPresencial ? (draft.locationText || null) : null,
         link_virtual: !isPresencial ? (draft.virtualLink || null) : null,
         tipo_invitacion: draft.invitationType,
-        tema: draft.invitationTheme || null,
         tema_invitacion: draft.invitationTheme || null,
         invitation_template: draft.invitationTemplate || null,
         response_deadline: draft.responseDeadline || null,

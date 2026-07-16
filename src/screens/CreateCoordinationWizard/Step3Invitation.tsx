@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import { Button } from '@/components/ui/Button';
 import { InvitationThemeSelector } from '@/components/ui/InvitationThemeSelector';
@@ -16,6 +16,10 @@ interface Step3InvitationProps {
 const Step3Invitation: React.FC<Step3InvitationProps> = ({ onNext, onBack }) => {
   const { draft, updateDraft } = useCoordinationWizardStore();
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};

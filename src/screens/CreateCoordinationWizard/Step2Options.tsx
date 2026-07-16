@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -31,6 +31,39 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
   const [hasDeadline, setHasDeadline] = useState(!!draft.responseDeadline);
   const [deadlineDate, setDeadlineDate] = useState(draft.responseDeadline ? draft.responseDeadline.split('T')[0] : '');
   const [deadlineTime, setDeadlineTime] = useState(draft.responseDeadline ? draft.responseDeadline.split('T')[1].substring(0, 5) : '');
+
+  const firstDateRef = useRef<HTMLInputElement>(null);
+  const didAutoFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (didAutoFocusRef.current) return;
+    didAutoFocusRef.current = true;
+    
+    // Auto focus primer fecha
+    const runFocus = () => {
+      const input = firstDateRef.current;
+      if (!input) return;
+
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      input.focus();
+    };
+
+    requestAnimationFrame(() => {
+      setTimeout(runFocus, 120);
+    });
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextFieldSelector?: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextFieldSelector) {
+        const nextElement = document.querySelector(nextFieldSelector) as HTMLElement;
+        if (nextElement && 'focus' in nextElement) {
+          nextElement.focus();
+        }
+      }
+    }
+  };
 
   const handleAddOption = () => {
     if (draft.options.length < 3) {
@@ -151,15 +184,20 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                 <div style={{ flex: '1 1 140px' }}>
                   <Input
                     type="date"
+                    id={`opt-date-${index}`}
+                    ref={index === 0 ? firstDateRef : undefined}
                     value={opt.date}
+                    enterKeyHint="next"
+                    onKeyDown={(e) => handleKeyDown(e, `#opt-time-${index}`)}
                     onChange={(e) => handleOptionChange(opt.localId, 'date', e.target.value)}
                   />
                 </div>
-                <div style={{ flex: '1 1 140px' }}>
+                <div style={{ flex: '1 1 140px' }} id={`opt-time-${index}`} tabIndex={-1}>
                   <TimePicker
                     value={opt.time}
                     onChange={(val) => handleOptionChange(opt.localId, 'time', val)}
                     placeholder="HH:MM"
+                    onKeyDown={(e) => handleKeyDown(e, index < draft.options.length - 1 ? `#opt-date-${index + 1}` : undefined)}
                     minTime={opt.date === new Date().toISOString().split('T')[0] ? new Date().toTimeString().substring(0, 5) : undefined}
                   />
                 </div>

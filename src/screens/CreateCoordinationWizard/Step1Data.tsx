@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,6 +15,44 @@ interface Step1DataProps {
 const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
   const { draft, updateDraft } = useCoordinationWizardStore();
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  
+  const locationState = useLocation().state as { autoFocusTitle?: boolean } | null;
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const didAutoFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (didAutoFocusRef.current) return;
+    didAutoFocusRef.current = true;
+    if (locationState?.autoFocusTitle === false) return;
+
+    const runFocus = () => {
+      const input = nameInputRef.current;
+      if (!input) return;
+
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      input.focus();
+
+      setTimeout(() => {
+        window.history.replaceState({}, document.title);
+      }, 250);
+    };
+
+    requestAnimationFrame(() => {
+      setTimeout(runFocus, 120);
+    });
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextFieldSelector?: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextFieldSelector) {
+        const nextElement = document.querySelector(nextFieldSelector) as HTMLElement;
+        if (nextElement && 'focus' in nextElement) {
+          nextElement.focus();
+        }
+      }
+    }
+  };
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
@@ -47,9 +86,12 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
         </p>
 
         <Input
+          ref={nameInputRef}
           label="Título"
           placeholder="Ej: Asado del domingo, Reunión de equipo..."
           value={draft.title}
+          enterKeyHint="next"
+          onKeyDown={(e) => handleKeyDown(e, '#desc-textarea')}
           onChange={(e) => {
             updateDraft({ title: e.target.value });
             if (errors.title) setErrors({ ...errors, title: '' });
@@ -63,6 +105,7 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
             Descripción (opcional)
           </label>
           <textarea
+            id="desc-textarea"
             className="input-field"
             placeholder="Agregá más detalles sobre el encuentro..."
             value={draft.description}
