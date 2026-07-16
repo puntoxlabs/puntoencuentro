@@ -43,7 +43,8 @@ export const RomanticInvitationPreview: React.FC<Props> = ({ previewData, classN
       <div className="romantic-invitation-content">
         <div className="romantic-invitation-main-bubble">
           <div className="romantic-invitation-header">
-            <p className="romantic-invitation-eyebrow">Un encuentro romántico</p>
+            <span className="romantic-invitation-top">¡ESTÁS INVITADO/A!</span>
+            <p className="romantic-invitation-eyebrow">A un encuentro especial</p>
             {previewData.titulo && (
               <h2 className="romantic-invitation-title">{previewData.titulo}</h2>
             )}

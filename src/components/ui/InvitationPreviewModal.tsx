@@ -581,7 +581,7 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
                <CelebrationTemplateSelector selectedTemplateId={activeOption.template || 'celebration_gold'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
             )}
             {activeOption.theme === 'romantic' && (
-               <RomanticTemplateSelector selectedTemplateId={activeOption.template || 'romantic_rose'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
+               <RomanticTemplateSelector selectedTemplateId={activeOption.template || 'romantic_classic'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />
             )}
             {activeOption.theme === 'formal' && (
                <FormalTemplateSelector selectedTemplateId={activeOption.template || 'formal_black_tie'} onSelect={handleSelectVariant} titulo={resolvedPreviewData.titulo} descripcion={resolvedPreviewData.descripcion} fecha={resolvedPreviewData.fecha} hora={resolvedPreviewData.hora} lugar_texto={resolvedPreviewData.lugar_texto} />

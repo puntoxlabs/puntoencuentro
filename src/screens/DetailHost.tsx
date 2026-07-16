@@ -256,7 +256,7 @@ const DetailHost: React.FC = () => {
     // Detectar si el valor recibido es un template interno (kids o celebration)
     const kidTemplates = ['kids_jungle', 'kids_unicorn', 'kids_space'];
     const celebrationTemplates = ['celebration_gold', 'celebration_festiva', 'celebration_blue_party'];
-    const romanticTemplates = ['romantic_rose', 'romantic_rainbow', 'romantic_gold'];
+    const romanticTemplates = ['romantic_classic', 'romantic_young', 'romantic_pride'];
     const formalTemplates = ['formal_black_tie', 'formal_ivory', 'formal_executive'];
     const friendsTemplates = ['friends_coffee', 'friends_night', 'friends_picnic'];
     const familyTemplates = ['family_home', 'family_sunday', 'family_memories'];

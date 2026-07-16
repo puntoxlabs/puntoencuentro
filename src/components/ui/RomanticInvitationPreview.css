@@ -58,14 +58,23 @@
   width: 100%;
 }
 
+.romantic-invitation-top {
+  display: block;
+  font-size: clamp(0.7rem, 2vw, 0.8rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pe-accent);
+  margin-bottom: 4px;
+}
+
 .romantic-invitation-eyebrow {
   margin: 0;
   font-size: clamp(0.7rem, 2vw, 0.8rem);
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  opacity: 0.8;
-  color: #374151;
+  color: var(--pe-text-muted);
 }
 
 .romantic-invitation-title {

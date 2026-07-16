@@ -64,14 +64,6 @@ export interface InvitationThemeConfig {
 
 export const INVITATION_THEMES: InvitationThemeConfig[] = [
   {
-    id: 'classic',
-    label: 'Clásico',
-    description: 'Profesional, neutro y claro.',
-    icon: CheckCircle2,
-    cssClass: 'guest-theme--classic',
-    eyebrow: 'Te invitan a un encuentro'
-  },
-  {
     id: 'friends',
     label: 'Amigos',
     description: 'Juntadas y cenas informales.',
@@ -94,6 +86,14 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     icon: PartyPopper,
     cssClass: 'guest-theme--celebration',
     eyebrow: 'Te invitan a celebrar'
+  },
+  {
+    id: 'classic',
+    label: 'Clásico',
+    description: 'Profesional, neutro y claro.',
+    icon: CheckCircle2,
+    cssClass: 'guest-theme--classic',
+    eyebrow: 'Te invitan a un encuentro'
   },
   {
     id: 'kids_birthday',
@@ -136,20 +136,20 @@ export const INVITATION_THEMES: InvitationThemeConfig[] = [
     eyebrow: 'Encuentro familiar'
   },
   {
-    id: 'formal',
-    label: 'Formal',
-    description: 'Trabajo, institucional o académico.',
-    icon: Building2,
-    cssClass: 'guest-theme--formal',
-    eyebrow: 'Te invitan a una reunión'
-  },
-  {
     id: 'learning',
     label: 'Formación',
     description: 'Cursos, talleres y aprendizaje.',
     icon: BookOpen,
     cssClass: 'guest-theme--learning',
     eyebrow: 'Una invitación para aprender'
+  },
+  {
+    id: 'formal',
+    label: 'Formal',
+    description: 'Trabajo, institucional o académico.',
+    icon: Building2,
+    cssClass: 'guest-theme--formal',
+    eyebrow: 'Te invitan a una reunión'
   },
   {
     id: 'romantic',
@@ -213,7 +213,7 @@ export function getDefaultInvitationTemplate(theme?: InvitationTheme | null): st
     case 'formal': return 'formal_black_tie';
     case 'family': return 'family_home';
     case 'special': return 'special_moment';
-    case 'romantic': return 'romantic_rose';
+    case 'romantic': return 'romantic_classic';
     default: return null;
   }
 }
