@@ -80,9 +80,10 @@ const DetailHostCoordination: React.FC = () => {
         console.error('[DetailHostCoordination] Cannot share: Missing public_token');
         return;
       }
+      const shareText = `Hola 👋\n\nTe invito a coordinar la fecha para "${encuentro.titulo}" en PuntoEncuentro.\n\nRespondé tu disponibilidad acá:`;
       const shareData = {
-        title: `Sumate a: ${encuentro.titulo}`,
-        text: `Hola. Estoy coordinando la fecha para "${encuentro.titulo}".\n\nEntrá al enlace para indicar en qué opciones estás disponible:\n\n${shareUrl}`,
+        title: `Coordinar fecha: ${encuentro.titulo}`,
+        text: shareText,
         url: shareUrl,
       };
 
@@ -90,7 +91,7 @@ const DetailHostCoordination: React.FC = () => {
         if (isMobileShareEnvironment()) {
           await navigator.share(shareData);
         } else {
-          await navigator.clipboard.writeText(shareData.text);
+          await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
           alert('¡Link copiado al portapapeles!');
         }
       } catch (err) {
@@ -225,9 +226,9 @@ const DetailHostCoordination: React.FC = () => {
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '40%' }}>
-                        {opt.available_count > 0 && <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.available_count} Sí</span>}
-                        {opt.maybe_count > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.maybe_count} Tal vez</span>}
-                        {opt.unavailable_count > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.unavailable_count} No</span>}
+                        {opt.available_count > 0 && <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Sí: {opt.available_count}</span>}
+                        {opt.maybe_count > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Tal vez: {opt.maybe_count}</span>}
+                        {opt.unavailable_count > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>No: {opt.unavailable_count}</span>}
                         {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>0 votos</span>}
                       </div>
                     </div>
