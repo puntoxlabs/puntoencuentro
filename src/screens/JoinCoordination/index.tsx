@@ -209,100 +209,146 @@ export default function JoinCoordination() {
   return (
     <ScreenContainer>
       <AppBar title={encuentro?.titulo || ''} />
-      <div className="coordination-guest-content">
+      <div style={{ padding: '20px', paddingBottom: '160px', background: '#F8FAFC', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto', width: '100%' }}>
 
-        <div className="coordination-guest-header">
-          <h1 className="coordination-guest-title">{encuentro?.titulo}</h1>
-          {encuentro?.descripcion && <p className="coordination-guest-desc">{encuentro?.descripcion}</p>}
-        </div>
-
-        <div className="coordination-guest-info">
-          {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
-            <div className="coordination-guest-info-row">
-              <MapPin size={18} className="coordination-guest-info-icon" />
-              <span>{encuentro?.lugar_texto}</span>
-            </div>
-          )}
-          <div className="coordination-guest-info-row">
-            <Clock size={18} className="coordination-guest-info-icon" />
-            <span>{t('coordination.duration_label', 'Duración aproximada:')} {formattedDuration || 'Duración flexible'}</span>
-          </div>
-          {data.response_deadline && (
-            <div className="coordination-guest-info-row">
-              <AlertCircle size={18} className="coordination-guest-info-icon" />
-              <span>{t('coordination.deadline', 'Fecha límite para responder:')} {formatCoordinationDeadline(data.response_deadline, i18n.language)}</span>
-            </div>
-          )}
-        </div>
-
-        {derived_status === 'closed' && (
-          <div className="coordination-guest-status-banner">
-            <AlertCircle size={24} />
-            <span>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
-          </div>
-        )}
-
-        {derived_status === 'deadline_passed' && (
-          <div className="coordination-guest-status-banner">
-            <Clock size={24} />
-            <span>{t('coordination.deadline_passed_msg', 'El plazo para responder finalizó')}</span>
-          </div>
-        )}
-
-        {!isReadOnly && (
-          <div className="coordination-guest-form-section">
-            <label htmlFor="coordination-guest-name" className="coordination-guest-label">
-              {t('coordination.your_name', 'Tu nombre')} *
-            </label>
-            <Input
-              id="coordination-guest-name"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder={t('coordination.name_placeholder', 'Ej. María Pérez')}
-              maxLength={80}
-              aria-describedby={showValidation && !nombre.trim() ? "name-error" : undefined}
-              disabled={isSubmitting}
-            />
-            {showValidation && !nombre.trim() && (
-              <div id="name-error" className="coordination-guest-error-text">
-                {t('coordination.name_required', 'Por favor, ingresá tu nombre')}
-              </div>
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a', letterSpacing: '-0.5px' }}>
+              {encuentro?.titulo}
+            </h1>
+            {encuentro?.descripcion && (
+              <p style={{ fontSize: 16, color: '#475569', margin: 0, lineHeight: 1.6 }}>
+                {encuentro?.descripcion}
+              </p>
             )}
           </div>
-        )}
 
-        {submitErrorCode && isSubmitting === false && (
-          <div className="coordination-guest-status-banner error" aria-live="assertive">
-            <AlertCircle size={24} />
-            <span>{getSubmitErrorMessage(submitErrorCode)}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Card Informativa */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10 }}>
+                      <MapPin size={18} color="#0284C7" />
+                    </div>
+                    <div style={{ marginTop: 2 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                        Lugar
+                      </span>
+                      <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                        {encuentro?.lugar_texto}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ background: '#DCFCE7', padding: 8, borderRadius: 10 }}>
+                    <Clock size={18} color="#16A34A" />
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                      {t('coordination.duration_label', 'Duración aproximada')}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                      {formattedDuration || 'Flexible'}
+                    </span>
+                  </div>
+                </div>
+
+                {data.response_deadline && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ background: '#FCE7F3', padding: 8, borderRadius: 10 }}>
+                      <Clock size={18} color="#DB2777" />
+                    </div>
+                    <div style={{ marginTop: 2 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                        {t('coordination.deadline', 'Fecha límite')}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                        {formatCoordinationDeadline(data.response_deadline, i18n.language)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {derived_status === 'closed' && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <AlertCircle size={24} color="#dc2626" />
+                <span style={{ color: '#991b1b', fontWeight: 600, fontSize: 15 }}>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
+              </div>
+            )}
+
+            {derived_status === 'deadline_passed' && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Clock size={24} color="#dc2626" />
+                <span style={{ color: '#991b1b', fontWeight: 600, fontSize: 15 }}>{t('coordination.deadline_passed_msg', 'El plazo para responder finalizó')}</span>
+              </div>
+            )}
+
+            {!isReadOnly && (
+              <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+                <label htmlFor="coordination-guest-name" style={{ display: 'block', fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>
+                  {t('coordination.your_name', 'Tu nombre')} <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <Input
+                  id="coordination-guest-name"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder={t('coordination.name_placeholder', 'Ej. María Pérez')}
+                  maxLength={80}
+                  aria-describedby={showValidation && !nombre.trim() ? "name-error" : undefined}
+                  disabled={isSubmitting}
+                  style={{ borderRadius: 12, padding: '12px 16px', fontSize: 16 }}
+                />
+                {showValidation && !nombre.trim() && (
+                  <div id="name-error" style={{ color: '#dc2626', fontSize: 14, marginTop: 8, fontWeight: 500 }}>
+                    {t('coordination.name_required', 'Por favor, ingresá tu nombre')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {submitErrorCode && isSubmitting === false && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 12 }} aria-live="assertive">
+                <AlertCircle size={24} color="#dc2626" />
+                <span style={{ color: '#991b1b', fontWeight: 600, fontSize: 15 }}>{getSubmitErrorMessage(submitErrorCode)}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 0 0', color: '#0f172a' }}>
+                {t('coordination.options_title', 'Opciones propuestas')}
+              </h3>
+              <CoordinationAvailabilityForm
+                opciones={data.opciones}
+                respuestas={respuestas}
+                onChangeRespuesta={handleChangeRespuesta}
+                onTogglePreferida={handleTogglePreferida}
+                readOnly={isReadOnly || isSubmitting}
+                showErrors={showValidation}
+              />
+            </div>
           </div>
-        )}
-
-        <div className="coordination-guest-form-section">
-          <label className="coordination-guest-label">{t('coordination.options_title', 'Opciones propuestas')}</label>
-          <CoordinationAvailabilityForm
-            opciones={data.opciones}
-            respuestas={respuestas}
-            onChangeRespuesta={handleChangeRespuesta}
-            onTogglePreferida={handleTogglePreferida}
-            readOnly={isReadOnly || isSubmitting}
-            showErrors={showValidation}
-          />
         </div>
-
-        {!isReadOnly && (
-          <div className="coordination-guest-footer">
-            <Button
-              variant="primary"
-              fullWidth
-              disabled={isSubmitting || !isNameValid || !hasCompleteResponses || isReadOnly}
-              onClick={handleSubmit}
-            >
-              {isSubmitting ? t('coordination.sending', 'Enviando...') : t('coordination.send_availability', 'Enviar disponibilidad')}
-            </Button>
-          </div>
-        )}
       </div>
+
+      {!isReadOnly && (
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
+          <Button
+            variant="primary"
+            fullWidth
+            disabled={isSubmitting || !isNameValid || !hasCompleteResponses || isReadOnly}
+            onClick={handleSubmit}
+            style={{ borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)', height: 48, fontSize: 16 }}
+          >
+            {isSubmitting ? t('coordination.sending', 'Enviando...') : t('coordination.send_availability', 'Enviar disponibilidad')}
+          </Button>
+        </div>
+      )}
     </ScreenContainer>
   );
 }

@@ -254,21 +254,29 @@ const DetailHostCoordination: React.FC = () => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
-                    <div key={part.id} style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(15,23,42,0.05)', background: '#f8fafc' }}>
-                      <span style={{ fontWeight: 700, color: '#1e293b', display: 'block', marginBottom: 12, fontSize: 16, paddingBottom: 10, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
-                        {part.nombre_invitado}
-                      </span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div key={part.id} style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
+                      <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 16 }}>
+                          {part.nombre_invitado}
+                        </span>
+                      </div>
+                      <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {part.respuestas.map((resp) => {
                           const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
                           if (!option) return null;
                           return (
-                            <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
-                              <span style={{ color: '#64748b', fontWeight: 500 }}>Opción {option.orden}:</span>
-                              <span style={{ fontWeight: 600, fontSize: 13, padding: '4px 10px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef9c3' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
-                                {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
-                                {resp.es_preferida && ' ★'}
-                              </span>
+                            <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: '#475569', fontWeight: 600, fontSize: 14 }}>Opción {option.orden}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {resp.es_preferida && (
+                                  <span style={{ background: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: 11, padding: '4px 8px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    ★ Preferida
+                                  </span>
+                                )}
+                                <span style={{ fontWeight: 700, fontSize: 13, padding: '4px 10px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef9c3' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
+                                  {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                                </span>
+                              </div>
                             </div>
                           );
                         })}
