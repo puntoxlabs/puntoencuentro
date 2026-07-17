@@ -20,6 +20,9 @@ const DetailHostCoordination: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [confirmModalOption, setConfirmModalOption] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
   const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
     try {
@@ -102,6 +105,81 @@ const DetailHostCoordination: React.FC = () => {
     }
   };
 
+  const handleShareConfirmedDate = async () => {
+    if (!detail.fecha || !detail.hora) return;
+    const formattedDate = formatFriendlyDate(detail.fecha, detail.hora);
+    
+    let locationText = '';
+    if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
+      locationText = `📍 ${encuentro.lugar_texto}\n\nNos vemos ahí.`;
+    } else if (encuentro.modalidad === 'virtual' && encuentro.link_virtual) {
+      locationText = `🔗 Enlace de reunión:\n${encuentro.link_virtual}\n\nNos vemos ahí.`;
+    } else {
+      locationText = `Nos vemos ahí.`;
+    }
+
+    const shareText = `Fecha confirmada ✅\n\nEl encuentro "${encuentro.titulo}" quedó confirmado para:\n${formattedDate}\n\n${locationText}`;
+
+    const shareData = {
+      title: `Fecha confirmada: ${encuentro.titulo}`,
+      text: shareText
+    };
+
+    try {
+      if (isMobileShareEnvironment()) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        alert('¡Texto copiado al portapapeles!');
+      }
+    } catch (err) {
+      console.error('Error sharing confirmed date:', err);
+    }
+  };
+
+  const handleConfirmOption = async (optionId: string) => {
+    setIsClosing(true);
+    try {
+      const res = await encuentrosService.cerrarCoordinacionHost(encuentro.id, optionId);
+      if (res.ok) {
+        setConfirmModalOption(null);
+        await loadData(false);
+      } else {
+        alert(res.error || 'Ocurrió un error al confirmar la fecha.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Ocurrió un error inesperado al confirmar la fecha.');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const derivedStatus = detail.derived_status;
+
+  // Calculate recommended option
+  let recommendedOptionId: string | null = null;
+  if (opciones && opciones.length > 0 && detail.participantes && detail.participantes.length > 0) {
+    const hasAnyResponse = detail.participantes.some(p => p.respondio_disponibilidad);
+    if (hasAnyResponse) {
+      const sorted = [...opciones].sort((a, b) => {
+        // 1. Mayor Sí
+        if (a.available_count !== b.available_count) return b.available_count - a.available_count;
+        // 2. Mayor Preferida
+        const aPref = detail.participantes!.filter(p => p.respuestas.find(r => r.opcion_fecha_id === a.id)?.es_preferida).length;
+        const bPref = detail.participantes!.filter(p => p.respuestas.find(r => r.opcion_fecha_id === b.id)?.es_preferida).length;
+        if (aPref !== bPref) return bPref - aPref;
+        // 3. Mayor Tal vez
+        if (a.maybe_count !== b.maybe_count) return b.maybe_count - a.maybe_count;
+        // 4. Menor No
+        if (a.unavailable_count !== b.unavailable_count) return a.unavailable_count - b.unavailable_count;
+        // 5. Más temprana
+        return a.orden - b.orden;
+      });
+      recommendedOptionId = sorted[0].id;
+    }
+  }
+
   return (
     <ScreenContainer>
       <AppBar title="Coordinación" showBack onBack={() => navigate('/')} />
@@ -109,9 +187,19 @@ const DetailHostCoordination: React.FC = () => {
       <div style={{ padding: '20px', paddingBottom: '160px', background: '#F8FAFC', minHeight: '100vh' }}>
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Esperando respuestas
-            </span>
+            {derivedStatus === 'closed' ? (
+              <span style={{ backgroundColor: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Fecha confirmada
+              </span>
+            ) : derivedStatus === 'deadline_passed' ? (
+              <span style={{ backgroundColor: '#ffedd5', color: '#c2410c', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Plazo vencido
+              </span>
+            ) : (
+              <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Esperando respuestas
+              </span>
+            )}
           </div>
 
           <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a', letterSpacing: '-0.5px' }}>
@@ -140,6 +228,31 @@ const DetailHostCoordination: React.FC = () => {
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {derivedStatus === 'closed' && detail.fecha && detail.hora && (
+              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(22,163,74,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ color: '#166534', fontWeight: 700, fontSize: 18 }}>Fecha confirmada ✅</span>
+                </div>
+                <div>
+                  <span style={{ color: '#14532d', fontWeight: 800, fontSize: 16 }}>
+                    {formatFriendlyDate(detail.fecha, detail.hora)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {derivedStatus === 'deadline_passed' && (
+              <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '20px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Clock size={20} color="#d97706" />
+                  <span style={{ color: '#b45309', fontWeight: 700, fontSize: 16 }}>Plazo vencido</span>
+                </div>
+                <span style={{ color: '#92400e', fontSize: 15, lineHeight: 1.5 }}>
+                  Ya no se reciben nuevas disponibilidades. Elegí una fecha para confirmar el encuentro.
+                </span>
+              </div>
+            )}
+
             {/* Card 1: General Info */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
@@ -213,24 +326,57 @@ const DetailHostCoordination: React.FC = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {opciones?.map((opt) => {
+                  const isSelected = derivedStatus === 'closed' && detail.selected_option_id === opt.id;
+                  const isRecommended = derivedStatus !== 'closed' && recommendedOptionId === opt.id;
+                  
                   return (
-                    <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, border: '1px solid rgba(15,23,42,0.05)', background: '#f8fafc' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#475569', fontSize: 14 }}>
-                          {opt.orden}
+                    <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', padding: '14px 16px', borderRadius: 14, border: isSelected ? '2px solid #22c55e' : isRecommended ? '2px solid #fbbf24' : '1px solid rgba(15,23,42,0.05)', background: isSelected ? '#f0fdf4' : isRecommended ? '#fffbeb' : '#f8fafc', transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: isSelected ? '#dcfce7' : isRecommended ? '#fef3c7' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: isSelected ? '#16a34a' : isRecommended ? '#d97706' : '#475569', fontSize: 14 }}>
+                            {opt.orden}
+                          </div>
+                          <div>
+                            <span style={{ display: 'block', fontWeight: 600, color: isSelected ? '#14532d' : '#1e293b', fontSize: 15 }}>
+                              {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
+                            </span>
+                            {isRecommended && (
+                              <span style={{ color: '#d97706', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                ⭐ Recomendada
+                              </span>
+                            )}
+                            {isSelected && (
+                              <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                ✓ Fecha confirmada
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <span style={{ display: 'block', fontWeight: 600, color: '#1e293b', fontSize: 15 }}>
-                            {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
-                          </span>
+                        <div style={{ textAlign: 'right', display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '40%' }}>
+                          {opt.available_count > 0 && <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Sí: {opt.available_count}</span>}
+                          {opt.maybe_count > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Tal vez: {opt.maybe_count}</span>}
+                          {opt.unavailable_count > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>No: {opt.unavailable_count}</span>}
+                          {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>0 votos</span>}
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right', display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '40%' }}>
-                        {opt.available_count > 0 && <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Sí: {opt.available_count}</span>}
-                        {opt.maybe_count > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>Tal vez: {opt.maybe_count}</span>}
-                        {opt.unavailable_count > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>No: {opt.unavailable_count}</span>}
-                        {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>0 votos</span>}
-                      </div>
+                      
+                      {derivedStatus !== 'closed' && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: isRecommended ? '1px solid #fde68a' : '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button 
+                            variant={derivedStatus === 'deadline_passed' && isRecommended ? 'primary' : 'outline'}
+                            onClick={() => setConfirmModalOption(opt.id)}
+                            style={{ 
+                              padding: '6px 16px', 
+                              fontSize: 14, 
+                              height: 36, 
+                              borderRadius: 10,
+                              opacity: derivedStatus === 'deadline_passed' ? 1 : 0.85
+                            }}
+                          >
+                            {derivedStatus === 'deadline_passed' ? 'Confirmar esta fecha' : 'Cerrar con esta fecha'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -292,18 +438,61 @@ const DetailHostCoordination: React.FC = () => {
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
-        <Button
-          variant="primary"
-          fullWidth
-          onClick={handleShare}
-          disabled={isLinkGeneral && !shareUrl}
-          aria-disabled={isLinkGeneral && !shareUrl}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
-        >
-          {isLinkGeneral ? <Share2 size={20} /> : <Plus size={20} />}
-          {isLinkGeneral ? 'Compartir link general' : 'Agregar invitados'}
-        </Button>
+        {derivedStatus === 'closed' ? (
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={handleShareConfirmedDate}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#16a34a', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)' }}
+          >
+            <Share2 size={20} />
+            Compartir fecha confirmada
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={handleShare}
+            disabled={isLinkGeneral && !shareUrl}
+            aria-disabled={isLinkGeneral && !shareUrl}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
+          >
+            {isLinkGeneral ? <Share2 size={20} /> : <Plus size={20} />}
+            {isLinkGeneral ? 'Compartir link general' : 'Agregar invitados'}
+          </Button>
+        )}
       </div>
+
+      {confirmModalOption && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+          <div style={{ background: '#ffffff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>Confirmar fecha</h3>
+            <p style={{ margin: '0 0 24px 0', color: '#475569', fontSize: 15, lineHeight: 1.5 }}>
+              ¿Estás seguro de que querés confirmar esta fecha? Esta acción cerrará la coordinación y no se recibirán más respuestas.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button 
+                variant="outline" 
+                fullWidth 
+                onClick={() => setConfirmModalOption(null)}
+                disabled={isClosing}
+                style={{ borderRadius: 12 }}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="primary" 
+                fullWidth 
+                onClick={() => handleConfirmOption(confirmModalOption)}
+                disabled={isClosing}
+                style={{ borderRadius: 12, background: '#4f46e5' }}
+              >
+                {isClosing ? 'Confirmando...' : 'Sí, confirmar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </ScreenContainer>
   );
 };

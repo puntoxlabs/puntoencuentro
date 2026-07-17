@@ -750,6 +750,24 @@ export const encuentrosService = {
     return result;
   },
 
+  async cerrarCoordinacionHost(encuentroId: string, optionId: string): Promise<{ok: boolean, error?: string}> {
+    const { data, error } = await supabase.rpc('cerrar_coordinacion_seguro', {
+      p_encuentro_id: encuentroId,
+      p_selected_option_id: optionId
+    });
+
+    if (error) {
+      console.error('[encuentrosService] Error en cerrar_coordinacion_seguro:', error);
+      return { ok: false, error: 'rpc_error' };
+    }
+    
+    if (data && data.ok === false) {
+      return { ok: false, error: data.error };
+    }
+
+    return { ok: true };
+  },
+
   async getCoordinacionPublica(publicToken: string): Promise<CoordinationPublicReadResult> {
     if (!publicToken) return { ok: false, error: 'invalid_token' };
 

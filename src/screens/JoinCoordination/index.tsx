@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, AlertCircle, Clock } from 'lucide-react';
+import { MapPin, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvailabilityForm';
 import { encuentrosService, type CoordinationPublicReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
-import { formatCoordinationDeadline } from '@/lib/formatCoordinationDate';
+import { formatCoordinationDeadline, formatCoordinationOptionDate } from '@/lib/formatCoordinationDate';
 import '../CoordinationGuest.css';
 
 type CoordinationPublicSuccess = Extract<CoordinationPublicReadResult, { ok: true }>;
@@ -276,16 +276,33 @@ export default function JoinCoordination() {
             </div>
 
             {derived_status === 'closed' && (
-              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <AlertCircle size={24} color="#dc2626" />
-                <span style={{ color: '#991b1b', fontWeight: 600, fontSize: 15 }}>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
+              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(22,163,74,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ background: '#dcfce7', padding: 6, borderRadius: '50%' }}>
+                    <CheckCircle2 size={24} color="#16a34a" />
+                  </div>
+                  <span style={{ color: '#166534', fontWeight: 700, fontSize: 18 }}>Fecha confirmada</span>
+                </div>
+                <div>
+                  <span style={{ color: '#166534', fontSize: 15, display: 'block', marginBottom: 6 }}>
+                    {t('coordination.closed_msg_confirmed', 'El encuentro quedó confirmado para:')}
+                  </span>
+                  <span style={{ color: '#14532d', fontWeight: 800, fontSize: 16 }}>
+                    {data.fecha && data.hora ? formatCoordinationOptionDate(data.fecha, data.hora, i18n.language) : ''}
+                  </span>
+                </div>
               </div>
             )}
 
             {derived_status === 'deadline_passed' && (
-              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Clock size={24} color="#dc2626" />
-                <span style={{ color: '#991b1b', fontWeight: 600, fontSize: 15 }}>{t('coordination.deadline_passed_msg', 'El plazo para responder finalizó')}</span>
+              <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '20px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Clock size={20} color="#d97706" />
+                  <span style={{ color: '#b45309', fontWeight: 700, fontSize: 16 }}>{t('coordination.deadline_passed_title', 'Plazo vencido')}</span>
+                </div>
+                <span style={{ color: '#92400e', fontSize: 15, lineHeight: 1.5 }}>
+                  {t('coordination.deadline_passed_msg', 'El plazo para responder ya venció. El organizador está revisando las respuestas para confirmar la fecha definitiva.')}
+                </span>
               </div>
             )}
 
@@ -320,9 +337,15 @@ export default function JoinCoordination() {
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 0 0', color: '#0f172a' }}>
-                {t('coordination.options_title', 'Opciones propuestas')}
-              </h3>
+              {derived_status === 'closed' ? (
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '8px 0 0 0', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {t('coordination.options_title_closed', 'Tu respuesta enviada')}
+                </h3>
+              ) : (
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 0 0', color: '#0f172a' }}>
+                  {t('coordination.options_title', 'Opciones propuestas')}
+                </h3>
+              )}
               <CoordinationAvailabilityForm
                 opciones={data.opciones}
                 respuestas={respuestas}
@@ -341,12 +364,18 @@ export default function JoinCoordination() {
           <Button
             variant="primary"
             fullWidth
-            disabled={isSubmitting || !isNameValid || !hasCompleteResponses || isReadOnly}
+            disabled={isSubmitting || !isNameValid || !hasCompleteResponses}
             onClick={handleSubmit}
             style={{ borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)', height: 48, fontSize: 16 }}
           >
             {isSubmitting ? t('coordination.sending', 'Enviando...') : t('coordination.send_availability', 'Enviar disponibilidad')}
           </Button>
+        </div>
+      )}
+      
+      {derived_status === 'deadline_passed' && (
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10, textAlign: 'center' }}>
+          <span style={{ color: '#b45309', fontWeight: 600, fontSize: 15 }}>Plazo vencido</span>
         </div>
       )}
     </ScreenContainer>
