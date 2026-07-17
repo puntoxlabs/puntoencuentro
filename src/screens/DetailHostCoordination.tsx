@@ -113,7 +113,7 @@ const DetailHostCoordination: React.FC = () => {
         </div>
 
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--pe-text)' }}>
-          {encuentro.titulo}
+          {encuentro.titulo} <span style={{ fontSize: 10, color: 'var(--pe-text-muted)', fontWeight: 400 }}>v2</span>
         </h1>
 
         {encuentro.descripcion && (

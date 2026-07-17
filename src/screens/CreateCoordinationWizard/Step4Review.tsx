@@ -94,7 +94,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
     <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: '180px' }}>
       <div style={{ flex: 1 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--pe-text)' }}>
-          Revisá tu propuesta
+          Revisá tu propuesta <span style={{ fontSize: 10, color: 'var(--pe-text-muted)', fontWeight: 400 }}>v2</span>
         </h2>
         <p style={{ color: 'var(--pe-text-muted)', marginBottom: 24, fontSize: 15, lineHeight: 1.5 }}>
           Asegurate de que todo esté correcto antes de enviar las opciones a tus invitados.
