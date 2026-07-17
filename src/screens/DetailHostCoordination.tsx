@@ -105,167 +105,191 @@ const DetailHostCoordination: React.FC = () => {
     <ScreenContainer>
       <AppBar title="Coordinación" showBack onBack={() => navigate('/')} />
 
-      <div style={{ padding: '20px', paddingBottom: '160px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-            Esperando respuestas
-          </span>
-        </div>
-
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--pe-text)' }}>
-          {encuentro.titulo} <span style={{ fontSize: 10, color: 'var(--pe-text-muted)', fontWeight: 400 }}>v2</span>
-        </h1>
-
-        {encuentro.descripcion && (
-          <p style={{ fontSize: 15, color: 'var(--pe-text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
-            {encuentro.descripcion}
-          </p>
-        )}
-
-        {!shareUrl && isLinkGeneral && (
-          <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '16px', borderRadius: 8, marginBottom: 24 }}>
-            <h4 style={{ color: '#1e3a8a', margin: '0 0 8px 0', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Link size={18} />
-              El enlace todavía no está disponible
-            </h4>
-            <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontSize: 14 }}>
-              Esta coordinación se creó correctamente, pero el enlace para invitados requiere una actualización pendiente del sistema.
-            </p>
-            <p style={{ color: '#1e40af', margin: 0, fontSize: 13, opacity: 0.9 }}>
-              La función de coordinación continúa en preparación y todavía no está habilitada en producción.
-            </p>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Card 1: General Info */}
-          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-              {encuentro.modalidad === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Video size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                  {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-                </span>
-                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                  {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-              {isLinkGeneral ? <Link size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Users size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                  Tipo de invitación
-                </span>
-                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                  {isLinkGeneral ? 'Link general' : 'Invitados individuales'}
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                  Duración estimada
-                </span>
-                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                  {formatCoordinationDuration(encuentro.duration_minutes, t) || 'Duración flexible'}
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>Plazo para responder</span>
-                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                  {response_deadline ? formatFriendlyDeadline(response_deadline) : 'Sin plazo definido'}
-                </span>
-              </div>
-            </div>
+      <div style={{ padding: '20px', paddingBottom: '160px', background: '#F8FAFC', minHeight: '100vh' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Esperando respuestas
+            </span>
           </div>
 
-          {/* Card 2: Opciones */}
-          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
-              Opciones propuestas
-            </h3>
+          <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a', letterSpacing: '-0.5px' }}>
+            {encuentro.titulo}
+          </h1>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {opciones?.map((opt) => {
-                return (
-                  <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--pe-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--pe-text-muted)', border: '1px solid var(--pe-border)' }}>
-                        {opt.orden}
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)', fontSize: 15 }}>
-                          {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {opt.available_count > 0 && <span style={{ color: '#16a34a', fontWeight: 600, fontSize: 13 }}>{opt.available_count} Sí</span>}
-                      {opt.maybe_count > 0 && <span style={{ color: '#ca8a04', fontWeight: 600, fontSize: 13 }}>{opt.maybe_count} Tal vez</span>}
-                      {opt.unavailable_count > 0 && <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 13 }}>{opt.unavailable_count} No</span>}
-                      {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: 'var(--pe-text-muted)', fontSize: 13 }}>0 votos</span>}
-                    </div>
+          {encuentro.descripcion && (
+            <p style={{ fontSize: 16, color: '#475569', marginBottom: 28, lineHeight: 1.6 }}>
+              {encuentro.descripcion}
+            </p>
+          )}
+
+          {!shareUrl && isLinkGeneral && (
+            <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '16px', borderRadius: 16, marginBottom: 24 }}>
+              <h4 style={{ color: '#1e3a8a', margin: '0 0 8px 0', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Link size={18} />
+                El enlace todavía no está disponible
+              </h4>
+              <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontSize: 14 }}>
+                Esta coordinación se creó correctamente, pero el enlace para invitados requiere una actualización pendiente del sistema.
+              </p>
+              <p style={{ color: '#1e40af', margin: 0, fontSize: 13, opacity: 0.9 }}>
+                La función de coordinación continúa en preparación y todavía no está habilitada en producción.
+              </p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Card 1: General Info */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                Información general
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
+                    {encuentro.modalidad === 'presencial' ? <MapPin size={18} color="#64748b" /> : <Video size={18} color="#64748b" />}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Card 3: Respuestas */}
-          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
-              Respuestas
-            </h3>
-
-            {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
-              <div style={{ padding: '24px 16px', borderRadius: 12, border: '1px dashed var(--pe-border)', textAlign: 'center', backgroundColor: 'var(--pe-bg-hover)' }}>
-                <p style={{ margin: 0, fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                  Todavía no recibiste disponibilidades.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
-                  <div key={part.id} style={{ padding: 16, borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--pe-text)', display: 'block', marginBottom: 12, fontSize: 15 }}>
-                      {part.nombre_invitado}
+                  <div style={{ marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                      {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
                     </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {part.respuestas.map((resp) => {
-                        const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
-                        if (!option) return null;
-                        return (
-                          <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
-                            <span style={{ color: 'var(--pe-text-muted)' }}>Opción {option.orden}:</span>
-                            <span style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef08a' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
-                              {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
-                              {resp.es_preferida && ' ★'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                      {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
+                    </span>
                   </div>
-                ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
+                    {isLinkGeneral ? <Link size={18} color="#64748b" /> : <Users size={18} color="#64748b" />}
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                      Tipo de invitación
+                    </span>
+                    <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                      {isLinkGeneral ? 'Link general' : 'Invitados individuales'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
+                    <Clock size={18} color="#64748b" />
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                      Duración
+                    </span>
+                    <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                      {formatCoordinationDuration(encuentro.duration_minutes, t) || 'Flexible'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
+                    <Clock size={18} color="#64748b" />
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                      Plazo para responder
+                    </span>
+                    <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                      {response_deadline ? formatFriendlyDeadline(response_deadline) : 'Sin plazo definido'}
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Card 2: Opciones */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                Opciones propuestas
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {opciones?.map((opt) => {
+                  return (
+                    <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, border: '1px solid rgba(15,23,42,0.05)', background: '#f8fafc' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#475569', fontSize: 14 }}>
+                          {opt.orden}
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', fontWeight: 600, color: '#1e293b', fontSize: 15 }}>
+                            {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '40%' }}>
+                        {opt.available_count > 0 && <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.available_count} Sí</span>}
+                        {opt.maybe_count > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.maybe_count} Tal vez</span>}
+                        {opt.unavailable_count > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 12 }}>{opt.unavailable_count} No</span>}
+                        {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>0 votos</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Card 3: Respuestas */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                Respuestas
+              </h3>
+
+              {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
+                <div style={{ padding: '40px 20px', borderRadius: 16, border: '2px dashed rgba(15,23,42,0.1)', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div style={{ background: '#e2e8f0', width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Users size={24} color="#64748b" />
+                  </div>
+                  <p style={{ margin: 0, fontSize: 15, color: '#64748b', fontWeight: 500 }}>
+                    Todavía no recibiste disponibilidades.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
+                    <div key={part.id} style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(15,23,42,0.05)', background: '#f8fafc' }}>
+                      <span style={{ fontWeight: 700, color: '#1e293b', display: 'block', marginBottom: 12, fontSize: 16, paddingBottom: 10, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                        {part.nombre_invitado}
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {part.respuestas.map((resp) => {
+                          const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
+                          if (!option) return null;
+                          return (
+                            <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
+                              <span style={{ color: '#64748b', fontWeight: 500 }}>Opción {option.orden}:</span>
+                              <span style={{ fontWeight: 600, fontSize: 13, padding: '4px 10px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef9c3' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
+                                {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                                {resp.es_preferida && ' ★'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '16px 20px', background: 'var(--pe-bg)', borderTop: '1px solid var(--pe-border)', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', zIndex: 10 }}>
+      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
         <Button
           variant="primary"
           fullWidth
           onClick={handleShare}
           disabled={isLinkGeneral && !shareUrl}
           aria-disabled={isLinkGeneral && !shareUrl}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
         >
           {isLinkGeneral ? <Share2 size={20} /> : <Plus size={20} />}
           {isLinkGeneral ? 'Compartir link general' : 'Agregar invitados'}
