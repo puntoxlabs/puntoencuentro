@@ -152,8 +152,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                  {draft.modality === 'presencial' ? <MapPin size={18} color="#64748b" /> : <Video size={18} color="#64748b" />}
+                <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10 }}>
+                  {draft.modality === 'presencial' ? <MapPin size={18} color="#0284C7" /> : <Video size={18} color="#0284C7" />}
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -166,8 +166,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                  <Clock size={18} color="#64748b" />
+                <div style={{ background: '#DCFCE7', padding: 8, borderRadius: 10 }}>
+                  <Clock size={18} color="#16A34A" />
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -225,8 +225,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                  <Clock size={18} color="#64748b" />
+                <div style={{ background: '#FCE7F3', padding: 8, borderRadius: 10 }}>
+                  <Clock size={18} color="#DB2777" />
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -239,8 +239,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                  {draft.invitationType === 'individual' ? <Users size={18} color="#64748b" /> : <Link size={18} color="#64748b" />}
+                <div style={{ background: '#EDE9FE', padding: 8, borderRadius: 10 }}>
+                  {draft.invitationType === 'individual' ? <Users size={18} color="#7C3AED" /> : <Link size={18} color="#7C3AED" />}
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -253,8 +253,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                  <Palette size={18} color="#64748b" />
+                <div style={{ background: '#FEF3C7', padding: 8, borderRadius: 10 }}>
+                  <Palette size={18} color="#D97706" />
                 </div>
                 <div style={{ marginTop: 2 }}>
                   <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>

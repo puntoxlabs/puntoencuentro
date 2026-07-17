@@ -147,8 +147,8 @@ const DetailHostCoordination: React.FC = () => {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                    {encuentro.modalidad === 'presencial' ? <MapPin size={18} color="#64748b" /> : <Video size={18} color="#64748b" />}
+                  <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10 }}>
+                    {encuentro.modalidad === 'presencial' ? <MapPin size={18} color="#0284C7" /> : <Video size={18} color="#0284C7" />}
                   </div>
                   <div style={{ marginTop: 2 }}>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -161,8 +161,8 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                    {isLinkGeneral ? <Link size={18} color="#64748b" /> : <Users size={18} color="#64748b" />}
+                  <div style={{ background: '#EDE9FE', padding: 8, borderRadius: 10 }}>
+                    {isLinkGeneral ? <Link size={18} color="#7C3AED" /> : <Users size={18} color="#7C3AED" />}
                   </div>
                   <div style={{ marginTop: 2 }}>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -175,8 +175,8 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                    <Clock size={18} color="#64748b" />
+                  <div style={{ background: '#DCFCE7', padding: 8, borderRadius: 10 }}>
+                    <Clock size={18} color="#16A34A" />
                   </div>
                   <div style={{ marginTop: 2 }}>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -189,8 +189,8 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ background: '#f1f5f9', padding: 8, borderRadius: 10 }}>
-                    <Clock size={18} color="#64748b" />
+                  <div style={{ background: '#FCE7F3', padding: 8, borderRadius: 10 }}>
+                    <Clock size={18} color="#DB2777" />
                   </div>
                   <div style={{ marginTop: 2 }}>
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
@@ -244,8 +244,8 @@ const DetailHostCoordination: React.FC = () => {
 
               {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
                 <div style={{ padding: '40px 20px', borderRadius: 16, border: '2px dashed rgba(15,23,42,0.1)', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  <div style={{ background: '#e2e8f0', width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Users size={24} color="#64748b" />
+                  <div style={{ background: '#F1F5F9', width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Users size={24} color="#475569" />
                   </div>
                   <p style={{ margin: 0, fontSize: 15, color: '#64748b', fontWeight: 500 }}>
                     Todavía no recibiste disponibilidades.
