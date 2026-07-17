@@ -91,7 +91,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
   };
 
   return (
-    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: '120px' }}>
+    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: '180px' }}>
       <div style={{ flex: 1 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--pe-text)' }}>
           Revisá tu propuesta

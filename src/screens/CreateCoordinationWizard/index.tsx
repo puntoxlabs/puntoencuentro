@@ -31,6 +31,11 @@ const CreateCoordinationWizard: React.FC = () => {
   const { signInWithGoogle } = useAuth();
 
   useEffect(() => {
+    // Siempre reiniciar el borrador al entrar a la ruta base para crear un nuevo encuentro
+    resetDraft();
+  }, [resetDraft]);
+
+  useEffect(() => {
     if (authLoading) return;
 
     if (!DATE_COORDINATION_ENABLED) {

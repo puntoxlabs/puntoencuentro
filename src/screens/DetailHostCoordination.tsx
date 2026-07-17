@@ -105,22 +105,22 @@ const DetailHostCoordination: React.FC = () => {
     <ScreenContainer>
       <AppBar title="Coordinación" showBack onBack={() => navigate('/')} />
 
-      <div style={{ padding: '20px', paddingBottom: '100px' }}>
+      <div style={{ padding: '20px', paddingBottom: '160px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+            Esperando respuestas
+          </span>
+        </div>
+
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--pe-text)' }}>
           {encuentro.titulo}
         </h1>
 
         {encuentro.descripcion && (
-          <p style={{ fontSize: 15, color: 'var(--pe-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 15, color: 'var(--pe-text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
             {encuentro.descripcion}
           </p>
         )}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-          <span style={{ backgroundColor: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-            Esperando respuestas
-          </span>
-        </div>
 
         {!shareUrl && isLinkGeneral && (
           <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '16px', borderRadius: 8, marginBottom: 24 }}>
@@ -137,112 +137,125 @@ const DetailHostCoordination: React.FC = () => {
           </div>
         )}
 
-        <div style={{ background: 'var(--pe-bg-hover)', borderRadius: 12, padding: 16, border: '1px solid var(--pe-border)', marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            {encuentro.modalidad === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" /> : <Video size={20} color="var(--pe-text-muted)" />}
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            {isLinkGeneral ? <Link size={20} color="var(--pe-text-muted)" /> : <Users size={20} color="var(--pe-text-muted)" />}
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                {isLinkGeneral ? 'Link general' : 'Invitados individuales'}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <Clock size={20} color="var(--pe-text-muted)" />
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                Duración estimada
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {formatCoordinationDuration(encuentro.duration_minutes, t) || 'Duración flexible'}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Clock size={20} color="var(--pe-text-muted)" />
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>Plazo para responder</span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {response_deadline ? formatFriendlyDeadline(response_deadline) : 'Sin plazo definido'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
-          Opciones propuestas
-        </h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-          {opciones?.map((opt) => {
-            return (
-              <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--pe-bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--pe-text-muted)' }}>
-                    {opt.orden}
-                  </div>
-                  <div>
-                    <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                      {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
-                    </span>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  {opt.available_count > 0 && <span style={{ color: '#16a34a', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.available_count} Sí</span>}
-                  {opt.maybe_count > 0 && <span style={{ color: '#ca8a04', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.maybe_count} Tal vez</span>}
-                  {opt.unavailable_count > 0 && <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.unavailable_count} No</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
-          Respuestas
-        </h3>
-
-        {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
-          <div style={{ padding: 24, borderRadius: 12, border: '1px dashed var(--pe-border)', textAlign: 'center', backgroundColor: 'var(--pe-bg-hover)' }}>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--pe-text-muted)' }}>
-              Todavía no recibiste disponibilidades.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-            {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
-              <div key={part.id} style={{ padding: 16, borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
-                <span style={{ fontWeight: 600, color: 'var(--pe-text)', display: 'block', marginBottom: 8 }}>
-                  {part.nombre_invitado}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Card 1: General Info */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              {encuentro.modalidad === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Video size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  {encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}
                 </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {part.respuestas.map((resp) => {
-                    const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
-                    if (!option) return null;
-                    return (
-                      <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                        <span style={{ color: 'var(--pe-text-muted)' }}>Opción {option.orden}:</span>
-                        <span style={{ fontWeight: 500, color: resp.respuesta === 'available' ? '#16a34a' : resp.respuesta === 'maybe' ? '#ca8a04' : '#dc2626' }}>
-                          {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
-                          {resp.es_preferida && ' (Preferida)'}
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {encuentro.modalidad === 'presencial' ? encuentro.lugar_texto : encuentro.link_virtual}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              {isLinkGeneral ? <Link size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Users size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Tipo de invitación
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {isLinkGeneral ? 'Link general' : 'Invitados individuales'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Duración estimada
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {formatCoordinationDuration(encuentro.duration_minutes, t) || 'Duración flexible'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>Plazo para responder</span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {response_deadline ? formatFriendlyDeadline(response_deadline) : 'Sin plazo definido'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Opciones */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
+              Opciones propuestas
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {opciones?.map((opt) => {
+                return (
+                  <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--pe-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--pe-text-muted)', border: '1px solid var(--pe-border)' }}>
+                        {opt.orden}
+                      </div>
+                      <div>
+                        <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)', fontSize: 15 }}>
+                          {formatFriendlyDate(opt.fecha, opt.hora_inicio)}
                         </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                    </div>
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {opt.available_count > 0 && <span style={{ color: '#16a34a', fontWeight: 600, fontSize: 13 }}>{opt.available_count} Sí</span>}
+                      {opt.maybe_count > 0 && <span style={{ color: '#ca8a04', fontWeight: 600, fontSize: 13 }}>{opt.maybe_count} Tal vez</span>}
+                      {opt.unavailable_count > 0 && <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 13 }}>{opt.unavailable_count} No</span>}
+                      {opt.available_count === 0 && opt.maybe_count === 0 && opt.unavailable_count === 0 && <span style={{ color: 'var(--pe-text-muted)', fontSize: 13 }}>0 votos</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        )}
+
+          {/* Card 3: Respuestas */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--pe-text)' }}>
+              Respuestas
+            </h3>
+
+            {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
+              <div style={{ padding: '24px 16px', borderRadius: 12, border: '1px dashed var(--pe-border)', textAlign: 'center', backgroundColor: 'var(--pe-bg-hover)' }}>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  Todavía no recibiste disponibilidades.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
+                  <div key={part.id} style={{ padding: 16, borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--pe-text)', display: 'block', marginBottom: 12, fontSize: 15 }}>
+                      {part.nombre_invitado}
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {part.respuestas.map((resp) => {
+                        const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
+                        if (!option) return null;
+                        return (
+                          <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
+                            <span style={{ color: 'var(--pe-text-muted)' }}>Opción {option.orden}:</span>
+                            <span style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef08a' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
+                              {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                              {resp.es_preferida && ' ★'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '16px 20px', background: 'var(--pe-bg)', borderTop: '1px solid var(--pe-border)', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', zIndex: 10 }}>
