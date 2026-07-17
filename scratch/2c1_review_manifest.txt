@@ -1,0 +1,15 @@
+src/App.tsx
+src/config/features.ts
+src/services/encuentrosService.ts
+src/lib/formatDate.ts
+src/lib/formatCoordinationDate.ts
+src/lib/formatDuration.ts
+src/components/ui/CoordinationAvailabilityForm.tsx
+src/components/ui/CoordinationAvailabilityForm.css
+src/screens/CoordinationGuest.css
+src/screens/JoinCoordination/index.tsx
+src/screens/InviteCoordination/index.tsx
+src/i18n/locales/es.json
+src/i18n/locales/en.json
+src/i18n/locales/pt.json
+package.json

@@ -20,27 +20,31 @@ const DetailHostCoordination: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
     try {
-      setLoading(true);
-      setError(null);
+      if (!isPolling) setLoading(true);
+      if (!isPolling) setError(null);
       const data = await encuentrosService.getCoordinacionHost(id);
       if (data && data.ok) {
         setDetail(data);
       } else {
-        setError(data.error || 'No se pudo cargar la coordinación.');
+        if (!isPolling) setError(data.error || 'No se pudo cargar la coordinación.');
       }
     } catch (err: any) {
       console.error('[DetailHostCoordination] Error:', err);
-      setError('Ocurrió un error al cargar la coordinación.');
+      if (!isPolling) setError('Ocurrió un error al cargar la coordinación.');
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 5000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   if (loading) {
@@ -194,7 +198,9 @@ const DetailHostCoordination: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  {/* Espacio reservado para indicadores de disponibilidad (disponibles, quizás, no disponibles, preferidas) en el próximo bloque */}
+                  {opt.available_count > 0 && <span style={{ color: '#16a34a', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.available_count} Sí</span>}
+                  {opt.maybe_count > 0 && <span style={{ color: '#ca8a04', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.maybe_count} Tal vez</span>}
+                  {opt.unavailable_count > 0 && <span style={{ color: '#dc2626', fontWeight: 600, fontSize: 14, marginLeft: 8 }}>{opt.unavailable_count} No</span>}
                 </div>
               </div>
             );
@@ -205,11 +211,38 @@ const DetailHostCoordination: React.FC = () => {
           Respuestas
         </h3>
 
-        <div style={{ padding: 24, borderRadius: 12, border: '1px dashed var(--pe-border)', textAlign: 'center', backgroundColor: 'var(--pe-bg-hover)' }}>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--pe-text-muted)' }}>
-            Todavía no recibiste disponibilidades.
-          </p>
-        </div>
+        {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
+          <div style={{ padding: 24, borderRadius: 12, border: '1px dashed var(--pe-border)', textAlign: 'center', backgroundColor: 'var(--pe-bg-hover)' }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--pe-text-muted)' }}>
+              Todavía no recibiste disponibilidades.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+            {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
+              <div key={part.id} style={{ padding: 16, borderRadius: 12, border: '1px solid var(--pe-border)', background: 'var(--pe-bg-hover)' }}>
+                <span style={{ fontWeight: 600, color: 'var(--pe-text)', display: 'block', marginBottom: 8 }}>
+                  {part.nombre_invitado}
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {part.respuestas.map((resp) => {
+                    const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
+                    if (!option) return null;
+                    return (
+                      <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                        <span style={{ color: 'var(--pe-text-muted)' }}>Opción {option.orden}:</span>
+                        <span style={{ fontWeight: 500, color: resp.respuesta === 'available' ? '#16a34a' : resp.respuesta === 'maybe' ? '#ca8a04' : '#dc2626' }}>
+                          {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                          {resp.es_preferida && ' (Preferida)'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '16px 20px', background: 'var(--pe-bg)', borderTop: '1px solid var(--pe-border)', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))', zIndex: 10 }}>

@@ -91,7 +91,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
   };
 
   return (
-    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: '120px' }}>
       <div style={{ flex: 1 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--pe-text)' }}>
           Revisá tu propuesta
@@ -101,23 +101,40 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         </p>
 
         {error && (
-          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 8, marginBottom: 24 }}>
+          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 8, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: '#dc2626', margin: 0, fontSize: 14, fontWeight: 500 }}>{error}</p>
             {error.includes('Volvé a Home') && (
               <Button variant="outline" onClick={() => navigate('/')} style={{ marginTop: 12 }}>
                 Volver a Home
               </Button>
             )}
+            {onNavigate && (error.includes('fecha') || error.includes('horario') || error.includes('opcion') || error.includes('opción') || error.includes('plazo')) && (
+              <Button variant="outline" onClick={() => onNavigate(2)} style={{ alignSelf: 'flex-start', color: '#dc2626', borderColor: '#fecaca', background: '#fff' }}>
+                Corregir opciones y plazo
+              </Button>
+            )}
+            {onNavigate && (error.includes('diseño') || error.includes('invitación')) && (
+              <Button variant="outline" onClick={() => onNavigate(3)} style={{ alignSelf: 'flex-start', color: '#dc2626', borderColor: '#fecaca', background: '#fff' }}>
+                Corregir diseño de invitación
+              </Button>
+            )}
+            {onNavigate && (error.includes('encuentro') || error.includes('modalidad') || error.includes('lugar') || error.includes('enlace')) && (
+              <Button variant="outline" onClick={() => onNavigate(1)} style={{ alignSelf: 'flex-start', color: '#dc2626', borderColor: '#fecaca', background: '#fff' }}>
+                Corregir datos del encuentro
+              </Button>
+            )}
           </div>
         )}
 
-        <div style={{ background: 'var(--pe-bg-hover)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Card 1: Datos del encuentro */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--pe-text)' }}>
                 {draft.title}
               </h3>
               {onNavigate && (
-                <button onClick={() => onNavigate(1)} style={{ background: 'none', border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}>
+                <button onClick={() => onNavigate(1)} style={{ background: 'var(--pe-bg-hover)', borderRadius: 20, border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '6px 12px' }}>
                   Editar
                 </button>
               )}
@@ -129,8 +146,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               </p>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-              {draft.modality === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" /> : <Video size={20} color="var(--pe-text-muted)" />}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              {draft.modality === 'presencial' ? <MapPin size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Video size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
               <div>
                 <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
                   {draft.modality === 'presencial' ? 'Presencial' : 'Virtual'}
@@ -141,8 +158,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-              <Clock size={20} color="var(--pe-text-muted)" />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
               <div>
                 <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
                   Duración estimada
@@ -152,83 +169,85 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
                 </span>
               </div>
             </div>
-
-          <div style={{ height: 1, background: 'var(--pe-border)', margin: '20px 0' }} />
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--pe-text)' }}>
-              Opciones propuestas ({draft.options.length})
-            </h4>
-            {onNavigate && (
-              <button onClick={() => onNavigate(2)} style={{ background: 'none', border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}>
-                Editar
-              </button>
-            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-            {hasOptions && draft.options.map((opt, index) => {
-              return (
-                <div key={opt.localId} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--pe-bg)', padding: 12, borderRadius: 8, border: '1px solid var(--pe-border)' }}>
-                  <Calendar size={18} color="var(--pe-text-muted)" />
-                  <span style={{ fontSize: 15, color: 'var(--pe-text)' }}>
-                    <span style={{ fontWeight: 600, marginRight: 8 }}>Opción {index + 1}:</span>
-                    {formatFriendlyDate(opt.date, opt.time)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {/* Card 2: Opciones */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--pe-text)' }}>
+                Opciones propuestas ({draft.options.length})
+              </h4>
+              {onNavigate && (
+                <button onClick={() => onNavigate(2)} style={{ background: 'var(--pe-bg-hover)', borderRadius: 20, border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '6px 12px' }}>
+                  Editar
+                </button>
+              )}
+            </div>
 
-          <div style={{ height: 1, background: 'var(--pe-border)', margin: '20px 0' }} />
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h4 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--pe-text)' }}>
-              Invitación y Plazo
-            </h4>
-            {onNavigate && (
-              <button onClick={() => onNavigate(3)} style={{ background: 'none', border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}>
-                Editar
-              </button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <Clock size={20} color="var(--pe-text-muted)" />
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                Plazo para responder
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {draft.responseDeadline ? formatFriendlyDeadline(draft.responseDeadline) : 'Sin plazo'}
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {hasOptions && draft.options.map((opt, index) => {
+                return (
+                  <div key={opt.localId} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--pe-bg-hover)', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--pe-border)' }}>
+                    <Calendar size={18} color="var(--pe-text-muted)" />
+                    <span style={{ fontSize: 15, color: 'var(--pe-text)' }}>
+                      <span style={{ fontWeight: 600, marginRight: 8 }}>Opción {index + 1}:</span>
+                      {formatFriendlyDate(opt.date, opt.time)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            {draft.invitationType === 'individual' ? <Users size={20} color="var(--pe-text-muted)" /> : <Link size={20} color="var(--pe-text-muted)" />}
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                Tipo de invitación
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {draft.invitationType === 'individual' ? 'Invitados individuales' : 'Link general'}
-              </span>
+          {/* Card 3: Invitación y plazo */}
+          <div style={{ background: 'var(--pe-bg)', borderRadius: 12, padding: '20px', border: '1px solid var(--pe-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h4 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--pe-text)' }}>
+                Invitación y Plazo
+              </h4>
+              {onNavigate && (
+                <button onClick={() => onNavigate(3)} style={{ background: 'var(--pe-bg-hover)', borderRadius: 20, border: 'none', color: 'var(--pe-primary)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: '6px 12px' }}>
+                  Editar
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              <Clock size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Plazo para responder
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {draft.responseDeadline ? formatFriendlyDeadline(draft.responseDeadline) : 'Sin plazo'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              {draft.invitationType === 'individual' ? <Users size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} /> : <Link size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />}
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Tipo de invitación
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {draft.invitationType === 'individual' ? 'Invitados individuales' : 'Link general'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <Palette size={20} color="var(--pe-text-muted)" style={{ marginTop: 2 }} />
+              <div>
+                <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
+                  Diseño
+                </span>
+                <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
+                  {getThemeDisplayName()}
+                </span>
+              </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Palette size={20} color="var(--pe-text-muted)" />
-            <div>
-              <span style={{ display: 'block', fontWeight: 600, color: 'var(--pe-text)' }}>
-                Diseño
-              </span>
-              <span style={{ display: 'block', fontSize: 14, color: 'var(--pe-text-muted)' }}>
-                {getThemeDisplayName()}
-              </span>
-            </div>
-          </div>
-
         </div>
       </div>
 

@@ -1,0 +1,13 @@
+﻿git : warning: in the working copy of 'src/i18n/locales/en.json', LF will be replaced by CRLF the next time Git 
+touches it
+En C:\Users\Minar\Documents\Proyectos\PuntoEncuentro\scratch\build_review_bundle.ps1: 64 Carácter: 1
++ git diff --check 2>&1 | Out-String | Out-File -FilePath (Join-Path $b ...
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... Git touches it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: in the working copy of 'src/i18n/locales/es.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/i18n/locales/pt.json', LF will be replaced by CRLF the next time Git touches it
+
+
+EXIT_CODE=0

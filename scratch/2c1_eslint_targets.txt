@@ -1,0 +1,6 @@
+src/App.tsx
+src/lib/formatDuration.ts
+src/lib/formatCoordinationDate.ts
+src/components/ui/CoordinationAvailabilityForm.tsx
+src/screens/JoinCoordination/index.tsx
+src/screens/InviteCoordination/index.tsx

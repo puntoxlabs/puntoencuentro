@@ -1,0 +1,1014 @@
+diff --git a/scratch/empty.txt b/src/lib/formatDuration.ts
+index e69de29..41c00f2 100644
+--- a/scratch/empty.txt
++++ b/src/lib/formatDuration.ts
+@@ -0,0 +1,30 @@
++import type { TFunction } from 'i18next';
++
++export function formatCoordinationDuration(
++  minutes: number | null | undefined,
++  t: TFunction
++): string | null {
++  if (
++    typeof minutes !== 'number' ||
++    !Number.isFinite(minutes) ||
++    !Number.isInteger(minutes) ||
++    minutes < 15 ||
++    minutes > 1440
++  ) {
++    return null;
++  }
++
++  const h = Math.floor(minutes / 60);
++  const m = minutes % 60;
++
++  if (h === 0) {
++    return t('coordination.duration.minutes', { count: m });
++  } else if (m === 0) {
++    return t('coordination.duration.hours', { count: h });
++  } else {
++    return t('coordination.duration.hours_and_minutes', {
++      hours: t('coordination.duration.hours', { count: h }),
++      minutes: t('coordination.duration.minutes', { count: m })
++    });
++  }
++}
+diff --git a/scratch/empty.txt b/src/components/ui/CoordinationAvailabilityForm.tsx
+index e69de29..09b99e1 100644
+--- a/scratch/empty.txt
++++ b/src/components/ui/CoordinationAvailabilityForm.tsx
+@@ -0,0 +1,120 @@
++import { useMemo } from 'react';
++import { useTranslation } from 'react-i18next';
++import { CheckCircle2, Clock, Calendar, AlertCircle } from 'lucide-react';
++import type { CoordinationOption, CoordinationAvailabilityValue, CoordinationAvailabilityInput } from '@/services/encuentrosService';
++import { formatFriendlyDate } from '@/lib/formatDate';
++import './CoordinationAvailabilityForm.css';
++
++export interface CoordinationAvailabilityFormProps {
++  opciones: Omit<CoordinationOption, 'selected'>[];
++  respuestas: Record<string, CoordinationAvailabilityInput>;
++  onChangeRespuesta: (opcionId: string, value: CoordinationAvailabilityValue) => void;
++  onTogglePreferida: (opcionId: string) => void;
++  readOnly?: boolean;
++  showErrors?: boolean;
++}
++
++export const CoordinationAvailabilityForm = ({
++  opciones,
++  respuestas,
++  onChangeRespuesta,
++  onTogglePreferida,
++  readOnly = false,
++  showErrors = false
++}: CoordinationAvailabilityFormProps) => {
++  const { t } = useTranslation();
++
++  const sortedOpciones = useMemo(() => {
++    return [...opciones].sort((a, b) => a.orden - b.orden);
++  }, [opciones]);
++
++  const hasMissingResponses = sortedOpciones.some(op => !respuestas[op.id]);
++
++  return (
++    <div className="coordination-form">
++      {showErrors && hasMissingResponses && (
++        <div className="coordination-form-error" role="alert" aria-live="polite">
++          <AlertCircle size={18} />
++          <span>{t('coordination.missing_responses', 'Falta responder alguna opción')}</span>
++        </div>
++      )}
++
++      <div className="coordination-options-list">
++        {sortedOpciones.map((op) => {
++          const resp = respuestas[op.id];
++          const hasError = showErrors && !resp;
++
++          return (
++            <div 
++              key={op.id} 
++              className={`coordination-option-card ${hasError ? 'has-error' : ''}`}
++            >
++              <div className="coordination-option-header" id={`header-${op.id}`}>
++                <div className="coordination-option-date">
++                  <Calendar size={18} />
++                  <span>{formatFriendlyDate(op.fecha, op.hora_inicio)}</span>
++                </div>
++                <div className="coordination-option-time">
++                  <Clock size={16} />
++                  <span>{op.hora_inicio}</span>
++                </div>
++              </div>
++
++              <div className="coordination-responses" role="radiogroup" aria-labelledby={`header-${op.id}`}>
++                <button
++                  type="button"
++                  role="radio"
++                  className={`coordination-response-btn available`}
++                  aria-checked={resp?.respuesta === 'available'}
++                  disabled={readOnly}
++                  onClick={() => onChangeRespuesta(op.id, 'available')}
++                >
++                  {t('coordination.available', 'Puedo')}
++                </button>
++                <button
++                  type="button"
++                  role="radio"
++                  className={`coordination-response-btn maybe`}
++                  aria-checked={resp?.respuesta === 'maybe'}
++                  disabled={readOnly}
++                  onClick={() => onChangeRespuesta(op.id, 'maybe')}
++                >
++                  {t('coordination.maybe', 'Tal vez')}
++                </button>
++                <button
++                  type="button"
++                  role="radio"
++                  className={`coordination-response-btn unavailable`}
++                  aria-checked={resp?.respuesta === 'unavailable'}
++                  disabled={readOnly}
++                  onClick={() => onChangeRespuesta(op.id, 'unavailable')}
++                >
++                  {t('coordination.unavailable', 'No puedo')}
++                </button>
++              </div>
++
++              <label 
++                className={`coordination-preferred-toggle ${readOnly || resp?.respuesta === 'unavailable' ? 'disabled' : ''} ${resp?.es_preferida ? 'active' : ''}`}
++                htmlFor={`pref-${op.id}`}
++              >
++                <input
++                  type="checkbox"
++                  id={`pref-${op.id}`}
++                  checked={resp?.es_preferida || false}
++                  disabled={readOnly || resp?.respuesta === 'unavailable'}
++                  onChange={() => onTogglePreferida(op.id)}
++                  aria-label={t('coordination.preferred_option_aria', {
++                    dateTime: formatFriendlyDate(op.fecha, op.hora_inicio)
++                  })}
++                  className="coordination-sr-only"
++                />
++                <CheckCircle2 size={18} />
++                <span>{t('coordination.preferred_option', 'Opción preferida')}</span>
++              </label>
++            </div>
++          );
++        })}
++      </div>
++    </div>
++  );
++};
+diff --git a/scratch/empty.txt b/src/components/ui/CoordinationAvailabilityForm.css
+index e69de29..d9a8423 100644
+--- a/scratch/empty.txt
++++ b/src/components/ui/CoordinationAvailabilityForm.css
+@@ -0,0 +1,154 @@
++.coordination-form {
++  display: flex;
++  flex-direction: column;
++  gap: 1.5rem;
++  width: 100%;
++}
++
++.coordination-form-error {
++  background-color: var(--color-danger-bg, #fee2e2);
++  color: var(--color-danger-text, #991b1b);
++  padding: 1rem;
++  border-radius: 8px;
++  font-size: 0.875rem;
++  display: flex;
++  align-items: center;
++  gap: 0.5rem;
++}
++
++.coordination-options-list {
++  display: flex;
++  flex-direction: column;
++  gap: 1rem;
++}
++
++.coordination-option-card {
++  background: white;
++  border: 1px solid var(--color-border, #e5e7eb);
++  border-radius: 12px;
++  padding: 1rem;
++  display: flex;
++  flex-direction: column;
++  gap: 1rem;
++  transition: all 0.2s ease-in-out;
++}
++
++.coordination-option-card.has-error {
++  border-color: var(--color-danger, #dc2626);
++  background-color: #fef2f2;
++}
++
++.coordination-option-header {
++  display: flex;
++  flex-direction: column;
++  gap: 0.25rem;
++}
++
++.coordination-option-date {
++  font-weight: 600;
++  font-size: 1rem;
++  color: var(--color-text-primary, #111827);
++  display: flex;
++  align-items: center;
++  gap: 0.5rem;
++}
++
++.coordination-option-time {
++  font-size: 0.875rem;
++  color: var(--color-text-secondary, #4b5563);
++  display: flex;
++  align-items: center;
++  gap: 0.5rem;
++}
++
++.coordination-responses {
++  display: flex;
++  gap: 0.5rem;
++}
++
++.coordination-response-btn {
++  flex: 1;
++  padding: 0.5rem;
++  border-radius: 8px;
++  border: 1px solid var(--color-border, #e5e7eb);
++  background: white;
++  color: var(--color-text-secondary, #4b5563);
++  font-size: 0.875rem;
++  font-weight: 500;
++  cursor: pointer;
++  transition: all 0.2s;
++  display: flex;
++  justify-content: center;
++  align-items: center;
++}
++
++.coordination-response-btn:disabled {
++  opacity: 0.5;
++  cursor: not-allowed;
++}
++
++.coordination-response-btn[aria-checked="true"].available {
++  background: #dcfce7;
++  border-color: #22c55e;
++  color: #166534;
++}
++
++.coordination-response-btn[aria-checked="true"].maybe {
++  background: #fef9c3;
++  border-color: #eab308;
++  color: #854d0e;
++}
++
++.coordination-response-btn[aria-checked="true"].unavailable {
++  background: #fee2e2;
++  border-color: #ef4444;
++  color: #991b1b;
++}
++
++.coordination-preferred-toggle {
++  display: flex;
++  align-items: center;
++  gap: 0.5rem;
++  font-size: 0.875rem;
++  color: var(--color-text-secondary, #4b5563);
++  cursor: pointer;
++  user-select: none;
++  padding-top: 0.5rem;
++  border-top: 1px solid var(--color-border, #e5e7eb);
++}
++
++.coordination-preferred-toggle.disabled {
++  opacity: 0.5;
++  cursor: not-allowed;
++}
++
++.coordination-preferred-toggle.active {
++  color: var(--color-primary, #4f46e5);
++  font-weight: 500;
++}
++
++.coordination-form-footer {
++  margin-top: 1rem;
++  padding-bottom: 2rem;
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++}
++
++.coordination-validation-msg {
++  color: var(--color-danger, #dc2626);
++  font-size: 0.875rem;
++  text-align: center;
++}
++
++.coordination-sr-only {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  padding: 0;
++  margin: -1px;
++  overflow: hidden;
++  clip: rect(0, 0, 0, 0);
++  white-space: nowrap;
++  border-width: 0;
++}
+diff --git a/scratch/empty.txt b/src/screens/CoordinationGuest.css
+index e69de29..811c132 100644
+--- a/scratch/empty.txt
++++ b/src/screens/CoordinationGuest.css
+@@ -0,0 +1,96 @@
++.coordination-guest-container {
++  display: flex;
++  flex-direction: column;
++  min-height: 100vh;
++  background-color: var(--color-bg, #f3f4f6);
++  padding-bottom: env(safe-area-inset-bottom);
++}
++
++.coordination-guest-content {
++  flex: 1;
++  display: flex;
++  flex-direction: column;
++  padding: 1rem;
++  max-width: 600px;
++  margin: 0 auto;
++  width: 100%;
++  gap: 1.5rem;
++}
++
++.coordination-guest-header {
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++}
++
++.coordination-guest-title {
++  font-size: 1.5rem;
++  font-weight: 700;
++  color: var(--color-text-primary, #111827);
++  margin: 0;
++}
++
++.coordination-guest-desc {
++  font-size: 1rem;
++  color: var(--color-text-secondary, #4b5563);
++  margin: 0;
++}
++
++.coordination-guest-info {
++  display: flex;
++  flex-direction: column;
++  gap: 0.75rem;
++  background: white;
++  padding: 1rem;
++  border-radius: 12px;
++  border: 1px solid var(--color-border, #e5e7eb);
++}
++
++.coordination-guest-info-row {
++  display: flex;
++  align-items: center;
++  gap: 0.75rem;
++  color: var(--color-text-secondary, #4b5563);
++  font-size: 0.875rem;
++}
++
++.coordination-guest-info-icon {
++  color: var(--color-primary, #4f46e5);
++  flex-shrink: 0;
++}
++
++.coordination-guest-form-section {
++  display: flex;
++  flex-direction: column;
++  gap: 1rem;
++}
++
++.coordination-guest-label {
++  font-weight: 600;
++  font-size: 1rem;
++  color: var(--color-text-primary, #111827);
++}
++
++.coordination-guest-status-banner {
++  padding: 1rem;
++  border-radius: 12px;
++  background-color: #f3f4f6;
++  color: #374151;
++  text-align: center;
++  font-weight: 500;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 0.5rem;
++}
++
++.coordination-guest-status-banner.error {
++  background-color: #fee2e2;
++  color: #991b1b;
++}
++
++.coordination-guest-footer {
++  margin-top: auto;
++  padding-top: 2rem;
++  padding-bottom: 2rem;
++}
+diff --git a/scratch/empty.txt b/src/screens/JoinCoordination/index.tsx
+index e69de29..fa7a361 100644
+--- a/scratch/empty.txt
++++ b/src/screens/JoinCoordination/index.tsx
+@@ -0,0 +1,301 @@
++import { useEffect, useState, useRef, useCallback } from 'react';
++import { useParams, useNavigate } from 'react-router-dom';
++import { useTranslation } from 'react-i18next';
++import { MapPin, AlertCircle, Clock } from 'lucide-react';
++import { ScreenContainer } from '@/components/ui/ScreenContainer';
++import { AppBar } from '@/components/ui/AppBar';
++import { Button } from '@/components/ui/Button';
++import { Input } from '@/components/ui/Input';
++import { EmptyState } from '@/components/ui/EmptyState';
++import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvailabilityForm';
++import { encuentrosService, type CoordinationPublicReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
++import { formatCoordinationDuration } from '@/lib/formatDuration';
++import '../CoordinationGuest.css';
++
++export default function JoinCoordination() {
++  const { token } = useParams<{ token: string }>();
++  const navigate = useNavigate();
++  const { t } = useTranslation();
++  
++  const [loading, setLoading] = useState(true);
++  const [data, setData] = useState<CoordinationPublicReadResult & { ok: true } | null>(null);
++  const [loadErrorCode, setLoadErrorCode] = useState<string | null>(null);
++  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
++  
++  const [nombre, setNombre] = useState('');
++  const [respuestas, setRespuestas] = useState<Record<string, CoordinationAvailabilityInput>>({});
++  const [showValidation, setShowValidation] = useState(false);
++  
++  const isSubmittingRef = useRef(false);
++  const [isSubmitting, setIsSubmitting] = useState(false);
++
++
++
++  const loadData = useCallback(async () => {
++    if (!token) {
++      setLoadErrorCode('invalid_token');
++      setLoading(false);
++      return;
++    }
++    try {
++      setLoading(true);
++      setLoadErrorCode(null);
++      const res = await encuentrosService.getCoordinacionPublica(token);
++      if (!res.ok) {
++        setLoadErrorCode(res.error || 'encounter_not_found');
++        return;
++      }
++      setData(res as CoordinationPublicReadResult & { ok: true });
++    } catch {
++      setLoadErrorCode('network_error');
++    } finally {
++      setLoading(false);
++    }
++  }, [token]);
++
++  useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    if (token) loadData();
++  }, [token, loadData]);
++
++  const getErrorMessage = (errCode: string | null) => {
++    switch (errCode) {
++      case 'invalid_token': return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++      case 'encounter_not_found': return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++      case 'encounter_cancelled': return t('coordination.cancelled', 'El encuentro ha sido cancelado.');
++      case 'invalid_date_mode': return t('coordination.invalid_date_mode', 'El tipo de encuentro no es válido para coordinación.');
++      case 'invalid_invitation_type': return t('coordination.invalid_invitation_type', 'El tipo de invitación no es válido.');
++      case 'network_error': return t('coordination.network_error', 'Ocurrió un error de conexión. Por favor, intentá nuevamente.');
++      default: return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++    }
++  };
++
++  const getSubmitErrorMessage = (errCode: string | null) => {
++    switch (errCode) {
++      case 'invalid_name': return t('coordination.invalid_name', 'El nombre es obligatorio.');
++      case 'invalid_responses': return t('coordination.invalid_responses', 'Revisá tus respuestas.');
++      case 'incomplete_responses': return t('coordination.missing_responses', 'Falta responder alguna opción.');
++      case 'duplicate_options': return t('coordination.duplicate_options', 'Las opciones enviadas están duplicadas.');
++      case 'invalid_option': return t('coordination.invalid_option', 'Una de las opciones no es válida.');
++      case 'invalid_response_value': return t('coordination.invalid_response_value', 'La respuesta enviada no es válida.');
++      case 'invalid_preferred': return t('coordination.invalid_preferred', 'La opción preferida no es válida.');
++      default: return t('coordination.submit_error', 'No pudimos guardar tu respuesta. Intentá nuevamente.');
++    }
++  };
++
++  const isValidUUID = (uuid: unknown): boolean => {
++    if (typeof uuid !== 'string') return false;
++    const trimmed = uuid.trim();
++    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
++    return uuidRegex.test(trimmed);
++  };
++
++
++
++  if (loading) {
++    return (
++      <ScreenContainer>
++        <AppBar title={t('coordination.loading_coordination', 'Cargando coordinación...')} />
++        <div className="coordination-guest-content" style={{ justifyContent: 'center', alignItems: 'center' }}>
++          <p>{t('coordination.loading', 'Cargando...')}</p>
++        </div>
++      </ScreenContainer>
++    );
++  }
++
++  if (loadErrorCode || !data) {
++    return (
++      <ScreenContainer>
++        <AppBar title={t('coordination.error_title', 'Invitación no disponible')} />
++        <div className="coordination-guest-content">
++          <EmptyState 
++            icon={<AlertCircle size={48} />}
++            title={t('coordination.error_title', 'Invitación no disponible')}
++            description={getErrorMessage(loadErrorCode)}
++            actions={
++              <Button variant="primary" onClick={() => loadErrorCode === 'network_error' ? loadData() : navigate('/', { replace: true })}>
++                {loadErrorCode === 'network_error' ? t('coordination.retry', 'Volver a intentar') : t('coordination.go_home', 'Volver al inicio')}
++              </Button>
++            }
++          />
++        </div>
++      </ScreenContainer>
++    );
++  }
++
++  const { encuentro, derived_status } = data;
++  const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
++
++  const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
++    setRespuestas(prev => {
++      const existing = prev[opcionId] || { opcion_fecha_id: opcionId, es_preferida: false };
++      const newPreferida = value === 'unavailable' ? false : existing.es_preferida;
++      return {
++        ...prev,
++        [opcionId]: {
++          ...existing,
++          respuesta: value,
++          es_preferida: newPreferida
++        }
++      };
++    });
++  };
++
++  const handleTogglePreferida = (opcionId: string) => {
++    setRespuestas(prev => {
++      const newState = { ...prev };
++      // Limpiar preferida de todas las demas
++      Object.keys(newState).forEach(id => {
++        if (id !== opcionId && newState[id]) {
++          newState[id].es_preferida = false;
++        }
++      });
++      // Toggle la actual si existe
++      if (newState[opcionId]) {
++        newState[opcionId].es_preferida = !newState[opcionId].es_preferida;
++      }
++      return newState;
++    });
++  };
++
++  const handleSubmit = async () => {
++    if (isSubmittingRef.current || !token) return;
++    
++    setShowValidation(true);
++    const normalizedName = nombre.trim();
++    if (normalizedName.length < 1 || normalizedName.length > 80) return;
++    
++    const missing = data.opciones.some(op => !respuestas[op.id]);
++    if (missing) return;
++
++    try {
++      isSubmittingRef.current = true;
++      setIsSubmitting(true);
++      setSubmitErrorCode(null);
++      
++      const payload = data.opciones.map(op => respuestas[op.id]);
++      const res = await encuentrosService.crearDisponibilidadCoordinacionPublica(token, normalizedName, payload);
++      
++      if (!res.ok) {
++        if (res.error === 'coordination_closed' || res.error === 'response_deadline_passed') {
++          // Fallback a read only sin perder el local state de respuestas
++          setData(prev => prev ? { ...prev, derived_status: res.error === 'coordination_closed' ? 'closed' : 'deadline_passed' } : prev);
++        } else {
++          setSubmitErrorCode(res.error || 'unknown_error');
++        }
++        return;
++      }
++
++      if (!isValidUUID(res.token_invitacion)) {
++        setSubmitErrorCode('unknown_error');
++        return;
++      }
++
++      // Exito: Navegar a la vista individual (previene re-submit y doble participante)
++      navigate(`/coordination/invite/${res.token_invitacion}`, { replace: true });
++    } catch {
++      setSubmitErrorCode('network_error');
++    } finally {
++      isSubmittingRef.current = false;
++      setIsSubmitting(false);
++    }
++  };
++
++  const formattedDuration = encuentro ? formatCoordinationDuration(encuentro.duration_minutes, t) : null;
++
++  return (
++    <ScreenContainer>
++      <AppBar title={encuentro?.titulo || ''} />
++      <div className="coordination-guest-content">
++        
++        <div className="coordination-guest-header">
++          <h1 className="coordination-guest-title">{encuentro?.titulo}</h1>
++          {encuentro?.descripcion && <p className="coordination-guest-desc">{encuentro?.descripcion}</p>}
++        </div>
++
++        <div className="coordination-guest-info">
++          {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
++            <div className="coordination-guest-info-row">
++              <MapPin size={18} className="coordination-guest-info-icon" />
++              <span>{encuentro?.lugar_texto}</span>
++            </div>
++          )}
++          {formattedDuration && (
++            <div className="coordination-guest-info-row">
++              <Clock size={18} className="coordination-guest-info-icon" />
++              <span>{t('coordination.duration_label', 'Duración aproximada:')} {formattedDuration}</span>
++            </div>
++          )}
++          {data.response_deadline && (
++            <div className="coordination-guest-info-row">
++              <AlertCircle size={18} className="coordination-guest-info-icon" />
++              <span>{t('coordination.deadline', 'Fecha límite para responder:')} {data.response_deadline}</span>
++            </div>
++          )}
++        </div>
++
++        {derived_status === 'closed' && (
++          <div className="coordination-guest-status-banner">
++            <AlertCircle size={24} />
++            <span>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
++          </div>
++        )}
++
++        {derived_status === 'deadline_passed' && (
++          <div className="coordination-guest-status-banner">
++            <Clock size={24} />
++            <span>{t('coordination.deadline_passed_msg', 'El plazo para responder finalizó')}</span>
++          </div>
++        )}
++
++        {!isReadOnly && (
++          <div className="coordination-guest-form-section">
++            <label className="coordination-guest-label">{t('coordination.your_name', 'Tu nombre')}</label>
++            <Input
++              value={nombre}
++              onChange={(e) => setNombre(e.target.value)}
++              placeholder={t('coordination.name_placeholder', 'Ingresá tu nombre')}
++              maxLength={80}
++              disabled={isSubmitting}
++            />
++            {showValidation && (nombre.trim().length < 1 || nombre.trim().length > 80) && (
++              <span className="coordination-validation-msg" aria-live="polite">{t('coordination.invalid_name', 'El nombre es obligatorio (max 80 caracteres)')}</span>
++            )}
++          </div>
++        )}
++
++        {submitErrorCode && isSubmitting === false && (
++          <div className="coordination-guest-status-banner error" aria-live="assertive">
++            <AlertCircle size={24} />
++            <span>{getSubmitErrorMessage(submitErrorCode)}</span>
++          </div>
++        )}
++
++        <div className="coordination-guest-form-section">
++          <label className="coordination-guest-label">{t('coordination.options_title', 'Opciones propuestas')}</label>
++          <CoordinationAvailabilityForm
++            opciones={data.opciones}
++            respuestas={respuestas}
++            onChangeRespuesta={handleChangeRespuesta}
++            onTogglePreferida={handleTogglePreferida}
++            readOnly={isReadOnly || isSubmitting}
++            showErrors={showValidation}
++          />
++        </div>
++
++        {!isReadOnly && (
++          <div className="coordination-guest-footer">
++            <Button
++              variant="primary"
++              fullWidth
++              disabled={isSubmitting}
++              onClick={handleSubmit}
++            >
++              {isSubmitting ? t('coordination.sending', 'Enviando...') : t('coordination.send_availability', 'Enviar disponibilidad')}
++            </Button>
++          </div>
++        )}
++      </div>
++    </ScreenContainer>
++  );
++}
+diff --git a/scratch/empty.txt b/src/screens/InviteCoordination/index.tsx
+index e69de29..e17f70b 100644
+--- a/scratch/empty.txt
++++ b/src/screens/InviteCoordination/index.tsx
+@@ -0,0 +1,283 @@
++import { useEffect, useState, useRef, useCallback } from 'react';
++import { useParams, useNavigate } from 'react-router-dom';
++import { useTranslation } from 'react-i18next';
++import { MapPin, AlertCircle, Clock, CheckCircle } from 'lucide-react';
++import { ScreenContainer } from '@/components/ui/ScreenContainer';
++import { AppBar } from '@/components/ui/AppBar';
++import { Button } from '@/components/ui/Button';
++import { EmptyState } from '@/components/ui/EmptyState';
++import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvailabilityForm';
++import { encuentrosService, type CoordinationParticipantReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
++import { formatCoordinationDuration } from '@/lib/formatDuration';
++import '../CoordinationGuest.css';
++
++export default function InviteCoordination() {
++  const { token } = useParams<{ token: string }>();
++  const navigate = useNavigate();
++  const { t } = useTranslation();
++  
++  const [loading, setLoading] = useState(true);
++  const [data, setData] = useState<CoordinationParticipantReadResult & { ok: true } | null>(null);
++  const [loadErrorCode, setLoadErrorCode] = useState<string | null>(null);
++  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
++  
++  const [respuestas, setRespuestas] = useState<Record<string, CoordinationAvailabilityInput>>({});
++  const [showValidation, setShowValidation] = useState(false);
++  const [successMsg, setSuccessMsg] = useState(false);
++  
++  const isSubmittingRef = useRef(false);
++  const [isSubmitting, setIsSubmitting] = useState(false);
++
++  const loadData = useCallback(async () => {
++    if (!token) {
++      setLoadErrorCode('invalid_token');
++      setLoading(false);
++      return;
++    }
++    try {
++      setLoading(true);
++      setLoadErrorCode(null);
++      const res = await encuentrosService.getCoordinacionParticipante(token);
++      if (!res.ok) {
++        setLoadErrorCode(res.error || 'encounter_not_found');
++        return;
++      }
++      setData(res as CoordinationParticipantReadResult & { ok: true });
++      
++      const iniciales: Record<string, CoordinationAvailabilityInput> = {};
++      res.mis_respuestas.forEach(r => {
++        iniciales[r.opcion_fecha_id] = r;
++      });
++      setRespuestas(iniciales);
++    } catch {
++      setLoadErrorCode('network_error');
++    } finally {
++      setLoading(false);
++    }
++  }, [token]);
++
++  useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    loadData();
++  }, [token, loadData]);
++
++  const getErrorMessage = (errCode: string | null) => {
++    switch (errCode) {
++      case 'invalid_token': return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++      case 'encounter_not_found': return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++      case 'encounter_cancelled': return t('coordination.cancelled', 'El encuentro ha sido cancelado.');
++      case 'invalid_date_mode': return t('coordination.invalid_date_mode', 'El tipo de encuentro no es válido para coordinación.');
++      case 'invalid_invitation_type': return t('coordination.invalid_invitation_type', 'El tipo de invitación no es válido.');
++      case 'network_error': return t('coordination.network_error', 'Ocurrió un error de conexión. Por favor, intentá nuevamente.');
++      default: return t('coordination.invalid_link', 'Esta invitación no está disponible o el enlace no es válido.');
++    }
++  };
++
++  const getSubmitErrorMessage = (errCode: string | null) => {
++    switch (errCode) {
++      case 'invalid_responses': return t('coordination.invalid_responses', 'Revisá tus respuestas.');
++      case 'incomplete_responses': return t('coordination.missing_responses', 'Falta responder alguna opción.');
++      case 'duplicate_options': return t('coordination.duplicate_options', 'Las opciones enviadas están duplicadas.');
++      case 'invalid_option': return t('coordination.invalid_option', 'Una de las opciones no es válida.');
++      case 'invalid_response_value': return t('coordination.invalid_response_value', 'La respuesta enviada no es válida.');
++      case 'invalid_preferred': return t('coordination.invalid_preferred', 'La opción preferida no es válida.');
++      case 'network_error': return t('coordination.network_error', 'Ocurrió un error de conexión. Por favor, intentá nuevamente.');
++      default: return t('coordination.submit_error', 'No pudimos guardar tu respuesta. Intentá nuevamente.');
++    }
++  };
++
++  if (loading) {
++    return (
++      <ScreenContainer>
++        <AppBar title={t('coordination.loading_coordination', 'Cargando coordinación...')} />
++        <div className="coordination-guest-content" style={{ justifyContent: 'center', alignItems: 'center' }}>
++          <p>{t('coordination.loading', 'Cargando...')}</p>
++        </div>
++      </ScreenContainer>
++    );
++  }
++
++  if (loadErrorCode || !data) {
++    return (
++      <ScreenContainer>
++        <AppBar title={t('coordination.error_title', 'Invitación no disponible')} />
++        <div className="coordination-guest-content">
++          <EmptyState 
++            icon={<AlertCircle size={48} />}
++            title={t('coordination.error_title', 'Invitación no disponible')}
++            description={getErrorMessage(loadErrorCode)}
++            actions={
++              <Button variant="primary" onClick={() => loadErrorCode === 'network_error' ? loadData() : navigate('/', { replace: true })}>
++                {loadErrorCode === 'network_error' ? t('coordination.retry', 'Volver a intentar') : t('coordination.go_home', 'Volver al inicio')}
++              </Button>
++            }
++          />
++        </div>
++      </ScreenContainer>
++    );
++  }
++
++  const { encuentro, derived_status } = data;
++  const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
++
++  const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
++    setSuccessMsg(false);
++    setRespuestas(prev => {
++      const existing = prev[opcionId] || { opcion_fecha_id: opcionId, es_preferida: false };
++      const newPreferida = value === 'unavailable' ? false : existing.es_preferida;
++      return {
++        ...prev,
++        [opcionId]: {
++          ...existing,
++          respuesta: value,
++          es_preferida: newPreferida
++        }
++      };
++    });
++  };
++
++  const handleTogglePreferida = (opcionId: string) => {
++    setSuccessMsg(false);
++    setRespuestas(prev => {
++      const newState = { ...prev };
++      Object.keys(newState).forEach(id => {
++        if (id !== opcionId && newState[id]) {
++          newState[id].es_preferida = false;
++        }
++      });
++      if (newState[opcionId]) {
++        newState[opcionId].es_preferida = !newState[opcionId].es_preferida;
++      }
++      return newState;
++    });
++  };
++
++  const handleSubmit = async () => {
++    if (isSubmittingRef.current || !token) return;
++    
++    setShowValidation(true);
++    const missing = data.opciones.some(op => !respuestas[op.id]);
++    if (missing) return;
++
++    try {
++      isSubmittingRef.current = true;
++      setIsSubmitting(true);
++      setSubmitErrorCode(null);
++      
++      const payload = data.opciones.map(op => respuestas[op.id]);
++      const res = await encuentrosService.guardarDisponibilidadCoordinacionParticipante(token, payload);
++      
++      if (!res.ok) {
++        if (res.error === 'coordination_closed' || res.error === 'response_deadline_passed') {
++          setData(prev => prev ? { ...prev, derived_status: res.error === 'coordination_closed' ? 'closed' : 'deadline_passed' } : prev);
++        } else {
++          setSubmitErrorCode(res.error || 'unknown_error');
++        }
++        return;
++      }
++      
++      setSubmitErrorCode(null);
++      setShowValidation(false);
++      setSuccessMsg(true);
++      setTimeout(() => setSuccessMsg(false), 3000);
++      setData(prev => prev ? { ...prev, participante: { ...prev.participante, respondio_disponibilidad: true } } : prev);
++    } catch {
++      setSubmitErrorCode('network_error');
++    } finally {
++      isSubmittingRef.current = false;
++      setIsSubmitting(false);
++    }
++  };
++
++  const formattedDuration = encuentro ? formatCoordinationDuration(encuentro.duration_minutes, t) : null;
++
++  return (
++    <ScreenContainer>
++      <AppBar title={encuentro?.titulo || ''} />
++      <div className="coordination-guest-content">
++        
++        <div className="coordination-guest-header">
++          <h1 className="coordination-guest-title">{encuentro?.titulo}</h1>
++          {encuentro?.descripcion && <p className="coordination-guest-desc">{encuentro?.descripcion}</p>}
++        </div>
++
++        <div className="coordination-guest-info">
++          {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
++            <div className="coordination-guest-info-row">
++              <MapPin size={18} className="coordination-guest-info-icon" />
++              <span>{encuentro?.lugar_texto}</span>
++            </div>
++          )}
++          {formattedDuration && (
++            <div className="coordination-guest-info-row">
++              <Clock size={18} className="coordination-guest-info-icon" />
++              <span>{t('coordination.duration_label', 'Duración aproximada:')} {formattedDuration}</span>
++            </div>
++          )}
++          {data.response_deadline && (
++            <div className="coordination-guest-info-row">
++              <AlertCircle size={18} className="coordination-guest-info-icon" />
++              <span>{t('coordination.deadline', 'Fecha límite para responder:')} {data.response_deadline}</span>
++            </div>
++          )}
++        </div>
++
++        {derived_status === 'closed' && (
++          <div className="coordination-guest-status-banner">
++            <AlertCircle size={24} />
++            <span>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
++          </div>
++        )}
++
++        {derived_status === 'deadline_passed' && (
++          <div className="coordination-guest-status-banner">
++            <Clock size={24} />
++            <span>{t('coordination.deadline_passed_msg', 'El plazo para responder finalizó')}</span>
++          </div>
++        )}
++
++        {successMsg && (
++          <div className="coordination-guest-status-banner" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
++            <CheckCircle size={24} />
++            <span>{t('coordination.changes_saved', 'Cambios guardados')}</span>
++          </div>
++        )}
++
++        {submitErrorCode && isSubmitting === false && (
++          <div className="coordination-guest-status-banner error" aria-live="assertive">
++            <AlertCircle size={24} />
++            <span>{getSubmitErrorMessage(submitErrorCode)}</span>
++          </div>
++        )}
++
++        <div className="coordination-guest-form-section">
++          <label className="coordination-guest-label">{t('coordination.options_title', 'Opciones propuestas')}</label>
++          <CoordinationAvailabilityForm
++            opciones={data.opciones}
++            respuestas={respuestas}
++            onChangeRespuesta={handleChangeRespuesta}
++            onTogglePreferida={handleTogglePreferida}
++            readOnly={isReadOnly || isSubmitting}
++            showErrors={showValidation}
++          />
++        </div>
++
++        {!isReadOnly && (
++          <div className="coordination-guest-footer">
++            <Button
++              variant="primary"
++              fullWidth
++              disabled={isSubmitting}
++              onClick={handleSubmit}
++            >
++              {isSubmitting ? t('coordination.saving', 'Guardando...') : t('coordination.save_changes', 'Guardar cambios')}
++            </Button>
++            <p style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6b7280', marginTop: '1rem' }}>
++              {t('coordination.can_modify', 'Podés modificar tu respuesta mientras la coordinación siga abierta.')}
++            </p>
++          </div>
++        )}
++      </div>
++    </ScreenContainer>
++  );
++}

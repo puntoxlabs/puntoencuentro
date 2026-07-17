@@ -37,6 +37,15 @@ export function getArgentinaDateTimeParts(): { year: number; month: number; day:
 }
 
 /**
+ * Returns current Argentina date in YYYY-MM-DD format (useful for `min` attributes)
+ */
+export function getArgentinaTodayISO(): string {
+  const parts = getArgentinaDateTimeParts();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+}
+
+/**
  * Validates basic date time constraints strictly.
  */
 export function isValidDateTime(date: string, time: string): boolean {

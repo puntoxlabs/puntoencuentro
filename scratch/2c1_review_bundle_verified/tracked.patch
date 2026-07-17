@@ -1,0 +1,896 @@
+﻿git : warning: in the working copy of 'src/i18n/locales/en.json', LF will be replaced by CRLF the next time Git 
+touches it
+En C:\Users\Minar\Documents\Proyectos\PuntoEncuentro\scratch\build_review_bundle.ps1: 75 Carácter: 1
++ git diff 2>&1 | Out-String | Out-File -FilePath (Join-Path $bundleDir ...
++ ~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... Git touches it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: in the working copy of 'src/i18n/locales/es.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/i18n/locales/pt.json', LF will be replaced by CRLF the next time Git touches it
+diff --git a/src/App.tsx b/src/App.tsx
+index 84f8737..c64e6fa 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -10,8 +10,44 @@ import JoinGeneral from '@/screens/JoinGeneral';
+ import CancelSummary from '@/screens/CancelSummary';
+ import CreateCoordinationWizard from '@/screens/CreateCoordinationWizard';
+ import DetailHostCoordination from '@/screens/DetailHostCoordination';
++import JoinCoordination from '@/screens/JoinCoordination';
++import InviteCoordination from '@/screens/InviteCoordination';
+ import { AuthProvider } from '@/contexts/AuthContext';
+ import { usePostAuthRedirect } from '@/hooks/usePostAuthRedirect';
++import { DATE_COORDINATION_ENABLED } from '@/config/features';
++import { ScreenContainer } from '@/components/ui/ScreenContainer';
++import { AppBar } from '@/components/ui/AppBar';
++import { Button } from '@/components/ui/Button';
++import { EmptyState } from '@/components/ui/EmptyState';
++import { AlertCircle } from 'lucide-react';
++import { useNavigate } from 'react-router-dom';
++import { useTranslation } from 'react-i18next';
++
++const CoordinationFeatureGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
++  const navigate = useNavigate();
++  const { t } = useTranslation();
++
++  if (!DATE_COORDINATION_ENABLED) {
++    return (
++      <ScreenContainer>
++        <AppBar title={t('app_name', 'PuntoEncuentro')} />
++        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
++          <EmptyState
++            icon={<AlertCircle size={48} />}
++            title={t('coordination.feature_disabled', 'Funci├│n no disponible')}
++            description={t('coordination.feature_disabled_desc', 'La coordinaci├│n de fechas no est├í activa en este momento.')}
++            actions={
++              <Button variant="primary" onClick={() => navigate('/', { replace: true })}>
++                {t('coordination.go_home', 'Volver al inicio')}
++              </Button>
++            }
++          />
++        </div>
++      </ScreenContainer>
++    );
++  }
++  return <>{children}</>;
++};
+ 
+ const AppRoutes: React.FC = () => {
+   usePostAuthRedirect();
+@@ -27,6 +63,16 @@ const AppRoutes: React.FC = () => {
+       <Route path="/share/:id" element={<ShareLink />} />
+       <Route path="/invite/:token" element={<InviteGuest />} />
+       <Route path="/join/:public_token" element={<JoinGeneral />} />
++      <Route path="/coordination/join/:token" element={
++        <CoordinationFeatureGate>
++          <JoinCoordination />
++        </CoordinationFeatureGate>
++      } />
++      <Route path="/coordination/invite/:token" element={
++        <CoordinationFeatureGate>
++          <InviteCoordination />
++        </CoordinationFeatureGate>
++      } />
+       <Route path="/cancel-summary/:id" element={<CancelSummary />} />
+     </Routes>
+   );
+diff --git a/src/i18n/locales/en.json b/src/i18n/locales/en.json
+index 00e37d0..bc47f37 100644
+--- a/src/i18n/locales/en.json
++++ b/src/i18n/locales/en.json
+@@ -59,5 +59,55 @@
+   "open_video_call": "Open video call",
+   "copy_link": "Copy link",
+   "link_copied": "Link copied.",
+-  "loading_link": "Loading link..."
++  "loading_link": "Loading link...",
++  "coordination": {
++    "available": "Available",
++    "maybe": "Maybe",
++    "unavailable": "Unavailable",
++    "preferred_option": "Preferred option",
++    "preferred_option_aria": "Preferred option: {{dateTime}}",
++    "send_availability": "Send availability",
++    "save_changes": "Save changes",
++    "missing_responses": "Please respond to all options",
++    "closed_msg": "Coordination is already closed",
++    "deadline_passed_msg": "The deadline for responding has passed",
++    "error_title": "Invitation unavailable",
++    "invalid_link": "This invitation is not available or the link is invalid.",
++    "retry": "Try again",
++    "invalid_responses": "Please check your responses.",
++    "duplicate_options": "The submitted options are duplicated.",
++    "invalid_option": "One of the options is invalid.",
++    "invalid_response_value": "The submitted response is invalid.",
++    "invalid_preferred": "The preferred option is invalid.",
++    "service_error": "A server error occurred. Please try again.",
++    "name_required": "Please enter your name",
++    "invalid_date_mode": "The encounter type is invalid for coordination.",
++    "invalid_invitation_type": "The invitation type is invalid.",
++    "cancelled": "The encounter has been cancelled.",
++    "network_error": "A connection error occurred. Please try again.",
++    "submit_error": "We couldn't save your response. Please try again.",
++    "duration_label": "Estimated duration:",
++    "your_name": "Your name",
++    "participant_name": "Name:",
++    "name_placeholder": "Enter your name",
++    "invalid_name": "Name is required",
++    "duration": {
++      "minutes_one": "1 minute",
++      "minutes_other": "{{count}} minutes",
++      "hours_one": "1 hr",
++      "hours_other": "{{count}} hrs",
++      "hours_and_minutes": "{{hours}} {{minutes}}"
++    },
++    "deadline": "Deadline to respond:",
++    "can_modify": "You can modify your response while the coordination is open.",
++    "loading_coordination": "Loading coordination...",
++    "loading": "Loading...",
++    "go_home": "Go home",
++    "feature_disabled": "Feature disabled",
++    "feature_disabled_desc": "Date coordination is not active at the moment.",
++    "options_title": "Proposed options",
++    "sending": "Sending...",
++    "saving": "Saving...",
++    "changes_saved": "Changes saved"
++  }
+ }
+diff --git a/src/i18n/locales/es.json b/src/i18n/locales/es.json
+index 13f3458..6ea958b 100644
+--- a/src/i18n/locales/es.json
++++ b/src/i18n/locales/es.json
+@@ -59,5 +59,56 @@
+   "open_video_call": "Abrir videollamada",
+   "copy_link": "Copiar link",
+   "link_copied": "Link copiado.",
+-  "loading_link": "Cargando enlace..."
++  "loading_link": "Cargando enlace...",
++  "coordination": {
++    "available": "Puedo",
++    "maybe": "Tal vez",
++    "unavailable": "No puedo",
++    "preferred_option": "Opci├│n preferida",
++    "preferred_option_aria": "Opci├│n preferida: {{dateTime}}",
++    "send_availability": "Enviar disponibilidad",
++    "save_changes": "Guardar cambios",
++    "missing_responses": "Falta responder alguna opci├│n",
++    "closed_msg": "La coordinaci├│n ya fue cerrada",
++    "deadline_passed_msg": "El plazo para responder finaliz├│",
++    "error_title": "Invitaci├│n no disponible",
++    "invalid_link": "Esta invitaci├│n no est├í disponible o el enlace no es v├ílido.",
++    "retry": "Volver a intentar",
++    "invalid_responses": "Revis├í tus respuestas.",
++    "duplicate_options": "Las opciones enviadas est├ín duplicadas.",
++    "invalid_option": "Una de las opciones no es v├ílida.",
++    "invalid_response_value": "La respuesta enviada no es v├ílida.",
++    "invalid_preferred": "La opci├│n preferida no es v├ílida.",
++    "unsupported_mode": "El modo de fecha no est├í soportado en esta versi├│n.",
++    "service_error": "Ocurri├│ un error en el servidor. Por favor, intent├í nuevamente.",
++    "name_required": "Por favor, ingres├í tu nombre",
++    "invalid_date_mode": "El tipo de encuentro no es v├ílido para coordinaci├│n.",
++    "invalid_invitation_type": "El tipo de invitaci├│n no es v├ílido.",
++    "cancelled": "El encuentro ha sido cancelado.",
++    "network_error": "Ocurri├│ un error de conexi├│n. Por favor, intent├í nuevamente.",
++    "submit_error": "No pudimos guardar tu respuesta. Intent├í nuevamente.",
++    "duration_label": "Duraci├│n aproximada:",
++    "your_name": "Tu nombre",
++    "participant_name": "Nombre:",
++    "name_placeholder": "Ingres├í tu nombre",
++    "duration": {
++      "minutes_one": "1 minuto",
++      "minutes_other": "{{count}} minutos",
++      "hours_one": "1 hora",
++      "hours_other": "{{count}} horas",
++      "hours_and_minutes": "{{hours}} {{minutes}}"
++    },
++    "invalid_name": "El nombre es obligatorio",
++    "deadline": "Fecha l├¡mite para responder:",
++    "can_modify": "Pod├®s modificar tu respuesta mientras la coordinaci├│n siga abierta.",
++    "loading_coordination": "Cargando coordinaci├│n...",
++    "loading": "Cargando...",
++    "go_home": "Volver al inicio",
++    "feature_disabled": "Funci├│n no disponible",
++    "feature_disabled_desc": "La coordinaci├│n de fechas no est├í activa en este momento.",
++    "options_title": "Opciones propuestas",
++    "sending": "Enviando...",
++    "saving": "Guardando...",
++    "changes_saved": "Cambios guardados"
++  }
+ }
+diff --git a/src/i18n/locales/pt.json b/src/i18n/locales/pt.json
+index fe74364..35c2ff3 100644
+--- a/src/i18n/locales/pt.json
++++ b/src/i18n/locales/pt.json
+@@ -59,5 +59,55 @@
+   "open_video_call": "Abrir videochamada",
+   "copy_link": "Copiar link",
+   "link_copied": "Link copiado.",
+-  "loading_link": "Carregando link..."
++  "loading_link": "Carregando link...",
++  "coordination": {
++    "available": "Posso",
++    "maybe": "Talvez",
++    "unavailable": "N├úo posso",
++    "preferred_option": "Op├º├úo preferida",
++    "preferred_option_aria": "Op├º├úo preferida: {{dateTime}}",
++    "send_availability": "Enviar disponibilidade",
++    "save_changes": "Salvar altera├º├Áes",
++    "missing_responses": "Falta responder a alguma op├º├úo",
++    "closed_msg": "A coordena├º├úo j├í foi encerrada",
++    "deadline_passed_msg": "O prazo para resposta encerrou",
++    "error_title": "Convite indispon├¡vel",
++    "invalid_link": "Este convite n├úo est├í dispon├¡vel ou o link ├® inv├ílido.",
++    "retry": "Tentar novamente",
++    "invalid_responses": "Verifique suas respostas.",
++    "duplicate_options": "As op├º├Áes enviadas est├úo duplicadas.",
++    "invalid_option": "Uma das op├º├Áes ├® inv├ílida.",
++    "invalid_response_value": "A resposta enviada ├® inv├ílida.",
++    "invalid_preferred": "A op├º├úo preferida ├® inv├ílida.",
++    "service_error": "Ocorreu um erro no servidor. Tente novamente.",
++    "name_required": "Por favor, insira o seu nome",
++    "invalid_date_mode": "O tipo de encontro n├úo ├® v├ílido para coordena├º├úo.",
++    "invalid_invitation_type": "O tipo de convite ├® inv├ílido.",
++    "cancelled": "O encontro foi cancelado.",
++    "network_error": "Ocorreu um erro de conex├úo. Por favor, tente novamente.",
++    "submit_error": "N├úo conseguimos salvar sua resposta. Tente novamente.",
++    "duration_label": "Dura├º├úo estimada:",
++    "your_name": "Seu nome",
++    "participant_name": "Nome:",
++    "name_placeholder": "Insira seu nome",
++    "invalid_name": "O nome ├® obrigat├│rio",
++    "duration": {
++      "minutes_one": "1 minuto",
++      "minutes_other": "{{count}} min",
++      "hours_one": "1 h",
++      "hours_other": "{{count}} h",
++      "hours_and_minutes": "{{hours}} {{minutes}}"
++    },
++    "deadline": "Prazo para resposta:",
++    "can_modify": "Voc├¬ pode modificar sua resposta enquanto a coordena├º├úo estiver aberta.",
++    "loading_coordination": "Carregando coordena├º├úo...",
++    "loading": "Carregando...",
++    "go_home": "Voltar ao in├¡cio",
++    "feature_disabled": "Fun├º├úo indispon├¡vel",
++    "feature_disabled_desc": "A coordena├º├úo de datas n├úo est├í ativa no momento.",
++    "options_title": "Op├º├Áes propostas",
++    "sending": "Enviando...",
++    "saving": "Salvando...",
++    "changes_saved": "Altera├º├Áes salvas"
++  }
+ }
+diff --git a/src/services/encuentrosService.ts b/src/services/encuentrosService.ts
+index ae65236..61efa74 100644
+--- a/src/services/encuentrosService.ts
++++ b/src/services/encuentrosService.ts
+@@ -181,48 +181,48 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
+ export function getCoordinationCreateErrorMessage(errorCode: string): string {
+   switch (errorCode) {
+     case 'not_authenticated':
+-      return 'Necesit├ís iniciar sesi├│n para coordinar una fecha.';
++      return 'Necesit├â┬ís iniciar sesi├â┬│n para coordinar una fecha.';
+     case 'permanent_account_required':
+-      return 'Necesit├ís una cuenta permanente para coordinar una fecha.';
++      return 'Necesit├â┬ís una cuenta permanente para coordinar una fecha.';
+     case 'invalid_data':
+-      return 'Revis├í los datos del encuentro.';
++      return 'Revis├â┬í los datos del encuentro.';
+     case 'invalid_options':
+-      return 'Revis├í las opciones propuestas.';
++      return 'Revis├â┬í las opciones propuestas.';
+     case 'minimum_two_options':
+-      return 'Agreg├í al menos dos opciones.';
++      return 'Agreg├â┬í al menos dos opciones.';
+     case 'maximum_three_options':
+-      return 'Pod├®s proponer hasta tres opciones.';
++      return 'Pod├â┬®s proponer hasta tres opciones.';
+     case 'invalid_option_date':
+-      return 'Revis├í la fecha de las opciones.';
++      return 'Revis├â┬í la fecha de las opciones.';
+     case 'invalid_option_time':
+-      return 'Revis├í el horario de las opciones.';
++      return 'Revis├â┬í el horario de las opciones.';
+     case 'option_in_past':
+       return 'Todas las opciones deben ser futuras.';
+     case 'duplicate_options':
+       return 'No puede haber dos opciones iguales.';
+     case 'invalid_deadline':
+-      return 'Revis├í el plazo para responder.';
++      return 'Revis├â┬í el plazo para responder.';
+     case 'deadline_after_first_option':
+-      return 'El plazo debe finalizar antes de la primera opci├│n.';
++      return 'El plazo debe finalizar antes de la primera opci├â┬│n.';
+     case 'invalid_modality':
+-      return 'Revis├í la modalidad del encuentro.';
++      return 'Revis├â┬í la modalidad del encuentro.';
+     case 'location_required':
+-      return 'Indic├í el lugar del encuentro.';
++      return 'Indic├â┬í el lugar del encuentro.';
+     case 'virtual_link_required':
+-      return 'Indic├í el enlace de la reuni├│n.';
++      return 'Indic├â┬í el enlace de la reuni├â┬│n.';
+     case 'invalid_invitation_type':
+-      return 'Revis├í el tipo de invitaci├│n.';
++      return 'Revis├â┬í el tipo de invitaci├â┬│n.';
+     case 'invalid_theme':
+-      return 'Revis├í el dise├▒o de la invitaci├│n.';
++      return 'Revis├â┬í el dise├â┬▒o de la invitaci├â┬│n.';
+     case 'invalid_date_mode':
+-      return 'Este encuentro no corresponde a una coordinaci├│n.';
++      return 'Este encuentro no corresponde a una coordinaci├â┬│n.';
+     case 'not_owner':
+-      return 'No ten├®s permiso para administrar este encuentro.';
++      return 'No ten├â┬®s permiso para administrar este encuentro.';
+     case 'invalid_option_order':
+     case 'duplicate_option_order':
+     case 'invalid_option_order_sequence':
+     default:
+-      return 'No pudimos crear la coordinaci├│n. Intent├í nuevamente.';
++      return 'No pudimos crear la coordinaci├â┬│n. Intent├â┬í nuevamente.';
+   }
+ }
+ 
+@@ -264,6 +264,202 @@ export interface CoordinationHostDetail {
+   opciones?: CoordinationHostOption[];
+ }
+ 
++export type CoordinationAvailabilityValue = 'available' | 'maybe' | 'unavailable';
++
++export interface CoordinationAvailabilityInput {
++  opcion_fecha_id: string;
++  respuesta: CoordinationAvailabilityValue;
++  es_preferida: boolean;
++}
++
++export interface CoordinationOption {
++  id: string;
++  fecha: string;
++  hora_inicio: string;
++  orden: number;
++  selected: boolean;
++}
++
++export interface CoordinationParticipantResponse {
++  opcion_fecha_id: string;
++  respuesta: CoordinationAvailabilityValue;
++  es_preferida: boolean;
++}
++
++export type CoordinationPublicReadResult =
++  | {
++      ok: true;
++      encuentro: {
++        id: string;
++        titulo: string;
++        descripcion: string | null;
++        estado: string;
++        modalidad: string;
++        lugar_texto: string | null;
++        tema: string | null;
++        tipo_invitacion: string;
++        tema_invitacion: string;
++        invitation_template: string | null;
++        duration_minutes: number | null;
++      };
++      coordination_status: 'open' | 'closed';
++      response_deadline: string | null;
++      selected_option_id: string | null;
++      fecha: string | null;
++      hora: string | null;
++      derived_status: 'open' | 'closed' | 'deadline_passed';
++      opciones: CoordinationOption[];
++    }
++  | {
++      ok: false;
++      error: string;
++    };
++
++export type CoordinationParticipantReadResult =
++  | {
++      ok: true;
++      encuentro: {
++        id: string;
++        titulo: string;
++        descripcion: string | null;
++        estado: string;
++        modalidad: string;
++        lugar_texto: string | null;
++        tema: string | null;
++        tipo_invitacion: string;
++        tema_invitacion: string;
++        invitation_template: string | null;
++        duration_minutes: number | null;
++      };
++      participante: {
++        id: string;
++        nombre_invitado: string;
++        tipo_invitacion: string;
++        estado: string;
++        mensaje_respuesta: string | null;
++        respondio_disponibilidad: boolean;
++      };
++      coordination_status: 'open' | 'closed';
++      response_deadline: string | null;
++      selected_option_id: string | null;
++      fecha: string | null;
++      hora: string | null;
++      derived_status: 'open' | 'closed' | 'deadline_passed';
++      opciones: CoordinationOption[];
++      mis_respuestas: CoordinationAvailabilityInput[];
++    }
++  | {
++      ok: false;
++      error: string;
++    };
++
++export type CoordinationPublicWriteResult =
++  | {
++      ok: true;
++      token_invitacion: string;
++    }
++  | {
++      ok: false;
++      error: string;
++    };
++
++export type CoordinationParticipantWriteResult =
++  | {
++      ok: true;
++    }
++  | {
++      ok: false;
++      error: string;
++    };
++
++
++function parseRpcJson(value: unknown): unknown | null {
++  if (typeof value !== 'string') return value;
++  try {
++    return JSON.parse(value);
++  } catch {
++    return null;
++  }
++}
++
++function isNullableString(value: unknown): value is string | null {
++  return value === null || typeof value === 'string';
++}
++
++function isCoordinationStatus(value: unknown): value is CoordinationStatus {
++  return value === 'open' || value === 'closed';
++}
++
++function isCoordinationDerivedStatus(value: unknown): value is 'open' | 'closed' | 'deadline_passed' {
++  return value === 'open' || value === 'closed' || value === 'deadline_passed';
++}
++
++function isNonEmptyString(value: unknown): value is string {
++  return typeof value === 'string' && value.trim().length > 0;
++}
++
++function isUuid(value: unknown): value is string {
++  if (typeof value !== 'string') return false;
++  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
++}
++
++function isValidCalendarDate(value: unknown): value is string {
++  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
++  const year = parseInt(value.substring(0, 4), 10);
++  const month = parseInt(value.substring(5, 7), 10);
++  const day = parseInt(value.substring(8, 10), 10);
++  if (month < 1 || month > 12) return false;
++  const dateObj = new Date(year, month - 1, day);
++  return dateObj.getFullYear() === year && dateObj.getMonth() === month - 1 && dateObj.getDate() === day;
++}
++
++function isValidPostgresTime(value: unknown): value is string {
++  if (typeof value !== 'string') return false;
++  return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(?:\.\d+)?)?$/.test(value);
++}
++
++function isValidIsoDateTime(value: unknown): value is string {
++  if (typeof value !== 'string') return false;
++  const d = new Date(value);
++  return !isNaN(d.getTime());
++}
++
++function isValidDurationMinutes(value: unknown): value is number | null {
++  if (value === null) return true;
++  return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 15 && value <= 1440;
++}
++
++function normalizeCoordinationResponses(value: unknown, validOptionIds?: Set<string>): CoordinationAvailabilityInput[] | null {
++  if (!Array.isArray(value)) return null;
++  const resps: CoordinationAvailabilityInput[] = [];
++  let preferredCount = 0;
++  const seenResponseOptionIds = new Set<string>();
++
++  for (const resp of value) {
++    if (!isUnknownRecord(resp)) return null;
++    if (!isNonEmptyString(resp.opcion_fecha_id)) return null;
++    if (validOptionIds && !validOptionIds.has(resp.opcion_fecha_id)) return null;
++    if (seenResponseOptionIds.has(resp.opcion_fecha_id)) return null;
++    seenResponseOptionIds.add(resp.opcion_fecha_id);
++
++    const validRes = resp.respuesta === 'available' || resp.respuesta === 'maybe' || resp.respuesta === 'unavailable';
++    if (!validRes) return null;
++
++    if (typeof resp.es_preferida !== 'boolean') return null;
++    if (resp.respuesta === 'unavailable' && resp.es_preferida) return null;
++    if (resp.es_preferida) preferredCount++;
++
++    resps.push({
++      opcion_fecha_id: resp.opcion_fecha_id,
++      respuesta: resp.respuesta as 'available' | 'maybe' | 'unavailable',
++      es_preferida: resp.es_preferida
++    });
++  }
++
++  if (preferredCount > 1) return null;
++  return resps;
++}
++
+ export const encuentrosService = {
+   async createEncuentro(data: CreateEncuentroDTO) {
+     const validationError = validateEncounterDate(data.fecha, data.hora);
+@@ -271,7 +467,7 @@ export const encuentrosService = {
+       throw new Error(validationError);
+     }
+ 
+-    // RPC SECURITY DEFINER ÔÇö evita bloqueo de RLS en SELECT post-INSERT
++    // RPC SECURITY DEFINER ├óÔé¼ÔÇØ evita bloqueo de RLS en SELECT post-INSERT
+     const { data: result, error } = await supabase.rpc(
+       'crear_encuentro_seguro',
+       { p_data: data }
+@@ -294,7 +490,7 @@ export const encuentrosService = {
+   },
+ 
+   async getEncuentrosByHostIds(host_ids: string[]) {
+-    // Filtrar ids vac├¡os/null y deduplicar
++    // Filtrar ids vac├â┬¡os/null y deduplicar
+     const ids = [...new Set(host_ids.filter(Boolean))];
+     if (ids.length === 0) return [];
+ 
+@@ -314,11 +510,11 @@ export const encuentrosService = {
+   },
+ 
+   /**
+-   * @deprecated ├Üsese getDetalleHostSeguro (host) o getEncuentroByPublicToken (invitados).
+-   * Este m├®todo usa SELECT directo que fallar├í bajo RLS restrictivo para usuarios an├│nimos.
++   * @deprecated ├â┼ísese getDetalleHostSeguro (host) o getEncuentroByPublicToken (invitados).
++   * Este m├â┬®todo usa SELECT directo que fallar├â┬í bajo RLS restrictivo para usuarios an├â┬│nimos.
+    */
+   async getEncuentroById(_id: string) {
+-    throw new Error('getEncuentroById est├í deprecado en la arquitectura RPC-first. Use getDetalleHostSeguro o getEncuentroByPublicToken.');
++    throw new Error('getEncuentroById est├â┬í deprecado en la arquitectura RPC-first. Use getDetalleHostSeguro o getEncuentroByPublicToken.');
+   },
+ 
+   async getEncuentroByPublicToken(public_token: string) {
+@@ -364,7 +560,7 @@ export const encuentrosService = {
+ 
+   async cancelarEncuentro(id: string, hostId: string) {
+     if (!hostId) throw new Error('host_id requerido para cancelar');
+-    if (import.meta.env.DEV) console.log('[CANCEL] Iniciando cancelaci├│n. encuentroId:', id);
++    if (import.meta.env.DEV) console.log('[CANCEL] Iniciando cancelaci├â┬│n. encuentroId:', id);
+ 
+     const { data, error } = await supabase.rpc('cancelar_encuentro_seguro', {
+       p_encuentro_id: id,
+@@ -377,7 +573,7 @@ export const encuentrosService = {
+       if (import.meta.env.DEV) console.error('[CANCEL ERROR]', msg);
+       throw new Error(msg);
+     }
+-    if (import.meta.env.DEV) console.log('[CANCEL] Cancelaci├│n exitosa.');
++    if (import.meta.env.DEV) console.log('[CANCEL] Cancelaci├â┬│n exitosa.');
+     return result;
+   },
+ 
+@@ -398,7 +594,7 @@ export const encuentrosService = {
+   async getEncuentrosParticipados(userId: string) {
+     if (!userId) return [];
+ 
+-    // RPC sin params ÔÇö usa auth.uid() internamente
++    // RPC sin params ├óÔé¼ÔÇØ usa auth.uid() internamente
+     const { data, error } = await supabase.rpc('get_encuentros_participados_seguro');
+     if (error) throw error;
+     if (!data || (data as any).error) return [];
+@@ -532,5 +728,300 @@ export const encuentrosService = {
+     }
+ 
+     return result;
++  },
++
++  async getCoordinacionPublica(publicToken: string): Promise<CoordinationPublicReadResult> {
++    if (!publicToken) return { ok: false, error: 'invalid_token' };
++
++    const { data, error } = await supabase.rpc('get_coordinacion_publica_seguro', {
++      p_public_token: publicToken
++    });
++
++    if (error) return { ok: false, error: 'rpc_error' };
++
++    const rawResult: unknown = parseRpcJson(data);
++    if (!isUnknownRecord(rawResult)) return { ok: false, error: 'invalid_response_format' };
++
++    if (rawResult.ok === false) {
++      return { ok: false, error: typeof rawResult.error === 'string' ? rawResult.error : 'unknown_error' };
++    }
++
++    if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
++    const enc = rawResult.encuentro;
++    if (!isNonEmptyString(enc.id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
++    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.tema_invitacion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.descripcion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
++    if (!isValidDurationMinutes(enc.duration_minutes)) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.response_deadline !== null && !isValidIsoDateTime(rawResult.response_deadline)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.selected_option_id !== null && (!isUuid(rawResult.selected_option_id) && !isNonEmptyString(rawResult.selected_option_id))) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.fecha !== null && !isValidCalendarDate(rawResult.fecha)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.hora !== null && !isValidPostgresTime(rawResult.hora)) return { ok: false, error: 'invalid_response_format' };
++    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
++
++    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
++
++    const ops: CoordinationOption[] = [];
++    const seenOptionIds = new Set<string>();
++    const seenOptionOrders = new Set<number>();
++
++    for (const op of rawResult.opciones) {
++      if (!isUnknownRecord(op)) return { ok: false, error: 'invalid_response_format' };
++      if (!isNonEmptyString(op.id)) return { ok: false, error: 'invalid_response_format' };
++      if (seenOptionIds.has(op.id as string)) return { ok: false, error: 'invalid_response_format' };
++      seenOptionIds.add(op.id as string);
++
++      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return { ok: false, error: 'invalid_response_format' };
++      if (seenOptionOrders.has(op.orden as number)) return { ok: false, error: 'invalid_response_format' };
++      seenOptionOrders.add(op.orden as number);
++
++      if (!isValidCalendarDate(op.fecha)) return { ok: false, error: 'invalid_response_format' };
++      if (!isValidPostgresTime(op.hora_inicio)) return { ok: false, error: 'invalid_response_format' };
++      if (typeof op.selected !== 'boolean') return { ok: false, error: 'invalid_response_format' };
++
++      ops.push({
++        id: op.id as string,
++        fecha: op.fecha as string,
++        hora_inicio: op.hora_inicio as string,
++        orden: op.orden as number,
++        selected: op.selected as boolean
++      });
++    }
++
++    return {
++      ok: true,
++      encuentro: {
++        id: enc.id as string,
++        titulo: enc.titulo as string,
++        descripcion: enc.descripcion as string | null,
++        estado: enc.estado as string,
++        modalidad: enc.modalidad as string,
++        lugar_texto: enc.lugar_texto as string | null,
++        tema: enc.tema as string | null,
++        tipo_invitacion: enc.tipo_invitacion as string,
++        tema_invitacion: enc.tema_invitacion as string,
++        invitation_template: resolveInvitationTemplateForTheme(
++          enc.tema_invitacion as InvitationTheme,
++          enc.invitation_template as string | null
++        ),
++        duration_minutes: enc.duration_minutes as number | null
++      },
++      coordination_status: rawResult.coordination_status as 'open' | 'closed',
++      response_deadline: rawResult.response_deadline as string | null,
++      selected_option_id: rawResult.selected_option_id as string | null,
++      fecha: rawResult.fecha as string | null,
++      hora: rawResult.hora as string | null,
++      derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
++      opciones: ops
++    };
++  },
++
++  async getCoordinacionParticipante(tokenInvitacion: string): Promise<CoordinationParticipantReadResult> {
++    if (!tokenInvitacion) return { ok: false, error: 'invalid_token' };
++
++    const { data, error } = await supabase.rpc('get_coordinacion_participante_seguro', {
++      p_token: tokenInvitacion
++    });
++
++    if (error) return { ok: false, error: 'rpc_error' };
++
++    const rawResult: unknown = parseRpcJson(data);
++    if (!isUnknownRecord(rawResult)) return { ok: false, error: 'invalid_response_format' };
++
++    if (rawResult.ok === false) {
++      return { ok: false, error: typeof rawResult.error === 'string' ? rawResult.error : 'unknown_error' };
++    }
++
++    if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
++    const enc = rawResult.encuentro;
++    if (!isNonEmptyString(enc.id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
++    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(enc.tema_invitacion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.descripcion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
++    if (!isValidDurationMinutes(enc.duration_minutes)) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isUnknownRecord(rawResult.participante)) return { ok: false, error: 'invalid_response_format' };
++    const part = rawResult.participante;
++    if (!isNonEmptyString(part.id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(part.nombre_invitado)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(part.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(part.estado)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNullableString(part.mensaje_respuesta)) return { ok: false, error: 'invalid_response_format' };
++    if (typeof part.respondio_disponibilidad !== 'boolean') return { ok: false, error: 'invalid_response_format' };
++
++    if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.response_deadline !== null && !isValidIsoDateTime(rawResult.response_deadline)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.selected_option_id !== null && (!isUuid(rawResult.selected_option_id) && !isNonEmptyString(rawResult.selected_option_id))) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.fecha !== null && !isValidCalendarDate(rawResult.fecha)) return { ok: false, error: 'invalid_response_format' };
++    if (rawResult.hora !== null && !isValidPostgresTime(rawResult.hora)) return { ok: false, error: 'invalid_response_format' };
++    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
++
++    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
++
++    const ops: CoordinationOption[] = [];
++    const seenOptionIds = new Set<string>();
++    const seenOptionOrders = new Set<number>();
++
++    for (const op of rawResult.opciones) {
++      if (!isUnknownRecord(op)) return { ok: false, error: 'invalid_response_format' };
++      if (!isNonEmptyString(op.id)) return { ok: false, error: 'invalid_response_format' };
++      if (seenOptionIds.has(op.id as string)) return { ok: false, error: 'invalid_response_format' };
++      seenOptionIds.add(op.id as string);
++
++      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return { ok: false, error: 'invalid_response_format' };
++      if (seenOptionOrders.has(op.orden as number)) return { ok: false, error: 'invalid_response_format' };
++      seenOptionOrders.add(op.orden as number);
++
++      if (!isValidCalendarDate(op.fecha)) return { ok: false, error: 'invalid_response_format' };
++      if (!isValidPostgresTime(op.hora_inicio)) return { ok: false, error: 'invalid_response_format' };
++      if (typeof op.selected !== 'boolean') return { ok: false, error: 'invalid_response_format' };
++      ops.push({
++        id: op.id as string,
++        fecha: op.fecha as string,
++        hora_inicio: op.hora_inicio as string,
++        orden: op.orden as number,
++        selected: op.selected as boolean
++      });
++    }
++
++    const resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);
++    if (!resps) return { ok: false, error: 'invalid_response_format' };
++
++    return {
++      ok: true,
++      encuentro: {
++        id: enc.id as string,
++        titulo: enc.titulo as string,
++        descripcion: enc.descripcion as string | null,
++        estado: enc.estado as string,
++        modalidad: enc.modalidad as string,
++        lugar_texto: enc.lugar_texto as string | null,
++        tema: enc.tema as string | null,
++        tipo_invitacion: enc.tipo_invitacion as string,
++        tema_invitacion: enc.tema_invitacion as string,
++        invitation_template: resolveInvitationTemplateForTheme(
++          enc.tema_invitacion as InvitationTheme,
++          enc.invitation_template as string | null
++        ),
++        duration_minutes: enc.duration_minutes as number | null
++      },
++      participante: {
++        id: part.id as string,
++        nombre_invitado: part.nombre_invitado as string,
++        tipo_invitacion: part.tipo_invitacion as string,
++        estado: part.estado as string,
++        mensaje_respuesta: part.mensaje_respuesta as string | null,
++        respondio_disponibilidad: part.respondio_disponibilidad as boolean
++      },
++      coordination_status: rawResult.coordination_status as 'open' | 'closed',
++      response_deadline: rawResult.response_deadline as string | null,
++      selected_option_id: rawResult.selected_option_id as string | null,
++      fecha: rawResult.fecha as string | null,
++      hora: rawResult.hora as string | null,
++      derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
++      opciones: ops,
++      mis_respuestas: resps
++    };
++  },
++
++  async crearDisponibilidadCoordinacionPublica(publicToken: string, nombre: string, respuestas: CoordinationAvailabilityInput[]): Promise<CoordinationPublicWriteResult> {
++    if (!publicToken) return { ok: false, error: 'invalid_token' };
++    if (!nombre || !nombre.trim()) return { ok: false, error: 'invalid_name' };
++
++    const normResps = normalizeCoordinationResponses(respuestas);
++    if (!normResps) return { ok: false, error: 'invalid_responses' };
++
++    const { data, error } = await supabase.rpc('crear_disponibilidad_coordinacion_publica_seguro', {
++      p_public_token: publicToken,
++      p_nombre: nombre.trim(),
++      p_respuestas: normResps
++    });
++
++    if (error) return { ok: false, error: 'rpc_error' };
++
++    const result: unknown = parseRpcJson(data);
++    if (!isUnknownRecord(result)) return { ok: false, error: 'invalid_response_format' };
++
++    if (result.ok === false) {
++      return { ok: false, error: typeof result.error === 'string' ? result.error : 'unknown_error' };
++    }
++
++    if (result.ok !== true) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isNonEmptyString(result.encuentro_id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isUuid(result.token_invitacion)) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isUnknownRecord(result.participante)) return { ok: false, error: 'invalid_response_format' };
++    const part = result.participante;
++    if (!isNonEmptyString(part.id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(part.nombre_invitado)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(part.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
++
++    if (result.respondio_disponibilidad !== true) return { ok: false, error: 'invalid_response_format' };
++
++    const retResps = normalizeCoordinationResponses(result.mis_respuestas);
++    if (!retResps || retResps.length !== normResps.length) return { ok: false, error: 'invalid_response_format' };
++
++    const reqIds = new Set(normResps.map(r => r.opcion_fecha_id));
++    for (const r of retResps) {
++      if (!reqIds.has(r.opcion_fecha_id)) return { ok: false, error: 'invalid_response_format' };
++    }
++
++    return { ok: true, token_invitacion: result.token_invitacion as string };
++  },
++
++  async guardarDisponibilidadCoordinacionParticipante(tokenInvitacion: string, respuestas: CoordinationAvailabilityInput[]): Promise<CoordinationParticipantWriteResult> {
++    if (!tokenInvitacion) return { ok: false, error: 'invalid_token' };
++
++    const normResps = normalizeCoordinationResponses(respuestas);
++    if (!normResps) return { ok: false, error: 'invalid_responses' };
++
++    const { data, error } = await supabase.rpc('guardar_disponibilidad_coordinacion_participante_seguro', {
++      p_token: tokenInvitacion,
++      p_respuestas: normResps
++    });
++
++    if (error) return { ok: false, error: 'rpc_error' };
++
++    const result: unknown = parseRpcJson(data);
++    if (!isUnknownRecord(result)) return { ok: false, error: 'invalid_response_format' };
++
++    if (result.ok === false) {
++      return { ok: false, error: typeof result.error === 'string' ? result.error : 'unknown_error' };
++    }
++
++    if (result.ok !== true) return { ok: false, error: 'invalid_response_format' };
++
++    if (!isNonEmptyString(result.encuentro_id)) return { ok: false, error: 'invalid_response_format' };
++    if (!isNonEmptyString(result.participante_id)) return { ok: false, error: 'invalid_response_format' };
++    if (result.respondio_disponibilidad !== true) return { ok: false, error: 'invalid_response_format' };
++
++    const retResps = normalizeCoordinationResponses(result.mis_respuestas);
++    if (!retResps || retResps.length !== normResps.length) return { ok: false, error: 'invalid_response_format' };
++
++    const reqIds = new Set(normResps.map(r => r.opcion_fecha_id));
++    for (const r of retResps) {
++      if (!reqIds.has(r.opcion_fecha_id)) return { ok: false, error: 'invalid_response_format' };
++    }
++
++    return { ok: true };
+   }
+ };
+

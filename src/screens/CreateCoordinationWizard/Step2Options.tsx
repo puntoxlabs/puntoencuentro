@@ -3,8 +3,10 @@ import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Plus, Trash2 } from 'lucide-react';
-import { isArgentinaDateTimeInFuture, buildArgentinaDeadlineIso, buildArgentinaLocalKey, compareArgentinaLocalDateTimes } from '@/lib/argentinaDateTime';
+import { isArgentinaDateTimeInFuture, buildArgentinaDeadlineIso, buildArgentinaLocalKey, compareArgentinaLocalDateTimes, getArgentinaTodayISO } from '@/lib/argentinaDateTime';
 import { TimePicker } from '@/components/ui/TimePicker';
+import type { TimePickerRef } from '@/components/ui/TimePicker';
+import { AlertCircle } from 'lucide-react';
 import { SelectableOptionCard } from '@/components/ui/SelectableOptionCard';
 
 interface Step2OptionsProps {
@@ -21,8 +23,9 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
   // Initialize with 2 options if empty
   React.useEffect(() => {
     if (draft.options.length === 0) {
+      const today = getArgentinaTodayISO();
       setOptions([
-        { localId: generateLocalId(), date: '', time: '' },
+        { localId: generateLocalId(), date: today, time: '' },
         { localId: generateLocalId(), date: '', time: '' },
       ]);
     }
@@ -33,29 +36,56 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
   const [deadlineTime, setDeadlineTime] = useState(draft.responseDeadline ? draft.responseDeadline.split('T')[1].substring(0, 5) : '');
 
   const firstDateRef = useRef<HTMLInputElement>(null);
+  const firstTimePickerRef = useRef<TimePickerRef>(null);
   const didAutoFocusRef = useRef(false);
+  const localToday = getArgentinaTodayISO();
 
   useEffect(() => {
-    if (didAutoFocusRef.current) return;
+    if (didAutoFocusRef.current || draft.options.length === 0) return;
     didAutoFocusRef.current = true;
     
-    // Auto focus primer fecha
+    // Auto focus primer campo útil
     const runFocus = () => {
-      const input = firstDateRef.current;
-      if (!input) return;
-
-      window.scrollTo({ top: 0, behavior: 'auto' });
-      input.focus();
+      const firstOpt = draft.options[0];
+      if (firstOpt && firstOpt.date === localToday) {
+        const timePicker = firstTimePickerRef.current;
+        if (timePicker) {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+          timePicker.focus();
+        }
+      } else {
+        const input = firstDateRef.current;
+        if (input) {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+          input.focus();
+        }
+      }
     };
 
     requestAnimationFrame(() => {
       setTimeout(runFocus, 120);
     });
-  }, []);
+  }, [draft.options]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextFieldSelector?: string) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, nextFieldSelector?: string, localId?: string, isTime?: boolean) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      
+      if (localId) {
+        const opt = draft.options.find(o => o.localId === localId);
+        if (opt) {
+          if (!isTime) {
+            if (!opt.date) { setErrors({ ...errors, [`opt_${localId}`]: 'Completá la fecha' }); return; }
+            if (opt.date < localToday) { setErrors({ ...errors, [`opt_${localId}`]: 'La fecha debe ser igual o posterior a hoy.' }); return; }
+          } else {
+            if (!opt.time) { setErrors({ ...errors, [`opt_${localId}`]: 'Completá la hora' }); return; }
+            if (!isArgentinaDateTimeInFuture(opt.date, opt.time)) {
+               setErrors({ ...errors, [`opt_${localId}`]: 'La hora debe ser posterior a la actual.' }); return; 
+            }
+          }
+        }
+      }
+
       if (nextFieldSelector) {
         const nextElement = document.querySelector(nextFieldSelector) as HTMLElement;
         if (nextElement && 'focus' in nextElement) {
@@ -90,12 +120,21 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
     let earliestOptionKey: string | null = null;
 
     draft.options.forEach((opt) => {
-      if (!opt.date || !opt.time) {
-        newErrors[`opt_${opt.localId}`] = 'Completá fecha y hora';
+      if (!opt.date) {
+        newErrors[`opt_${opt.localId}`] = 'Completá la fecha.';
+        return;
+      }
+      if (opt.date < localToday) {
+        newErrors[`opt_${opt.localId}`] = 'La fecha debe ser igual o posterior a hoy.';
+        return;
+      }
+      if (!opt.time) {
+        newErrors[`opt_${opt.localId}`] = 'Completá la hora.';
         return;
       }
       if (!isArgentinaDateTimeInFuture(opt.date, opt.time)) {
-        newErrors[`opt_${opt.localId}`] = 'Todas las opciones deben ser futuras.';
+        newErrors[`opt_${opt.localId}`] = 'La hora debe ser posterior a la actual.';
+        return;
       }
       const sig = buildArgentinaLocalKey(opt.date, opt.time);
       if (signatures.has(sig)) {
@@ -147,11 +186,19 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
       }
 
       onNext();
+    } else {
+      setTimeout(() => {
+        const firstError = document.querySelector('.input-error, [style*="color: #DC2626"]');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (firstError as HTMLElement).focus?.();
+        }
+      }, 50);
     }
   };
 
   return (
-    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="pe-wizard-step fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: '120px' }}>
       <div style={{ flex: 1 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--pe-text)' }}>
           Proponé algunas opciones
@@ -161,7 +208,10 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
         </p>
 
         {errors.global && (
-          <p style={{ color: 'var(--pe-error)', fontSize: 14, marginBottom: 16 }}>{errors.global}</p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, color: '#DC2626', marginBottom: 16 }}>
+            <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>{errors.global}</p>
+          </div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
@@ -185,20 +235,23 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                   <Input
                     type="date"
                     id={`opt-date-${index}`}
+                    min={localToday}
                     ref={index === 0 ? firstDateRef : undefined}
                     value={opt.date}
                     enterKeyHint="next"
-                    onKeyDown={(e) => handleKeyDown(e, `#opt-time-${index}`)}
+                    error={errors[`opt_${opt.localId}`] ? " " : undefined} 
+                    onKeyDown={(e) => handleKeyDown(e, `#opt-time-${index}`, opt.localId, false)}
                     onChange={(e) => handleOptionChange(opt.localId, 'date', e.target.value)}
                   />
                 </div>
                 <div style={{ flex: '1 1 140px' }} id={`opt-time-${index}`} tabIndex={-1}>
                   <TimePicker
+                    ref={index === 0 ? firstTimePickerRef : undefined}
                     value={opt.time}
                     onChange={(val) => handleOptionChange(opt.localId, 'time', val)}
                     placeholder="HH:MM"
-                    onKeyDown={(e) => handleKeyDown(e, index < draft.options.length - 1 ? `#opt-date-${index + 1}` : undefined)}
-                    minTime={opt.date === new Date().toISOString().split('T')[0] ? new Date().toTimeString().substring(0, 5) : undefined}
+                    onKeyDown={(e) => handleKeyDown(e, index < draft.options.length - 1 ? `#opt-date-${index + 1}` : undefined, opt.localId, true)}
+                    minTime={opt.date === localToday ? new Date().toTimeString().substring(0, 5) : undefined}
                   />
                 </div>
               </div>
@@ -208,7 +261,10 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                 </div>
               )}
               {errors[`opt_${opt.localId}`] && (
-                <p style={{ color: 'var(--pe-error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>{errors[`opt_${opt.localId}`]}</p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, color: '#DC2626', marginTop: 10 }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontWeight: 500, fontSize: 13, margin: 0 }}>{errors[`opt_${opt.localId}`]}</p>
+                </div>
               )}
             </div>
           ))}
@@ -262,11 +318,13 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                 <div style={{ flex: '1 1 140px' }}>
                   <Input
                     type="date"
+                    min={localToday}
                     value={deadlineDate}
                     onChange={(e) => {
                       setDeadlineDate(e.target.value);
                       setErrors({});
                     }}
+                    error={errors.deadline ? " " : undefined}
                   />
                 </div>
                 <div style={{ flex: '1 1 140px' }}>
@@ -281,7 +339,10 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                 </div>
               </div>
               {errors.deadline && (
-                <p style={{ color: 'var(--pe-error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>{errors.deadline}</p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, color: '#DC2626', marginTop: 10 }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontWeight: 500, fontSize: 13, margin: 0 }}>{errors.deadline}</p>
+                </div>
               )}
             </div>
           )}

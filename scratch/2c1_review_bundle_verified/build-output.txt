@@ -1,0 +1,33 @@
+﻿
+> temp-app@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.0.10 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...Ô£ô 1966 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.74 kB Ôöé gzip:   0.39 kB
+dist/assets/index-D_QFiVws.css  105.97 kB Ôöé gzip:  16.66 kB
+dist/assets/index-BPa5y0Rm.js   853.40 kB Ôöé gzip: 236.40 kB
+
+node.exe : [33m[plugin builtin:vite-reporter] 
+En línea: 1 Carácter: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\Minar\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m[plugin builtin:vite-reporter] :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: 
+https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[33m[33m[INEFFECTIVE_DYNAMIC_IMPORT] Warning:[0m src/lib/participatedTokens.ts is dynamically imported by 
+src/screens/Home.tsx but also statically imported by src/screens/InviteGuest.tsx, dynamic import will not move module 
+into another chunk.
+[39m
+[32mÔ£ô built in 570ms[39m
+
+
+EXIT_CODE=0

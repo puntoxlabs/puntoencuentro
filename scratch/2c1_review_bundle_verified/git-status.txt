@@ -1,0 +1,15 @@
+﻿ M src/App.tsx
+ M src/i18n/locales/en.json
+ M src/i18n/locales/es.json
+ M src/i18n/locales/pt.json
+ M src/services/encuentrosService.ts
+?? inject_2c1.cjs
+?? scratch/
+?? src/components/ui/CoordinationAvailabilityForm.css
+?? src/components/ui/CoordinationAvailabilityForm.tsx
+?? src/lib/formatCoordinationDate.ts
+?? src/lib/formatDuration.ts
+?? src/screens/CoordinationGuest.css
+?? src/screens/InviteCoordination/
+?? src/screens/JoinCoordination/
+

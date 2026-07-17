@@ -239,6 +239,19 @@ export interface CoordinationHostOption {
   preferred_count: number;
 }
 
+export interface CoordinationHostParticipant {
+  id: string;
+  nombre_invitado: string;
+  tipo_invitacion: string;
+  estado: string;
+  respondio_disponibilidad: boolean;
+  respuestas: {
+    opcion_fecha_id: string;
+    respuesta: 'available' | 'maybe' | 'unavailable';
+    es_preferida: boolean;
+  }[];
+}
+
 export interface CoordinationHostDetail {
   ok: boolean;
   error?: string;
@@ -264,6 +277,8 @@ export interface CoordinationHostDetail {
   hora?: string | null;
   derived_status?: string;
   opciones?: CoordinationHostOption[];
+  respondent_count?: number;
+  participantes?: CoordinationHostParticipant[];
 }
 
 export type CoordinationAvailabilityValue = 'available' | 'maybe' | 'unavailable';

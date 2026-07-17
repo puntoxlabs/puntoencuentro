@@ -45,6 +45,14 @@ const Step3Invitation: React.FC<Step3InvitationProps> = ({ onNext, onBack }) => 
   const handleNext = () => {
     if (validate()) {
       onNext();
+    } else {
+      setTimeout(() => {
+        const firstError = document.querySelector('.input-error, [style*="color: #DC2626"]');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (firstError as HTMLElement).focus?.();
+        }
+      }, 50);
     }
   };
 
@@ -84,7 +92,7 @@ const Step3Invitation: React.FC<Step3InvitationProps> = ({ onNext, onBack }) => 
         />
 
         {errors.theme && (
-          <p style={{ color: 'var(--pe-error)', fontSize: 14, marginTop: 8 }}>{errors.theme}</p>
+          <p style={{ color: '#DC2626', fontWeight: 500, fontSize: 14, marginTop: 8 }}>{errors.theme}</p>
         )}
 
         <ActiveThemeTemplateSelector
@@ -109,7 +117,7 @@ const Step3Invitation: React.FC<Step3InvitationProps> = ({ onNext, onBack }) => 
         </h3>
 
         {errors.invitationType && (
-          <p style={{ color: 'var(--pe-error)', fontSize: 14, marginBottom: 16 }}>{errors.invitationType}</p>
+          <p style={{ color: '#DC2626', fontWeight: 500, fontSize: 14, marginBottom: 16 }}>{errors.invitationType}</p>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
