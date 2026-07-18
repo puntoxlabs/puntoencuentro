@@ -10,6 +10,8 @@ import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { useTranslation } from 'react-i18next';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
+import { useAuth } from '@/contexts/AuthContext';
+import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +25,15 @@ const DetailHostCoordination: React.FC = () => {
   const [confirmModalOption, setConfirmModalOption] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
+  const { user } = useAuth();
+  const hostId = user?.id;
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [personalMessage, setPersonalMessage] = useState('');
+  const [activeShareTarget, setActiveShareTarget] = useState<'general' | 'confirmed' | null>(null);
+
+  const [savingVisibilidad, setSavingVisibilidad] = useState(false);
+  const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
+
   const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
     try {
@@ -31,6 +42,9 @@ const DetailHostCoordination: React.FC = () => {
       const data = await encuentrosService.getCoordinacionHost(id);
       if (data && data.ok) {
         setDetail(data);
+        if (data.encuentro?.descripcion && !personalMessage) {
+          setPersonalMessage(data.encuentro.descripcion);
+        }
       } else {
         if (!isPolling) setError(data.error || 'No se pudo cargar la coordinación.');
       }
@@ -83,29 +97,46 @@ const DetailHostCoordination: React.FC = () => {
         console.error('[DetailHostCoordination] Cannot share: Missing public_token');
         return;
       }
-      const shareText = `Hola 👋\n\nTe invito a coordinar la fecha para "${encuentro.titulo}" en PuntoEncuentro.\n\nRespondé tu disponibilidad acá:`;
-      const shareData = {
-        title: `Coordinar fecha: ${encuentro.titulo}`,
-        text: shareText,
-        url: shareUrl,
-      };
-
-      try {
-        if (isMobileShareEnvironment()) {
-          await navigator.share(shareData);
-        } else {
-          await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-          alert('¡Link copiado al portapapeles!');
-        }
-      } catch (err) {
-        console.error('Error sharing:', err);
-      }
+      setActiveShareTarget('general');
+      setIsSheetOpen(true);
     } else {
       navigate(`/add-guests/${encuentro.id}`);
     }
   };
 
+  const executeShareGeneral = async () => {
+    if (!shareUrl) return;
+    let shareText = `Hola 👋\n\nTe invito a coordinar la fecha para "${encuentro.titulo}" en PuntoEncuentro.\n\n`;
+    if (personalMessage.trim()) {
+      shareText += `${personalMessage.trim()}\n\n`;
+    }
+    shareText += `👉 Respondé tu disponibilidad acá:`;
+
+    const shareData = {
+      title: `Coordinar fecha: ${encuentro.titulo}`,
+      text: shareText,
+      url: shareUrl,
+    };
+
+    try {
+      if (isMobileShareEnvironment()) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert('¡Link copiado al portapapeles!');
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
   const handleShareConfirmedDate = async () => {
+    if (!detail.fecha || !detail.hora) return;
+    setActiveShareTarget('confirmed');
+    setIsSheetOpen(true);
+  };
+
+  const executeShareConfirmedDate = async () => {
     if (!detail.fecha || !detail.hora) return;
     const formattedDate = formatFriendlyDate(detail.fecha, detail.hora);
     
@@ -118,7 +149,11 @@ const DetailHostCoordination: React.FC = () => {
       locationText = `Nos vemos ahí.`;
     }
 
-    const shareText = `Fecha confirmada ✅\n\nEl encuentro "${encuentro.titulo}" quedó confirmado para:\n${formattedDate}\n\n${locationText}`;
+    let shareText = `Fecha confirmada ✅\n\nEl encuentro "${encuentro.titulo}" quedó confirmado para:\n${formattedDate}\n\n${locationText}`;
+
+    if (personalMessage.trim()) {
+      shareText += `\n\n${personalMessage.trim()}`;
+    }
 
     const shareData = {
       title: `Fecha confirmada: ${encuentro.titulo}`,
@@ -135,6 +170,28 @@ const DetailHostCoordination: React.FC = () => {
     } catch (err) {
       console.error('Error sharing confirmed date:', err);
     }
+  };
+
+  const handleSavePersonalMessage = async (msg: string) => {
+    setPersonalMessage(msg);
+    if (!hostId || !id) return;
+    try {
+      await encuentrosService.updateEncuentro(id, { descripcion: msg || undefined }, hostId);
+    } catch (err) {
+      console.error('Error guardando mensaje:', err);
+    }
+    
+    // Proceder a compartir según el target activo
+    setIsSheetOpen(false);
+    // Un pequeño timeout para asegurar que el modal se cierre antes de invocar la API share nativa
+    setTimeout(() => {
+      if (activeShareTarget === 'general') {
+        executeShareGeneral();
+      } else if (activeShareTarget === 'confirmed') {
+        executeShareConfirmedDate();
+      }
+      setActiveShareTarget(null);
+    }, 150);
   };
 
   const handleConfirmOption = async (optionId: string) => {
@@ -169,6 +226,33 @@ const DetailHostCoordination: React.FC = () => {
     }
   };
 
+  const handleToggleVisibilidad = async (newVal: boolean) => {
+    if (!id || !hostId) return;
+    setSavingVisibilidad(true);
+    setVisibilidadFeedback(null);
+    try {
+      const res = await encuentrosService.setVisibilidadRespuestasInvitados(id, hostId, newVal);
+      if (res.ok) {
+        setVisibilidadFeedback('ok');
+        setDetail((prev: any) => prev ? {
+          ...prev,
+          encuentro: {
+            ...prev.encuentro,
+            mostrar_respuestas_a_invitados: newVal
+          }
+        } : prev);
+        setTimeout(() => setVisibilidadFeedback(null), 3000);
+      } else {
+        setVisibilidadFeedback('error');
+      }
+    } catch (err) {
+      console.error('[DetailHostCoordination] Error guardando visibilidad', err);
+      setVisibilidadFeedback('error');
+    } finally {
+      setSavingVisibilidad(false);
+    }
+  };
+
   const derivedStatus = detail.derived_status;
 
   // Calculate recommended option
@@ -193,6 +277,28 @@ const DetailHostCoordination: React.FC = () => {
       recommendedOptionId = sorted[0].id;
     }
   }
+
+  // Compute effective state for a participant when coordination is closed
+  const getParticipanteEstadoEfectivo = (part: any) => {
+    if (derivedStatus !== 'closed') return part.estado;
+    
+    // Respuesta final explícita posterior al cierre tiene prioridad
+    if (part.estado === 'confirmado' || part.estado === 'rechazado') {
+      return part.estado;
+    }
+
+    const selectedOptionId = detail.selected_option_id;
+    if (!selectedOptionId) return part.estado;
+
+    const respuesta = part.respuestas?.find((r: any) => r.opcion_fecha_id === selectedOptionId);
+    if (!respuesta) return 'pendiente';
+    
+    if (respuesta.respuesta === 'available') return 'confirmado';
+    if (respuesta.respuesta === 'unavailable') return 'rechazado';
+    
+    // Tal vez (maybe) u otra queda como pendiente
+    return 'pendiente';
+  };
 
   return (
     <ScreenContainer>
@@ -332,6 +438,65 @@ const DetailHostCoordination: React.FC = () => {
               </div>
             </div>
 
+            {/* Card 1.5: Opciones del encuentro — Visibilidad para invitados */}
+            {derivedStatus !== 'closed' && (
+              <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)', marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
+                  Opciones del encuentro
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1, paddingRight: 16 }}>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0' }}>
+                      Invitados ven respuestas
+                    </p>
+                    <p style={{ fontSize: 14, color: '#475569', margin: 0, lineHeight: 1.4 }}>
+                      Verán las disponibilidades por cada opción (anónimo).
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleVisibilidad(!encuentro.mostrar_respuestas_a_invitados)}
+                    disabled={savingVisibilidad}
+                    aria-pressed={!!encuentro.mostrar_respuestas_a_invitados}
+                    style={{
+                      width: 52,
+                      height: 32,
+                      borderRadius: 100,
+                      backgroundColor: encuentro.mostrar_respuestas_a_invitados ? '#22c55e' : '#e2e8f0',
+                      border: 'none',
+                      position: 'relative',
+                      cursor: savingVisibilidad ? 'not-allowed' : 'pointer',
+                      transition: 'background-color 0.2s',
+                      opacity: savingVisibilidad ? 0.7 : 1,
+                      flexShrink: 0
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: encuentro.mostrar_respuestas_a_invitados ? 22 : 2,
+                      width: 28,
+                      height: 28,
+                      backgroundColor: '#fff',
+                      borderRadius: '50%',
+                      transition: 'left 0.2s',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }} />
+                  </button>
+                </div>
+                {visibilidadFeedback && (
+                  <p style={{
+                    marginTop: 12,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: visibilidadFeedback === 'ok' ? '#16a34a' : '#dc2626',
+                    animation: 'fadeIn 0.3s ease-in-out'
+                  }}>
+                    {visibilidadFeedback === 'ok' ? '✓ Visibilidad actualizada' : '✗ Error al guardar'}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Card 2: Opciones */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
@@ -407,19 +572,19 @@ const DetailHostCoordination: React.FC = () => {
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 100, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: '#166534', fontSize: 24, fontWeight: 800 }}>
-                      {detail.participantes?.filter(p => p.estado === 'confirmado').length || 0}
+                      {detail.participantes?.filter(p => getParticipanteEstadoEfectivo(p) === 'confirmado').length || 0}
                     </span>
                     <span style={{ color: '#15803d', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confirmados</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 100, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: '#991b1b', fontSize: 24, fontWeight: 800 }}>
-                      {detail.participantes?.filter(p => p.estado === 'rechazado').length || 0}
+                      {detail.participantes?.filter(p => getParticipanteEstadoEfectivo(p) === 'rechazado').length || 0}
                     </span>
                     <span style={{ color: '#b91c1c', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>No asisten</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: '#475569', fontSize: 24, fontWeight: 800 }}>
-                      {detail.participantes?.filter(p => p.estado === 'pendiente').length || 0}
+                      {detail.participantes?.filter(p => getParticipanteEstadoEfectivo(p) === 'pendiente').length || 0}
                     </span>
                     <span style={{ color: '#64748b', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pendientes</span>
                   </div>
@@ -444,24 +609,32 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').map((part) => (
+                  {detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').map((part) => {
+                    const estadoEfectivo = getParticipanteEstadoEfectivo(part);
+                    return (
                     <div key={part.id} style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
                       <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 16 }}>
                           {part.nombre_invitado}
                         </span>
-                        {derivedStatus === 'closed' && (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            {part.estado === 'confirmado' && (
-                              <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Confirmado</span>
-                            )}
-                            {part.estado === 'rechazado' && (
-                              <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>No asiste</span>
-                            )}
-                            {part.estado === 'pendiente' && (
-                              <span style={{ background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Pendiente</span>
-                            )}
-                          </div>
+                        {derivedStatus === 'closed' ? (
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            background: estadoEfectivo === 'confirmado' ? '#dcfce7' : estadoEfectivo === 'rechazado' ? '#fee2e2' : '#f1f5f9',
+                            color: estadoEfectivo === 'confirmado' ? '#166534' : estadoEfectivo === 'rechazado' ? '#991b1b' : '#475569',
+                            border: `1px solid ${estadoEfectivo === 'confirmado' ? '#bbf7d0' : estadoEfectivo === 'rechazado' ? '#fecaca' : '#e2e8f0'}`
+                          }}>
+                            {estadoEfectivo === 'confirmado' ? 'Confirmado' : estadoEfectivo === 'rechazado' ? 'No asiste' : 'Pendiente'}
+                          </span>
+                        ) : (
+                          <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }}>
+                            Respondido
+                          </span>
                         )}
                       </div>
                       <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -494,7 +667,8 @@ const DetailHostCoordination: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -558,6 +732,12 @@ const DetailHostCoordination: React.FC = () => {
           </div>
         </div>
       )}
+      <OrganizerMessageSheet
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        initialMessage={personalMessage}
+        onSave={handleSavePersonalMessage}
+      />
     </ScreenContainer>
   );
 };

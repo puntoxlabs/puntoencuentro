@@ -346,6 +346,45 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
               )}
             </div>
           )}
+          
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--pe-text)', marginTop: 24, marginBottom: 16 }}>
+            Permitir que los invitados vean respuestas
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: 16, background: 'var(--pe-bg-hover)', borderRadius: 12, border: '1px solid var(--pe-border)' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, color: 'var(--pe-text-muted)', margin: 0, lineHeight: 1.4 }}>
+                Los invitados podrán ver un resumen anónimo de disponibilidad por fecha.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateDraft({ mostrarRespuestasAInvitados: !draft.mostrarRespuestasAInvitados })}
+              aria-pressed={draft.mostrarRespuestasAInvitados}
+              style={{
+                width: 52,
+                height: 32,
+                borderRadius: 100,
+                backgroundColor: draft.mostrarRespuestasAInvitados ? 'var(--pe-primary)' : '#e2e8f0',
+                border: 'none',
+                position: 'relative',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+                flexShrink: 0
+              }}
+            >
+              <span style={{
+                position: 'absolute',
+                top: 2,
+                left: draft.mostrarRespuestasAInvitados ? 22 : 2,
+                width: 28,
+                height: 28,
+                backgroundColor: '#fff',
+                borderRadius: '50%',
+                transition: 'left 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }} />
+            </button>
+          </div>
 
         </div>
       </div>

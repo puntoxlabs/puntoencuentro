@@ -45,6 +45,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         invitation_template: draft.invitationTemplate || null,
         response_deadline: draft.responseDeadline || null,
         duration_minutes: draft.durationMinutes,
+        mostrar_respuestas_a_invitados: draft.mostrarRespuestasAInvitados,
       };
 
       const options: CoordinationOptionPayload[] = draft.options.map(opt => ({
@@ -262,6 +263,20 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
                   </span>
                   <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
                     {getThemeDisplayName()}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10 }}>
+                  <Users size={18} color="#0284C7" />
+                </div>
+                <div style={{ marginTop: 2 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                    Visibilidad de respuestas
+                  </span>
+                  <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
+                    {draft.mostrarRespuestasAInvitados ? 'Los invitados podrán ver el resumen de respuestas.' : 'Las respuestas serán privadas para el host.'}
                   </span>
                 </div>
               </div>

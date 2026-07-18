@@ -32,6 +32,7 @@ export interface CoordinationCreatePayload {
   invitation_template?: string | null;
   response_deadline?: string | null;
   duration_minutes?: number | null;
+  mostrar_respuestas_a_invitados?: boolean;
 }
 
 export interface CoordinationOptionPayload {
@@ -269,6 +270,7 @@ export interface CoordinationHostDetail {
     invitation_template: string | null;
     public_token?: string;
     duration_minutes?: number | null;
+    mostrar_respuestas_a_invitados?: boolean;
   };
   coordination_status?: string;
   response_deadline?: string | null;
@@ -295,6 +297,10 @@ export interface CoordinationOption {
   hora_inicio: string;
   orden: number;
   selected: boolean;
+  available_count?: number;
+  maybe_count?: number;
+  unavailable_count?: number;
+  preferred_count?: number;
 }
 
 export interface CoordinationParticipantResponse {
@@ -323,6 +329,7 @@ export type CoordinationPublicReadResult =
       selected_option_id: string | null;
       fecha: string | null;
       hora: string | null;
+      mostrar_respuestas_a_invitados?: boolean;
       derived_status: 'open' | 'closed' | 'deadline_passed';
       opciones: CoordinationOption[];
     }
@@ -360,6 +367,7 @@ export type CoordinationParticipantReadResult =
       selected_option_id: string | null;
       fecha: string | null;
       hora: string | null;
+      mostrar_respuestas_a_invitados?: boolean;
       derived_status: 'open' | 'closed' | 'deadline_passed';
       opciones: CoordinationOption[];
       mis_respuestas: CoordinationAvailabilityInput[];

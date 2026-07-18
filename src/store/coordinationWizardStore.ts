@@ -26,6 +26,7 @@ export interface CoordinationDraft {
   // Helpers temporales para la UI, no se envían al backend
   personalMessage: string;
   hostAlias: string;
+  mostrarRespuestasAInvitados: boolean;
 }
 
 interface CoordinationWizardStore {
@@ -50,6 +51,7 @@ const initialDraft: CoordinationDraft = {
   invitationTemplate: '',
   personalMessage: '',
   hostAlias: '',
+  mostrarRespuestasAInvitados: false,
 };
 
 export const useCoordinationWizardStore = create<CoordinationWizardStore>()(

@@ -110,7 +110,7 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
 
         <div style={{ marginTop: 16 }}>
           <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--pe-text)', marginBottom: 8 }}>
-            Descripción (opcional)
+            Mensaje para invitados (opcional)
           </label>
           <textarea
             id="desc-textarea"
