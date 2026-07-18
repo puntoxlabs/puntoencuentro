@@ -6,6 +6,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
+import { getFriendlyAuthError } from '@/hooks/useStartCoordinationEncounter';
 
 import Step1Data from './Step1Data';
 import Step2Options from './Step2Options';
@@ -69,12 +70,12 @@ const CreateCoordinationWizard: React.FC = () => {
 
         if (result && result.ok === false) {
           sessionStorage.removeItem('post_auth_redirect');
-          setAuthError(result.error || 'No pudimos iniciar sesión con Google. Intentá nuevamente.');
+          setAuthError(getFriendlyAuthError(result.error));
         }
       } catch (error) {
         sessionStorage.removeItem('post_auth_redirect');
         console.error('[Coordination] Google sign-in failed', error);
-        setAuthError('No pudimos iniciar sesión con Google. Intentá nuevamente.');
+        setAuthError(getFriendlyAuthError());
       } finally {
         setGoogleLoading(false);
       }

@@ -8,6 +8,13 @@ export function isPermanentUser(user: unknown): boolean {
   return (user as Record<string, unknown>).is_anonymous !== true;
 }
 
+export function getFriendlyAuthError(error?: string): string {
+  if (error === 'anonymous_account_linking_pending') {
+    return 'No pudimos iniciar sesión con Google desde esta sesión. Cerrá esta ventana e intentá nuevamente, o elegí fecha definida.';
+  }
+  return 'No pudimos iniciar sesión con Google. Intentá nuevamente.';
+}
+
 export function useStartCoordinationEncounter() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -24,6 +31,8 @@ export function useStartCoordinationEncounter() {
       return;
     }
 
+    // Limpiar errores stale antes de abrir
+    setError(null);
     // Mostrar el sheet si no tiene cuenta permanente (sea anónimo o no tenga sesión)
     setIsAnonWarningOpen(true);
   };
@@ -36,21 +45,26 @@ export function useStartCoordinationEncounter() {
       const result = await signInWithGoogle();
       
       if (result && result.ok === false) {
-        setError(result.error || 'No pudimos iniciar sesión con Google. Intentá nuevamente.');
+        setError(getFriendlyAuthError(result.error));
       }
     } catch (err) {
       console.error('[Coordination] Google sign-in failed', err);
-      setError('No pudimos iniciar sesión con Google. Intentá nuevamente.');
+      setError(getFriendlyAuthError());
     } finally {
       setIsGoogleLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    setIsAnonWarningOpen(false);
+    setError(null);
   };
 
   return {
     startCoordinationEncounter,
     coordinationWarningProps: {
       open: isAnonWarningOpen,
-      onClose: () => setIsAnonWarningOpen(false),
+      onClose: handleClose,
       onContinueWithGoogle: handleContinueWithGoogle,
       googleLoading: isGoogleLoading,
       error,
