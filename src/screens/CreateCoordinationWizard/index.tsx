@@ -28,7 +28,7 @@ const CreateCoordinationWizard: React.FC = () => {
 
   const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogleForCoordination } = useAuth();
 
   useEffect(() => {
     // Siempre reiniciar el borrador al entrar a la ruta base para crear un nuevo encuentro
@@ -66,7 +66,7 @@ const CreateCoordinationWizard: React.FC = () => {
 
       try {
         sessionStorage.setItem('post_auth_redirect', '/create/coordination');
-        const result = await signInWithGoogle();
+        const result = await signInWithGoogleForCoordination();
 
         if (result && result.ok === false) {
           sessionStorage.removeItem('post_auth_redirect');

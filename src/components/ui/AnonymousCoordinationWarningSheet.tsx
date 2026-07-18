@@ -10,6 +10,7 @@ export interface AnonymousCoordinationWarningSheetProps {
   onContinueWithGoogle?: () => void;
   googleLoading?: boolean;
   error?: string | null;
+  isAnonymousUser?: boolean;
 }
 
 export const AnonymousCoordinationWarningSheet: React.FC<AnonymousCoordinationWarningSheetProps> = ({
@@ -19,6 +20,7 @@ export const AnonymousCoordinationWarningSheet: React.FC<AnonymousCoordinationWa
   onContinueWithGoogle,
   googleLoading = false,
   error = null,
+  isAnonymousUser = false,
 }) => {
   if (!open) return null;
 
@@ -56,9 +58,16 @@ export const AnonymousCoordinationWarningSheet: React.FC<AnonymousCoordinationWa
 
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, backgroundColor: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
             <Info size={20} style={{ color: '#4b5563', flexShrink: 0, marginTop: 2 }} />
-            <p style={{ fontSize: 14, lineHeight: 1.5, color: '#374151', margin: 0 }}>
-              Tus encuentros con fecha definida pueden crearse sin cuenta, pero la coordinación necesita guardar respuestas y el estado del organizador.
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <p style={{ fontSize: 14, lineHeight: 1.5, color: '#374151', margin: 0 }}>
+                Tus encuentros con fecha definida pueden crearse sin cuenta. Para coordinar fechas necesitás una cuenta.
+              </p>
+              {isAnonymousUser && (
+                <p style={{ fontSize: 14, lineHeight: 1.5, color: '#9a3412', margin: 0, fontWeight: 500 }}>
+                  Si ya creaste encuentros sin cuenta en este navegador, podrían no quedar asociados a tu cuenta de Google.
+                </p>
+              )}
+            </div>
           </div>
 
           {error && (

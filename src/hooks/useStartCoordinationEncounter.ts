@@ -17,7 +17,7 @@ export function getFriendlyAuthError(error?: string): string {
 
 export function useStartCoordinationEncounter() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogleForCoordination } = useAuth();
   const [isAnonWarningOpen, setIsAnonWarningOpen] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function useStartCoordinationEncounter() {
     setError(null);
     try {
       sessionStorage.setItem('post_auth_redirect', '/create/coordination');
-      const result = await signInWithGoogle();
+      const result = await signInWithGoogleForCoordination();
       
       if (result && result.ok === false) {
         setError(getFriendlyAuthError(result.error));
@@ -68,6 +68,7 @@ export function useStartCoordinationEncounter() {
       onContinueWithGoogle: handleContinueWithGoogle,
       googleLoading: isGoogleLoading,
       error,
+      isAnonymousUser: Boolean(user?.is_anonymous),
     }
   };
 }

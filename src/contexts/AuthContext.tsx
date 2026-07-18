@@ -25,6 +25,7 @@ interface AuthContextValue {
   isAnonymousUser: boolean;
   isPermanentUser: boolean;
   signInWithGoogle: () => Promise<GoogleSignInResult>;
+  signInWithGoogleForCoordination: () => Promise<GoogleSignInResult>;
   signOut: () => Promise<void>;
 }
 
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextValue>({
   isAnonymousUser: false,
   isPermanentUser: false,
   signInWithGoogle: async () => ({ ok: false, error: 'oauth_start_failed' }),
+  signInWithGoogleForCoordination: async () => ({ ok: false, error: 'oauth_start_failed' }),
   signOut: async () => {},
 });
 
@@ -107,6 +109,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { ok: true };
   };
 
+  const signInWithGoogleForCoordination = async (): Promise<GoogleSignInResult> => {
+    if (user?.is_anonymous) {
+      await supabase.auth.signOut();
+    }
+    if (user && !user.is_anonymous) {
+      return { ok: true, alreadyLoggedIn: true };
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      return { ok: false, error: 'oauth_start_failed' };
+    }
+
+    return { ok: true };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -119,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{
       user, session, loading,
       isAuthenticated, isAnonymousUser, isPermanentUser,
-      signInWithGoogle, signOut
+      signInWithGoogle, signInWithGoogleForCoordination, signOut
     }}>
       {children}
     </AuthContext.Provider>
