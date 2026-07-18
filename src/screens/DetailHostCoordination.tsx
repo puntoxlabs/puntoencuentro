@@ -139,16 +139,30 @@ const DetailHostCoordination: React.FC = () => {
 
   const handleConfirmOption = async (optionId: string) => {
     setIsClosing(true);
+    
     try {
       const res = await encuentrosService.cerrarCoordinacionHost(encuentro.id, optionId);
       if (res.ok) {
         setConfirmModalOption(null);
         await loadData(false);
       } else {
-        alert(res.error || 'Ocurrió un error al confirmar la fecha.');
+        console.error('[DetailHostCoordination] Error al cerrar:', res.error);
+        if (res.error === 'invalid_option') {
+          alert('No se pudo confirmar la opción seleccionada. Actualizá la pantalla e intentá nuevamente.');
+        } else if (res.error === 'unauthorized') {
+          alert('No tenés permisos para cerrar esta coordinación.');
+        } else if (res.error === 'already_closed') {
+          alert('Esta coordinación ya fue cerrada.');
+        } else if (res.error === 'invalid_date_mode') {
+          alert('Este encuentro no está en modo coordinación.');
+        } else if (res.error === 'not_found') {
+          alert('El encuentro no existe o fue eliminado.');
+        } else {
+          alert(`No pudimos confirmar la fecha. Detalle técnico: ${res.error}. Intentá nuevamente.`);
+        }
       }
     } catch (err) {
-      console.error(err);
+      console.error('[DetailHostCoordination] Excepcion no controlada al cerrar:', err);
       alert('Ocurrió un error inesperado al confirmar la fecha.');
     } finally {
       setIsClosing(false);

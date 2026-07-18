@@ -758,10 +758,11 @@ export const encuentrosService = {
 
     if (error) {
       console.error('[encuentrosService] Error en cerrar_coordinacion_seguro:', error);
-      return { ok: false, error: 'rpc_error' };
+      return { ok: false, error: (error as any).message || (error as any).code || 'rpc_error' };
     }
     
     if (data && data.ok === false) {
+      console.error('[encuentrosService] Error logico en cerrar_coordinacion_seguro:', data.error);
       return { ok: false, error: data.error };
     }
 
