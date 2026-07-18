@@ -397,50 +397,101 @@ const DetailHostCoordination: React.FC = () => {
               </div>
             </div>
 
+            {/* Card 2.5: Asistencia Final (solo cerrada) */}
+            {derivedStatus === 'closed' && (
+              <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
+                  Asistencia final
+                </h3>
+                
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 100, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#166534', fontSize: 24, fontWeight: 800 }}>
+                      {detail.participantes?.filter(p => p.estado === 'confirmado').length || 0}
+                    </span>
+                    <span style={{ color: '#15803d', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confirmados</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 100, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#991b1b', fontSize: 24, fontWeight: 800 }}>
+                      {detail.participantes?.filter(p => p.estado === 'rechazado').length || 0}
+                    </span>
+                    <span style={{ color: '#b91c1c', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>No asisten</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 100, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#475569', fontSize: 24, fontWeight: 800 }}>
+                      {detail.participantes?.filter(p => p.estado === 'pendiente').length || 0}
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pendientes</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Card 3: Respuestas */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
-                Respuestas
+                {derivedStatus === 'closed' ? 'Detalle por invitado' : 'Respuestas'}
               </h3>
 
-              {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad).length === 0) ? (
+              {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').length === 0) ? (
                 <div style={{ padding: '40px 20px', borderRadius: 16, border: '2px dashed rgba(15,23,42,0.1)', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <div style={{ background: '#F1F5F9', width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Users size={24} color="#475569" />
                   </div>
                   <p style={{ margin: 0, fontSize: 15, color: '#64748b', fontWeight: 500 }}>
-                    Todavía no recibiste disponibilidades.
+                    {derivedStatus === 'closed' ? 'No hay invitados registrados todavía.' : 'Todavía no recibiste disponibilidades.'}
                   </p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {detail.participantes.filter(p => p.respondio_disponibilidad).map((part) => (
+                  {detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').map((part) => (
                     <div key={part.id} style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
-                      <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 800, color: '#0f172a', fontSize: 16 }}>
                           {part.nombre_invitado}
                         </span>
+                        {derivedStatus === 'closed' && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {part.estado === 'confirmado' && (
+                              <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Confirmado</span>
+                            )}
+                            {part.estado === 'rechazado' && (
+                              <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>No asiste</span>
+                            )}
+                            {part.estado === 'pendiente' && (
+                              <span style={{ background: '#f1f5f9', color: '#64748b', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>Pendiente</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {part.respuestas.map((resp) => {
-                          const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
-                          if (!option) return null;
-                          return (
-                            <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: '#475569', fontWeight: 600, fontSize: 14 }}>Opción {option.orden}</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                {resp.es_preferida && (
-                                  <span style={{ background: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: 11, padding: '4px 8px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    ★ Preferida
-                                  </span>
-                                )}
-                                <span style={{ fontWeight: 700, fontSize: 13, padding: '4px 10px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef9c3' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
-                                  {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                        {part.respuestas.length === 0 ? (
+                          <span style={{ color: '#94a3b8', fontSize: 14, fontStyle: 'italic' }}>Sin disponibilidad previa.</span>
+                        ) : (
+                          part.respuestas.map((resp) => {
+                            const option = opciones?.find(o => o.id === resp.opcion_fecha_id);
+                            if (!option) return null;
+                            const isConfirmedOption = option.id === detail.selected_option_id;
+                            
+                            return (
+                              <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isConfirmedOption ? '4px 8px' : 0, background: isConfirmedOption ? '#f0fdf4' : 'transparent', borderRadius: 8, margin: isConfirmedOption ? '-4px -8px' : 0 }}>
+                                <span style={{ color: isConfirmedOption ? '#166534' : '#475569', fontWeight: isConfirmedOption ? 700 : 600, fontSize: 14 }}>
+                                  Opción {option.orden} {isConfirmedOption && '✓'}
                                 </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  {resp.es_preferida && (
+                                    <span style={{ background: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: 11, padding: '4px 8px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                      ★ Preferida
+                                    </span>
+                                  )}
+                                  <span style={{ fontWeight: 700, fontSize: 13, padding: '4px 10px', borderRadius: 12, backgroundColor: resp.respuesta === 'available' ? '#dcfce7' : resp.respuesta === 'maybe' ? '#fef9c3' : '#fee2e2', color: resp.respuesta === 'available' ? '#166534' : resp.respuesta === 'maybe' ? '#854d0e' : '#991b1b' }}>
+                                    {resp.respuesta === 'available' ? 'Sí puedo' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No puedo'}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })
+                        )}
                       </div>
                     </div>
                   ))}

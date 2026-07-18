@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvailabilityForm';
 import { encuentrosService, type CoordinationParticipantReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
-import { formatCoordinationDeadline } from '@/lib/formatCoordinationDate';
+import { formatCoordinationDeadline, formatCoordinationOptionDate } from '@/lib/formatCoordinationDate';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -205,6 +205,33 @@ export default function InviteCoordination() {
     }
   };
 
+  const handleConfirmAttendance = async (estadoFinal: 'confirmado' | 'rechazado') => {
+    if (isSubmittingRef.current || !token) return;
+
+    try {
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      setSubmitErrorCode(null);
+
+      const { participantesService } = await import('@/services/participantesService');
+      const res = await participantesService.responderInvitacion(token, estadoFinal);
+
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 3000);
+      setData(prev => prev ? { ...prev, participante: { ...prev.participante, estado: res.estado } } : prev);
+    } catch (err: any) {
+      console.error(err);
+      if (err.message === 'meeting_expired') {
+        setSubmitErrorCode('meeting_expired');
+      } else {
+        setSubmitErrorCode('network_error');
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
   const formattedDuration = encuentro ? formatCoordinationDuration(encuentro.duration_minutes, t) : null;
   const hasCompleteResponses = data?.opciones.every(op => Boolean(respuestas[op.id])) ?? false;
 
@@ -248,10 +275,10 @@ export default function InviteCoordination() {
           )}
         </div>
 
-        {derived_status === 'closed' && (
+        {derived_status === 'closed' && data.participante?.estado === 'pendiente' && (
           <div className="coordination-guest-status-banner">
             <AlertCircle size={24} />
-            <span>{t('coordination.closed_msg', 'La coordinación ya fue cerrada')}</span>
+            <span>{t('coordination.closed_msg_confirm_pending', 'La coordinación ya fue cerrada. Por favor, confirmá tu asistencia.')}</span>
           </div>
         )}
 
@@ -276,17 +303,107 @@ export default function InviteCoordination() {
           </div>
         )}
 
-        <div className="coordination-guest-form-section">
-          <label className="coordination-guest-label">{t('coordination.options_title', 'Opciones propuestas')}</label>
-          <CoordinationAvailabilityForm
-            opciones={data.opciones}
-            respuestas={respuestas}
-            onChangeRespuesta={handleChangeRespuesta}
-            onTogglePreferida={handleTogglePreferida}
-            readOnly={isReadOnly || isSubmitting}
-            showErrors={showValidation}
-          />
-        </div>
+        {derived_status === 'closed' && (
+          <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '24px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(22,163,74,0.08)', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ background: '#dcfce7', padding: 6, borderRadius: '50%' }}>
+                <CheckCircle size={24} color="#16a34a" />
+              </div>
+              <span style={{ color: '#166534', fontWeight: 700, fontSize: 18 }}>Fecha confirmada</span>
+            </div>
+            <div>
+              <span style={{ color: '#166534', fontSize: 15, display: 'block', marginBottom: 6 }}>
+                {t('coordination.closed_msg_confirmed', 'El encuentro quedó confirmado para:')}
+              </span>
+              <span style={{ color: '#14532d', fontWeight: 800, fontSize: 16 }}>
+                {data.fecha && data.hora ? formatCoordinationOptionDate(data.fecha, data.hora, i18n.language) : ''}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {derived_status === 'closed' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+            {data.participante?.estado === 'confirmado' ? (
+              <div style={{ background: '#dcfce7', padding: '16px', borderRadius: 16, border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                <span style={{ color: '#166534', fontWeight: 700, fontSize: 16 }}>¡Confirmaste tu asistencia!</span>
+                <div style={{ marginTop: 12 }}>
+                  <Button variant="outline" onClick={() => handleConfirmAttendance('rechazado')} disabled={isSubmitting} style={{ borderColor: '#fca5a5', color: '#dc2626' }}>Cambiar a "No asisto"</Button>
+                </div>
+              </div>
+            ) : data.participante?.estado === 'rechazado' ? (
+              <div style={{ background: '#fee2e2', padding: '16px', borderRadius: 16, border: '1px solid #fecaca', textAlign: 'center' }}>
+                <span style={{ color: '#991b1b', fontWeight: 700, fontSize: 16 }}>Indicaste que no vas a asistir.</span>
+                <div style={{ marginTop: 12 }}>
+                  <Button variant="outline" onClick={() => handleConfirmAttendance('confirmado')} disabled={isSubmitting} style={{ borderColor: '#86efac', color: '#16a34a' }}>Cambiar a "Confirmo asistencia"</Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0', color: '#0f172a', textAlign: 'center' }}>
+                  ¿Confirmás tu asistencia?
+                </h3>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    disabled={isSubmitting}
+                    onClick={() => handleConfirmAttendance('rechazado')}
+                    style={{ 
+                      borderRadius: 14, 
+                      height: 48, 
+                      fontSize: 16,
+                      color: '#dc2626',
+                      borderColor: '#fca5a5',
+                      background: '#fef2f2'
+                    }}
+                  >
+                    No voy a poder
+                  </Button>
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    disabled={isSubmitting}
+                    onClick={() => handleConfirmAttendance('confirmado')}
+                    style={{ 
+                      borderRadius: 14, 
+                      background: '#16a34a', 
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)', 
+                      height: 48, 
+                      fontSize: 16 
+                    }}
+                  >
+                    {isSubmitting ? 'Confirmando...' : 'Confirmo asistencia'}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            <div className="coordination-guest-form-section" style={{ marginTop: 16 }}>
+              <label className="coordination-guest-label">{t('coordination.options_title_closed', 'Tu disponibilidad enviada')}</label>
+              <CoordinationAvailabilityForm
+                opciones={data.opciones}
+                respuestas={respuestas}
+                onChangeRespuesta={handleChangeRespuesta}
+                onTogglePreferida={handleTogglePreferida}
+                readOnly={true}
+                showErrors={showValidation}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="coordination-guest-form-section">
+            <label className="coordination-guest-label">{t('coordination.options_title', 'Opciones propuestas')}</label>
+            <CoordinationAvailabilityForm
+              opciones={data.opciones}
+              respuestas={respuestas}
+              onChangeRespuesta={handleChangeRespuesta}
+              onTogglePreferida={handleTogglePreferida}
+              readOnly={isReadOnly || isSubmitting}
+              showErrors={showValidation}
+            />
+          </div>
+        )}
 
         {!isReadOnly && (
           <div className="coordination-guest-footer">

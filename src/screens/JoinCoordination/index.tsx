@@ -134,6 +134,7 @@ export default function JoinCoordination() {
   const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
 
   const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
+    if (isReadOnly) return;
     setRespuestas(prev => {
       const existing = prev[opcionId] || { opcion_fecha_id: opcionId, es_preferida: false };
       const newPreferida = value === 'unavailable' ? false : existing.es_preferida;
@@ -149,6 +150,7 @@ export default function JoinCoordination() {
   };
 
   const handleTogglePreferida = (opcionId: string) => {
+    if (isReadOnly) return;
     setRespuestas(prev =>
       Object.fromEntries(
         Object.entries(prev).map(([id, response]) => [
@@ -195,6 +197,39 @@ export default function JoinCoordination() {
       navigate(`/coordination/invite/${res.token_invitacion}`, { replace: true });
     } catch {
       setSubmitErrorCode('network_error');
+      setIsSubmitting(false);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmAttendance = async (estadoFinal: 'confirmado' | 'rechazado') => {
+    if (isSubmittingRef.current || !token) return;
+
+    setShowValidation(true);
+    const normalizedName = nombre.trim();
+    if (normalizedName.length < 1 || normalizedName.length > 80) return;
+
+    try {
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      setSubmitErrorCode(null);
+
+      // Usamos el servicio de participantes normal con el public_token
+      // Esto creará un participante genérico y lo guardará
+      const { participantesService } = await import('@/services/participantesService');
+      const res = await participantesService.responderInvitacion(token, estadoFinal, normalizedName);
+
+      // Navegamos pasando el token_invitacion que nos devuelve
+      navigate(`/coordination/invite/${res.token_invitacion}`, { replace: true });
+    } catch (err: any) {
+      console.error(err);
+      if (err.message === 'meeting_expired') {
+        setSubmitErrorCode('meeting_expired');
+      } else {
+        setSubmitErrorCode('network_error');
+      }
       setIsSubmitting(false);
     } finally {
       isSubmittingRef.current = false;
@@ -306,7 +341,8 @@ export default function JoinCoordination() {
               </div>
             )}
 
-            {!isReadOnly && (
+            {/* Enlace cerrado -> solo mostrar confirmación si no hay plazo vencido, el plazo vencido se trata diferente. Wait, si está cerrado no hay plazo vencido. */}
+            {derived_status !== 'deadline_passed' && (
               <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
                 <label htmlFor="coordination-guest-name" style={{ display: 'block', fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>
                   {t('coordination.your_name', 'Tu nombre')} <span style={{ color: '#dc2626' }}>*</span>
@@ -336,25 +372,60 @@ export default function JoinCoordination() {
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {derived_status === 'closed' ? (
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '8px 0 0 0', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  {t('coordination.options_title_closed', 'Tu respuesta enviada')}
+            {derived_status === 'closed' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0', color: '#0f172a', textAlign: 'center' }}>
+                  ¿Confirmás tu asistencia?
                 </h3>
-              ) : (
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    disabled={isSubmitting || !isNameValid}
+                    onClick={() => handleConfirmAttendance('rechazado')}
+                    style={{ 
+                      borderRadius: 14, 
+                      height: 48, 
+                      fontSize: 16,
+                      color: '#dc2626',
+                      borderColor: '#fca5a5',
+                      background: '#fef2f2'
+                    }}
+                  >
+                    No voy a poder
+                  </Button>
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    disabled={isSubmitting || !isNameValid}
+                    onClick={() => handleConfirmAttendance('confirmado')}
+                    style={{ 
+                      borderRadius: 14, 
+                      background: '#16a34a', 
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)', 
+                      height: 48, 
+                      fontSize: 16 
+                    }}
+                  >
+                    {isSubmitting ? 'Confirmando...' : 'Confirmo asistencia'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 0 0', color: '#0f172a' }}>
                   {t('coordination.options_title', 'Opciones propuestas')}
                 </h3>
-              )}
-              <CoordinationAvailabilityForm
-                opciones={data.opciones}
-                respuestas={respuestas}
-                onChangeRespuesta={handleChangeRespuesta}
-                onTogglePreferida={handleTogglePreferida}
-                readOnly={isReadOnly || isSubmitting}
-                showErrors={showValidation}
-              />
-            </div>
+                <CoordinationAvailabilityForm
+                  opciones={data.opciones}
+                  respuestas={respuestas}
+                  onChangeRespuesta={handleChangeRespuesta}
+                  onTogglePreferida={handleTogglePreferida}
+                  readOnly={isReadOnly || isSubmitting}
+                  showErrors={showValidation}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
