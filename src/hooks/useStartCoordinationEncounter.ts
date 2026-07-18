@@ -10,12 +10,13 @@ export function isPermanentUser(user: unknown): boolean {
 
 export function useStartCoordinationEncounter() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [isAnonWarningOpen, setIsAnonWarningOpen] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const startCoordinationEncounter = () => {
     if (!DATE_COORDINATION_ENABLED) return;
-
     if (authLoading) return;
 
     if (isPermanentUser(user)) {
@@ -23,13 +24,26 @@ export function useStartCoordinationEncounter() {
       return;
     }
 
-    if (user?.is_anonymous) {
-      setIsAnonWarningOpen(true);
-      return;
-    }
+    // Mostrar el sheet si no tiene cuenta permanente (sea anónimo o no tenga sesión)
+    setIsAnonWarningOpen(true);
+  };
 
-    // Sin sesión: navegar a la ruta para que muestre la pantalla clara de acceso
-    navigate('/create/coordination');
+  const handleContinueWithGoogle = async () => {
+    setIsGoogleLoading(true);
+    setError(null);
+    try {
+      sessionStorage.setItem('post_auth_redirect', '/create/coordination');
+      const result = await signInWithGoogle();
+      
+      if (result && result.ok === false) {
+        setError(result.error || 'No pudimos iniciar sesión con Google. Intentá nuevamente.');
+      }
+    } catch (err) {
+      console.error('[Coordination] Google sign-in failed', err);
+      setError('No pudimos iniciar sesión con Google. Intentá nuevamente.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   return {
@@ -37,6 +51,9 @@ export function useStartCoordinationEncounter() {
     coordinationWarningProps: {
       open: isAnonWarningOpen,
       onClose: () => setIsAnonWarningOpen(false),
+      onContinueWithGoogle: handleContinueWithGoogle,
+      googleLoading: isGoogleLoading,
+      error,
     }
   };
 }
