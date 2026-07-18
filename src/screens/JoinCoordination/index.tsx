@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +11,11 @@ import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvaila
 import { encuentrosService, type CoordinationPublicReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
 import { formatCoordinationDeadline, formatCoordinationOptionDate } from '@/lib/formatCoordinationDate';
+import { normalizeInvitationTheme } from '@/lib/invitationThemes';
+import { getThemeStyle } from '@/lib/themes';
+import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
+import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
+import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import '../CoordinationGuest.css';
 
 type CoordinationPublicSuccess = Extract<CoordinationPublicReadResult, { ok: true }>;
@@ -241,43 +246,63 @@ export default function JoinCoordination() {
   const isNameValid = nombre.trim().length >= 1 && nombre.trim().length <= 80;
   const hasCompleteResponses = data.opciones.every(op => Boolean(respuestas[op.id]));
 
+  const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
+
+  // Fondo integrado para Celebración o Romántico
+  const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
+    ? getCelebrationTemplateConfig(encuentro.invitation_template)
+    : null;
+  const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
+    ? getRomanticTemplateConfig(encuentro.invitation_template)
+    : null;
+
+  let templateBgStyle: React.CSSProperties = {};
+  if (celebrationTemplate?.background) {
+    templateBgStyle = {
+      backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center top',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+    };
+  } else if (romanticTemplate?.background) {
+    templateBgStyle = {
+      '--guest-bg-image': `url(${romanticTemplate.background})`,
+    } as React.CSSProperties;
+  }
+
   return (
-    <ScreenContainer>
+    <ScreenContainer
+      className={`guest-page guest-theme guest-theme--${invitationTheme}`}
+      style={{ ...getThemeStyle(encuentro?.tema), ...templateBgStyle }}
+    >
       <AppBar title={encuentro?.titulo || ''} />
-      <div style={{ padding: '20px', paddingBottom: '160px', background: '#F8FAFC', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '20px', paddingBottom: '160px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ maxWidth: 600, margin: '0 auto', width: '100%' }}>
 
           <div style={{ marginBottom: 24 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a', letterSpacing: '-0.5px' }}>
-              {encuentro?.titulo}
-            </h1>
-            {encuentro?.descripcion && (
-              <p style={{ fontSize: 16, color: '#475569', margin: 0, lineHeight: 1.6 }}>
-                {encuentro?.descripcion}
-              </p>
-            )}
+            <CoordinationThemeHero
+              encuentro={{
+                titulo: encuentro?.titulo || '',
+                descripcion: encuentro?.descripcion || null,
+                modalidad: encuentro?.modalidad || 'presencial',
+                lugar_texto: encuentro?.lugar_texto || null,
+                tema: encuentro?.tema || null,
+                tema_invitacion: encuentro?.tema_invitacion || 'classic',
+                invitation_template: encuentro?.invitation_template || null
+              }}
+              publicToken={token!}
+              isClosed={derived_status === 'closed'}
+              fechaConfirmada={data.fecha}
+              horaConfirmada={data.hora}
+            />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Card Informativa */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                    <div style={{ background: '#E0F2FE', padding: 8, borderRadius: 10 }}>
-                      <MapPin size={18} color="#0284C7" />
-                    </div>
-                    <div style={{ marginTop: 2 }}>
-                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
-                        Lugar
-                      </span>
-                      <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
-                        {encuentro?.lugar_texto}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
+
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                   <div style={{ background: '#DCFCE7', padding: 8, borderRadius: 10 }}>
                     <Clock size={18} color="#16A34A" />

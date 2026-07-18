@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,11 @@ import { CoordinationAvailabilityForm } from '@/components/ui/CoordinationAvaila
 import { encuentrosService, type CoordinationParticipantReadResult, type CoordinationAvailabilityInput, type CoordinationAvailabilityValue } from '@/services/encuentrosService';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
 import { formatCoordinationDeadline, formatCoordinationOptionDate } from '@/lib/formatCoordinationDate';
+import { normalizeInvitationTheme } from '@/lib/invitationThemes';
+import { getThemeStyle } from '@/lib/themes';
+import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
+import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
+import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -235,14 +240,54 @@ export default function InviteCoordination() {
   const formattedDuration = encuentro ? formatCoordinationDuration(encuentro.duration_minutes, t) : null;
   const hasCompleteResponses = data?.opciones.every(op => Boolean(respuestas[op.id])) ?? false;
 
-  return (
-    <ScreenContainer>
-      <AppBar title={encuentro?.titulo || ''} />
-      <div className="coordination-guest-content">
+  const invitationTheme = normalizeInvitationTheme(encuentro?.tema_invitacion);
 
-        <div className="coordination-guest-header">
-          <h1 className="coordination-guest-title">{encuentro?.titulo}</h1>
-          {encuentro?.descripcion && <p className="coordination-guest-desc">{encuentro?.descripcion}</p>}
+  const celebrationTemplate = encuentro?.tema_invitacion === 'celebration'
+    ? getCelebrationTemplateConfig(encuentro.invitation_template)
+    : null;
+  const romanticTemplate = encuentro?.tema_invitacion === 'romantic'
+    ? getRomanticTemplateConfig(encuentro.invitation_template)
+    : null;
+
+  let templateBgStyle: React.CSSProperties = {};
+  if (celebrationTemplate?.background) {
+    templateBgStyle = {
+      backgroundImage: `linear-gradient(rgba(255,255,255,0.25), rgba(255,255,255,0.25)), url(${celebrationTemplate.background})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center top',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+    };
+  } else if (romanticTemplate?.background) {
+    templateBgStyle = {
+      '--guest-bg-image': `url(${romanticTemplate.background})`,
+    } as React.CSSProperties;
+  }
+
+  return (
+    <ScreenContainer
+      className={`guest-page guest-theme guest-theme--${invitationTheme}`}
+      style={{ ...getThemeStyle(encuentro?.tema), ...templateBgStyle }}
+    >
+      <AppBar title={encuentro?.titulo || ''} />
+      <div style={{ padding: '20px', paddingBottom: '160px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+
+        <div style={{ marginBottom: 24 }}>
+          <CoordinationThemeHero
+            encuentro={{
+              titulo: encuentro?.titulo || '',
+              descripcion: encuentro?.descripcion || null,
+              modalidad: encuentro?.modalidad || 'presencial',
+              lugar_texto: encuentro?.lugar_texto || null,
+              tema: encuentro?.tema || null,
+              tema_invitacion: encuentro?.tema_invitacion || 'classic',
+              invitation_template: encuentro?.invitation_template || null
+            }}
+            publicToken={token!}
+            isClosed={derived_status === 'closed'}
+            fechaConfirmada={data.fecha}
+            horaConfirmada={data.hora}
+          />
         </div>
 
         <div className="coordination-guest-info">
@@ -253,12 +298,6 @@ export default function InviteCoordination() {
                 {t('coordination.participant_name', 'Nombre:')}{' '}
                 <strong>{data.participante.nombre_invitado}</strong>
               </span>
-            </div>
-          )}
-          {encuentro?.modalidad === 'presencial' && encuentro?.lugar_texto && (
-            <div className="coordination-guest-info-row">
-              <MapPin size={18} className="coordination-guest-info-icon" />
-              <span>{encuentro?.lugar_texto}</span>
             </div>
           )}
           {formattedDuration && (
