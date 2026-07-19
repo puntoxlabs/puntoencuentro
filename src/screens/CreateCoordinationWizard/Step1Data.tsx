@@ -108,13 +108,11 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
           required
         />
 
-        <div style={{ marginTop: 16 }}>
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--pe-text)', marginBottom: 8 }}>
-            Mensaje para invitados (opcional)
-          </label>
+        <div className="input-group cw-textarea-wrapper" style={{ marginTop: 16 }}>
+          <label className="input-label">Mensaje para invitados (opcional)</label>
           <textarea
             id="desc-textarea"
-            className="input-field"
+            className="input-field cw-textarea-field"
             placeholder="Sumá un mensaje para tus invitados"
             value={draft.description}
             onKeyDown={(e) => {

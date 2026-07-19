@@ -183,9 +183,9 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
 export function getCoordinationCreateErrorMessage(errorCode: string): string {
   switch (errorCode) {
     case 'not_authenticated':
-      return 'Necesitás iniciar sesión para coordinar una fecha.';
+      return 'Necesitás iniciar sesión para crear una coordinación.';
     case 'permanent_account_required':
-      return 'Necesitás una cuenta permanente para coordinar una fecha.';
+      return 'Para coordinar fechas necesitás iniciar sesión con Google.';
     case 'invalid_data':
       return 'Revisá los datos del encuentro.';
     case 'invalid_options':
@@ -199,14 +199,16 @@ export function getCoordinationCreateErrorMessage(errorCode: string): string {
     case 'invalid_option_time':
       return 'Revisá el horario de las opciones.';
     case 'option_in_past':
-      return 'Todas las opciones deben ser futuras.';
+      return 'Una de las fechas propuestas ya pasó.';
     case 'duplicate_options':
       return 'No puede haber dos opciones iguales.';
     case 'invalid_deadline':
       return 'Revisá el plazo para responder.';
+    case 'deadline_in_past':
+      return 'El plazo para responder debe ser futuro.';
     case 'deadline_after_first_option':
     case 'deadline_after_options':
-      return 'El plazo debe finalizar antes de la primera opción.';
+      return 'El plazo debe ser anterior a las fechas propuestas.';
     case 'invalid_modality':
       return 'Revisá la modalidad del encuentro.';
     case 'invalid_theme':
@@ -217,12 +219,12 @@ export function getCoordinationCreateErrorMessage(errorCode: string): string {
       return 'Indicá el enlace de la reunión.';
     case 'invalid_invitation_type':
       return 'Revisá el tipo de invitación.';
-    case 'invalid_theme':
-      return 'Revisá el diseño de la invitación.';
     case 'invalid_date_mode':
       return 'Este encuentro no corresponde a una coordinación.';
     case 'not_owner':
       return 'No tenés permiso para administrar este encuentro.';
+    case 'invalid_duration_minutes':
+      return 'La duración no es válida.';
     case 'invalid_option_order':
     case 'duplicate_option_order':
     case 'invalid_option_order_sequence':

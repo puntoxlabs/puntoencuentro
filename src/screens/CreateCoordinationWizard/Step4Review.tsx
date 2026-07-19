@@ -146,9 +146,13 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
               {draft.title}
             </h4>
 
-            {draft.description && (
+            {draft.description ? (
               <p style={{ fontSize: 15, color: '#475569', marginBottom: 24, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                 {draft.description}
+              </p>
+            ) : (
+              <p style={{ fontSize: 15, color: '#94a3b8', marginBottom: 24, fontStyle: 'italic' }}>
+                Sin mensaje personalizado
               </p>
             )}
 
@@ -181,17 +185,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
                 </div>
               </div>
             </div>
-            {draft.description && (
-              <div style={{ marginTop: 12 }}>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
-                  Mensaje
-                </span>
-                <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500, whiteSpace: 'pre-wrap' }}>
-                  {draft.description}
-                </span>
-              </div>
-            )}
-          </div>
+            </div>
 
           {/* Card 2: Opciones propuestas */}
           <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>

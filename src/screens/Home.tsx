@@ -245,7 +245,7 @@ const PastCard: React.FC<{
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, sortBy } = useHomeStore();
+  const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
   const detailCache = useDetailStore(s => s.cache);
@@ -440,9 +440,25 @@ const Home: React.FC = () => {
 
     const filtered = (encuentros || []).filter(enc => {
       if (!enc) return false;
+      
+      // 1. Filter by Status (from FilterSheet)
       const cls = getClasificacion(enc);
-      if (filterStatus === 'all') return true;
-      return cls === filterStatus;
+      if (filterStatus !== 'all' && cls !== filterStatus) return false;
+
+      // 2. Filter by Type
+      const isCoord = isCoordinationEncounter(enc);
+      if (filterType === 'fixed' && isCoord) return false;
+      if (filterType === 'coordination' && !isCoord) return false;
+
+      // 3. Filter by Coordination State
+      if (filterType === 'coordination' && isCoord && filterCoordinationState !== 'all') {
+        const isExpired = enc.coordination_status === 'open' && enc.response_deadline && new Date(enc.response_deadline) < new Date();
+        if (filterCoordinationState === 'open' && (enc.coordination_status !== 'open' || isExpired)) return false;
+        if (filterCoordinationState === 'expired' && !isExpired) return false;
+        if (filterCoordinationState === 'closed' && enc.coordination_status !== 'closed') return false;
+      }
+
+      return true;
     });
 
     const getStableSortValue = (enc: any) => {
@@ -707,6 +723,63 @@ const Home: React.FC = () => {
               Participo
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Chips de filtrado por Tipo */}
+      {!loading && (encuentros.length > 0 || filterType !== 'all') && (
+        <div style={{ padding: '8px 20px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`pe-sheet-chip ${filterType === 'all' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setFilterType('fixed')}
+            className={`pe-sheet-chip ${filterType === 'fixed' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+          >
+            Fecha definida
+          </button>
+          <button
+            onClick={() => setFilterType('coordination')}
+            className={`pe-sheet-chip ${filterType === 'coordination' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+          >
+            Coordinados
+          </button>
+        </div>
+      )}
+
+      {/* Sub-filtros para Coordinados */}
+      {!loading && filterType === 'coordination' && (
+        <div style={{ padding: '0px 20px 8px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
+          <button
+            onClick={() => setFilterCoordinationState('all')}
+            style={{ background: filterCoordinationState === 'all' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'all' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'all' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setFilterCoordinationState('open')}
+            style={{ background: filterCoordinationState === 'open' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'open' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'open' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            A coordinar
+          </button>
+          <button
+            onClick={() => setFilterCoordinationState('expired')}
+            style={{ background: filterCoordinationState === 'expired' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'expired' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'expired' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Plazo vencido
+          </button>
+          <button
+            onClick={() => setFilterCoordinationState('closed')}
+            style={{ background: filterCoordinationState === 'closed' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'closed' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'closed' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Fecha confirmada
+          </button>
         </div>
       )}
 
