@@ -80,8 +80,19 @@ export default function InviteCoordination() {
         setLoading(false);
       });
 
+    const interval = setInterval(() => {
+      if (isSubmittingRef.current || !mounted) return;
+      encuentrosService.getCoordinacionParticipante(token).then(res => {
+        if (!mounted || isSubmittingRef.current) return;
+        if (res.ok) {
+          setData(res);
+        }
+      }).catch(() => {});
+    }, 5000);
+
     return () => {
       mounted = false;
+      clearInterval(interval);
     };
   }, [token, retryCount]);
 
@@ -476,11 +487,18 @@ export default function InviteCoordination() {
               Resumen de respuestas
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {data.opciones.map((opt) => {
-                const hasVotes = (opt.available_count || 0) > 0 || (opt.maybe_count || 0) > 0 || (opt.unavailable_count || 0) > 0;
-                if (!hasVotes) return null;
+              {(() => {
+                const optionsWithVotes = data.opciones.filter(opt => (opt.available_count || 0) > 0 || (opt.maybe_count || 0) > 0 || (opt.unavailable_count || 0) > 0);
                 
-                return (
+                if (optionsWithVotes.length === 0) {
+                  return (
+                    <div style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)', textAlign: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: 14 }}>Todavía no hay respuestas visibles.</span>
+                    </div>
+                  );
+                }
+
+                return optionsWithVotes.map((opt) => (
                   <div key={opt.id} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)' }}>
                     <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, display: 'block', marginBottom: 12 }}>
                       Opción {opt.orden}
@@ -489,10 +507,11 @@ export default function InviteCoordination() {
                       {(opt.available_count || 0) > 0 && <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Sí: {opt.available_count}</span>}
                       {(opt.maybe_count || 0) > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Tal vez: {opt.maybe_count}</span>}
                       {(opt.unavailable_count || 0) > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>No: {opt.unavailable_count}</span>}
+                      {(opt.preferred_count || 0) > 0 && <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Preferida: {opt.preferred_count}</span>}
                     </div>
                   </div>
-                );
-              })}
+                ));
+              })()}
             </div>
           </div>
         )}
