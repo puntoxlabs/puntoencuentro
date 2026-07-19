@@ -753,14 +753,8 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
-    const fail = (failedField: string, value: any, details?: string) => {
-      console.error('[getCoordinacionPublica] invalid response format', {
-        failedField,
-        value,
-        valueType: typeof value,
-        details,
-        rawResult
-      });
+    const fail = (failedField: string, _value: any, details?: string) => {
+      console.warn(`[getCoordinacionPublica] invalid field: ${failedField}`);
       return { 
         ok: false as const, 
         error: 'invalid_response_format', 
@@ -769,17 +763,8 @@ export const encuentrosService = {
       };
     };
 
-    console.info('[getCoordinacionPublica] shape', {
-      hasOk: typeof (rawResult as any)?.ok,
-      keys: Object.keys((rawResult as any) ?? {}),
-      encuentroKeys: Object.keys((rawResult as any)?.encuentro ?? {}),
-      opcionesLength: Array.isArray((rawResult as any)?.opciones) ? (rawResult as any).opciones.length : 'not-array',
-      firstOptionKeys: Object.keys((rawResult as any)?.opciones?.[0] ?? {}),
-    });
-
     if (!isUnknownRecord(rawResult.encuentro)) return fail('encuentro', rawResult.encuentro);
     const enc = rawResult.encuentro;
-    console.info('[getCoordinacionPublica] RPC raw response', rawResult);
 
     if (!isNonEmptyString(enc.titulo)) return fail('encuentro.titulo', enc.titulo);
     if (!isNonEmptyString(enc.estado)) return fail('encuentro.estado', enc.estado);
@@ -885,14 +870,8 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
-    const fail = (failedField: string, value: any, details?: string) => {
-      console.error('[getCoordinacionParticipante] invalid response format', {
-        failedField,
-        value,
-        valueType: typeof value,
-        details,
-        rawResult
-      });
+    const fail = (failedField: string, _value: any, details?: string) => {
+      console.warn(`[getCoordinacionParticipante] invalid field: ${failedField}`);
       return { 
         ok: false as const, 
         error: 'invalid_response_format', 
@@ -900,17 +879,6 @@ export const encuentrosService = {
         details: details ?? `Invalid field: ${failedField}` 
       };
     };
-
-    console.info('[getCoordinacionParticipante] shape', {
-      hasOk: typeof (rawResult as any)?.ok,
-      keys: Object.keys((rawResult as any) ?? {}),
-      encuentroKeys: Object.keys((rawResult as any)?.encuentro ?? {}),
-      participanteKeys: Object.keys((rawResult as any)?.participante ?? {}),
-      opcionesLength: Array.isArray((rawResult as any)?.opciones) ? (rawResult as any).opciones.length : 'not-array',
-      firstOptionKeys: Object.keys((rawResult as any)?.opciones?.[0] ?? {}),
-    });
-
-    console.info('[getCoordinacionParticipante] RPC raw response', rawResult);
 
     if (!isUnknownRecord(rawResult.encuentro)) return fail('encuentro', rawResult.encuentro);
     const enc = rawResult.encuentro;
