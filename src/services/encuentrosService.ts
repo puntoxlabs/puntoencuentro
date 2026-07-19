@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import { validateEncounterDate } from '@/lib/formatDate';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
-import { isValidDateTime } from '@/lib/argentinaDateTime';
 
 export interface CreateEncuentroDTO {
   titulo: string;
@@ -43,44 +42,32 @@ export interface CoordinationOptionPayload {
 export type CoordinationDateMode = 'coordination';
 export type CoordinationStatus = 'open' | 'closed';
 
+// Minimal response from the creation RPC — only id and public_token are guaranteed.
+// Fields like date_mode, coordination_status, response_deadline and opciones are NOT
+// returned by the RPC and must not be validated here.
 export interface CoordinationCreatedEncounter {
   id: string;
   public_token: string;
-  date_mode: 'coordination';
-  coordination_status: 'open';
-  response_deadline: string | null;
-}
-
-export interface CoordinationCreatedOption {
-  id: string;
-  fecha: string;
-  hora_inicio: string;
-  orden: number;
 }
 
 export type CoordinationCreateResult =
   | {
       ok: true;
       encuentro: CoordinationCreatedEncounter;
-      opciones: CoordinationCreatedOption[];
     }
   | {
       ok: false;
       error: string;
+      details?: string;
     };
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function normalizePostgresTimeToHHMM(timeString: string): string | null {
-  if (typeof timeString !== 'string') return null;
-  // Regex to match HH:MM or HH:MM:SS or HH:MM:SS.ffffff
-  const match = timeString.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d+)?)?$/);
-  if (!match) return null;
-  return `${match[1]}:${match[2]}`;
-}
-
+// Validates the minimal response contract from crear_encuentro_con_opciones_seguro.
+// The RPC only guarantees {ok, encuentro: {id, public_token}}.
+// date_mode, coordination_status, response_deadline and opciones are NOT returned by the RPC.
 export function validateCoordinationCreateResult(value: unknown): CoordinationCreateResult {
   if (!isUnknownRecord(value)) {
     return { ok: false, error: 'invalid_response_format' };
@@ -91,7 +78,8 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
   if (record.ok === false) {
     return {
       ok: false,
-      error: typeof record.error === 'string' ? record.error : 'unknown_error'
+      error: typeof record.error === 'string' ? record.error : 'unknown_error',
+      details: typeof record.details === 'string' ? record.details : undefined,
     };
   }
 
@@ -101,79 +89,13 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
 
     if (typeof enc.id !== 'string' || !enc.id.trim()) return { ok: false, error: 'invalid_encounter_id' };
     if (typeof enc.public_token !== 'string' || !enc.public_token.trim()) return { ok: false, error: 'invalid_public_token' };
-    if (enc.date_mode !== 'coordination') return { ok: false, error: 'invalid_date_mode' };
-    if (enc.coordination_status !== 'open') return { ok: false, error: 'invalid_coordination_status' };
-    if (enc.response_deadline !== null && typeof enc.response_deadline !== 'string') return { ok: false, error: 'invalid_response_deadline' };
-
-    if (!Array.isArray(record.opciones)) return { ok: false, error: 'invalid_options_format' };
-    const rawOps = record.opciones;
-
-    if (rawOps.length < 2 || rawOps.length > 3) return { ok: false, error: 'invalid_options_length' };
-
-    const ops: CoordinationCreatedOption[] = [];
-    const seenIds = new Set<string>();
-    const seenOrders = new Set<number>();
-
-    for (const rawOp of rawOps) {
-      if (!isUnknownRecord(rawOp)) return { ok: false, error: 'invalid_option_format' };
-
-      const { id, fecha, hora_inicio, orden } = rawOp;
-
-      if (typeof id !== 'string' || !id.trim()) return { ok: false, error: 'invalid_option_id' };
-      if (typeof fecha !== 'string' || typeof hora_inicio !== 'string') return { ok: false, error: 'invalid_option_date' };
-
-      const normalizedTime = normalizePostgresTimeToHHMM(hora_inicio);
-      if (!normalizedTime) return { ok: false, error: 'invalid_option_date' };
-
-      if (!isValidDateTime(fecha, normalizedTime)) return { ok: false, error: 'invalid_option_date' };
-      if (
-        typeof orden !== 'number' ||
-        !Number.isInteger(orden) ||
-        orden < 1 ||
-        orden > 3
-      ) {
-        return {
-          ok: false,
-          error: 'invalid_option_order',
-        };
-      }
-
-      if (seenIds.has(id)) return { ok: false, error: 'duplicate_option_id' };
-      seenIds.add(id);
-
-      if (seenOrders.has(orden)) return { ok: false, error: 'duplicate_option_order' };
-      seenOrders.add(orden);
-
-      ops.push({
-        id,
-        fecha,
-        hora_inicio: normalizedTime,
-        orden
-      });
-    }
-
-    const sortedOrders = [...seenOrders].sort((a, b) => a - b);
-    const hasExpectedOrders = sortedOrders.every((order, index) => order === index + 1);
-
-    if (!hasExpectedOrders) {
-      return {
-        ok: false,
-        error: 'invalid_option_order_sequence',
-      };
-    }
-
-    const validatedEncounter: CoordinationCreatedEncounter = {
-      id: enc.id,
-      public_token: enc.public_token,
-      date_mode: 'coordination',
-      coordination_status: 'open',
-      response_deadline: enc.response_deadline as string | null
-    };
 
     return {
       ok: true,
-      encuentro: validatedEncounter,
-      opciones: ops,
+      encuentro: {
+        id: enc.id as string,
+        public_token: enc.public_token as string,
+      },
     };
   }
 
@@ -728,22 +650,39 @@ export const encuentrosService = {
   },
 
   async crearEncuentroConOpciones(payload: CoordinationCreatePayload, opciones: CoordinationOptionPayload[]): Promise<CoordinationCreateResult> {
+    console.info('[CrearCoordinacion] Enviando RPC', {
+      rpc: 'crear_encuentro_con_opciones_seguro',
+      p_data: payload,
+      p_opciones: opciones,
+    });
+
     const { data, error } = await supabase.rpc('crear_encuentro_con_opciones_seguro', {
       p_data: payload,
       p_opciones: opciones
     });
 
     if (error) {
-      console.error('[encuentrosService] Error en crear_encuentro_con_opciones_seguro RPC:', {
+      console.error('[CrearCoordinacion] Supabase network/auth error:', {
+        supabaseError: error,
         payload,
         opciones,
-        error
       });
       return { ok: false, error: 'rpc_error' };
     }
 
-    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-       console.error('[encuentrosService] Supabase devolvió error lógico estructurado:', data);
+    if (data && typeof data === 'object' && 'ok' in data) {
+      if (data.ok === false) {
+        // RPC returned a structured logic error — log full details for debugging
+        console.error('[CrearCoordinacion] RPC devolvió error lógico:', {
+          rpcError: (data as Record<string, unknown>).error,
+          rpcDetails: (data as Record<string, unknown>).details,
+          payload,
+          opciones,
+        });
+      } else {
+        // Creation succeeded
+        console.info('[CrearCoordinacion] RPC exitosa:', data);
+      }
     }
 
     return validateCoordinationCreateResult(data);

@@ -23,15 +23,21 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawErrorCode, setRawErrorCode] = useState<string | null>(null);
+  const [rpcDetails, setRpcDetails] = useState<string | null>(null);
   const submittingRef = React.useRef(false);
+  // Guards against duplicate creation if user taps the button again after a
+  // successful RPC call that still ended in a frontend validation or nav error.
+  const createdSuccessfullyRef = React.useRef(false);
 
   const handleSubmit = async () => {
-    if (submittingRef.current) return;
+    // Block if already mid-submit OR if creation already succeeded (prevents duplicates)
+    if (submittingRef.current || createdSuccessfullyRef.current) return;
 
     submittingRef.current = true;
     setLoading(true);
     setError(null);
     setRawErrorCode(null);
+    setRpcDetails(null);
 
     try {
       // 1. Revalidar opciones para evitar opción en el pasado
@@ -103,10 +109,16 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
       const result = await encuentrosService.crearEncuentroConOpciones(payload, options);
 
       if (result.ok) {
+        // Mark as created to prevent duplicate submissions
+        createdSuccessfullyRef.current = true;
         resetDraft();
         navigate(`/coordination/${result.encuentro.id}`);
       } else {
+        // Pass through details from RPC if present
+        const resultWithDetails = result as { ok: false; error: string; details?: string };
         setRawErrorCode(result.error || 'unknown_error');
+        if (resultWithDetails.details) setRpcDetails(resultWithDetails.details);
+
         if (result.error === 'invalid_response_format' || result.error === 'invalid_option_order' || result.error === 'duplicate_option_order' || result.error === 'invalid_option_order_sequence') {
           setError('No pudimos verificar la creación. Volvé a Home para comprobar si el encuentro aparece antes de intentar nuevamente.');
         } else {
@@ -153,9 +165,12 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         {error && (
           <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 16, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: '#dc2626', margin: 0, fontSize: 14, fontWeight: 500 }}>{error}</p>
-            {/* TODO: Remover rawErrorCode antes del lanzamiento público final */}
+            {/* TODO: Remover rawErrorCode y rpcDetails antes del lanzamiento público final */}
             {rawErrorCode && (
               <p style={{ margin: 0, color: '#ef4444', fontSize: 12, opacity: 0.8 }}>Código técnico: {rawErrorCode}</p>
+            )}
+            {rpcDetails && (
+              <p style={{ margin: 0, color: '#ef4444', fontSize: 12, opacity: 0.7 }}>Detalle técnico: {rpcDetails}</p>
             )}
             {error.includes('Volvé a Home') && (
               <Button variant="outline" onClick={() => navigate('/')} style={{ marginTop: 12, borderRadius: 12 }}>
@@ -348,8 +363,8 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
           <Button variant="outline" onClick={onBack} style={{ flex: 1, borderRadius: 14, border: '1px solid #cbd5e1' }} disabled={loading}>
             Atrás
           </Button>
-          <Button variant="primary" onClick={handleSubmit} style={{ flex: 2, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }} disabled={loading}>
-            {loading ? 'Creando...' : 'Crear encuentro'}
+          <Button variant="primary" onClick={handleSubmit} style={{ flex: 2, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }} disabled={loading || createdSuccessfullyRef.current}>
+            {loading ? 'Creando...' : createdSuccessfullyRef.current ? 'Encuentro creado…' : 'Crear encuentro'}
           </Button>
         </div>
       </div>
