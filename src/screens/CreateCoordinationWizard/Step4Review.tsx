@@ -9,6 +9,7 @@ import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { getAllInvitationDesignOptions, findDesignOptionIndex } from '@/lib/invitationThemes';
 import { useTranslation } from 'react-i18next';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
+import { isArgentinaDateTimeInFuture, buildArgentinaLocalKey, compareArgentinaLocalDateTimes } from '@/lib/argentinaDateTime';
 
 interface Step4ReviewProps {
   onBack: () => void;
@@ -21,6 +22,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rawErrorCode, setRawErrorCode] = useState<string | null>(null);
   const submittingRef = React.useRef(false);
 
   const handleSubmit = async () => {
@@ -29,8 +31,52 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
     submittingRef.current = true;
     setLoading(true);
     setError(null);
+    setRawErrorCode(null);
 
     try {
+      // 1. Revalidar opciones para evitar opción en el pasado
+      for (const opt of draft.options) {
+        if (!isArgentinaDateTimeInFuture(opt.date, opt.time)) {
+          setError('Una de las fechas propuestas ya pasó. Volvé para editarla.');
+          setRawErrorCode('frontend_option_in_past');
+          setLoading(false);
+          submittingRef.current = false;
+          return;
+        }
+      }
+
+      // 2. Revalidar plazo para evitar plazo en el pasado o después de opciones
+      if (draft.responseDeadline) {
+        const [dlDate, dlTimePart] = draft.responseDeadline.split('T');
+        if (dlDate && dlTimePart) {
+          const dlTime = dlTimePart.slice(0, 5);
+          
+          if (!isArgentinaDateTimeInFuture(dlDate, dlTime)) {
+            setError('El plazo para responder debe ser futuro. Volvé para editarlo.');
+            setRawErrorCode('frontend_deadline_in_past');
+            setLoading(false);
+            submittingRef.current = false;
+            return;
+          }
+
+          const sortedOptions = [...draft.options].sort((a, b) => {
+            return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+          });
+          const earliestOption = sortedOptions[0];
+          if (earliestOption) {
+            const earliestOptionKey = buildArgentinaLocalKey(earliestOption.date, earliestOption.time);
+            const deadlineKey = buildArgentinaLocalKey(dlDate, dlTime);
+            if (compareArgentinaLocalDateTimes(deadlineKey, earliestOptionKey) >= 0) {
+              setError('El plazo debe ser anterior a las fechas propuestas. Volvé para editarlo.');
+              setRawErrorCode('frontend_deadline_after_options');
+              setLoading(false);
+              submittingRef.current = false;
+              return;
+            }
+          }
+        }
+      }
+
       // Normalizar Payload para asegurar que no haya 'undefined' que rompa JSON
       const isPresencial = draft.modality === 'presencial';
 
@@ -60,6 +106,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         resetDraft();
         navigate(`/coordination/${result.encuentro.id}`);
       } else {
+        setRawErrorCode(result.error || 'unknown_error');
         if (result.error === 'invalid_response_format' || result.error === 'invalid_option_order' || result.error === 'duplicate_option_order' || result.error === 'invalid_option_order_sequence') {
           setError('No pudimos verificar la creación. Volvé a Home para comprobar si el encuentro aparece antes de intentar nuevamente.');
         } else {
@@ -68,6 +115,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
       }
     } catch (error: unknown) {
       console.error('[CreateCoordination] failed', error);
+      setRawErrorCode('js_exception');
       setError(getCoordinationCreateErrorMessage('unknown_error'));
     } finally {
       submittingRef.current = false;
@@ -105,6 +153,10 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         {error && (
           <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 16, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: '#dc2626', margin: 0, fontSize: 14, fontWeight: 500 }}>{error}</p>
+            {/* TODO: Remover rawErrorCode antes del lanzamiento público final */}
+            {rawErrorCode && (
+              <p style={{ margin: 0, color: '#ef4444', fontSize: 12, opacity: 0.8 }}>Código técnico: {rawErrorCode}</p>
+            )}
             {error.includes('Volvé a Home') && (
               <Button variant="outline" onClick={() => navigate('/')} style={{ marginTop: 12, borderRadius: 12 }}>
                 Volver a Home
