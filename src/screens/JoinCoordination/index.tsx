@@ -199,6 +199,11 @@ export default function JoinCoordination() {
       }
 
       // Navegamos pasando el token_invitacion
+      console.info('[JoinCoordination] availability submitted', {
+        currentPath: window.location.pathname,
+        token_invitacion: res.token_invitacion,
+        nextPath: `/coordination/invite/${res.token_invitacion}`
+      });
       navigate(`/coordination/invite/${res.token_invitacion}`, { replace: true });
     } catch {
       setSubmitErrorCode('network_error');

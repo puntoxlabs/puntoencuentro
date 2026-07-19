@@ -388,31 +388,34 @@ function isValidDurationMinutes(value: unknown): value is number | null {
 function normalizeCoordinationResponses(value: unknown, validOptionIds?: Set<string>): CoordinationAvailabilityInput[] | null {
   if (!Array.isArray(value)) return null;
   const resps: CoordinationAvailabilityInput[] = [];
-  let preferredCount = 0;
   const seenResponseOptionIds = new Set<string>();
 
+  let preferredCount = 0;
   for (const resp of value) {
-    if (!isUnknownRecord(resp)) return null;
-    if (!isNonEmptyString(resp.opcion_fecha_id)) return null;
-    if (validOptionIds && !validOptionIds.has(resp.opcion_fecha_id)) return null;
-    if (seenResponseOptionIds.has(resp.opcion_fecha_id)) return null;
+    if (!isUnknownRecord(resp)) continue;
+    if (!isNonEmptyString(resp.opcion_fecha_id)) continue;
+    if (validOptionIds && !validOptionIds.has(resp.opcion_fecha_id)) continue;
+    if (seenResponseOptionIds.has(resp.opcion_fecha_id)) continue;
     seenResponseOptionIds.add(resp.opcion_fecha_id);
 
-    const validRes = resp.respuesta === 'available' || resp.respuesta === 'maybe' || resp.respuesta === 'unavailable';
-    if (!validRes) return null;
+    const rawResp = resp.respuesta ?? null;
+    const validRes = rawResp === 'available' || rawResp === 'maybe' || rawResp === 'unavailable';
+    if (!validRes) continue;
 
-    if (typeof resp.es_preferida !== 'boolean') return null;
-    if (resp.respuesta === 'unavailable' && resp.es_preferida) return null;
-    if (resp.es_preferida) preferredCount++;
+    const esPref = resp.es_preferida ?? false;
+    if (typeof esPref !== 'boolean') continue;
+    if (rawResp === 'unavailable' && esPref) continue;
+    if (esPref) preferredCount++;
 
     resps.push({
       opcion_fecha_id: resp.opcion_fecha_id,
-      respuesta: resp.respuesta as 'available' | 'maybe' | 'unavailable',
-      es_preferida: resp.es_preferida
+      respuesta: rawResp as 'available' | 'maybe' | 'unavailable',
+      es_preferida: esPref
     });
   }
 
   if (preferredCount > 1) return null;
+
   return resps;
 }
 
@@ -748,59 +751,72 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
-    if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
+    const fail = (field: string, value: any) => {
+      console.error('[getCoordinacionPublica] invalid response format', {
+        failedField: field,
+        value,
+        rawResult
+      });
+      return { ok: false as const, error: 'invalid_response_format' };
+    };
+
+    if (!isUnknownRecord(rawResult.encuentro)) return fail('encuentro', rawResult.encuentro);
     const enc = rawResult.encuentro;
     console.info('[getCoordinacionPublica] RPC raw response', rawResult);
 
-    if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
-    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.tema_invitacion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.descripcion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
+    if (!isNonEmptyString(enc.titulo)) return fail('encuentro.titulo', enc.titulo);
+    if (!isNonEmptyString(enc.estado)) return fail('encuentro.estado', enc.estado);
+    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return fail('encuentro.modalidad', enc.modalidad);
+    if (!isNonEmptyString(enc.tipo_invitacion)) return fail('encuentro.tipo_invitacion', enc.tipo_invitacion);
+    if (!isNonEmptyString(enc.tema_invitacion)) return fail('encuentro.tema_invitacion', enc.tema_invitacion);
+    if (!isNullableString(enc.descripcion)) return fail('encuentro.descripcion', enc.descripcion);
+    if (!isNullableString(enc.lugar_texto)) return fail('encuentro.lugar_texto', enc.lugar_texto);
+    if (!isNullableString(enc.tema)) return fail('encuentro.tema', enc.tema);
+    if (!isNullableString(enc.invitation_template)) return fail('encuentro.invitation_template', enc.invitation_template);
     // Normalize undefined → null for fields the RPC may omit depending on version
-    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return { ok: false, error: 'invalid_response_format' };
+    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return fail('encuentro.duration_minutes', enc.duration_minutes);
 
-    if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
+    if (!isCoordinationStatus(rawResult.coordination_status)) return fail('coordination_status', rawResult.coordination_status);
     const rawDeadline = rawResult.response_deadline ?? null;
-    if (rawDeadline !== null && !isValidIsoDateTime(rawDeadline)) return { ok: false, error: 'invalid_response_format' };
+    if (rawDeadline !== null && !isValidIsoDateTime(rawDeadline)) return fail('response_deadline', rawDeadline);
     const rawSelectedId = rawResult.selected_option_id ?? null;
-    if (rawSelectedId !== null && (!isUuid(rawSelectedId) && !isNonEmptyString(rawSelectedId))) return { ok: false, error: 'invalid_response_format' };
+    if (rawSelectedId !== null && (!isUuid(rawSelectedId) && !isNonEmptyString(rawSelectedId))) return fail('selected_option_id', rawSelectedId);
     const rawFecha = rawResult.fecha ?? null;
-    if (rawFecha !== null && !isValidCalendarDate(rawFecha)) return { ok: false, error: 'invalid_response_format' };
+    if (rawFecha !== null && !isValidCalendarDate(rawFecha)) return fail('fecha', rawFecha);
     const rawHora = rawResult.hora ?? null;
-    if (rawHora !== null && !isValidPostgresTime(rawHora)) return { ok: false, error: 'invalid_response_format' };
-    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
+    if (rawHora !== null && !isValidPostgresTime(rawHora)) return fail('hora', rawHora);
+    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return fail('derived_status', rawResult.derived_status);
 
-    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
+    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return fail('opciones', rawResult.opciones);
 
     const ops: CoordinationOption[] = [];
     const seenOptionIds = new Set<string>();
     const seenOptionOrders = new Set<number>();
 
     for (const op of rawResult.opciones) {
-      if (!isUnknownRecord(op)) return { ok: false, error: 'invalid_response_format' };
-      if (!isNonEmptyString(op.id)) return { ok: false, error: 'invalid_response_format' };
-      if (seenOptionIds.has(op.id as string)) return { ok: false, error: 'invalid_response_format' };
+      if (!isUnknownRecord(op)) return fail('opciones[item]', op);
+      if (!isNonEmptyString(op.id)) return fail('opcion.id', op.id);
+      if (seenOptionIds.has(op.id as string)) return fail('opcion.id_duplicate', op.id);
       seenOptionIds.add(op.id as string);
 
-      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return { ok: false, error: 'invalid_response_format' };
-      if (seenOptionOrders.has(op.orden as number)) return { ok: false, error: 'invalid_response_format' };
+      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return fail('opcion.orden', op.orden);
+      if (seenOptionOrders.has(op.orden as number)) return fail('opcion.orden_duplicate', op.orden);
       seenOptionOrders.add(op.orden as number);
 
-      if (!isValidCalendarDate(op.fecha)) return { ok: false, error: 'invalid_response_format' };
-      if (!isValidPostgresTime(op.hora_inicio)) return { ok: false, error: 'invalid_response_format' };
-      if (typeof op.selected !== 'boolean') return { ok: false, error: 'invalid_response_format' };
+      if (!isValidCalendarDate(op.fecha)) return fail('opcion.fecha', op.fecha);
+      if (!isValidPostgresTime(op.hora_inicio)) return fail('opcion.hora_inicio', op.hora_inicio);
+      if (typeof op.selected !== 'boolean') return fail('opcion.selected', op.selected);
 
       ops.push({
         id: op.id as string,
         fecha: op.fecha as string,
         hora_inicio: op.hora_inicio as string,
         orden: op.orden as number,
-        selected: op.selected as boolean
+        selected: op.selected as boolean,
+        available_count: (op.available_count as number) ?? 0,
+        maybe_count: (op.maybe_count as number) ?? 0,
+        unavailable_count: (op.unavailable_count as number) ?? 0,
+        preferred_count: (op.preferred_count as number) ?? 0
       });
     }
 
@@ -849,73 +865,86 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
+    const fail = (field: string, value: any) => {
+      console.error('[getCoordinacionParticipante] invalid response format', {
+        failedField: field,
+        value,
+        rawResult
+      });
+      return { ok: false as const, error: 'invalid_response_format' };
+    };
+
     console.info('[getCoordinacionParticipante] RPC raw response', rawResult);
 
-    if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
+    if (!isUnknownRecord(rawResult.encuentro)) return fail('encuentro', rawResult.encuentro);
     const enc = rawResult.encuentro;
-    if (!isNonEmptyString(enc.id)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
-    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(enc.tema_invitacion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.descripcion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
+    if (!isNonEmptyString(enc.id)) return fail('encuentro.id', enc.id);
+    if (!isNonEmptyString(enc.titulo)) return fail('encuentro.titulo', enc.titulo);
+    if (!isNonEmptyString(enc.estado)) return fail('encuentro.estado', enc.estado);
+    if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return fail('encuentro.modalidad', enc.modalidad);
+    if (!isNonEmptyString(enc.tipo_invitacion)) return fail('encuentro.tipo_invitacion', enc.tipo_invitacion);
+    if (!isNonEmptyString(enc.tema_invitacion)) return fail('encuentro.tema_invitacion', enc.tema_invitacion);
+    if (!isNullableString(enc.descripcion)) return fail('encuentro.descripcion', enc.descripcion);
+    if (!isNullableString(enc.lugar_texto)) return fail('encuentro.lugar_texto', enc.lugar_texto);
+    if (!isNullableString(enc.tema)) return fail('encuentro.tema', enc.tema);
+    if (!isNullableString(enc.invitation_template)) return fail('encuentro.invitation_template', enc.invitation_template);
     // Normalize undefined → null for fields the RPC may omit depending on version
-    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return { ok: false, error: 'invalid_response_format' };
+    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return fail('encuentro.duration_minutes', enc.duration_minutes);
 
-    if (!isUnknownRecord(rawResult.participante)) return { ok: false, error: 'invalid_response_format' };
+    if (!isUnknownRecord(rawResult.participante)) return fail('participante', rawResult.participante);
     const part = rawResult.participante;
-    if (!isNonEmptyString(part.id)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(part.nombre_invitado)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(part.tipo_invitacion)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNonEmptyString(part.estado)) return { ok: false, error: 'invalid_response_format' };
-    if (!isNullableString(part.mensaje_respuesta)) return { ok: false, error: 'invalid_response_format' };
-    if (typeof part.respondio_disponibilidad !== 'boolean') return { ok: false, error: 'invalid_response_format' };
+    if (!isNonEmptyString(part.id)) return fail('participante.id', part.id);
+    if (!isNonEmptyString(part.nombre_invitado)) return fail('participante.nombre_invitado', part.nombre_invitado);
+    if (!isNonEmptyString(part.tipo_invitacion)) return fail('participante.tipo_invitacion', part.tipo_invitacion);
+    if (!isNonEmptyString(part.estado)) return fail('participante.estado', part.estado);
+    if (!isNullableString(part.mensaje_respuesta)) return fail('participante.mensaje_respuesta', part.mensaje_respuesta);
+    if (typeof part.respondio_disponibilidad !== 'boolean') return fail('participante.respondio_disponibilidad', part.respondio_disponibilidad);
 
-    if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
+    if (!isCoordinationStatus(rawResult.coordination_status)) return fail('coordination_status', rawResult.coordination_status);
     const partDeadline = rawResult.response_deadline ?? null;
-    if (partDeadline !== null && !isValidIsoDateTime(partDeadline)) return { ok: false, error: 'invalid_response_format' };
+    if (partDeadline !== null && !isValidIsoDateTime(partDeadline)) return fail('response_deadline', partDeadline);
     const partSelectedId = rawResult.selected_option_id ?? null;
-    if (partSelectedId !== null && (!isUuid(partSelectedId) && !isNonEmptyString(partSelectedId))) return { ok: false, error: 'invalid_response_format' };
+    if (partSelectedId !== null && (!isUuid(partSelectedId) && !isNonEmptyString(partSelectedId))) return fail('selected_option_id', partSelectedId);
     const partFecha = rawResult.fecha ?? null;
-    if (partFecha !== null && !isValidCalendarDate(partFecha)) return { ok: false, error: 'invalid_response_format' };
+    if (partFecha !== null && !isValidCalendarDate(partFecha)) return fail('fecha', partFecha);
     const partHora = rawResult.hora ?? null;
-    if (partHora !== null && !isValidPostgresTime(partHora)) return { ok: false, error: 'invalid_response_format' };
-    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
+    if (partHora !== null && !isValidPostgresTime(partHora)) return fail('hora', partHora);
+    if (!isCoordinationDerivedStatus(rawResult.derived_status)) return fail('derived_status', rawResult.derived_status);
 
-    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
+    if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return fail('opciones', rawResult.opciones);
 
     const ops: CoordinationOption[] = [];
     const seenOptionIds = new Set<string>();
     const seenOptionOrders = new Set<number>();
 
     for (const op of rawResult.opciones) {
-      if (!isUnknownRecord(op)) return { ok: false, error: 'invalid_response_format' };
-      if (!isNonEmptyString(op.id)) return { ok: false, error: 'invalid_response_format' };
-      if (seenOptionIds.has(op.id as string)) return { ok: false, error: 'invalid_response_format' };
+      if (!isUnknownRecord(op)) return fail('opciones[item]', op);
+      if (!isNonEmptyString(op.id)) return fail('opcion.id', op.id);
+      if (seenOptionIds.has(op.id as string)) return fail('opcion.id_duplicate', op.id);
       seenOptionIds.add(op.id as string);
 
-      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return { ok: false, error: 'invalid_response_format' };
-      if (seenOptionOrders.has(op.orden as number)) return { ok: false, error: 'invalid_response_format' };
+      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return fail('opcion.orden', op.orden);
+      if (seenOptionOrders.has(op.orden as number)) return fail('opcion.orden_duplicate', op.orden);
       seenOptionOrders.add(op.orden as number);
 
-      if (!isValidCalendarDate(op.fecha)) return { ok: false, error: 'invalid_response_format' };
-      if (!isValidPostgresTime(op.hora_inicio)) return { ok: false, error: 'invalid_response_format' };
-      if (typeof op.selected !== 'boolean') return { ok: false, error: 'invalid_response_format' };
+      if (!isValidCalendarDate(op.fecha)) return fail('opcion.fecha', op.fecha);
+      if (!isValidPostgresTime(op.hora_inicio)) return fail('opcion.hora_inicio', op.hora_inicio);
+      if (typeof op.selected !== 'boolean') return fail('opcion.selected', op.selected);
       ops.push({
         id: op.id as string,
         fecha: op.fecha as string,
         hora_inicio: op.hora_inicio as string,
         orden: op.orden as number,
-        selected: op.selected as boolean
+        selected: op.selected as boolean,
+        available_count: (op.available_count as number) ?? 0,
+        maybe_count: (op.maybe_count as number) ?? 0,
+        unavailable_count: (op.unavailable_count as number) ?? 0,
+        preferred_count: (op.preferred_count as number) ?? 0
       });
     }
 
     const resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);
-    if (!resps) return { ok: false, error: 'invalid_response_format' };
+    if (!resps) return fail('mis_respuestas', rawResult.mis_respuestas);
 
     return {
       ok: true,

@@ -134,6 +134,15 @@ export default function InviteCoordination() {
               </Button>
             }
           />
+          {/* TODO: remover diagnóstico técnico antes del lanzamiento público. */}
+          {loadErrorCode && (
+            <div style={{ marginTop: 24, padding: 16, backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, textAlign: 'left' }}>
+              <p style={{ margin: 0, color: '#991b1b', fontSize: 13, fontWeight: 600 }}>Diagnóstico temporal:</p>
+              <p style={{ margin: '8px 0 0', color: '#dc2626', fontSize: 12, fontFamily: 'monospace' }}>
+                Código técnico: {loadErrorCode}
+              </p>
+            </div>
+          )}
         </div>
       </ScreenContainer>
     );
