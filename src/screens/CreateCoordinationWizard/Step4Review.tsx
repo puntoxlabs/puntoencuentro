@@ -41,6 +41,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         lugar_texto: isPresencial ? (draft.locationText || null) : null,
         link_virtual: !isPresencial ? (draft.virtualLink || null) : null,
         tipo_invitacion: draft.invitationType,
+        tema: 'blue',
         tema_invitacion: draft.invitationTheme || null,
         invitation_template: draft.invitationTemplate || null,
         response_deadline: draft.responseDeadline || null,
@@ -74,7 +75,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
     }
   };
 
-  const hasOptions = draft.options.length > 0;
+
 
   const getThemeDisplayName = () => {
     if (!draft.invitationTheme || draft.invitationTheme === 'classic') return 'Clásico';
@@ -180,9 +181,19 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
                 </div>
               </div>
             </div>
+            {draft.description && (
+              <div style={{ marginTop: 12 }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+                  Mensaje
+                </span>
+                <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500, whiteSpace: 'pre-wrap' }}>
+                  {draft.description}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Card 2: Opciones */}
+          {/* Card 2: Opciones propuestas */}
           <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#0f172a' }}>
@@ -196,7 +207,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {hasOptions && draft.options.map((opt, index) => {
+              {draft.options.map((opt, index) => {
                 return (
                   <div key={opt.localId} style={{ display: 'flex', alignItems: 'center', gap: 14, background: '#f8fafc', padding: '14px 16px', borderRadius: 14, border: '1px solid rgba(15,23,42,0.05)' }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#475569', fontSize: 14, flexShrink: 0 }}>

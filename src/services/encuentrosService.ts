@@ -205,9 +205,12 @@ export function getCoordinationCreateErrorMessage(errorCode: string): string {
     case 'invalid_deadline':
       return 'Revisá el plazo para responder.';
     case 'deadline_after_first_option':
+    case 'deadline_after_options':
       return 'El plazo debe finalizar antes de la primera opción.';
     case 'invalid_modality':
       return 'Revisá la modalidad del encuentro.';
+    case 'invalid_theme':
+      return 'El tema o diseño seleccionado no es válido.';
     case 'location_required':
       return 'Indicá el lugar del encuentro.';
     case 'virtual_link_required':
@@ -729,8 +732,16 @@ export const encuentrosService = {
     });
 
     if (error) {
-      console.error('[encuentrosService] Error en crear_encuentro_con_opciones_seguro:', error);
+      console.error('[encuentrosService] Error en crear_encuentro_con_opciones_seguro RPC:', {
+        payload,
+        opciones,
+        error
+      });
       return { ok: false, error: 'rpc_error' };
+    }
+
+    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
+       console.error('[encuentrosService] Supabase devolvió error lógico estructurado:', data);
     }
 
     return validateCoordinationCreateResult(data);

@@ -115,7 +115,7 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
           <textarea
             id="desc-textarea"
             className="input-field"
-            placeholder="Agregá más detalles sobre el encuentro..."
+            placeholder="Sumá un mensaje para tus invitados"
             value={draft.description}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !draft.description.trim()) {

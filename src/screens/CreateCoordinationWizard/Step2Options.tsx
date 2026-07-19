@@ -364,7 +364,7 @@ const Step2Options: React.FC<Step2OptionsProps> = ({ onNext, onBack }) => {
                 width: 52,
                 height: 32,
                 borderRadius: 100,
-                backgroundColor: draft.mostrarRespuestasAInvitados ? 'var(--pe-primary)' : '#e2e8f0',
+                backgroundColor: draft.mostrarRespuestasAInvitados ? 'var(--color-primary, #184CD4)' : '#e2e8f0',
                 border: 'none',
                 position: 'relative',
                 cursor: 'pointer',
