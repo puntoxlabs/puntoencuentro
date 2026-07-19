@@ -199,8 +199,10 @@ export default function JoinCoordination() {
       }
 
       // Navegamos pasando el token_invitacion
-
-      navigate(`/coordination/invite/${res.token_invitacion}`, { replace: true });
+      navigate(`/coordination/invite/${res.token_invitacion}`, { 
+        replace: true,
+        state: { availabilitySaved: true }
+      });
     } catch {
       setSubmitErrorCode('network_error');
       setIsSubmitting(false);

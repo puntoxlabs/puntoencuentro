@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -22,6 +22,7 @@ type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult,
 export default function InviteCoordination() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, i18n } = useTranslation();
 
   const [loading, setLoading] = useState(!!token);
@@ -32,7 +33,17 @@ export default function InviteCoordination() {
 
   const [respuestas, setRespuestas] = useState<Record<string, CoordinationAvailabilityInput>>({});
   const [showValidation, setShowValidation] = useState(false);
-  const [successMsg, setSuccessMsg] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<'saved' | 'updated' | null>(null);
+
+  useEffect(() => {
+    if (location.state?.availabilitySaved) {
+      setSuccessMsg('saved');
+      // Clear state so it doesn't reappear on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+      const timer = setTimeout(() => setSuccessMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [location, navigate]);
 
   const isSubmittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,7 +154,7 @@ export default function InviteCoordination() {
   const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
 
   const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
-    setSuccessMsg(false);
+    setSuccessMsg(null);
     setRespuestas(prev => {
       const existing = prev[opcionId] || { opcion_fecha_id: opcionId, es_preferida: false };
       const newPreferida = value === 'unavailable' ? false : existing.es_preferida;
@@ -159,7 +170,7 @@ export default function InviteCoordination() {
   };
 
   const handleTogglePreferida = (opcionId: string) => {
-    setSuccessMsg(false);
+    setSuccessMsg(null);
     setRespuestas(prev =>
       Object.fromEntries(
         Object.entries(prev).map(([id, response]) => [
@@ -199,8 +210,8 @@ export default function InviteCoordination() {
 
       setSubmitErrorCode(null);
       setShowValidation(false);
-      setSuccessMsg(true);
-      setTimeout(() => setSuccessMsg(false), 3000);
+      setSuccessMsg('updated');
+      setTimeout(() => setSuccessMsg(null), 5000);
       setData(prev => prev ? { ...prev, participante: { ...prev.participante, respondio_disponibilidad: true } } : prev);
     } catch {
       setSubmitErrorCode('network_error');
@@ -221,8 +232,6 @@ export default function InviteCoordination() {
       const { participantesService } = await import('@/services/participantesService');
       const res = await participantesService.responderInvitacion(token, estadoFinal);
 
-      setSuccessMsg(true);
-      setTimeout(() => setSuccessMsg(false), 3000);
       setData(prev => prev ? { ...prev, participante: { ...prev.participante, estado: res.estado } } : prev);
     } catch (err: any) {
       console.error(err);
@@ -328,10 +337,27 @@ export default function InviteCoordination() {
           </div>
         )}
 
-        {successMsg && (
-          <div className="coordination-guest-status-banner" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
-            <CheckCircle size={24} />
-            <span>{t('coordination.changes_saved', 'Cambios guardados')}</span>
+        {successMsg === 'saved' && (
+          <div className="coordination-guest-status-banner" style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', flexDirection: 'column', alignItems: 'flex-start', padding: '16px 20px', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle size={20} />
+              <span style={{ fontWeight: 700 }}>Disponibilidad registrada</span>
+            </div>
+            <span style={{ fontSize: 14, marginLeft: 28, color: '#15803d', lineHeight: 1.4 }}>
+              Tu respuesta fue enviada correctamente al organizador. Podés modificarla mientras la coordinación siga abierta.
+            </span>
+          </div>
+        )}
+
+        {successMsg === 'updated' && (
+          <div className="coordination-guest-status-banner" style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', flexDirection: 'column', alignItems: 'flex-start', padding: '16px 20px', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle size={20} />
+              <span style={{ fontWeight: 700 }}>Disponibilidad actualizada</span>
+            </div>
+            <span style={{ fontSize: 14, marginLeft: 28, color: '#15803d', lineHeight: 1.4 }}>
+              Tus cambios fueron enviados correctamente.
+            </span>
           </div>
         )}
 
