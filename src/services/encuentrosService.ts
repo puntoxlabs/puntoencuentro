@@ -263,6 +263,8 @@ export type CoordinationPublicReadResult =
   | {
       ok: false;
       error: string;
+      failedField?: string;
+      details?: string;
     };
 
 export type CoordinationParticipantReadResult =
@@ -302,6 +304,8 @@ export type CoordinationParticipantReadResult =
   | {
       ok: false;
       error: string;
+      failedField?: string;
+      details?: string;
     };
 
 export type CoordinationPublicWriteResult =
@@ -751,14 +755,29 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
-    const fail = (field: string, value: any) => {
+    const fail = (failedField: string, value: any, details?: string) => {
       console.error('[getCoordinacionPublica] invalid response format', {
-        failedField: field,
+        failedField,
         value,
+        valueType: typeof value,
+        details,
         rawResult
       });
-      return { ok: false as const, error: 'invalid_response_format' };
+      return { 
+        ok: false as const, 
+        error: 'invalid_response_format', 
+        failedField, 
+        details: details ?? `Invalid field: ${failedField}` 
+      };
     };
+
+    console.info('[getCoordinacionPublica] shape', {
+      hasOk: typeof (rawResult as any)?.ok,
+      keys: Object.keys((rawResult as any) ?? {}),
+      encuentroKeys: Object.keys((rawResult as any)?.encuentro ?? {}),
+      opcionesLength: Array.isArray((rawResult as any)?.opciones) ? (rawResult as any).opciones.length : 'not-array',
+      firstOptionKeys: Object.keys((rawResult as any)?.opciones?.[0] ?? {}),
+    });
 
     if (!isUnknownRecord(rawResult.encuentro)) return fail('encuentro', rawResult.encuentro);
     const enc = rawResult.encuentro;
@@ -793,15 +812,17 @@ export const encuentrosService = {
     const seenOptionIds = new Set<string>();
     const seenOptionOrders = new Set<number>();
 
+    let opIndex = 0;
     for (const op of rawResult.opciones) {
       if (!isUnknownRecord(op)) return fail('opciones[item]', op);
       if (!isNonEmptyString(op.id)) return fail('opcion.id', op.id);
       if (seenOptionIds.has(op.id as string)) return fail('opcion.id_duplicate', op.id);
       seenOptionIds.add(op.id as string);
 
-      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return fail('opcion.orden', op.orden);
-      if (seenOptionOrders.has(op.orden as number)) return fail('opcion.orden_duplicate', op.orden);
-      seenOptionOrders.add(op.orden as number);
+      const resolvedOrden = typeof op.orden === 'number' && Number.isInteger(op.orden) ? op.orden : opIndex + 1;
+      if (resolvedOrden < 1 || resolvedOrden > 3) return fail('opcion.orden', resolvedOrden);
+      if (seenOptionOrders.has(resolvedOrden)) return fail('opcion.orden_duplicate', resolvedOrden);
+      seenOptionOrders.add(resolvedOrden);
 
       if (!isValidCalendarDate(op.fecha)) return fail('opcion.fecha', op.fecha);
       if (!isValidPostgresTime(op.hora_inicio)) return fail('opcion.hora_inicio', op.hora_inicio);
@@ -811,13 +832,14 @@ export const encuentrosService = {
         id: op.id as string,
         fecha: op.fecha as string,
         hora_inicio: op.hora_inicio as string,
-        orden: op.orden as number,
+        orden: resolvedOrden,
         selected: op.selected as boolean,
         available_count: (op.available_count as number) ?? 0,
         maybe_count: (op.maybe_count as number) ?? 0,
         unavailable_count: (op.unavailable_count as number) ?? 0,
         preferred_count: (op.preferred_count as number) ?? 0
       });
+      opIndex++;
     }
 
     return {
@@ -865,14 +887,30 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
-    const fail = (field: string, value: any) => {
+    const fail = (failedField: string, value: any, details?: string) => {
       console.error('[getCoordinacionParticipante] invalid response format', {
-        failedField: field,
+        failedField,
         value,
+        valueType: typeof value,
+        details,
         rawResult
       });
-      return { ok: false as const, error: 'invalid_response_format' };
+      return { 
+        ok: false as const, 
+        error: 'invalid_response_format', 
+        failedField, 
+        details: details ?? `Invalid field: ${failedField}` 
+      };
     };
+
+    console.info('[getCoordinacionParticipante] shape', {
+      hasOk: typeof (rawResult as any)?.ok,
+      keys: Object.keys((rawResult as any) ?? {}),
+      encuentroKeys: Object.keys((rawResult as any)?.encuentro ?? {}),
+      participanteKeys: Object.keys((rawResult as any)?.participante ?? {}),
+      opcionesLength: Array.isArray((rawResult as any)?.opciones) ? (rawResult as any).opciones.length : 'not-array',
+      firstOptionKeys: Object.keys((rawResult as any)?.opciones?.[0] ?? {}),
+    });
 
     console.info('[getCoordinacionParticipante] RPC raw response', rawResult);
 
@@ -917,15 +955,17 @@ export const encuentrosService = {
     const seenOptionIds = new Set<string>();
     const seenOptionOrders = new Set<number>();
 
+    let opIndex = 0;
     for (const op of rawResult.opciones) {
       if (!isUnknownRecord(op)) return fail('opciones[item]', op);
       if (!isNonEmptyString(op.id)) return fail('opcion.id', op.id);
       if (seenOptionIds.has(op.id as string)) return fail('opcion.id_duplicate', op.id);
       seenOptionIds.add(op.id as string);
 
-      if (typeof op.orden !== 'number' || !Number.isInteger(op.orden) || op.orden < 1 || op.orden > 3) return fail('opcion.orden', op.orden);
-      if (seenOptionOrders.has(op.orden as number)) return fail('opcion.orden_duplicate', op.orden);
-      seenOptionOrders.add(op.orden as number);
+      const resolvedOrden = typeof op.orden === 'number' && Number.isInteger(op.orden) ? op.orden : opIndex + 1;
+      if (resolvedOrden < 1 || resolvedOrden > 3) return fail('opcion.orden', resolvedOrden);
+      if (seenOptionOrders.has(resolvedOrden)) return fail('opcion.orden_duplicate', resolvedOrden);
+      seenOptionOrders.add(resolvedOrden);
 
       if (!isValidCalendarDate(op.fecha)) return fail('opcion.fecha', op.fecha);
       if (!isValidPostgresTime(op.hora_inicio)) return fail('opcion.hora_inicio', op.hora_inicio);
@@ -934,13 +974,14 @@ export const encuentrosService = {
         id: op.id as string,
         fecha: op.fecha as string,
         hora_inicio: op.hora_inicio as string,
-        orden: op.orden as number,
+        orden: resolvedOrden,
         selected: op.selected as boolean,
         available_count: (op.available_count as number) ?? 0,
         maybe_count: (op.maybe_count as number) ?? 0,
         unavailable_count: (op.unavailable_count as number) ?? 0,
         preferred_count: (op.preferred_count as number) ?? 0
       });
+      opIndex++;
     }
 
     const resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);

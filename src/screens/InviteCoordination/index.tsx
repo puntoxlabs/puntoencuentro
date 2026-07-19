@@ -27,6 +27,8 @@ export default function InviteCoordination() {
   const [loading, setLoading] = useState(!!token);
   const [data, setData] = useState<CoordinationParticipantSuccess | null>(null);
   const [loadErrorCode, setLoadErrorCode] = useState<string | null>(!token ? 'invalid_token' : null);
+  const [loadErrorField, setLoadErrorField] = useState<string | null>(null);
+  const [loadErrorDetails, setLoadErrorDetails] = useState<string | null>(null);
   const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -46,8 +48,12 @@ export default function InviteCoordination() {
         if (!mounted) return;
         if (!res.ok) {
           setLoadErrorCode(res.error);
+          setLoadErrorField(res.failedField || null);
+          setLoadErrorDetails(res.details || null);
         } else {
           setLoadErrorCode(null);
+          setLoadErrorField(null);
+          setLoadErrorDetails(null);
           setData(res);
 
           const validOptionIds = new Set(res.opciones.map(o => o.id));
@@ -141,6 +147,16 @@ export default function InviteCoordination() {
               <p style={{ margin: '8px 0 0', color: '#dc2626', fontSize: 12, fontFamily: 'monospace' }}>
                 Código técnico: {loadErrorCode}
               </p>
+              {loadErrorField && (
+                <p style={{ margin: '4px 0 0', color: '#dc2626', fontSize: 12, fontFamily: 'monospace' }}>
+                  Campo: {loadErrorField}
+                </p>
+              )}
+              {loadErrorDetails && (
+                <p style={{ margin: '4px 0 0', color: '#dc2626', fontSize: 12, fontFamily: 'monospace' }}>
+                  Detalle: {loadErrorDetails}
+                </p>
+              )}
             </div>
           )}
         </div>
