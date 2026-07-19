@@ -389,8 +389,8 @@ function isValidDurationMinutes(value: unknown): value is number | null {
   return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 15 && value <= 1440;
 }
 
-function normalizeCoordinationResponses(value: unknown, validOptionIds?: Set<string>): CoordinationAvailabilityInput[] | null {
-  if (!Array.isArray(value)) return null;
+function normalizeCoordinationResponses(value: unknown, validOptionIds?: Set<string>): CoordinationAvailabilityInput[] {
+  if (!Array.isArray(value)) return [];
   const resps: CoordinationAvailabilityInput[] = [];
   const seenResponseOptionIds = new Set<string>();
 
@@ -417,8 +417,6 @@ function normalizeCoordinationResponses(value: unknown, validOptionIds?: Set<str
       es_preferida: esPref
     });
   }
-
-  if (preferredCount > 1) return null;
 
   return resps;
 }
@@ -985,7 +983,6 @@ export const encuentrosService = {
     }
 
     const resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);
-    if (!resps) return fail('mis_respuestas', rawResult.mis_respuestas);
 
     return {
       ok: true,
