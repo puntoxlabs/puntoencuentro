@@ -14,7 +14,8 @@ import { encuentrosService } from '@/services/encuentrosService';
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCreateEncounter } from '@/hooks/useCreateEncounter';
-import { formatFriendlyDate, isEncuentroPasado as isEncuentroPasadoFormat, formatFriendlyDeadline } from '@/lib/formatDate';
+import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
+import { getEncounterListBucket } from '@/lib/encounterListBucket';
 import {
   isCoordinationEncounter,
   encounterComparator
@@ -32,11 +33,7 @@ import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceShe
 import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
 import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
 
-/** Devuelve true si la fecha+hora del encuentro ya pasó */
-function isEncuentroPasado(enc: any): boolean {
-  if (!enc || !enc.fecha || !enc.hora) return false;
-  return isEncuentroPasadoFormat(enc.fecha, enc.hora);
-}
+
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -67,14 +64,29 @@ const ActiveCard: React.FC<{
   participantesCache: any[] | null;
   miEstado?: string | null;
   counts?: { total: number; confirmados: number } | null;
-}> = ({ enc, onClick, participantesCache, miEstado, counts }) => {
+  isHost?: boolean;
+}> = ({ enc, onClick, participantesCache, miEstado, counts, isHost = true }) => {
   if (!enc) return null;
   const accentColor = getEncuentroPrimaryColor(enc);
   const confirmados = counts ? counts.confirmados : (participantesCache || []).filter((p: any) => p && p.estado === 'confirmado').length;
   const total = counts ? counts.total : (participantesCache || []).length;
 
+  const isExpired = isCoordinationEncounter(enc) && enc.coordination_status === 'open' && enc.response_deadline && new Date(enc.response_deadline) < new Date();
+
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Vas a asistir' : miEstado === 'rechazado' ? '✖ No vas a asistir' : miEstado ? 'Respuesta registrada' : null;
+
+  const getBadgeLabel = () => {
+    if (!isCoordinationEncounter(enc)) return "Activo";
+    if (enc.coordination_status === 'closed') return "Fecha confirmada";
+    if (isExpired) return "Plazo vencido";
+    return "Coordinación abierta";
+  };
+
+  const getBadgeStatus = () => {
+    if (isExpired) return "pending";
+    return "active";
+  };
 
   return (
     <div
@@ -86,15 +98,21 @@ const ActiveCard: React.FC<{
         <h3 className="home-card-title">
           {enc.titulo}
         </h3>
-        <Badge label={isCoordinationEncounter(enc) ? "Coordinando fecha" : "Activo"} status="active" />
+        <Badge label={getBadgeLabel()} status={getBadgeStatus()} />
       </div>
 
       <p className="home-card-date">
-        📅 {isCoordinationEncounter(enc) ? 'Opciones de fecha propuestas' : formatFriendlyDate(enc.fecha, enc.hora)}
+        📅 {isCoordinationEncounter(enc) 
+             ? (enc.coordination_status === 'closed' 
+                 ? formatFriendlyDate(enc.fecha, enc.hora) 
+                 : 'Opciones de fecha propuestas') 
+             : formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
-      {isCoordinationEncounter(enc) && enc.response_deadline && (
-        <p className="home-card-date" style={{ color: 'var(--pe-error)', fontSize: 13, marginTop: 4 }}>
-          ⏳ Responder antes del {formatFriendlyDeadline(enc.response_deadline)}
+      {isCoordinationEncounter(enc) && enc.response_deadline && enc.coordination_status === 'open' && (
+        <p className="home-card-date" style={{ color: isExpired ? 'var(--pe-error)' : 'var(--pe-error)', fontSize: 13, marginTop: 4 }}>
+          {isExpired 
+            ? (isHost ? '⏳ Plazo vencido (Elegí una fecha)' : '⏳ Plazo vencido (Esperando confirmación)')
+            : `⏳ Responder antes del ${formatFriendlyDeadline(enc.response_deadline)}`}
         </p>
       )}
 
@@ -167,7 +185,11 @@ const PastCard: React.FC<{
       </div>
 
       <p className="home-card-date--past">
-        📅 {isCoordinationEncounter(enc) ? 'Opciones de fecha propuestas' : formatFriendlyDate(enc.fecha, enc.hora)}
+        📅 {isCoordinationEncounter(enc) 
+             ? (enc.coordination_status === 'closed' 
+                 ? formatFriendlyDate(enc.fecha, enc.hora) 
+                 : 'Opciones de fecha propuestas') 
+             : formatFriendlyDate(enc.fecha, enc.hora)}
       </p>
 
       <div className="home-card-footer">
@@ -280,8 +302,8 @@ const Home: React.FC = () => {
     return name.slice(0, 2).toUpperCase() || '?';
   })();
 
-  const totalProximos = (encuentros || []).filter(enc => enc && typeof enc === 'object' && enc.estado !== 'cancelado' && !isEncuentroPasado(enc)).length;
-  const totalPasados = (encuentros || []).filter(enc => enc && typeof enc === 'object' && (enc.estado === 'cancelado' || isEncuentroPasado(enc))).length;
+  const totalProximos = (encuentros || []).filter(enc => enc && typeof enc === 'object' && getEncounterListBucket(enc) === 'current').length;
+  const totalPasados = (encuentros || []).filter(enc => enc && typeof enc === 'object' && (getEncounterListBucket(enc) === 'past' || getEncounterListBucket(enc) === 'cancelled')).length;
 
   useEffect(() => {
     loadData();
@@ -410,8 +432,9 @@ const Home: React.FC = () => {
     );
 
     const getClasificacion = (enc: any) => {
-      if (enc.estado === 'cancelado') return 'cancelled';
-      if (isEncuentroPasado(enc)) return 'finished';
+      const bucket = getEncounterListBucket(enc);
+      if (bucket === 'cancelled') return 'cancelled';
+      if (bucket === 'past') return 'finished';
       return 'active';
     };
 
@@ -422,16 +445,24 @@ const Home: React.FC = () => {
       return cls === filterStatus;
     });
 
+    const getStableSortValue = (enc: any) => {
+      const d = new Date(`${enc.fecha || ''}T${enc.hora || ''}`).getTime();
+      if (!isNaN(d)) return d;
+      if (enc.response_deadline) return new Date(enc.response_deadline).getTime();
+      if (enc.creado_en) return new Date(enc.creado_en).getTime();
+      return 0;
+    };
+
     const sorted = [...filtered].sort((a, b) => {
       if (sortBy === 'date_upcoming') {
-        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
-        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
-        return (isNaN(dateA) ? 0 : dateA) - (isNaN(dateB) ? 0 : dateB);
+        const sortA = getStableSortValue(a);
+        const sortB = getStableSortValue(b);
+        return sortA - sortB;
       }
       if (sortBy === 'date_distant') {
-        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
-        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
-        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+        const sortA = getStableSortValue(a);
+        const sortB = getStableSortValue(b);
+        return sortB - sortA;
       }
       if (sortBy === 'name_asc') {
         return (a.titulo || '').localeCompare(b.titulo || '');
@@ -452,9 +483,9 @@ const Home: React.FC = () => {
 
     if (sortBy === 'date_upcoming') {
       pasados.sort((a, b) => {
-        const dateA = new Date(`${a.fecha || ''}T${a.hora || ''}`).getTime();
-        const dateB = new Date(`${b.fecha || ''}T${b.hora || ''}`).getTime();
-        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+        const sortA = getStableSortValue(a);
+        const sortB = getStableSortValue(b);
+        return sortB - sortA;
       });
     }
 
@@ -538,6 +569,7 @@ const Home: React.FC = () => {
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
                   counts={counts[enc.id] ?? null}
+                  isHost={activeScope === 'organizo'}
                 />
               ))}
             </div>
