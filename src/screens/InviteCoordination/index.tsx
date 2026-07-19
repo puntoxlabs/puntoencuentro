@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -34,6 +34,7 @@ export default function InviteCoordination() {
   const [respuestas, setRespuestas] = useState<Record<string, CoordinationAvailabilityInput>>({});
   const [showValidation, setShowValidation] = useState(false);
   const [successMsg, setSuccessMsg] = useState<'saved' | 'updated' | null>(null);
+  const [showResponsesPanel, setShowResponsesPanel] = useState(false);
 
   useEffect(() => {
     if (location.state?.availabilitySaved) {
@@ -483,36 +484,48 @@ export default function InviteCoordination() {
 
         {data.mostrar_respuestas_a_invitados && data.opciones && (
           <div className="coordination-guest-form-section" style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid rgba(15,23,42,0.1)' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0', color: '#0f172a' }}>
-              Resumen de respuestas
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {(() => {
-                const optionsWithVotes = data.opciones.filter(opt => (opt.available_count || 0) > 0 || (opt.maybe_count || 0) > 0 || (opt.unavailable_count || 0) > 0);
-                
-                if (optionsWithVotes.length === 0) {
-                  return (
-                    <div style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)', textAlign: 'center' }}>
-                      <span style={{ color: '#64748b', fontSize: 14 }}>Todavía no hay respuestas visibles.</span>
-                    </div>
-                  );
-                }
+            <button 
+              onClick={() => setShowResponsesPanel(!showResponsesPanel)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', padding: '0 0 12px 0', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0', color: '#0f172a' }}>
+                  Respuestas de otros invitados
+                </h3>
+                <span style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Resumen anónimo por opción</span>
+              </div>
+              {showResponsesPanel ? <ChevronUp size={20} color="#64748b" /> : <ChevronDown size={20} color="#64748b" />}
+            </button>
+            
+            {showResponsesPanel && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                {(() => {
+                  const optionsWithVotes = data.opciones.filter(opt => (opt.available_count || 0) > 0 || (opt.maybe_count || 0) > 0 || (opt.unavailable_count || 0) > 0);
+                  
+                  if (optionsWithVotes.length === 0) {
+                    return (
+                      <div style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)', textAlign: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: 14 }}>Todavía no hay respuestas visibles.</span>
+                      </div>
+                    );
+                  }
 
-                return optionsWithVotes.map((opt) => (
-                  <div key={opt.id} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)' }}>
-                    <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, display: 'block', marginBottom: 12 }}>
-                      Opción {opt.orden}
-                    </span>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {(opt.available_count || 0) > 0 && <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Sí: {opt.available_count}</span>}
-                      {(opt.maybe_count || 0) > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Tal vez: {opt.maybe_count}</span>}
-                      {(opt.unavailable_count || 0) > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>No: {opt.unavailable_count}</span>}
-                      {(opt.preferred_count || 0) > 0 && <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Preferida: {opt.preferred_count}</span>}
+                  return optionsWithVotes.map((opt) => (
+                    <div key={opt.id} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)' }}>
+                      <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, display: 'block', marginBottom: 12 }}>
+                        Opción {opt.orden}
+                      </span>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {(opt.available_count || 0) > 0 && <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Sí: {opt.available_count}</span>}
+                        {(opt.maybe_count || 0) > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Tal vez: {opt.maybe_count}</span>}
+                        {(opt.unavailable_count || 0) > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>No: {opt.unavailable_count}</span>}
+                        {(opt.preferred_count || 0) > 0 && <span style={{ background: '#e0e7ff', color: '#3730a3', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Preferida: {opt.preferred_count}</span>}
+                      </div>
                     </div>
-                  </div>
-                ));
-              })()}
-            </div>
+                  ));
+                })()}
+              </div>
+            )}
           </div>
         )}
 

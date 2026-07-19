@@ -228,6 +228,8 @@ export interface CoordinationOption {
   maybe_count?: number;
   unavailable_count?: number;
   preferred_count?: number;
+  respuesta?: CoordinationAvailabilityValue;
+  es_preferida?: boolean;
 }
 
 export interface CoordinationParticipantResponse {
@@ -946,12 +948,23 @@ export const encuentrosService = {
         available_count: (op.available_count as number) ?? 0,
         maybe_count: (op.maybe_count as number) ?? 0,
         unavailable_count: (op.unavailable_count as number) ?? 0,
-        preferred_count: (op.preferred_count as number) ?? 0
+        preferred_count: (op.preferred_count as number) ?? 0,
+        respuesta: (typeof op.respuesta === 'string' && (op.respuesta === 'available' || op.respuesta === 'maybe' || op.respuesta === 'unavailable')) ? op.respuesta as CoordinationAvailabilityValue : undefined,
+        es_preferida: Boolean(op.es_preferida)
       });
       opIndex++;
     }
 
-    const resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);
+    let resps = normalizeCoordinationResponses(rawResult.mis_respuestas, seenOptionIds);
+    if (resps.length === 0) {
+      resps = ops
+        .filter(op => op.respuesta !== undefined)
+        .map(op => ({
+          opcion_fecha_id: op.id,
+          respuesta: op.respuesta as 'available' | 'maybe' | 'unavailable',
+          es_preferida: Boolean(op.es_preferida)
+        }));
+    }
 
     return {
       ok: true,
