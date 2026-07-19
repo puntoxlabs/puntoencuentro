@@ -337,8 +337,9 @@ function parseRpcJson(data: unknown): unknown {
 
 
 
+// Accepts null or undefined (fields omitted by some RPC versions) as null.
 function isNullableString(value: unknown): value is string | null {
-  return value === null || typeof value === 'string';
+  return value === null || value === undefined || typeof value === 'string';
 }
 
 function isCoordinationStatus(value: unknown): value is CoordinationStatus {
@@ -749,6 +750,8 @@ export const encuentrosService = {
 
     if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
     const enc = rawResult.encuentro;
+    console.info('[getCoordinacionPublica] RPC raw response', rawResult);
+
     if (!isNonEmptyString(enc.titulo)) return { ok: false, error: 'invalid_response_format' };
     if (!isNonEmptyString(enc.estado)) return { ok: false, error: 'invalid_response_format' };
     if (enc.modalidad !== 'presencial' && enc.modalidad !== 'virtual') return { ok: false, error: 'invalid_response_format' };
@@ -758,13 +761,18 @@ export const encuentrosService = {
     if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
     if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
     if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
-    if (!isValidDurationMinutes(enc.duration_minutes)) return { ok: false, error: 'invalid_response_format' };
+    // Normalize undefined → null for fields the RPC may omit depending on version
+    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return { ok: false, error: 'invalid_response_format' };
 
     if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.response_deadline !== null && !isValidIsoDateTime(rawResult.response_deadline)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.selected_option_id !== null && (!isUuid(rawResult.selected_option_id) && !isNonEmptyString(rawResult.selected_option_id))) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.fecha !== null && !isValidCalendarDate(rawResult.fecha)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.hora !== null && !isValidPostgresTime(rawResult.hora)) return { ok: false, error: 'invalid_response_format' };
+    const rawDeadline = rawResult.response_deadline ?? null;
+    if (rawDeadline !== null && !isValidIsoDateTime(rawDeadline)) return { ok: false, error: 'invalid_response_format' };
+    const rawSelectedId = rawResult.selected_option_id ?? null;
+    if (rawSelectedId !== null && (!isUuid(rawSelectedId) && !isNonEmptyString(rawSelectedId))) return { ok: false, error: 'invalid_response_format' };
+    const rawFecha = rawResult.fecha ?? null;
+    if (rawFecha !== null && !isValidCalendarDate(rawFecha)) return { ok: false, error: 'invalid_response_format' };
+    const rawHora = rawResult.hora ?? null;
+    if (rawHora !== null && !isValidPostgresTime(rawHora)) return { ok: false, error: 'invalid_response_format' };
     if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
 
     if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
@@ -814,10 +822,10 @@ export const encuentrosService = {
         duration_minutes: enc.duration_minutes as number | null
       },
       coordination_status: rawResult.coordination_status as 'open' | 'closed',
-      response_deadline: rawResult.response_deadline as string | null,
-      selected_option_id: rawResult.selected_option_id as string | null,
-      fecha: rawResult.fecha as string | null,
-      hora: rawResult.hora as string | null,
+      response_deadline: rawDeadline,
+      selected_option_id: rawSelectedId,
+      fecha: rawFecha,
+      hora: rawHora,
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops
     };
@@ -841,6 +849,8 @@ export const encuentrosService = {
 
     if (rawResult.ok !== true) return { ok: false, error: 'invalid_response_format' };
 
+    console.info('[getCoordinacionParticipante] RPC raw response', rawResult);
+
     if (!isUnknownRecord(rawResult.encuentro)) return { ok: false, error: 'invalid_response_format' };
     const enc = rawResult.encuentro;
     if (!isNonEmptyString(enc.id)) return { ok: false, error: 'invalid_response_format' };
@@ -853,7 +863,8 @@ export const encuentrosService = {
     if (!isNullableString(enc.lugar_texto)) return { ok: false, error: 'invalid_response_format' };
     if (!isNullableString(enc.tema)) return { ok: false, error: 'invalid_response_format' };
     if (!isNullableString(enc.invitation_template)) return { ok: false, error: 'invalid_response_format' };
-    if (!isValidDurationMinutes(enc.duration_minutes)) return { ok: false, error: 'invalid_response_format' };
+    // Normalize undefined → null for fields the RPC may omit depending on version
+    if (!isValidDurationMinutes(enc.duration_minutes ?? null)) return { ok: false, error: 'invalid_response_format' };
 
     if (!isUnknownRecord(rawResult.participante)) return { ok: false, error: 'invalid_response_format' };
     const part = rawResult.participante;
@@ -865,10 +876,14 @@ export const encuentrosService = {
     if (typeof part.respondio_disponibilidad !== 'boolean') return { ok: false, error: 'invalid_response_format' };
 
     if (!isCoordinationStatus(rawResult.coordination_status)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.response_deadline !== null && !isValidIsoDateTime(rawResult.response_deadline)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.selected_option_id !== null && (!isUuid(rawResult.selected_option_id) && !isNonEmptyString(rawResult.selected_option_id))) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.fecha !== null && !isValidCalendarDate(rawResult.fecha)) return { ok: false, error: 'invalid_response_format' };
-    if (rawResult.hora !== null && !isValidPostgresTime(rawResult.hora)) return { ok: false, error: 'invalid_response_format' };
+    const partDeadline = rawResult.response_deadline ?? null;
+    if (partDeadline !== null && !isValidIsoDateTime(partDeadline)) return { ok: false, error: 'invalid_response_format' };
+    const partSelectedId = rawResult.selected_option_id ?? null;
+    if (partSelectedId !== null && (!isUuid(partSelectedId) && !isNonEmptyString(partSelectedId))) return { ok: false, error: 'invalid_response_format' };
+    const partFecha = rawResult.fecha ?? null;
+    if (partFecha !== null && !isValidCalendarDate(partFecha)) return { ok: false, error: 'invalid_response_format' };
+    const partHora = rawResult.hora ?? null;
+    if (partHora !== null && !isValidPostgresTime(partHora)) return { ok: false, error: 'invalid_response_format' };
     if (!isCoordinationDerivedStatus(rawResult.derived_status)) return { ok: false, error: 'invalid_response_format' };
 
     if (!Array.isArray(rawResult.opciones) || rawResult.opciones.length < 2 || rawResult.opciones.length > 3) return { ok: false, error: 'invalid_response_format' };
@@ -929,10 +944,10 @@ export const encuentrosService = {
         respondio_disponibilidad: part.respondio_disponibilidad as boolean
       },
       coordination_status: rawResult.coordination_status as 'open' | 'closed',
-      response_deadline: rawResult.response_deadline as string | null,
-      selected_option_id: rawResult.selected_option_id as string | null,
-      fecha: rawResult.fecha as string | null,
-      hora: rawResult.hora as string | null,
+      response_deadline: partDeadline,
+      selected_option_id: partSelectedId,
+      fecha: partFecha,
+      hora: partHora,
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops,
       mis_respuestas: resps
