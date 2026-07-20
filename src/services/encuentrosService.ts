@@ -849,7 +849,7 @@ export const encuentrosService = {
       selected_option_id: rawSelectedId,
       fecha: rawFecha,
       hora: rawHora,
-      mostrar_respuestas_a_invitados: typeof enc.mostrar_respuestas_a_invitados === 'boolean' ? enc.mostrar_respuestas_a_invitados : false,
+      mostrar_respuestas_a_invitados: typeof rawResult.mostrar_respuestas_a_invitados === 'boolean' ? rawResult.mostrar_respuestas_a_invitados : false,
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops
     };
@@ -997,7 +997,7 @@ export const encuentrosService = {
       selected_option_id: partSelectedId,
       fecha: partFecha,
       hora: partHora,
-      mostrar_respuestas_a_invitados: typeof enc.mostrar_respuestas_a_invitados === 'boolean' ? enc.mostrar_respuestas_a_invitados : false,
+      mostrar_respuestas_a_invitados: typeof rawResult.mostrar_respuestas_a_invitados === 'boolean' ? rawResult.mostrar_respuestas_a_invitados : false,
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops,
       mis_respuestas: resps

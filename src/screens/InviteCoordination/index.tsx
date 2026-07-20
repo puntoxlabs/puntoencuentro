@@ -242,9 +242,12 @@ export default function InviteCoordination() {
       setSubmitErrorCode(null);
 
       const { participantesService } = await import('@/services/participantesService');
-      const res = await participantesService.responderInvitacion(token, estadoFinal);
+      await participantesService.responderInvitacion(token, estadoFinal);
 
-      setData(prev => prev ? { ...prev, participante: { ...prev.participante, estado: res.estado } } : prev);
+      setData(prev => prev ? { ...prev, participante: { ...prev.participante, estado: estadoFinal } } : prev);
+      setSubmitErrorCode(null);
+      setSuccessMsg('updated');
+      setTimeout(() => setSuccessMsg(null), 5000);
     } catch (err: any) {
       console.error(err);
       if (err.message === 'meeting_expired') {
