@@ -5,7 +5,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import type { CoordinationHostDetail } from '@/services/encuentrosService';
-import { Clock, MapPin, Video, Link, Users, Share2, Plus } from 'lucide-react';
+import { Clock, MapPin, Video, Link, Users, Share2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +33,7 @@ const DetailHostCoordination: React.FC = () => {
 
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
+  const [showResponsesDetail, setShowResponsesDetail] = useState(false);
 
   const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
@@ -142,29 +143,31 @@ const DetailHostCoordination: React.FC = () => {
     
     let locationText = '';
     if (encuentro.modalidad === 'presencial' && encuentro.lugar_texto) {
-      locationText = `📍 ${encuentro.lugar_texto}\n\nNos vemos ahí.`;
+      locationText = `📍 ${encuentro.lugar_texto}`;
     } else if (encuentro.modalidad === 'virtual' && encuentro.link_virtual) {
-      locationText = `🔗 Enlace de reunión:\n${encuentro.link_virtual}\n\nNos vemos ahí.`;
-    } else {
-      locationText = `Nos vemos ahí.`;
+      locationText = `🔗 Enlace de reunión:\n${encuentro.link_virtual}`;
     }
 
-    let shareText = `Fecha confirmada ✅\n\nEl encuentro "${encuentro.titulo}" quedó confirmado para:\n${formattedDate}\n\n${locationText}`;
+    const confirmUrl = shareUrl || '';
 
-    if (personalMessage.trim()) {
-      shareText += `\n\n${personalMessage.trim()}`;
-    }
+    let shareText = `Fecha confirmada ✅\n\nEl encuentro "${encuentro.titulo}" quedó confirmado para:\n${formattedDate}`;
+    if (locationText) shareText += `\n\n${locationText}`;
+    if (personalMessage.trim()) shareText += `\n\n${personalMessage.trim()}`;
+    if (confirmUrl) shareText += `\n\nConfirmá tu asistencia acá:\n${confirmUrl}`;
+    shareText += `\n\nNos vemos ahí.`;
 
-    const shareData = {
+    const shareData: ShareData = {
       title: `Fecha confirmada: ${encuentro.titulo}`,
-      text: shareText
+      text: shareText,
+      ...(confirmUrl ? { url: confirmUrl } : {})
     };
 
     try {
       if (isMobileShareEnvironment()) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(shareText);
+        const fullText = confirmUrl ? `${shareText}` : shareText;
+        await navigator.clipboard.writeText(fullText);
         alert('¡Texto copiado al portapapeles!');
       }
     } catch (err) {
@@ -594,11 +597,22 @@ const DetailHostCoordination: React.FC = () => {
 
             {/* Card 3: Respuestas */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px 0', color: '#0f172a', paddingBottom: 16, borderBottom: '1px solid rgba(15,23,42,0.05)' }}>
-                {derivedStatus === 'closed' ? 'Detalle por invitado' : 'Respuestas'}
-              </h3>
+              <button
+                onClick={() => setShowResponsesDetail(!showResponsesDetail)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', padding: '0 0 16px 0', borderBottom: '1px solid rgba(15,23,42,0.05)', marginBottom: 20, cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                    {derivedStatus === 'closed' ? 'Detalle por invitado' : 'Respuestas'}
+                  </h3>
+                  <span style={{ fontSize: 13, color: '#64748b' }}>
+                    {detail.participantes?.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').length || 0} invitado(s) respondieron
+                  </span>
+                </div>
+                {showResponsesDetail ? <ChevronUp size={20} color="#64748b" /> : <ChevronDown size={20} color="#64748b" />}
+              </button>
 
-              {(!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').length === 0) ? (
+              {showResponsesDetail && ((!detail.participantes || detail.participantes.filter(p => p.respondio_disponibilidad || derivedStatus === 'closed').length === 0) ? (
                 <div style={{ padding: '40px 20px', borderRadius: 16, border: '2px dashed rgba(15,23,42,0.1)', textAlign: 'center', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <div style={{ background: '#F1F5F9', width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Users size={24} color="#475569" />
@@ -649,7 +663,7 @@ const DetailHostCoordination: React.FC = () => {
                             return (
                               <div key={resp.opcion_fecha_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isConfirmedOption ? '4px 8px' : 0, background: isConfirmedOption ? '#f0fdf4' : 'transparent', borderRadius: 8, margin: isConfirmedOption ? '-4px -8px' : 0 }}>
                                 <span style={{ color: isConfirmedOption ? '#166534' : '#475569', fontWeight: isConfirmedOption ? 700 : 600, fontSize: 14 }}>
-                                  Opción {option.orden} {isConfirmedOption && '✓'}
+                                  {formatFriendlyDate(option.fecha, option.hora_inicio)} {isConfirmedOption && '✓'}
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   {resp.es_preferida && (
@@ -670,7 +684,7 @@ const DetailHostCoordination: React.FC = () => {
                   );
                   })}
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>

@@ -515,9 +515,12 @@ export default function InviteCoordination() {
 
                   return optionsWithVotes.map((opt) => (
                     <div key={opt.id} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', border: '1px solid rgba(15,23,42,0.06)' }}>
-                      <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, display: 'block', marginBottom: 12 }}>
-                        Opción {opt.orden}
-                      </span>
+                      <div style={{ marginBottom: 10 }}>
+                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, display: 'block' }}>
+                          {formatCoordinationOptionDate(opt.fecha, opt.hora_inicio, i18n.language)}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Opción {opt.orden}</span>
+                      </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {(opt.available_count || 0) > 0 && <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Sí: {opt.available_count}</span>}
                         {(opt.maybe_count || 0) > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Tal vez: {opt.maybe_count}</span>}
