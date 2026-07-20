@@ -3,6 +3,7 @@ import { X, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
+import { getPostEventMinutes, setPostEventMinutes } from '@/lib/preferencesStorage';
 import './BottomSheet.css';
 import './AccountSheet.css';
 
@@ -36,10 +37,12 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [hostAlias, setHostAliasState] = useState('');
   const [aliasFeedback, setAliasFeedback] = useState(false);
+  const [postEventMinutes, setPostEventMinutesState] = useState<number>(45);
 
   useEffect(() => {
     if (isOpen) {
       setHostAliasState(getHostAlias());
+      setPostEventMinutesState(getPostEventMinutes());
     }
   }, [isOpen]);
 
@@ -211,6 +214,41 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
               ✓ Guardado
             </p>
           )}
+        </div>
+
+        {/* ── Preferencias ───────────────────── */}
+        <div style={{
+          marginTop: 8, marginBottom: 24, padding: '16px', borderRadius: 14,
+          background: '#fff', border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+        }}>
+          <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Tiempo visible después del inicio
+          </p>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#4B5563', lineHeight: 1.4 }}>
+            Define cuánto tiempo un encuentro seguirá apareciendo como próximo después de la hora de inicio. Se aplicará a los encuentros que crees a partir de ahora.
+          </p>
+          <select
+            value={postEventMinutes}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              setPostEventMinutesState(val);
+              setPostEventMinutes(val);
+            }}
+            style={{
+              width: '100%', border: '1px solid rgba(0,0,0,0.1)', outline: 'none',
+              padding: '0 12px', height: 40, fontSize: 14, borderRadius: 8,
+              fontFamily: 'var(--font-family)', color: 'var(--color-on-surface)',
+              background: '#F9FAFB', cursor: 'pointer'
+            }}
+          >
+            <option value={15}>15 minutos</option>
+            <option value={30}>30 minutos</option>
+            <option value={45}>45 minutos</option>
+            <option value={60}>60 minutos (1 hora)</option>
+            <option value={90}>90 minutos (1.5 horas)</option>
+            <option value={120}>120 minutos (2 horas)</option>
+          </select>
         </div>
 
         {error && (

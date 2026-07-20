@@ -35,6 +35,13 @@ const DetailHostCoordination: React.FC = () => {
   const [visibilidadFeedback, setVisibilidadFeedback] = useState<'ok' | 'error' | null>(null);
   const [showResponsesDetail, setShowResponsesDetail] = useState(false);
 
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
+  
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
     try {
@@ -43,9 +50,6 @@ const DetailHostCoordination: React.FC = () => {
       const data = await encuentrosService.getCoordinacionHost(id);
       if (data && data.ok) {
         setDetail(data);
-        if (data.encuentro?.descripcion && !personalMessage) {
-          setPersonalMessage(data.encuentro.descripcion);
-        }
       } else {
         if (!isPolling) setError(data.error || 'No se pudo cargar la coordinación.');
       }
@@ -177,12 +181,7 @@ const DetailHostCoordination: React.FC = () => {
 
   const handleSavePersonalMessage = async (msg: string) => {
     setPersonalMessage(msg);
-    if (!hostId || !id) return;
-    try {
-      await encuentrosService.updateEncuentro(id, { descripcion: msg || undefined }, hostId);
-    } catch (err) {
-      console.error('Error guardando mensaje:', err);
-    }
+    // Este mensaje solo se usa para compartir, no se guarda en DB
     
     // Proceder a compartir según el target activo
     setIsSheetOpen(false);
@@ -254,6 +253,35 @@ const DetailHostCoordination: React.FC = () => {
       setVisibilidadFeedback('error');
     } finally {
       setSavingVisibilidad(false);
+    }
+  };
+
+  const handleCancelEncuentro = async () => {
+    if (!id || !hostId) return;
+    setCancelling(true);
+    try {
+      await encuentrosService.cancelarEncuentro(id, hostId);
+      setShowCancelModal(false);
+      setCancellingMode(null);
+      await loadData(false);
+    } catch (err) {
+      console.error('Error cancelando', err);
+      alert('No se pudo cancelar el encuentro. Intentá nuevamente.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleDeleteEncuentro = async () => {
+    if (!id || !hostId) return;
+    setIsDeleting(true);
+    try {
+      await encuentrosService.deleteEncuentro(id, hostId);
+      navigate('/', { replace: true });
+    } catch (err) {
+      console.error('Error eliminando', err);
+      alert('No se pudo eliminar el encuentro. Intentá nuevamente.');
+      setIsDeleting(false);
     }
   };
 
@@ -673,6 +701,29 @@ const DetailHostCoordination: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Acciones de administración */}
+        <div style={{ padding: '0 20px', marginTop: 24, paddingBottom: 100 }}>
+          {derivedStatus !== 'closed' && encuentro.estado !== 'cancelado' && (
+            <Button
+              variant="outline"
+              fullWidth
+              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', marginBottom: 12 }}
+              onClick={() => setShowCancelModal(true)}
+            >
+              Cancelar encuentro
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            fullWidth
+            style={{ color: 'var(--color-danger)', padding: '12px 0', fontSize: 14, fontWeight: 600, display: 'block', marginBottom: 24 }}
+            onClick={() => setShowDeleteModal(true)}
+          >
+            Eliminar del historial
+          </Button>
+        </div>
+
       </div>
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
@@ -700,6 +751,62 @@ const DetailHostCoordination: React.FC = () => {
           </Button>
         )}
       </div>
+
+      {showCancelModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '24px 20px calc(24px + env(safe-area-inset-bottom))', width: '100%', maxWidth: 480, animation: 'slideUp 0.3s ease-out' }}>
+            <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 4, margin: '0 auto 20px auto' }} />
+            <h3 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>
+              ¿Qué querés hacer con esta coordinación?
+            </h3>
+            <p style={{ margin: '0 0 24px 0', color: '#475569', fontSize: 15, lineHeight: 1.5 }}>
+              Si la cancelás, el encuentro quedará marcado como cancelado.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <Button
+                fullWidth
+                variant="outline"
+                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                onClick={() => { setCancellingMode('cancel'); handleCancelEncuentro(); }}
+                disabled={cancelling}
+              >
+                {cancelling && cancellingMode === 'cancel' ? 'Cancelando…' : 'Cancelar encuentro'}
+              </Button>
+              <Button
+                fullWidth
+                variant="ghost"
+                style={{ color: '#475569', marginTop: 4 }}
+                onClick={() => { setShowCancelModal(false); setCancellingMode(null); }}
+                disabled={cancelling}
+              >
+                Volver
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '24px 20px calc(24px + env(safe-area-inset-bottom))', width: '100%', maxWidth: 480, animation: 'slideUp 0.3s ease-out' }}>
+            <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 4, margin: '0 auto 20px auto' }} />
+            <h3 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>
+              ¿Querés eliminar esta coordinación?
+            </h3>
+            <p style={{ margin: '0 0 24px 0', color: '#475569', fontSize: 15, lineHeight: 1.5 }}>
+              Esta acción no se puede deshacer. Dejará de aparecer en tu historial.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button fullWidth variant="outline" onClick={() => setShowDeleteModal(false)} disabled={isDeleting} style={{ borderRadius: 12 }}>
+                Cancelar
+              </Button>
+              <Button fullWidth variant="primary" style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 12 }} onClick={handleDeleteEncuentro} disabled={isDeleting}>
+                {isDeleting ? 'Eliminando…' : 'Eliminar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmModalOption && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>

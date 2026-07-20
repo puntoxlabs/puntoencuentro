@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getPostEventMinutes } from '@/lib/preferencesStorage';
 import { validateEncounterDate } from '@/lib/formatDate';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
@@ -17,6 +18,7 @@ export interface CreateEncuentroDTO {
   tema_invitacion?: InvitationTheme;
   invitation_template?: string | null;
   reemplaza_a?: string | null;
+  post_event_active_minutes?: number;
 }
 
 export type VisibilidadRespuestas = 'hidden' | 'summary' | 'detail';
@@ -35,6 +37,7 @@ export interface CoordinationCreatePayload {
   duration_minutes?: number | null;
   mostrar_respuestas_a_invitados?: boolean;
   visibilidad_respuestas_invitados?: VisibilidadRespuestas;
+  post_event_active_minutes?: number;
 }
 
 export interface CoordinationOptionPayload {
@@ -443,10 +446,15 @@ export const encuentrosService = {
       throw new Error(validationError);
     }
 
+    const payload = {
+      ...data,
+      post_event_active_minutes: data.post_event_active_minutes ?? getPostEventMinutes()
+    };
+
     // RPC SECURITY DEFINER — evita bloqueo de RLS en SELECT post-INSERT
     const { data: result, error } = await supabase.rpc(
       'crear_encuentro_seguro',
-      { p_data: data }
+      { p_data: payload }
     );
 
     if (error) {
@@ -677,8 +685,17 @@ export const encuentrosService = {
       p_opciones: opciones,
     });
 
+    if (opciones.length < 2 || opciones.length > 3) {
+      return { ok: false, error: 'minimum_two_options' };
+    }
+
+    const finalPayload = {
+      ...payload,
+      post_event_active_minutes: payload.post_event_active_minutes ?? getPostEventMinutes()
+    };
+
     const { data, error } = await supabase.rpc('crear_encuentro_con_opciones_seguro', {
-      p_data: payload,
+      p_data: finalPayload,
       p_opciones: opciones
     });
 

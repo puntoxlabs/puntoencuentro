@@ -109,11 +109,11 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
         />
 
         <div className="input-group cw-textarea-wrapper" style={{ marginTop: 16 }}>
-          <label className="input-label">Mensaje para invitados (opcional)</label>
+          <label className="input-label">Descripción del encuentro (opcional)</label>
           <textarea
             id="desc-textarea"
             className="input-field cw-textarea-field"
-            placeholder="Sumá un mensaje para tus invitados"
+            placeholder="Agregá detalles útiles para tus invitados"
             value={draft.description}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !draft.description.trim()) {

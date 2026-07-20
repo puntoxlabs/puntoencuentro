@@ -21,6 +21,9 @@ export interface EncuentroBase {
   coordination_status?: 'open' | 'closed' | null;
   response_deadline?: string | null;
   selected_option_id?: string | null;
+  post_event_active_minutes?: number;
+  has_future_options?: boolean;
+  last_option_at?: string;
 }
 
 /**

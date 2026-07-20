@@ -179,6 +179,8 @@ const PastCard: React.FC<{
         </h3>
         {isCancelled ? (
           <Badge label="Cancelado" status="rejected" />
+        ) : isCoordinationEncounter(enc) && enc.coordination_status === 'open' ? (
+          <Badge label="Sin fecha confirmada" status="pending" />
         ) : (
           <Badge label="Finalizado" status="finished" />
         )}
