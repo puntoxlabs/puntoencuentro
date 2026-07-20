@@ -229,7 +229,7 @@ const DetailHostCoordination: React.FC = () => {
     }
   };
 
-  const handleToggleVisibilidad = async (newVal: boolean) => {
+  const handleSetVisibilidad = async (newVal: 'hidden' | 'summary' | 'detail') => {
     if (!id || !hostId) return;
     setSavingVisibilidad(true);
     setVisibilidadFeedback(null);
@@ -241,7 +241,8 @@ const DetailHostCoordination: React.FC = () => {
           ...prev,
           encuentro: {
             ...prev.encuentro,
-            mostrar_respuestas_a_invitados: newVal
+            visibilidad_respuestas_invitados: newVal,
+            mostrar_respuestas_a_invitados: newVal !== 'hidden'
           }
         } : prev);
         setTimeout(() => setVisibilidadFeedback(null), 3000);
@@ -445,46 +446,30 @@ const DetailHostCoordination: React.FC = () => {
             {derivedStatus !== 'closed' && (
               <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)', marginBottom: 24 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
-                  Opciones del encuentro
+                  Visibilidad para invitados
                 </p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1, paddingRight: 16 }}>
-                    <p style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0' }}>
-                      Invitados ven respuestas
-                    </p>
-                    <p style={{ fontSize: 14, color: '#475569', margin: 0, lineHeight: 1.4 }}>
-                      Verán las disponibilidades por cada opción (anónimo).
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleToggleVisibilidad(!encuentro.mostrar_respuestas_a_invitados)}
-                    disabled={savingVisibilidad}
-                    aria-pressed={!!encuentro.mostrar_respuestas_a_invitados}
-                    style={{
-                      width: 52,
-                      height: 32,
-                      borderRadius: 100,
-                      backgroundColor: encuentro.mostrar_respuestas_a_invitados ? '#22c55e' : '#e2e8f0',
-                      border: 'none',
-                      position: 'relative',
-                      cursor: savingVisibilidad ? 'not-allowed' : 'pointer',
-                      transition: 'background-color 0.2s',
-                      opacity: savingVisibilidad ? 0.7 : 1,
-                      flexShrink: 0
-                    }}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div 
+                    onClick={() => !savingVisibilidad && handleSetVisibilidad('hidden')}
+                    style={{ padding: 12, borderRadius: 12, border: encuentro.visibilidad_respuestas_invitados === 'hidden' ? '2px solid #3b82f6' : '1px solid #e2e8f0', background: encuentro.visibilidad_respuestas_invitados === 'hidden' ? '#eff6ff' : '#fff', cursor: savingVisibilidad ? 'not-allowed' : 'pointer', opacity: savingVisibilidad ? 0.7 : 1 }}
                   >
-                    <span style={{
-                      position: 'absolute',
-                      top: 2,
-                      left: encuentro.mostrar_respuestas_a_invitados ? 22 : 2,
-                      width: 28,
-                      height: 28,
-                      backgroundColor: '#fff',
-                      borderRadius: '50%',
-                      transition: 'left 0.2s',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                    }} />
-                  </button>
+                    <p style={{ margin: '0 0 4px 0', fontWeight: 600, color: '#0f172a' }}>No mostrar respuestas</p>
+                    <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>Los invitados no verán las respuestas de los demás.</p>
+                  </div>
+                  <div 
+                    onClick={() => !savingVisibilidad && handleSetVisibilidad('summary')}
+                    style={{ padding: 12, borderRadius: 12, border: encuentro.visibilidad_respuestas_invitados === 'summary' ? '2px solid #3b82f6' : '1px solid #e2e8f0', background: encuentro.visibilidad_respuestas_invitados === 'summary' ? '#eff6ff' : '#fff', cursor: savingVisibilidad ? 'not-allowed' : 'pointer', opacity: savingVisibilidad ? 0.7 : 1 }}
+                  >
+                    <p style={{ margin: '0 0 4px 0', fontWeight: 600, color: '#0f172a' }}>Resumen anónimo</p>
+                    <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>Los invitados verán un conteo anónimo por fecha.</p>
+                  </div>
+                  <div 
+                    onClick={() => !savingVisibilidad && handleSetVisibilidad('detail')}
+                    style={{ padding: 12, borderRadius: 12, border: encuentro.visibilidad_respuestas_invitados === 'detail' ? '2px solid #3b82f6' : '1px solid #e2e8f0', background: encuentro.visibilidad_respuestas_invitados === 'detail' ? '#eff6ff' : '#fff', cursor: savingVisibilidad ? 'not-allowed' : 'pointer', opacity: savingVisibilidad ? 0.7 : 1 }}
+                  >
+                    <p style={{ margin: '0 0 4px 0', fontWeight: 600, color: '#0f172a' }}>Detalle por invitado</p>
+                    <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>Verán el nombre declarado y disponibilidad por fecha.</p>
+                  </div>
                 </div>
                 {visibilidadFeedback && (
                   <p style={{

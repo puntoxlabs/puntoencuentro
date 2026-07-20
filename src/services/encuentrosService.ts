@@ -19,6 +19,8 @@ export interface CreateEncuentroDTO {
   reemplaza_a?: string | null;
 }
 
+export type VisibilidadRespuestas = 'hidden' | 'summary' | 'detail';
+
 export interface CoordinationCreatePayload {
   titulo: string;
   descripcion?: string | null;
@@ -32,6 +34,7 @@ export interface CoordinationCreatePayload {
   response_deadline?: string | null;
   duration_minutes?: number | null;
   mostrar_respuestas_a_invitados?: boolean;
+  visibilidad_respuestas_invitados?: VisibilidadRespuestas;
 }
 
 export interface CoordinationOptionPayload {
@@ -198,6 +201,7 @@ export interface CoordinationHostDetail {
     public_token?: string;
     duration_minutes?: number | null;
     mostrar_respuestas_a_invitados?: boolean;
+    visibilidad_respuestas_invitados?: VisibilidadRespuestas;
   };
   coordination_status?: string;
   response_deadline?: string | null;
@@ -218,6 +222,12 @@ export interface CoordinationAvailabilityInput {
   es_preferida: boolean;
 }
 
+export interface CoordinationRespuestaDetalle {
+  nombre_invitado: string;
+  respuesta: CoordinationAvailabilityValue;
+  es_preferida: boolean;
+}
+
 export interface CoordinationOption {
   id: string;
   fecha: string;
@@ -230,6 +240,7 @@ export interface CoordinationOption {
   preferred_count?: number;
   respuesta?: CoordinationAvailabilityValue;
   es_preferida?: boolean;
+  respuestas_detalle?: CoordinationRespuestaDetalle[] | null;
 }
 
 export interface CoordinationParticipantResponse {
@@ -259,6 +270,7 @@ export type CoordinationPublicReadResult =
       fecha: string | null;
       hora: string | null;
       mostrar_respuestas_a_invitados?: boolean;
+      visibilidad_respuestas_invitados?: VisibilidadRespuestas;
       derived_status: 'open' | 'closed' | 'deadline_passed';
       opciones: CoordinationOption[];
     }
@@ -299,6 +311,7 @@ export type CoordinationParticipantReadResult =
       fecha: string | null;
       hora: string | null;
       mostrar_respuestas_a_invitados?: boolean;
+      visibilidad_respuestas_invitados?: VisibilidadRespuestas;
       derived_status: 'open' | 'closed' | 'deadline_passed';
       opciones: CoordinationOption[];
       mis_respuestas: CoordinationAvailabilityInput[];
@@ -617,11 +630,11 @@ export const encuentrosService = {
     return res;
   },
 
-  async setVisibilidadRespuestasInvitados(encuentroId: string, hostId: string, visible: boolean) {
+  async setVisibilidadRespuestasInvitados(encuentroId: string, hostId: string, modo: VisibilidadRespuestas) {
     const { data, error } = await supabase.rpc('set_visibilidad_respuestas_invitados', {
       p_encuentro_id: encuentroId,
       p_host_id: hostId,
-      p_visible: visible,
+      p_modo: modo,
     });
     if (error) throw error;
     const result: any = typeof data === 'string' ? JSON.parse(data) : data;
@@ -822,7 +835,8 @@ export const encuentrosService = {
         available_count: (op.available_count as number) ?? 0,
         maybe_count: (op.maybe_count as number) ?? 0,
         unavailable_count: (op.unavailable_count as number) ?? 0,
-        preferred_count: (op.preferred_count as number) ?? 0
+        preferred_count: (op.preferred_count as number) ?? 0,
+        respuestas_detalle: Array.isArray(op.respuestas_detalle) ? op.respuestas_detalle as CoordinationRespuestaDetalle[] : null
       });
       opIndex++;
     }
@@ -850,6 +864,7 @@ export const encuentrosService = {
       fecha: rawFecha,
       hora: rawHora,
       mostrar_respuestas_a_invitados: typeof rawResult.mostrar_respuestas_a_invitados === 'boolean' ? rawResult.mostrar_respuestas_a_invitados : false,
+      visibilidad_respuestas_invitados: (rawResult.visibilidad_respuestas_invitados === 'hidden' || rawResult.visibilidad_respuestas_invitados === 'summary' || rawResult.visibilidad_respuestas_invitados === 'detail') ? rawResult.visibilidad_respuestas_invitados as VisibilidadRespuestas : 'hidden',
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops
     };
@@ -950,7 +965,8 @@ export const encuentrosService = {
         unavailable_count: (op.unavailable_count as number) ?? 0,
         preferred_count: (op.preferred_count as number) ?? 0,
         respuesta: (typeof op.respuesta === 'string' && (op.respuesta === 'available' || op.respuesta === 'maybe' || op.respuesta === 'unavailable')) ? op.respuesta as CoordinationAvailabilityValue : undefined,
-        es_preferida: Boolean(op.es_preferida)
+        es_preferida: Boolean(op.es_preferida),
+        respuestas_detalle: Array.isArray(op.respuestas_detalle) ? op.respuestas_detalle as CoordinationRespuestaDetalle[] : null
       });
       opIndex++;
     }
@@ -998,6 +1014,7 @@ export const encuentrosService = {
       fecha: partFecha,
       hora: partHora,
       mostrar_respuestas_a_invitados: typeof rawResult.mostrar_respuestas_a_invitados === 'boolean' ? rawResult.mostrar_respuestas_a_invitados : false,
+      visibilidad_respuestas_invitados: (rawResult.visibilidad_respuestas_invitados === 'hidden' || rawResult.visibilidad_respuestas_invitados === 'summary' || rawResult.visibilidad_respuestas_invitados === 'detail') ? rawResult.visibilidad_respuestas_invitados as VisibilidadRespuestas : 'hidden',
       derived_status: rawResult.derived_status as 'open' | 'closed' | 'deadline_passed',
       opciones: ops,
       mis_respuestas: resps

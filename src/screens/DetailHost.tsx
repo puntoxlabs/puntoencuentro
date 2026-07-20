@@ -621,7 +621,7 @@ const DetailHost: React.FC = () => {
     setSavingVisibilidad(true);
     setVisibilidadFeedback(null);
     try {
-      await encuentrosService.setVisibilidadRespuestasInvitados(id!, hostId, newValue);
+      await encuentrosService.setVisibilidadRespuestasInvitados(id!, hostId, newValue ? 'summary' : 'hidden');
       setVisibilidadRespuestas(newValue);
       setVisibilidadFeedback('ok');
     } catch {

@@ -99,6 +99,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         response_deadline: draft.responseDeadline || null,
         duration_minutes: draft.durationMinutes,
         mostrar_respuestas_a_invitados: draft.mostrarRespuestasAInvitados,
+        visibilidad_respuestas_invitados: draft.visibilidadRespuestas,
       };
 
       const options: CoordinationOptionPayload[] = draft.options.map(opt => ({
@@ -348,7 +349,11 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
                     Visibilidad de respuestas
                   </span>
                   <span style={{ display: 'block', fontSize: 15, color: '#1e293b', fontWeight: 500 }}>
-                    {draft.mostrarRespuestasAInvitados ? 'Los invitados podrán ver el resumen de respuestas.' : 'Las respuestas serán privadas para el host.'}
+                    {draft.visibilidadRespuestas === 'detail' 
+                      ? 'Detalle por invitado visible para todos.'
+                      : draft.visibilidadRespuestas === 'summary'
+                        ? 'Resumen anónimo visible para todos.'
+                        : 'Las respuestas serán privadas para el host.'}
                   </span>
                 </div>
               </div>

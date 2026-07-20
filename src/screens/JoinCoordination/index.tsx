@@ -149,6 +149,7 @@ export default function JoinCoordination() {
 
   const { encuentro, derived_status } = data;
   const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
+  const computedVisibilidad = data.visibilidad_respuestas_invitados || (data.mostrar_respuestas_a_invitados ? 'summary' : 'hidden');
 
   const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
     if (isReadOnly) return;
@@ -467,7 +468,7 @@ export default function JoinCoordination() {
               </div>
             )}
 
-            {data.mostrar_respuestas_a_invitados && data.opciones && (
+            {(computedVisibilidad === 'summary' || computedVisibilidad === 'detail') && data.opciones && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 24, borderTop: '1px solid #e2e8f0' }}>
                 <button 
                   onClick={() => setShowResponsesPanel(!showResponsesPanel)}
@@ -477,7 +478,9 @@ export default function JoinCoordination() {
                     <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0', color: '#0f172a' }}>
                       Respuestas de otros invitados
                     </h3>
-                    <span style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Resumen anónimo por opción</span>
+                    <span style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                      {computedVisibilidad === 'detail' ? 'Detalle por invitado' : 'Resumen anónimo por opción'}
+                    </span>
                   </div>
                   {showResponsesPanel ? <ChevronUp size={20} color="#64748b" /> : <ChevronDown size={20} color="#64748b" />}
                 </button>
@@ -503,6 +506,7 @@ export default function JoinCoordination() {
                             </span>
                             <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Opción {opt.orden}</span>
                           </div>
+                          
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {(opt.available_count || 0) > 0 && <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Sí: {opt.available_count}</span>}
                             {(opt.maybe_count || 0) > 0 && <span style={{ background: '#fef9c3', color: '#854d0e', padding: '4px 10px', borderRadius: 12, fontWeight: 600, fontSize: 13 }}>Tal vez: {opt.maybe_count}</span>}
@@ -512,6 +516,23 @@ export default function JoinCoordination() {
                               <span style={{ color: '#94a3b8', fontSize: 13 }}>Sin respuestas aún</span>
                             )}
                           </div>
+
+                          {computedVisibilidad === 'detail' && opt.respuestas_detalle && opt.respuestas_detalle.length > 0 && (
+                            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {opt.respuestas_detalle.map((resp, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 14 }}>
+                                  <span style={{ color: '#334155', fontWeight: 500 }}>{resp.nombre_invitado}</span>
+                                  <span style={{ 
+                                    color: resp.respuesta === 'available' ? '#16a34a' : resp.respuesta === 'maybe' ? '#d97706' : '#dc2626',
+                                    fontWeight: 600
+                                  }}>
+                                    {resp.respuesta === 'available' ? 'Sí' : resp.respuesta === 'maybe' ? 'Tal vez' : 'No'}
+                                    {resp.es_preferida && ' (Pref)'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ));
                     })()}

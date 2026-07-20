@@ -27,6 +27,7 @@ export interface CoordinationDraft {
   personalMessage: string;
   hostAlias: string;
   mostrarRespuestasAInvitados: boolean;
+  visibilidadRespuestas: 'hidden' | 'summary' | 'detail';
 }
 
 interface CoordinationWizardStore {
@@ -52,6 +53,7 @@ const initialDraft: CoordinationDraft = {
   personalMessage: '',
   hostAlias: '',
   mostrarRespuestasAInvitados: false,
+  visibilidadRespuestas: 'hidden',
 };
 
 export const useCoordinationWizardStore = create<CoordinationWizardStore>()(
