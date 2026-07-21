@@ -623,6 +623,27 @@
   opacity: 0.6;
 }
 
+/* ── Mensaje del Organizador ── */
+.guest-host-message {
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+.guest-host-message-title {
+  margin: 0 0 4px 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--guest-eyebrow-color, var(--color-on-surface-variant));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.guest-host-message-text {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--color-on-surface);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ── Immersive Full-Screen Architecture para Invitaciones (Todas las Categorías) ── */
 .guest-theme {
   background-color: var(--guest-bg) !important;

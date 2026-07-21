@@ -45,24 +45,60 @@ export default function JoinCoordination() {
     if (!token) return;
     let mounted = true;
 
-    encuentrosService.getCoordinacionPublica(token)
-      .then(res => {
-        if (!mounted) return;
-        if (!res.ok) {
-          setLoadErrorCode(res.error);
-        } else {
-          setLoadErrorCode(null);
-          setData(res);
+    const checkTokenAndLoad = async () => {
+      const key = `puntoencuentro_coordination_guest_token_by_public_${token}`;
+      let savedToken = localStorage.getItem(key);
+      
+      if (!savedToken) {
+        try {
+          const savedDataStr = localStorage.getItem('encuentros_coordination_general');
+          if (savedDataStr) {
+            const savedData = JSON.parse(savedDataStr);
+            savedToken = savedData?.encuentros?.[token]?.token_invitacion;
+            if (savedToken) localStorage.setItem(key, savedToken);
+          }
+        } catch (e) {
+          console.error('Error parsing old localStorage', e);
         }
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setLoadErrorCode('network_error');
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
+      }
+
+      if (savedToken) {
+        try {
+          const res = await encuentrosService.getCoordinacionParticipante(savedToken);
+          if (res.ok && mounted) {
+            navigate(`/coordination/invite/${savedToken}`, { replace: true });
+            return;
+          } else {
+            localStorage.removeItem(key);
+          }
+        } catch (err) {
+          localStorage.removeItem(key);
+        }
+      }
+
+      if (!mounted) return;
+
+      encuentrosService.getCoordinacionPublica(token)
+        .then(res => {
+          if (!mounted) return;
+          if (!res.ok) {
+            setLoadErrorCode(res.error);
+          } else {
+            setLoadErrorCode(null);
+            setData(res);
+          }
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setLoadErrorCode('network_error');
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoading(false);
+        });
+    };
+
+    checkTokenAndLoad();
 
     const interval = setInterval(() => {
       if (isSubmittingRef.current || !mounted) return;
@@ -209,6 +245,12 @@ export default function JoinCoordination() {
         }
         setIsSubmitting(false);
         return;
+      }
+
+      const tokenToSave = res.token_invitacion;
+      if (tokenToSave) {
+        const key = `puntoencuentro_coordination_guest_token_by_public_${token}`;
+        localStorage.setItem(key, tokenToSave);
       }
 
       // Navegamos pasando el token_invitacion

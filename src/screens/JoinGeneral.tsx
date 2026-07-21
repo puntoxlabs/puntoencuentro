@@ -42,11 +42,6 @@ import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import './Guest.css';
 
-interface SavedData {
-  encuentros: Record<string, { participant_id?: string; token_invitacion?: string }>;
-}
-
-
 const JoinGeneral: React.FC = () => {
   const { public_token } = useParams();
   const navigate = useNavigate();
@@ -194,52 +189,38 @@ const JoinGeneral: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       if (import.meta.env.DEV) console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
-      let savedData: SavedData = { encuentros: {} };
+      let savedToken = undefined;
+      const key = `puntoencuentro_guest_token_by_public_${public_token}`;
       try {
-        const savedDataStr = localStorage.getItem('encuentros_general');
-        if (savedDataStr) {
-          savedData = JSON.parse(savedDataStr);
+        savedToken = localStorage.getItem(key) || undefined;
+        if (!savedToken) {
+          const savedDataStr = localStorage.getItem('encuentros_general');
+          if (savedDataStr) {
+            const savedData = JSON.parse(savedDataStr);
+            savedToken = savedData?.encuentros?.[public_token!]?.token_invitacion;
+            if (savedToken) localStorage.setItem(key, savedToken);
+          }
         }
       } catch (e) {
-        console.error('Error parsing encuentros_general from localStorage', e);
-        localStorage.removeItem('encuentros_general');
+        console.error('Error parsing local storage', e);
       }
 
-      const participantData = savedData?.encuentros?.[public_token!];
-      const participantId = participantData?.participant_id;
-      const participantToken = participantData?.token_invitacion;
-      if (import.meta.env.DEV) console.log('[GENERAL_LINK] datos locales encontrados:', !!(participantToken || participantId));
-      let estadoUI = 'pending';
-      if (participantToken) {
-        // Restaurar ownInviteToken desde localStorage en visitas posteriores
-        setOwnInviteToken(participantToken);
+      if (savedToken) {
         try {
-          const partData = await participantesService.getParticipanteByToken(participantToken);
-          if (import.meta.env.DEV) console.log('[GENERAL_LINK] participante encontrado por token: ok');
+          const partData = await participantesService.getParticipanteByToken(savedToken);
           if (partData) {
-            setParticipante(partData);
-            setNombre(partData.nombre_invitado || '');
-            setMensaje(partData.mensaje_respuesta || '');
-
-            // Persistir link_virtual tras el refresh
-            const encFromPart = Array.isArray(partData.encuentros) ? partData.encuentros[0] : partData.encuentros;
-            const safeLink = encFromPart?.link_virtual || partData.link_virtual || encuentro?.link_virtual || '';
-            setEncuentro((prev: any) => ({
-              ...prev,
-              link_virtual: safeLink,
-            }));
-
-            if (partData.estado === 'confirmado' && safeLink) {
-              setAllowedMeetingLink(safeLink);
-            }
-
-            if (partData.estado !== 'pendiente') {
-              setStep('done');
-              estadoUI = 'done';
-            }
+            navigate(`/invite/${savedToken}`, { replace: true });
+            return;
           }
-        } catch (err) { console.error('Participant not found by token', err); }
+        } catch (err) {
+          console.error('Error validating saved token, clearing it.', err);
+          localStorage.removeItem(key);
+        }
       }
+
+      const participantToken = savedToken;
+      const participantId = undefined;
+      let estadoUI = 'pending';
       if (import.meta.env.DEV) console.log('[GENERAL_LINK] estado final:', estadoUI);
 
       // Pre-llenado de nombre si está logueado y no hay uno previo
@@ -316,23 +297,10 @@ const JoinGeneral: React.FC = () => {
 
       // Guardar en localStorage usando el token_invitacion devuelto (o el ya conocido)
       const tokenToSave = returnedToken ?? ownInviteToken ?? undefined;
-      const idToSave = returnedId ?? participante?.id ?? undefined;
 
       if (tokenToSave) {
-        let savedData: SavedData = { encuentros: {} };
-        try {
-          const savedDataStr = localStorage.getItem('encuentros_general');
-          if (savedDataStr) savedData = JSON.parse(savedDataStr);
-        } catch (e) {
-          console.error('Error parsing encuentros_general before saving', e);
-        }
-
-        if (!savedData.encuentros) savedData.encuentros = {};
-        savedData.encuentros[public_token!] = {
-          participant_id: idToSave,
-          token_invitacion: tokenToSave,
-        };
-        localStorage.setItem('encuentros_general', JSON.stringify(savedData));
+        const key = `puntoencuentro_guest_token_by_public_${public_token}`;
+        localStorage.setItem(key, tokenToSave);
 
         if (tokenToSave) {
           if (user) {
@@ -350,6 +318,13 @@ const JoinGeneral: React.FC = () => {
       }
 
       useHomeStore.getState().invalidateCache();
+      
+      // Redirigir al link individual persistente si tenemos token
+      if (tokenToSave) {
+        navigate(`/invite/${tokenToSave}`, { replace: true, state: { justConfirmed: true } });
+        return;
+      }
+
       // Preservar id del participante si la RPC no lo repite en actualizaciones
       setParticipante((prev: any) => ({
         ...(prev || {}),
@@ -801,6 +776,12 @@ const JoinGeneral: React.FC = () => {
           <div className="guest-card" style={{ marginBottom: 0 }}>
             <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
             <h2 className="guest-card-title">{encuentro.titulo}</h2>
+            {encuentro.descripcion && (
+              <div className="guest-host-message">
+                <p className="guest-host-message-title">Mensaje del organizador</p>
+                <p className="guest-host-message-text">{encuentro.descripcion}</p>
+              </div>
+            )}
 
             <div className="guest-meta-list">
               <div className="guest-meta-row">

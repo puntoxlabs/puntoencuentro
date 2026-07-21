@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -60,8 +60,9 @@ const InviteGuest: React.FC = () => {
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [step, setStep] = useState<'pending' | 'done'>('pending');
   const [copiedLink, setCopiedLink] = useState(false);
+  const location = useLocation();
   // true solo si el usuario acaba de responder en ESTA sesión
-  const [justConfirmed, setJustConfirmed] = useState(false);
+  const [justConfirmed, setJustConfirmed] = useState(location.state?.justConfirmed || false);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [mensaje, setMensaje] = useState('');
   // Respuestas visibles para el invitado (sólo si el host lo activó)
@@ -751,6 +752,12 @@ const InviteGuest: React.FC = () => {
           <div className="guest-card" style={{ marginBottom: 0 }}>
             <p className="guest-card-eyebrow">{getThemeEyebrow(encuentro?.tema_invitacion)}</p>
             <h2 className="guest-card-title">{encuentro.titulo}</h2>
+            {encuentro.descripcion && (
+              <div className="guest-host-message">
+                <p className="guest-host-message-title">Mensaje del organizador</p>
+                <p className="guest-host-message-text">{encuentro.descripcion}</p>
+              </div>
+            )}
 
             <div className="guest-meta-list">
               <div className="guest-meta-row">

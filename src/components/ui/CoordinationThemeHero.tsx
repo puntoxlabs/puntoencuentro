@@ -138,9 +138,10 @@ export const CoordinationThemeHero: React.FC<CoordinationThemeHeroProps> = ({
           </div>
         )}
         {encuentro.descripcion && (
-          <p style={{ color: '#475569', fontSize: 16, lineHeight: 1.6, margin: 0, marginTop: 12 }}>
-            {encuentro.descripcion}
-          </p>
+          <div className="guest-host-message" style={{ textAlign: 'left' }}>
+            <p className="guest-host-message-title">Mensaje del organizador</p>
+            <p className="guest-host-message-text">{encuentro.descripcion}</p>
+          </div>
         )}
       </div>
     );
