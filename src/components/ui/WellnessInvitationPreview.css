@@ -109,3 +109,56 @@
   text-shadow: none;
   color: rgba(24, 32, 45, 0.88);
 }
+
+/* ─── Overrides específicos para "Bienestar Movimiento" ────────────────────
+   La imagen wellness_movement_v5_background.webp es muy clara (beige/blanco/
+   verde suave). El texto blanco con sombra no es suficiente en ese contexto.
+   Solución: panel glassmorphism centrado + texto en tono oscuro terracota,
+   sin tocar el asset. No afecta wellness_calm ni wellness_nature.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.wellness-invitation-container.theme-wellness_movement .wellness-invitation-main-bubble {
+  /* Panel central suave: fondo blanco muy translúcido + blur detrás */
+  background: rgba(255, 252, 248, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(200, 185, 170, 0.35);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(100, 80, 60, 0.12),
+    0 2px 8px rgba(100, 80, 60, 0.08);
+  /* Texto oscuro terracota: contrasta bien sobre beige/blanco */
+  color: #4a3728;
+  text-shadow: none;
+  /* Ampliar la zona central: más padding horizontal y vertical */
+  padding: 36px 28px;
+}
+
+/* Eyebrow: tono cálido suave */
+.wellness-invitation-container.theme-wellness_movement .wellness-invitation-eyebrow {
+  color: #7a5c48;
+  opacity: 1;
+  letter-spacing: 2.5px;
+}
+
+/* Título: marrón oscuro legible */
+.wellness-invitation-container.theme-wellness_movement .wellness-invitation-title {
+  color: #2d1f14;
+}
+
+/* Descripción: tono medio */
+.wellness-invitation-container.theme-wellness_movement .wellness-invitation-message {
+  color: #5a3e2b;
+  opacity: 1;
+}
+
+/* Los detail-rows ya usan fondo translúcido propio — solo ajustamos el color */
+.wellness-invitation-container.theme-wellness_movement .wellness-detail-row {
+  background: rgba(255, 252, 248, 0.6);
+  border-color: rgba(160, 130, 110, 0.25);
+}
+
+.wellness-invitation-container.theme-wellness_movement .wellness-detail-text {
+  color: rgba(45, 31, 20, 0.88);
+}
+

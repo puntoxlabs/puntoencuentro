@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -64,6 +64,25 @@ interface InvitationPreviewModalProps {
 }
 
 export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ onClose, previewData, onApplyDesign }) => {
+  // closeInitiated: guard síncrono que previene que handleClose() se ejecute más de
+  // una vez (doble tap en X, tap en X y botón simultáneamente, etc.).
+  // Se setea de forma síncrona ANTES de llamar a history.back(), que es asíncrono.
+  // Reemplaza a closedProgrammatically e historyEntryConsumed de la versión anterior:
+  // ya no los necesitamos porque ahora onClose() siempre llega desde popstate,
+  // no hay carrera entre history.back() y el desmontaje del componente.
+  const closeInitiated = useRef(false);
+
+  // Cierre por X o botón "Cerrar vista previa".
+  // NO llama a onClose() directamente — delega ese rol al handler de popstate.
+  // Esto elimina la carrera entre history.back() (async) y el desmontaje:
+  // el componente solo se desmonta cuando popstate llega y llama a onClose(),
+  // garantizando que la entrada fantasma siempre se consume antes del desmontaje.
+  const handleClose = () => {
+    if (closeInitiated.current) return;
+    closeInitiated.current = true;
+    history.back();
+    // onClose() será llamado por handlePopState cuando history.back() complete.
+  };
   const { user } = useAuth();
   const wizardData = useWizardStore();
   const currentPreviewData = previewData || wizardData;
@@ -211,9 +230,49 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
 
+    // Agregar una entrada "fantasma" al historial del browser.
+    // Permite que Atrás Android cierre la preview en vez de navegar hacia atrás.
+    //
+    // Preservamos history.state existente (spread) para no pisar las claves
+    // internas de React Router v6: { idx, key, usr }.
+    const previousState = history.state ?? {};
+    history.pushState({ ...previousState, previewModal: true }, '', location.href);
+
+    const handlePopState = () => {
+      // ÚNICA fuente de cierre del modal.
+      // Se ejecuta en dos escenarios:
+      //   1. El usuario presiona Atrás en Android (el browser consume la entrada).
+      //   2. handleClose() llama history.back() al presionar X o botón inferior.
+      // En ambos casos la entrada fantasma ya fue consumida en este punto,
+      // por lo que no hay riesgo de doble back.
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
       document.body.style.overflow = 'auto';
+      window.removeEventListener('popstate', handlePopState);
+
+      // ⚠️  El cleanup NO llama a history.back() intencionalmente.
+      //
+      // Los flujos normales de cierre (Atrás Android, X, botón inferior)
+      // siempre consumen la entrada fantasma ANTES de que el componente se
+      // desmonte (porque el desmontaje ocurre desde onClose() que se llama
+      // dentro de handlePopState, después de que la entrada fue consumida).
+      //
+      // El único caso donde el cleanup correría sin que la entrada haya sido
+      // consumida es un desmontaje EXTERNO: navegación de ruta, logout, o
+      // cualquier cambio de ruta programático mientras la preview está abierta.
+      // En ese caso hacer history.back() sería incorrecto: navegaría al usuario
+      // hacia atrás contradiciéndose con la intención de la navegación que
+      // desencadenó el desmontaje.
+      //
+      // Trade-off aceptado: en ese edge case extremadamente raro puede quedar
+      // una entrada huérfana en el historial (requeriría un Atrás extra para
+      // salir de /meet/:id). Es preferible a provocar una navegación inesperada.
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePrev = () => {
@@ -277,10 +336,10 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
           <button
             type="button"
             className="preview-modal-close"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-            aria-label="Cerrar"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleClose(); }}
+            aria-label="Cerrar vista previa"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
@@ -559,6 +618,15 @@ export const InvitationPreviewModal: React.FC<InvitationPreviewModalProps> = ({ 
             style={{ background: '#FFFFFF', color: 'var(--color-on-surface)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
           >
             Cambiar diseño
+          </Button>
+
+          <Button
+            fullWidth
+            variant="secondary"
+            onClick={handleClose}
+            style={{ background: '#FFFFFF', color: '#374151', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', fontWeight: 600 }}
+          >
+            Cerrar vista previa
           </Button>
         </div>
       </div>

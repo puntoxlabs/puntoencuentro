@@ -41,21 +41,31 @@
 }
 
 .preview-modal-close {
-  background: rgba(0,0,0,0.05);
-  border: none;
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--guest-icon-color, var(--color-on-surface));
-  transition: all 0.2s;
+  color: #111827;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  transition: background 0.18s, box-shadow 0.18s;
+  flex-shrink: 0;
 }
 
 .preview-modal-close:hover {
-  background: rgba(0,0,0,0.1);
+  background: #f3f4f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+}
+
+.preview-modal-close:active {
+  background: #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 .preview-modal-body {
