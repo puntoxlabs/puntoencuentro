@@ -184,7 +184,7 @@ export default function JoinCoordination() {
   }
 
   const { encuentro, derived_status } = data;
-  const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed';
+  const isReadOnly = derived_status === 'closed' || derived_status === 'deadline_passed' || derived_status === 'expired_unconfirmed';
   const computedVisibilidad = data.visibilidad_respuestas_invitados || (data.mostrar_respuestas_a_invitados ? 'summary' : 'hidden');
 
   const handleChangeRespuesta = (opcionId: string, value: CoordinationAvailabilityValue) => {
@@ -237,9 +237,15 @@ export default function JoinCoordination() {
       const res = await encuentrosService.crearDisponibilidadCoordinacionPublica(token, normalizedName, payload);
 
       if (!res.ok) {
-        if (res.error === 'coordination_closed' || res.error === 'response_deadline_passed') {
+        if (res.error === 'coordination_closed') {
           setShowValidation(true);
-          setData(prev => prev ? { ...prev, derived_status: res.error === 'coordination_closed' ? 'closed' : 'deadline_passed' } : prev);
+          setData(prev => prev ? { ...prev, derived_status: 'closed' } : prev);
+        } else if (res.error === 'response_deadline_passed') {
+          setShowValidation(true);
+          setData(prev => prev ? { ...prev, derived_status: 'deadline_passed' } : prev);
+        } else if (res.error === 'coordination_already_expired') {
+          setShowValidation(true);
+          setData(prev => prev ? { ...prev, derived_status: 'expired_unconfirmed' } : prev);
         } else {
           setSubmitErrorCode(res.error);
         }
@@ -424,6 +430,18 @@ export default function JoinCoordination() {
               </div>
             )}
 
+            {derived_status === 'expired_unconfirmed' && (
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '20px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📋</span>
+                  <span style={{ color: '#334155', fontWeight: 700, fontSize: 16 }}>{t('coordination.expired_title', 'Esta coordinación ya finalizó')}</span>
+                </div>
+                <span style={{ color: '#64748b', fontSize: 15, lineHeight: 1.5 }}>
+                  {t('coordination.expired_msg', 'Las fechas propuestas ya pasaron. No es posible enviar disponibilidad.')}
+                </span>
+              </div>
+            )}
+
             {/* Enlace cerrado -> solo mostrar confirmación si no hay plazo vencido, el plazo vencido se trata diferente. Wait, si está cerrado no hay plazo vencido. */}
             {derived_status !== 'deadline_passed' && (
               <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
@@ -603,6 +621,12 @@ export default function JoinCoordination() {
       {derived_status === 'deadline_passed' && (
         <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10, textAlign: 'center' }}>
           <span style={{ color: '#b45309', fontWeight: 600, fontSize: 15 }}>Plazo vencido</span>
+        </div>
+      )}
+
+      {derived_status === 'expired_unconfirmed' && (
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10, textAlign: 'center' }}>
+          <span style={{ color: '#475569', fontWeight: 600, fontSize: 15 }}>{t('coordination.expired_title', 'Coordinación finalizada')}</span>
         </div>
       )}
     </ScreenContainer>

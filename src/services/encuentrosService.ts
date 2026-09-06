@@ -153,6 +153,10 @@ export function getCoordinationCreateErrorMessage(errorCode: string): string {
       return 'No tenés permiso para administrar este encuentro.';
     case 'invalid_duration_minutes':
       return 'La duración no es válida.';
+    case 'option_already_expired':
+      return 'Esta opción ya pasó y no puede confirmarse.';
+    case 'coordination_already_expired':
+      return 'Las fechas propuestas ya pasaron. Ya no es posible responder.';
     case 'invalid_option_order':
     case 'duplicate_option_order':
     case 'invalid_option_order_sequence':
@@ -171,6 +175,7 @@ export interface CoordinationHostOption {
   maybe_count: number;
   unavailable_count: number;
   preferred_count: number;
+  is_confirmable?: boolean;
 }
 
 export interface CoordinationHostParticipant {
@@ -211,7 +216,7 @@ export interface CoordinationHostDetail {
   selected_option_id?: string | null;
   fecha?: string | null;
   hora?: string | null;
-  derived_status?: string;
+  derived_status?: 'open' | 'closed' | 'deadline_passed' | 'expired_unconfirmed';
   opciones?: CoordinationHostOption[];
   respondent_count?: number;
   participantes?: CoordinationHostParticipant[];
@@ -244,6 +249,7 @@ export interface CoordinationOption {
   respuesta?: CoordinationAvailabilityValue;
   es_preferida?: boolean;
   respuestas_detalle?: CoordinationRespuestaDetalle[] | null;
+  is_confirmable?: boolean;
 }
 
 export interface CoordinationParticipantResponse {
@@ -274,7 +280,7 @@ export type CoordinationPublicReadResult =
       hora: string | null;
       mostrar_respuestas_a_invitados?: boolean;
       visibilidad_respuestas_invitados?: VisibilidadRespuestas;
-      derived_status: 'open' | 'closed' | 'deadline_passed';
+      derived_status: 'open' | 'closed' | 'deadline_passed' | 'expired_unconfirmed';
       opciones: CoordinationOption[];
     }
   | {
@@ -315,7 +321,7 @@ export type CoordinationParticipantReadResult =
       hora: string | null;
       mostrar_respuestas_a_invitados?: boolean;
       visibilidad_respuestas_invitados?: VisibilidadRespuestas;
-      derived_status: 'open' | 'closed' | 'deadline_passed';
+      derived_status: 'open' | 'closed' | 'deadline_passed' | 'expired_unconfirmed';
       opciones: CoordinationOption[];
       mis_respuestas: CoordinationAvailabilityInput[];
     }
@@ -368,8 +374,8 @@ function isCoordinationStatus(value: unknown): value is CoordinationStatus {
   return value === 'open' || value === 'closed';
 }
 
-function isCoordinationDerivedStatus(value: unknown): value is 'open' | 'closed' | 'deadline_passed' {
-  return value === 'open' || value === 'closed' || value === 'deadline_passed';
+function isCoordinationDerivedStatus(value: unknown): value is 'open' | 'closed' | 'deadline_passed' | 'expired_unconfirmed' {
+  return value === 'open' || value === 'closed' || value === 'deadline_passed' || value === 'expired_unconfirmed';
 }
 
 function isNonEmptyString(value: unknown): value is string {

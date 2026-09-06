@@ -216,6 +216,9 @@ const DetailHostCoordination: React.FC = () => {
           alert('Este encuentro no está en modo coordinación.');
         } else if (res.error === 'not_found') {
           alert('El encuentro no existe o fue eliminado.');
+        } else if (res.error === 'option_already_expired') {
+          alert('Esta opción ya pasó y no puede confirmarse. Actualizá la pantalla e intentá con otra.');
+          await loadData(false);
         } else {
           alert(`No pudimos confirmar la fecha. Detalle técnico: ${res.error}. Intentá nuevamente.`);
         }
@@ -343,6 +346,10 @@ const DetailHostCoordination: React.FC = () => {
               <span style={{ backgroundColor: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Fecha confirmada
               </span>
+            ) : derivedStatus === 'expired_unconfirmed' ? (
+              <span style={{ backgroundColor: '#f1f5f9', color: '#475569', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Coordinación finalizada
+              </span>
             ) : derivedStatus === 'deadline_passed' ? (
               <span style={{ backgroundColor: '#ffedd5', color: '#c2410c', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Plazo vencido
@@ -401,6 +408,18 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
                 <span style={{ color: '#92400e', fontSize: 15, lineHeight: 1.5 }}>
                   Ya no se reciben nuevas disponibilidades. Elegí una fecha para confirmar el encuentro.
+                </span>
+              </div>
+            )}
+
+            {derivedStatus === 'expired_unconfirmed' && (
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '20px', borderRadius: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📋</span>
+                  <span style={{ color: '#334155', fontWeight: 700, fontSize: 16 }}>Coordinación finalizada sin fecha confirmada</span>
+                </div>
+                <span style={{ color: '#64748b', fontSize: 15, lineHeight: 1.5 }}>
+                  Las fechas propuestas ya pasaron y no se confirmó el encuentro.
                 </span>
               </div>
             )}
@@ -471,7 +490,7 @@ const DetailHostCoordination: React.FC = () => {
             </div>
 
             {/* Card 1.5: Opciones del encuentro — Visibilidad para invitados */}
-            {derivedStatus !== 'closed' && (
+            {derivedStatus !== 'closed' && derivedStatus !== 'expired_unconfirmed' && (
               <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)', marginBottom: 24 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16 }}>
                   Visibilidad para invitados
@@ -555,7 +574,7 @@ const DetailHostCoordination: React.FC = () => {
                         </div>
                       </div>
                       
-                      {derivedStatus !== 'closed' && (
+                      {derivedStatus !== 'closed' && opt.is_confirmable === true && (
                         <div style={{ marginTop: 12, paddingTop: 12, borderTop: isRecommended ? '1px solid #fde68a' : '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                           <Button 
                             variant={derivedStatus === 'deadline_passed' && isRecommended ? 'primary' : 'outline'}
@@ -704,7 +723,7 @@ const DetailHostCoordination: React.FC = () => {
 
         {/* Acciones de administración */}
         <div style={{ padding: '0 20px', marginTop: 24, paddingBottom: 100 }}>
-          {derivedStatus !== 'closed' && encuentro.estado !== 'cancelado' && (
+          {derivedStatus !== 'closed' && derivedStatus !== 'expired_unconfirmed' && encuentro.estado !== 'cancelado' && (
             <Button
               variant="outline"
               fullWidth
@@ -726,31 +745,33 @@ const DetailHostCoordination: React.FC = () => {
 
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
-        {derivedStatus === 'closed' ? (
-          <Button
-            variant="primary"
-            fullWidth
-            onClick={handleShareConfirmedDate}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#16a34a', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)' }}
-          >
-            <Share2 size={20} />
-            Compartir fecha confirmada
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            fullWidth
-            onClick={handleShare}
-            disabled={isLinkGeneral && !shareUrl}
-            aria-disabled={isLinkGeneral && !shareUrl}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
-          >
-            {isLinkGeneral ? <Share2 size={20} /> : <Plus size={20} />}
-            {isLinkGeneral ? 'Compartir link general' : 'Agregar invitados'}
-          </Button>
-        )}
-      </div>
+      {derivedStatus !== 'expired_unconfirmed' && (
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '20px 20px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderTop: '1px solid rgba(15,23,42,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.04)', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', zIndex: 10 }}>
+          {derivedStatus === 'closed' ? (
+            <Button
+              variant="primary"
+              fullWidth
+              onClick={handleShareConfirmedDate}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#16a34a', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)' }}
+            >
+              <Share2 size={20} />
+              Compartir fecha confirmada
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              fullWidth
+              onClick={handleShare}
+              disabled={isLinkGeneral && !shareUrl}
+              aria-disabled={isLinkGeneral && !shareUrl}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, background: '#4f46e5', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }}
+            >
+              {isLinkGeneral ? <Share2 size={20} /> : <Plus size={20} />}
+              {isLinkGeneral ? 'Compartir link general' : 'Agregar invitados'}
+            </Button>
+          )}
+        </div>
+      )}
 
       {showCancelModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
