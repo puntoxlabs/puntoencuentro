@@ -175,11 +175,49 @@ encuentrosService.createEncuentro() -> RPC crear_encuentro_seguro
 5. `modality`: **Sin default silencioso**. Si no se deduce por contexto -> "¿Va a ser presencial o virtual?"
 6. `locationText` / `virtualLink`: Según modalidad -> "¿Dónde se encuentran?" o "¿Cuál es el link?"
 
+### 4.2 Runtime Fallback Multi-Provider (OpenAI Primary → DeepSeek Fallback)
+
+El backend orquesta la interpretación semántica con una política estricta de **máximo 1 fallback automático** y tipado mediante taxonomía explícita (`ProviderError`):
+
+1. **Proveedor Primario (PRIMARY):** OpenAI (`gpt-5.6-luna`), seleccionado por su superioridad semántica (87.0% extracción exacta, 90.9% detección de ambigüedad).
+2. **Proveedor de Contingencia (FALLBACK):** DeepSeek (`deepseek-v4-flash`), seleccionado por su solidez interpretativa (75.0%), 0% alucinaciones y latencia ultrarrápida (495 ms).
+3. **Taxonomía de Errores Tipada (`ProviderError`):**
+   - `retryable_technical`: Errores transitorios de infraestructura o parsing que **SÍ activan fallback**.
+   - `safety_refusal`: Rechazos de contenido, violaciones de políticas de seguridad y moderación que **NUNCA activan fallback** (prohibido eludir políticas enviando a otro proveedor).
+   - `auth_config`: Errores de credenciales, autenticación o configuración (401, 403, missing keys) que **NUNCA activan fallback**.
+   - `non_retryable`: Errores de cliente (ej. 400 Bad Request por payload malformado) que **NO activan fallback**.
+
+4. **Condiciones que ACTIVAN el Fallback (`error.retryable === true`):**
+   - Timeout de red (límite configurable: `AI_PRIMARY_TIMEOUT_MS=10000` [KEEP]).
+   - Errores de red o conexión rechazada (`fetch` abortado / fallo DNS / ECONNREFUSED).
+   - HTTP 429 (límite de cuota o rate limit en Primary).
+   - HTTP 5xx (500, 502, 503, 504 del proveedor).
+   - Respuestas vacías o en blanco.
+   - JSON inválido / errores de parseo sintáctico.
+   - Fallos de validación estructural estricta contra `ENCOUNTER_DRAFT_PATCH_SCHEMA`.
+
+5. **Condiciones que NO ACTIVAN el Fallback (`error.retryable === false`):**
+   - **Safety / Policy Refusal:** Bloqueos por moderation, finish_reason `content_filter`, campo `refusal` explícito o 400 por `content_policy_violation`. Devuelve error controlado `safety_refusal` sin exponer internals.
+   - **Auth / Config Errors:** HTTP 401 / 403 o llaves de API ausentes/inválidas.
+   - **Non-retryable 400:** Errores de request no transitorios.
+   - **Entradas incompletas o ambiguas:** Entradas sin fecha/hora o con `confidence: "ambiguous"`, las cuales representan flujo funcional normal y son guiadas por el motor determinístico de preguntas del wizard.
+
+6. **Comportamiento ante Falla Doble (Double Failure):**
+   - Si ambos proveedores fallan, se devuelve una respuesta controlada (`HTTP 503` / `ok: false`).
+   - **Preservación Total:** No se pierde el texto escrito ni el borrador acumulado (`draft`).
+   - **UX Resiliente:** La interfaz presenta el banner con acción directa: `"Continuar manualmente con este borrador →"`, migrando el estado al wizard tradicional sin fricción.
+
+7. **Configuración y Timeouts [KEEP]:**
+   - `AI_PRIMARY_TIMEOUT_MS = 10000`
+   - `AI_FALLBACK_TIMEOUT_MS = 8000`
+   - `PRIMARY_AI_PROVIDER = openai` (configurable)
+   - `FALLBACK_AI_PROVIDER = deepseek` (desactivable con `"none"`)
+
 ---
 
 ## 5. Telemetría y Metering (Entrega A)
 
-Tabla en PostgreSQL: `ai_creation_sessions`
+Tabla en PostgreSQL: `ai_creation_sessions` (extendida mediante migración aditiva local `20260908190000_ai_creation_sessions_fallback_observability.sql`)
 
 | Columna | Tipo | Restricción / Propósito |
 |---|---|---|
@@ -191,13 +229,17 @@ Tabla en PostgreSQL: `ai_creation_sessions`
 | `turns` | `int` | Turnos acumulados de interacción |
 | `total_input_tokens` | `int` | Tokens de entrada |
 | `total_output_tokens`| `int` | Tokens de salida |
-| `provider` | `text` | Identificador del proveedor utilizado |
-| `model` | `text` | Identificador del modelo |
+| `provider` | `text` | Identificador del proveedor utilizado final |
+| `model` | `text` | Identificador del modelo final |
 | `total_latency_ms` | `int` | Latencia acumulada |
 | `elapsed_ms` | `int` | Tiempo total transcurrido |
 | `error_type` | `text` | Clasificación de error si hubo |
+| `metadata` | `jsonb` | Metadata de observabilidad: `fallbackUsed`, `primaryProvider`, `fallbackProvider`, `providerUsed`, `modelUsed`, `primaryLatencyMs`, `fallbackLatencyMs`, `totalLatencyMs`, `primaryFailureType`, `fallbackFailureType` |
 | `created_at` | `timestamptz` | Inicio de sesión |
 | `completed_at` | `timestamptz` | Conclusión de sesión |
+
+**Seguridad de Telemetría:** No se persisten API keys, headers `Authorization`, `reasoning_content` ni prompts completos en la metadata. Se reutiliza la RPC `registrar_sesion_ai_fin` con parámetro aditivo `p_metadata JSONB DEFAULT NULL`, manteniendo total retrocompatibilidad.
+
 
 ---
 

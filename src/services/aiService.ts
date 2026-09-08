@@ -2,6 +2,19 @@ import { supabase } from '@/lib/supabase';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
 import type { EncounterDraft } from '@/lib/encounterDraft';
 
+export interface SessionTelemetryMetadata {
+  fallbackUsed?: boolean;
+  primaryProvider?: string;
+  fallbackProvider?: string;
+  providerUsed?: string;
+  modelUsed?: string;
+  primaryLatencyMs?: number;
+  fallbackLatencyMs?: number;
+  totalLatencyMs?: number;
+  primaryFailureType?: string;
+  fallbackFailureType?: string;
+}
+
 export interface AiInterpretationResponse {
   ok: boolean;
   patch?: EncounterDraftPatch;
@@ -9,9 +22,19 @@ export interface AiInterpretationResponse {
     inputTokens: number;
     outputTokens: number;
     latencyMs: number;
+    primaryLatencyMs?: number;
+    fallbackLatencyMs?: number;
   };
   provider?: string;
   model?: string;
+  fallbackUsed?: boolean;
+  primaryProvider?: string;
+  fallbackProvider?: string;
+  primaryLatencyMs?: number;
+  fallbackLatencyMs?: number;
+  totalLatencyMs?: number;
+  primaryFailureType?: string;
+  fallbackFailureType?: string;
   error?: string;
   details?: string;
 }
@@ -28,6 +51,7 @@ export interface FinishAiSessionParams {
   errorType?: string;
   provider?: string;
   model?: string;
+  metadata?: SessionTelemetryMetadata;
 }
 
 export const aiService = {
@@ -51,7 +75,7 @@ export const aiService = {
         return {
           ok: false,
           error: 'service_unavailable',
-          details: error.message,
+          details: 'No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.',
         };
       }
 
@@ -59,7 +83,15 @@ export const aiService = {
         return {
           ok: false,
           error: data?.error || 'interpretation_failed',
-          details: data?.details || data?.message,
+          details: data?.message || data?.details || 'No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.',
+          fallbackUsed: data?.fallbackUsed,
+          primaryProvider: data?.primaryProvider,
+          fallbackProvider: data?.fallbackProvider,
+          primaryLatencyMs: data?.primaryLatencyMs,
+          fallbackLatencyMs: data?.fallbackLatencyMs,
+          totalLatencyMs: data?.totalLatencyMs ?? data?.latencyMs,
+          primaryFailureType: data?.primaryFailureType,
+          fallbackFailureType: data?.fallbackFailureType,
         };
       }
 
@@ -69,13 +101,21 @@ export const aiService = {
         usage: data.usage,
         provider: data.provider,
         model: data.model,
+        fallbackUsed: data.fallbackUsed,
+        primaryProvider: data.primaryProvider,
+        fallbackProvider: data.fallbackProvider,
+        primaryLatencyMs: data.primaryLatencyMs ?? data.usage?.primaryLatencyMs,
+        fallbackLatencyMs: data.fallbackLatencyMs ?? data.usage?.fallbackLatencyMs,
+        totalLatencyMs: data.totalLatencyMs ?? data.usage?.latencyMs,
+        primaryFailureType: data.primaryFailureType,
+        fallbackFailureType: data.fallbackFailureType,
       };
     } catch (err) {
       console.error('[aiService] Unexpected exception calling ai-interpret:', err);
       return {
         ok: false,
         error: 'network_error',
-        details: err instanceof Error ? err.message : String(err),
+        details: 'No pudimos conectar con el servicio de IA en este momento. Podés continuar manualmente.',
       };
     }
   },
@@ -105,7 +145,7 @@ export const aiService = {
    */
   async finishSession(params: FinishAiSessionParams): Promise<void> {
     try {
-      const { error } = await supabase.rpc('registrar_sesion_ai_fin', {
+      const basePayload: Record<string, any> = {
         p_session_id: params.sessionId,
         p_status: params.status,
         p_encounter_id: params.encounterId ?? null,
@@ -117,8 +157,19 @@ export const aiService = {
         p_error_type: params.errorType ?? null,
         p_provider: params.provider ?? null,
         p_model: params.model ?? null,
-      });
+      };
 
+      if (params.metadata) {
+        const { error } = await supabase.rpc('registrar_sesion_ai_fin', {
+          ...basePayload,
+          p_metadata: params.metadata,
+        });
+
+        if (!error) return;
+        console.warn('[aiService.finishSession] RPC with p_metadata error, retrying without p_metadata:', error.message);
+      }
+
+      const { error } = await supabase.rpc('registrar_sesion_ai_fin', basePayload);
       if (error) {
         console.warn('[aiService.finishSession] Telemetry warning (non-blocking):', error.message);
       }
@@ -127,3 +178,4 @@ export const aiService = {
     }
   },
 };
+

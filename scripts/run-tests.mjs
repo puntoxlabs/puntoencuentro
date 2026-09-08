@@ -11,6 +11,9 @@ try {
 
   await server.ssrLoadModule('./scripts/test-benchmark.ts');
   console.log('✅ Benchmark harness tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-fallback.ts');
+  console.log('✅ Runtime fallback tests executed successfully via Vite SSR loader.');
 } catch (err) {
   console.error('❌ Test failed:', err);
   process.exit(1);

@@ -22,6 +22,15 @@ interface AiWizardState {
   totalInputTokens: number;
   totalOutputTokens: number;
   totalLatencyMs: number;
+  primaryLatencyMs: number;
+  fallbackLatencyMs: number;
+  fallbackUsed: boolean;
+  primaryProvider: string;
+  fallbackProvider: string | null;
+  providerUsed: string | null;
+  modelUsed: string | null;
+  primaryFailureType: string | null;
+  fallbackFailureType: string | null;
   startedAt: number;
   isInterpreting: boolean;
   error: string | null;
@@ -61,6 +70,15 @@ export const useAiWizardStore = create<AiWizardState>()(
       totalInputTokens: 0,
       totalOutputTokens: 0,
       totalLatencyMs: 0,
+      primaryLatencyMs: 0,
+      fallbackLatencyMs: 0,
+      fallbackUsed: false,
+      primaryProvider: 'openai',
+      fallbackProvider: null,
+      providerUsed: null,
+      modelUsed: null,
+      primaryFailureType: null,
+      fallbackFailureType: null,
       startedAt: Date.now(),
       isInterpreting: false,
       error: null,
@@ -83,6 +101,16 @@ export const useAiWizardStore = create<AiWizardState>()(
             lastQuestion: null,
             coordinationDetected: false,
             isComplete: false,
+            totalLatencyMs: 0,
+            primaryLatencyMs: 0,
+            fallbackLatencyMs: 0,
+            fallbackUsed: false,
+            primaryProvider: 'openai',
+            fallbackProvider: null,
+            providerUsed: null,
+            modelUsed: null,
+            primaryFailureType: null,
+            fallbackFailureType: null,
           });
           aiService.startSession(newSession);
         }
@@ -119,6 +147,14 @@ export const useAiWizardStore = create<AiWizardState>()(
           set({
             isInterpreting: false,
             error: response.details || 'No pudimos interpretar el mensaje. Intentá de nuevo o completá manualmente.',
+            fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
+            primaryProvider: response.primaryProvider || state.primaryProvider,
+            fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
+            primaryLatencyMs: state.primaryLatencyMs + (response.primaryLatencyMs || 0),
+            fallbackLatencyMs: state.fallbackLatencyMs + (response.fallbackLatencyMs || 0),
+            totalLatencyMs: state.totalLatencyMs + (response.totalLatencyMs || 0),
+            primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
+            fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
           });
           return;
         }
@@ -126,7 +162,9 @@ export const useAiWizardStore = create<AiWizardState>()(
         // Accumulate tokens & latency
         const totalIn = state.totalInputTokens + (response.usage?.inputTokens || 0);
         const totalOut = state.totalOutputTokens + (response.usage?.outputTokens || 0);
-        const totalLat = state.totalLatencyMs + (response.usage?.latencyMs || 0);
+        const totalLat = state.totalLatencyMs + (response.totalLatencyMs || response.usage?.latencyMs || 0);
+        const primLat = state.primaryLatencyMs + (response.primaryLatencyMs || response.usage?.primaryLatencyMs || 0);
+        const fallLat = state.fallbackLatencyMs + (response.fallbackLatencyMs || response.usage?.fallbackLatencyMs || 0);
 
         // Merge patch deterministically
         const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
@@ -162,6 +200,15 @@ export const useAiWizardStore = create<AiWizardState>()(
           totalInputTokens: totalIn,
           totalOutputTokens: totalOut,
           totalLatencyMs: totalLat,
+          primaryLatencyMs: primLat,
+          fallbackLatencyMs: fallLat,
+          fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
+          primaryProvider: response.primaryProvider || state.primaryProvider,
+          fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
+          providerUsed: response.provider || state.providerUsed,
+          modelUsed: response.model || state.modelUsed,
+          primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
+          fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
           lastQuestion: evaluation.nextQuestion,
           coordinationDetected: mergeResult.coordinationDetected,
           isComplete: evaluation.isComplete,
@@ -207,6 +254,20 @@ export const useAiWizardStore = create<AiWizardState>()(
           outputTokens: state.totalOutputTokens,
           latencyMs: state.totalLatencyMs,
           elapsedMs: Date.now() - state.startedAt,
+          provider: state.providerUsed || state.primaryProvider,
+          model: state.modelUsed || undefined,
+          metadata: {
+            fallbackUsed: state.fallbackUsed,
+            primaryProvider: state.primaryProvider,
+            fallbackProvider: state.fallbackProvider || undefined,
+            providerUsed: state.providerUsed || undefined,
+            modelUsed: state.modelUsed || undefined,
+            primaryLatencyMs: state.primaryLatencyMs,
+            fallbackLatencyMs: state.fallbackLatencyMs,
+            totalLatencyMs: state.totalLatencyMs,
+            primaryFailureType: state.primaryFailureType || undefined,
+            fallbackFailureType: state.fallbackFailureType || undefined,
+          },
         });
       },
 
@@ -221,6 +282,15 @@ export const useAiWizardStore = create<AiWizardState>()(
           totalInputTokens: 0,
           totalOutputTokens: 0,
           totalLatencyMs: 0,
+          primaryLatencyMs: 0,
+          fallbackLatencyMs: 0,
+          fallbackUsed: false,
+          primaryProvider: 'openai',
+          fallbackProvider: null,
+          providerUsed: null,
+          modelUsed: null,
+          primaryFailureType: null,
+          fallbackFailureType: null,
           startedAt: Date.now(),
           isInterpreting: false,
           error: null,
@@ -245,3 +315,4 @@ export const useAiWizardStore = create<AiWizardState>()(
     }
   )
 );
+

@@ -137,5 +137,5 @@ Aplicando rigurosamente el orden de prioridad estipulado:
 * **Google Gemini (`gemini-3.8-flash`):** Queda posicionado como alternativa secundaria terciaria debido a su severa tasa de omisión (54.9%) y pobre detección de ambigüedad (9.1%), requiriendo futuros ajustes de prompt o finetuning si se deseara reevaluar.
 
 > [!IMPORTANT]
-> **Estado de Implementación:** El runtime fallback en tiempo de ejecución **NO ha sido implementado todavía**. La arquitectura permanece completamente desacoplada y lista para la siguiente fase mediante las variables de entorno `PRIMARY_AI_PROVIDER` y `FALLBACK_AI_PROVIDER`.
+> **Estado de Implementación:** El runtime fallback en tiempo de ejecución **ha sido implementado y testeado** (`supabase/functions/ai-interpret/fallback.ts` con OpenAI `gpt-5.6-luna` como Primary y DeepSeek `deepseek-v4-flash` como Fallback, con máximo 1 reintento y preservación de borrador ante double failure).
 

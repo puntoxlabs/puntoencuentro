@@ -68,27 +68,7 @@ declare const Deno: {
   serve: (handler: (req: Request) => Promise<Response>) => void;
 };
 
-function resolveProvider(): EncounterInterpreterProvider {
-  const providerName = (Deno.env.get("AI_PROVIDER") || "google").toLowerCase();
-  const modelName = Deno.env.get("AI_MODEL");
-
-  if (providerName === "openai") {
-    const apiKey = Deno.env.get("OPENAI_API_KEY") || Deno.env.get("AI_API_KEY");
-    if (!apiKey) throw new Error("Missing OPENAI_API_KEY / AI_API_KEY in environment");
-    return new OpenAiProvider(apiKey, modelName || "gpt-5.6-luna");
-  }
-
-  if (providerName === "deepseek") {
-    const apiKey = Deno.env.get("DEEPSEEK_API_KEY") || Deno.env.get("AI_API_KEY");
-    if (!apiKey) throw new Error("Missing DEEPSEEK_API_KEY / AI_API_KEY in environment");
-    return new DeepSeekProvider(apiKey, modelName || "deepseek-v4-flash");
-  }
-
-  // Temporary development default (not selected by benchmark): Google Gemini
-  const apiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("AI_API_KEY");
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY / AI_API_KEY in environment");
-  return new GoogleGeminiProvider(apiKey, modelName || "gemini-3.8-flash");
-}
+import { resolveProviders, interpretWithFallback } from "./fallback.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -177,54 +157,66 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Resolve provider
-    const provider = resolveProvider();
+    // 4. Resolve providers (PRIMARY + FALLBACK)
+    const { primaryProvider, fallbackProvider, primaryTimeoutMs, fallbackTimeoutMs } = resolveProviders(Deno.env);
 
-    // 5. Interpret with 1 controlled retry on schema invalidation
-    let interpretationResult;
-    let attempts = 0;
-    const maxAttempts = 2;
-
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        interpretationResult = await provider.interpret({
-          message: message.trim(),
-          currentDraft,
-          systemPrompt: SYSTEM_PROMPT,
-          jsonSchema: ENCOUNTER_DRAFT_PATCH_SCHEMA
-        });
-
-        const validation = validatePatchOutput(interpretationResult.patch);
-        if (validation.valid) {
-          break; // Succeeded!
-        } else if (attempts >= maxAttempts) {
-          throw new Error(`Schema validation failed: ${validation.error}`);
-        }
-      } catch (err) {
-        if (attempts >= maxAttempts) {
-          throw err;
-        }
+    // 5. Interpret using Primary -> Fallback execution pipeline
+    const fallbackResult = await interpretWithFallback(
+      message.trim(),
+      currentDraft,
+      primaryProvider,
+      fallbackProvider,
+      {
+        systemPrompt: SYSTEM_PROMPT,
+        jsonSchema: ENCOUNTER_DRAFT_PATCH_SCHEMA,
+        primaryTimeoutMs,
+        fallbackTimeoutMs,
       }
-    }
+    );
 
-    if (!interpretationResult) {
-      throw new Error("No interpretation result produced");
+    if (!fallbackResult.ok || !fallbackResult.patch) {
+      const isSafety = fallbackResult.error === "safety_refusal";
+      const statusCode = isSafety ? 400 : 503;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: fallbackResult.error || "interpretation_failed",
+          message: fallbackResult.message || "No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.",
+          fallbackUsed: fallbackResult.fallbackUsed,
+          primaryProvider: fallbackResult.primaryProvider,
+          fallbackProvider: fallbackResult.fallbackProvider,
+          primaryFailureType: fallbackResult.primaryFailureType,
+          fallbackFailureType: fallbackResult.fallbackFailureType,
+          primaryLatencyMs: fallbackResult.primaryLatencyMs,
+          fallbackLatencyMs: fallbackResult.fallbackLatencyMs,
+          totalLatencyMs: fallbackResult.totalLatencyMs,
+          latencyMs: fallbackResult.totalLatencyMs,
+        }),
+        { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
-
-    const latencyMs = Date.now() - startTime;
 
     return new Response(
       JSON.stringify({
         ok: true,
-        patch: interpretationResult.patch,
+        patch: fallbackResult.patch,
         usage: {
-          inputTokens: interpretationResult.inputTokens,
-          outputTokens: interpretationResult.outputTokens,
-          latencyMs
+          inputTokens: fallbackResult.usage?.inputTokens || 0,
+          outputTokens: fallbackResult.usage?.outputTokens || 0,
+          latencyMs: fallbackResult.totalLatencyMs,
+          primaryLatencyMs: fallbackResult.primaryLatencyMs,
+          fallbackLatencyMs: fallbackResult.fallbackLatencyMs,
         },
-        provider: provider.name,
-        model: provider.model
+        provider: fallbackResult.providerUsed,
+        model: fallbackResult.modelUsed,
+        fallbackUsed: fallbackResult.fallbackUsed,
+        primaryProvider: fallbackResult.primaryProvider,
+        fallbackProvider: fallbackResult.fallbackProvider,
+        primaryLatencyMs: fallbackResult.primaryLatencyMs,
+        fallbackLatencyMs: fallbackResult.fallbackLatencyMs,
+        totalLatencyMs: fallbackResult.totalLatencyMs,
+        primaryFailureType: fallbackResult.primaryFailureType,
+        fallbackFailureType: fallbackResult.fallbackFailureType,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -237,7 +229,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         ok: false,
         error: "interpretation_failed",
-        details: error instanceof Error ? error.message : String(error),
+        message: "No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.",
         latencyMs
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

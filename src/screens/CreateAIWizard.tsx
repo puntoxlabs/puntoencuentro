@@ -35,6 +35,15 @@ export const CreateAIWizard: React.FC = () => {
     totalInputTokens,
     totalOutputTokens,
     totalLatencyMs,
+    primaryLatencyMs,
+    fallbackLatencyMs,
+    fallbackUsed,
+    primaryProvider,
+    fallbackProvider,
+    providerUsed,
+    modelUsed,
+    primaryFailureType,
+    fallbackFailureType,
     startedAt,
     isInterpreting,
     error: aiError,
@@ -97,6 +106,20 @@ export const CreateAIWizard: React.FC = () => {
       outputTokens: totalOutputTokens,
       latencyMs: totalLatencyMs,
       elapsedMs: Date.now() - startedAt,
+      provider: providerUsed || primaryProvider,
+      model: modelUsed || undefined,
+      metadata: {
+        fallbackUsed,
+        primaryProvider,
+        fallbackProvider: fallbackProvider || undefined,
+        providerUsed: providerUsed || undefined,
+        modelUsed: modelUsed || undefined,
+        primaryLatencyMs,
+        fallbackLatencyMs,
+        totalLatencyMs,
+        primaryFailureType: primaryFailureType || undefined,
+        fallbackFailureType: fallbackFailureType || undefined,
+      },
     });
     navigate('/create/coordination');
   };
@@ -167,6 +190,20 @@ export const CreateAIWizard: React.FC = () => {
         outputTokens: totalOutputTokens,
         latencyMs: totalLatencyMs,
         elapsedMs: Date.now() - startedAt,
+        provider: providerUsed || primaryProvider,
+        model: modelUsed || undefined,
+        metadata: {
+          fallbackUsed,
+          primaryProvider,
+          fallbackProvider: fallbackProvider || undefined,
+          providerUsed: providerUsed || undefined,
+          modelUsed: modelUsed || undefined,
+          primaryLatencyMs,
+          fallbackLatencyMs,
+          totalLatencyMs,
+          primaryFailureType: primaryFailureType || undefined,
+          fallbackFailureType: fallbackFailureType || undefined,
+        },
       });
 
       // Clear AI session upon success
@@ -195,6 +232,20 @@ export const CreateAIWizard: React.FC = () => {
         latencyMs: totalLatencyMs,
         elapsedMs: Date.now() - startedAt,
         errorType: errorMessage,
+        provider: providerUsed || primaryProvider,
+        model: modelUsed || undefined,
+        metadata: {
+          fallbackUsed,
+          primaryProvider,
+          fallbackProvider: fallbackProvider || undefined,
+          providerUsed: providerUsed || undefined,
+          modelUsed: modelUsed || undefined,
+          primaryLatencyMs,
+          fallbackLatencyMs,
+          totalLatencyMs,
+          primaryFailureType: primaryFailureType || undefined,
+          fallbackFailureType: fallbackFailureType || undefined,
+        },
       });
     } finally {
       setIsCreating(false);
@@ -333,7 +384,7 @@ export const CreateAIWizard: React.FC = () => {
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
               gap: '8px',
               padding: '12px',
               borderRadius: '8px',
@@ -344,8 +395,30 @@ export const CreateAIWizard: React.FC = () => {
               margin: '8px 0',
             }}
           >
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>{aiError || creationError}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>{aiError || creationError}</div>
+            </div>
+            {aiError && (
+              <button
+                type="button"
+                onClick={handleFallbackManual}
+                style={{
+                  alignSelf: 'flex-start',
+                  background: '#ffffff',
+                  border: '1px solid #fca5a5',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#991b1b',
+                  cursor: 'pointer',
+                  marginTop: '4px',
+                }}
+              >
+                Continuar manualmente con este borrador →
+              </button>
+            )}
           </div>
         )}
 
