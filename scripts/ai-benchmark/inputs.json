@@ -1,0 +1,701 @@
+[
+  {
+    "id": 1,
+    "category": "simple",
+    "text": "Cena con amigos el viernes a las 21 en casa",
+    "expected": {
+      "title": "Cena con amigos",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 21, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "casa"
+    }
+  },
+  {
+    "id": 2,
+    "category": "simple",
+    "text": "Almuerzo el domingo a las 13 en lo de mamá",
+    "expected": {
+      "title": "Almuerzo",
+      "dateIntent": { "type": "weekday", "weekday": "domingo", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 13, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "lo de mamá"
+    }
+  },
+  {
+    "id": 3,
+    "category": "simple",
+    "text": "Reunión de equipo mañana a las 10 por Google Meet",
+    "expected": {
+      "title": "Reunión de equipo",
+      "dateIntent": { "type": "relative", "value": "tomorrow" },
+      "timeIntent": { "type": "exact", "hour": 10, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 4,
+    "category": "simple",
+    "text": "Cumpleaños de Sofi el sábado a las 20 en Palermo",
+    "expected": {
+      "title": "Cumpleaños de Sofi",
+      "dateIntent": { "type": "weekday", "weekday": "sabado", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Palermo",
+      "themeHint": "celebration"
+    }
+  },
+  {
+    "id": 5,
+    "category": "simple",
+    "text": "Partido de paddle el jueves a las 19 en El Balcón",
+    "expected": {
+      "title": "Partido de paddle",
+      "dateIntent": { "type": "weekday", "weekday": "jueves", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 19, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "El Balcón",
+      "themeHint": "sports"
+    }
+  },
+  {
+    "id": 6,
+    "category": "simple",
+    "text": "Café el lunes a las 16 en Starbucks Belgrano",
+    "expected": {
+      "title": "Café",
+      "dateIntent": { "type": "weekday", "weekday": "lunes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 16, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Starbucks Belgrano"
+    }
+  },
+  {
+    "id": 7,
+    "category": "simple",
+    "text": "Asado el 25 de mayo al mediodía en la quinta de Juan",
+    "expected": {
+      "title": "Asado",
+      "dateIntent": { "type": "absolute", "day": 25, "month": 5 },
+      "timeIntent": { "type": "exact", "hour": 12, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "quinta de Juan"
+    }
+  },
+  {
+    "id": 8,
+    "category": "simple",
+    "text": "Videollamada el martes a las 18 por Zoom: https://zoom.us/j/123456789",
+    "expected": {
+      "title": "Videollamada",
+      "dateIntent": { "type": "weekday", "weekday": "martes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 18, "minute": 0 },
+      "modality": "virtual",
+      "virtualLink": "https://zoom.us/j/123456789"
+    }
+  },
+  {
+    "id": 9,
+    "category": "simple",
+    "text": "Clase de yoga el miércoles a las 8 de la mañana en Plaza Francia",
+    "expected": {
+      "title": "Clase de yoga",
+      "dateIntent": { "type": "weekday", "weekday": "miercoles", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 8, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Plaza Francia"
+    }
+  },
+  {
+    "id": 10,
+    "category": "simple",
+    "text": "After office el viernes a las 19 en Temple Bar",
+    "expected": {
+      "title": "After office",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 19, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Temple Bar"
+    }
+  },
+
+  {
+    "id": 11,
+    "category": "typos_informal",
+    "text": "cenita el vierns alas 9 en ksa",
+    "expected": {
+      "title": "cenita",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 21, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "casa"
+    }
+  },
+  {
+    "id": 12,
+    "category": "typos_informal",
+    "text": "fulbito mañan despues del laburo tipoo 7",
+    "expected": {
+      "title": "fulbito",
+      "dateIntent": { "type": "relative", "value": "tomorrow" },
+      "timeIntent": { "type": "approximate", "hour": 19, "minute": 0 },
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 13,
+    "category": "typos_informal",
+    "text": "asadingo el domigo 13hs en lo de marcos",
+    "expected": {
+      "title": "asadingo",
+      "dateIntent": { "type": "weekday", "weekday": "domingo", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 13, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "lo de marcos"
+    }
+  },
+  {
+    "id": 14,
+    "category": "typos_informal",
+    "text": "birras hoy a las 20 en la cerveceria de la esquina",
+    "expected": {
+      "title": "birras",
+      "dateIntent": { "type": "relative", "value": "today" },
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "cerveceria de la esquina"
+    }
+  },
+  {
+    "id": 15,
+    "category": "typos_informal",
+    "text": "reunion x meet pasadomanana a las 11",
+    "expected": {
+      "title": "reunion",
+      "dateIntent": { "type": "relative", "value": "day_after_tomorrow" },
+      "timeIntent": { "type": "exact", "hour": 11, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 16,
+    "category": "typos_informal",
+    "text": "juntada a comer pizzas este sabdo 2130",
+    "expected": {
+      "title": "juntada a comer pizzas",
+      "dateIntent": { "type": "weekday", "weekday": "sabado", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 21, "minute": 30 }
+    }
+  },
+  {
+    "id": 17,
+    "category": "typos_informal",
+    "text": "merendola cn las chicas el mie a las 5",
+    "expected": {
+      "title": "merendola",
+      "dateIntent": { "type": "weekday", "weekday": "miercoles", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 17, "minute": 0 }
+    }
+  },
+  {
+    "id": 18,
+    "category": "typos_informal",
+    "text": "picadita en mi depto el juevs 20 hs",
+    "expected": {
+      "title": "picadita",
+      "dateIntent": { "type": "weekday", "weekday": "jueves", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "mi depto"
+    }
+  },
+
+  {
+    "id": 19,
+    "category": "relative_dates",
+    "text": "Cena hoy a las 22 en La Cabrera",
+    "expected": {
+      "title": "Cena",
+      "dateIntent": { "type": "relative", "value": "today" },
+      "timeIntent": { "type": "exact", "hour": 22, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "La Cabrera"
+    }
+  },
+  {
+    "id": 20,
+    "category": "relative_dates",
+    "text": "Almuerzo mañana a las 13 en el centro",
+    "expected": {
+      "title": "Almuerzo",
+      "dateIntent": { "type": "relative", "value": "tomorrow" },
+      "timeIntent": { "type": "exact", "hour": 13, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "el centro"
+    }
+  },
+  {
+    "id": 21,
+    "category": "relative_dates",
+    "text": "Encuentro pasado mañana a las 15 en Parque Las Heras",
+    "expected": {
+      "title": "Encuentro",
+      "dateIntent": { "type": "relative", "value": "day_after_tomorrow" },
+      "timeIntent": { "type": "exact", "hour": 15, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Parque Las Heras"
+    }
+  },
+  {
+    "id": 22,
+    "category": "relative_dates",
+    "text": "Asado este domingo a las 12:30 en el campo",
+    "expected": {
+      "title": "Asado",
+      "dateIntent": { "type": "weekday", "weekday": "domingo", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 12, "minute": 30 },
+      "modality": "presencial",
+      "locationText": "el campo"
+    }
+  },
+  {
+    "id": 23,
+    "category": "relative_dates",
+    "text": "Reunión el próximo martes a las 14 en la oficina",
+    "expected": {
+      "title": "Reunión",
+      "dateIntent": { "type": "weekday", "weekday": "martes", "modifier": "next" },
+      "timeIntent": { "type": "exact", "hour": 14, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "la oficina"
+    }
+  },
+  {
+    "id": 24,
+    "category": "relative_dates",
+    "text": "Picada el próximo viernes a las 20 en casa",
+    "expected": {
+      "title": "Picada",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "next" },
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "casa"
+    }
+  },
+  {
+    "id": 25,
+    "category": "relative_dates",
+    "text": "Festejo este finde en San Isidro",
+    "expected": {
+      "title": "Festejo",
+      "dateIntent": { "type": "relative", "value": "this_weekend" },
+      "modality": "presencial",
+      "locationText": "San Isidro",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 26,
+    "category": "relative_dates",
+    "text": "Salida la semana que viene a la noche",
+    "expected": {
+      "title": "Salida",
+      "dateIntent": { "type": "relative", "value": "next_week" },
+      "timeIntent": { "type": "period", "value": "night" },
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 27,
+    "category": "relative_dates",
+    "text": "Charla el 15 de septiembre a las 18 en el aula magna",
+    "expected": {
+      "title": "Charla",
+      "dateIntent": { "type": "absolute", "day": 15, "month": 9 },
+      "timeIntent": { "type": "exact", "hour": 18, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "aula magna"
+    }
+  },
+  {
+    "id": 28,
+    "category": "relative_dates",
+    "text": "Brindis de fin de año el 20 de diciembre a las 21",
+    "expected": {
+      "title": "Brindis de fin de año",
+      "dateIntent": { "type": "absolute", "day": 20, "month": 12 },
+      "timeIntent": { "type": "exact", "hour": 21, "minute": 0 }
+    }
+  },
+
+  {
+    "id": 29,
+    "category": "ambiguous_time",
+    "text": "Reunión el martes tipo 9 en la cafetería",
+    "expected": {
+      "title": "Reunión",
+      "dateIntent": { "type": "weekday", "weekday": "martes", "modifier": "this" },
+      "timeIntent": { "type": "approximate", "hour": 9, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "la cafetería",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 30,
+    "category": "ambiguous_time",
+    "text": "Cena el sábado a la noche en Charly",
+    "expected": {
+      "title": "Cena",
+      "dateIntent": { "type": "weekday", "weekday": "sabado", "modifier": "this" },
+      "timeIntent": { "type": "period", "value": "night" },
+      "modality": "presencial",
+      "locationText": "Charly",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 31,
+    "category": "ambiguous_time",
+    "text": "Café el jueves a la tarde por Recoleta",
+    "expected": {
+      "title": "Café",
+      "dateIntent": { "type": "weekday", "weekday": "jueves", "modifier": "this" },
+      "timeIntent": { "type": "period", "value": "afternoon" },
+      "modality": "presencial",
+      "locationText": "Recoleta",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 32,
+    "category": "ambiguous_time",
+    "text": "Juntada el viernes después de las 18",
+    "expected": {
+      "title": "Juntada",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "after", "hour": 18, "minute": 0 },
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 33,
+    "category": "ambiguous_time",
+    "text": "Nos vemos el miércoles entre 19 y 21 en casa",
+    "expected": {
+      "title": "Nos vemos",
+      "dateIntent": { "type": "weekday", "weekday": "miercoles", "modifier": "this" },
+      "timeIntent": { "type": "range", "startHour": 19, "startMinute": 0, "endHour": 21, "endMinute": 0 },
+      "modality": "presencial",
+      "locationText": "casa",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 34,
+    "category": "ambiguous_time",
+    "text": "Entrenamiento el sábado a la mañana temprano en el parque",
+    "expected": {
+      "title": "Entrenamiento",
+      "dateIntent": { "type": "weekday", "weekday": "sabado", "modifier": "this" },
+      "timeIntent": { "type": "period", "value": "morning" },
+      "modality": "presencial",
+      "locationText": "el parque",
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 35,
+    "category": "ambiguous_time",
+    "text": "Cerveza el viernes cuando salga del laburo",
+    "expected": {
+      "title": "Cerveza",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "isAmbiguous": true
+    }
+  },
+  {
+    "id": 36,
+    "category": "ambiguous_time",
+    "text": "Almuerzo el domingo tipo una en lo de los abuelos",
+    "expected": {
+      "title": "Almuerzo",
+      "dateIntent": { "type": "weekday", "weekday": "domingo", "modifier": "this" },
+      "timeIntent": { "type": "approximate", "hour": 13, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "lo de los abuelos",
+      "isAmbiguous": true
+    }
+  },
+
+  {
+    "id": 37,
+    "category": "modality_detection",
+    "text": "Reunión de directorio el lunes a las 10 en la sala A",
+    "expected": {
+      "title": "Reunión de directorio",
+      "dateIntent": { "type": "weekday", "weekday": "lunes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 10, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "sala A"
+    }
+  },
+  {
+    "id": 38,
+    "category": "modality_detection",
+    "text": "Call por Zoom mañana a las 16 para ver el diseño",
+    "expected": {
+      "title": "Call",
+      "dateIntent": { "type": "relative", "value": "tomorrow" },
+      "timeIntent": { "type": "exact", "hour": 16, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 39,
+    "category": "modality_detection",
+    "text": "Charla virtual el jueves a las 18 hs",
+    "expected": {
+      "title": "Charla virtual",
+      "dateIntent": { "type": "weekday", "weekday": "jueves", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 18, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 40,
+    "category": "modality_detection",
+    "text": "Nos vemos en persona en Plaza Serrano el sábado a las 17",
+    "expected": {
+      "title": "Nos vemos en persona",
+      "dateIntent": { "type": "weekday", "weekday": "sabado", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 17, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "Plaza Serrano"
+    }
+  },
+  {
+    "id": 41,
+    "category": "modality_detection",
+    "text": "Sincronización online el miércoles a las 11",
+    "expected": {
+      "title": "Sincronización online",
+      "dateIntent": { "type": "weekday", "weekday": "miercoles", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 11, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 42,
+    "category": "modality_detection",
+    "text": "Clase presencial el martes a las 19 en el instituto",
+    "expected": {
+      "title": "Clase presencial",
+      "dateIntent": { "type": "weekday", "weekday": "martes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 19, "minute": 0 },
+      "modality": "presencial",
+      "locationText": "instituto"
+    }
+  },
+  {
+    "id": 43,
+    "category": "modality_detection",
+    "text": "Encuentro el viernes a las 20 para charlar del proyecto",
+    "expected": {
+      "title": "Encuentro",
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null
+    }
+  },
+  {
+    "id": 44,
+    "category": "modality_detection",
+    "text": "Llamada con clientes el lunes a las 15",
+    "expected": {
+      "title": "Llamada con clientes",
+      "dateIntent": { "type": "weekday", "weekday": "lunes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 15, "minute": 0 },
+      "modality": "virtual"
+    }
+  },
+
+  {
+    "id": 45,
+    "category": "coordination_intent",
+    "text": "Nos podemos juntar jueves o viernes a cenar",
+    "expected": {
+      "title": "cenar",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+  {
+    "id": 46,
+    "category": "coordination_intent",
+    "text": "Quiero organizar un asado pero vemos qué día puede la mayoría",
+    "expected": {
+      "title": "asado",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+  {
+    "id": 47,
+    "category": "coordination_intent",
+    "text": "Juntada el finde, sábado o domingo según el clima",
+    "expected": {
+      "title": "Juntada",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+  {
+    "id": 48,
+    "category": "coordination_intent",
+    "text": "Hagamos un café la semana que viene cuando puedan",
+    "expected": {
+      "title": "café",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+  {
+    "id": 49,
+    "category": "coordination_intent",
+    "text": "Votemos fecha para el cumpleaños de Flor entre el 12 y el 14",
+    "expected": {
+      "title": "cumpleaños de Flor",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+  {
+    "id": 50,
+    "category": "coordination_intent",
+    "text": "Buscamos qué día nos queda mejor a todos para vernos",
+    "expected": {
+      "title": "vernos",
+      "dateModeSignal": "coordination",
+      "isCoordination": true
+    }
+  },
+
+  {
+    "id": 51,
+    "category": "incomplete_inputs",
+    "text": "Cena con amigos",
+    "expected": {
+      "title": "Cena con amigos",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null
+    }
+  },
+  {
+    "id": 52,
+    "category": "incomplete_inputs",
+    "text": "El viernes a las 9",
+    "expected": {
+      "title": null,
+      "dateIntent": { "type": "weekday", "weekday": "viernes", "modifier": "this" },
+      "timeIntent": { "type": "exact", "hour": 21, "minute": 0 },
+      "modality": null
+    }
+  },
+  {
+    "id": 53,
+    "category": "incomplete_inputs",
+    "text": "En casa de Martín",
+    "expected": {
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "casa de Martín"
+    }
+  },
+  {
+    "id": 54,
+    "category": "incomplete_inputs",
+    "text": "Cumpleaños",
+    "expected": {
+      "title": "Cumpleaños",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null
+    }
+  },
+  {
+    "id": 55,
+    "category": "incomplete_inputs",
+    "text": "Mañana",
+    "expected": {
+      "title": null,
+      "dateIntent": { "type": "relative", "value": "tomorrow" },
+      "timeIntent": null,
+      "modality": null
+    }
+  },
+  {
+    "id": 56,
+    "category": "incomplete_inputs",
+    "text": "Por Google Meet",
+    "expected": {
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "virtual"
+    }
+  },
+  {
+    "id": 57,
+    "category": "incomplete_inputs",
+    "text": "Fútbol 5 en Caballito",
+    "expected": {
+      "title": "Fútbol 5",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "Caballito"
+    }
+  },
+  {
+    "id": 58,
+    "category": "incomplete_inputs",
+    "text": "A las ocho de la noche",
+    "expected": {
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": { "type": "exact", "hour": 20, "minute": 0 },
+      "modality": null
+    }
+  },
+  {
+    "id": 59,
+    "category": "incomplete_inputs",
+    "text": "Pizzas con el equipo de producto",
+    "expected": {
+      "title": "Pizzas con el equipo de producto",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null
+    }
+  },
+  {
+    "id": 60,
+    "category": "incomplete_inputs",
+    "text": "Reunión de balance mensual",
+    "expected": {
+      "title": "Reunión de balance mensual",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null
+    }
+  }
+]

@@ -818,6 +818,10 @@ const Home: React.FC = () => {
       <CreationAccountChoiceSheet {...choiceSheetProps} />
       <EncounterModeChoiceSheet
         open={isModeChoiceOpen}
+        onSelectAI={() => {
+          setIsModeChoiceOpen(false);
+          navigate('/create/ai');
+        }}
         onSelectFixed={() => {
           setIsModeChoiceOpen(false);
           startFixedEncounter();

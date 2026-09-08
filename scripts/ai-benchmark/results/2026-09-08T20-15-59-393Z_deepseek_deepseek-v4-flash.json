@@ -1,0 +1,3362 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "executionTimestamp": "2026-09-08T20:15:59.393Z",
+  "totalCases": 60,
+  "successfulCases": 60,
+  "failedCases": 0,
+  "apiSuccessRate": 100,
+  "apiFailureRate": 0,
+  "failureReasons": [],
+  "aggregatedScore": {
+    "totalCases": 60,
+    "successfulCases": 60,
+    "failedCases": 0,
+    "apiSuccessRate": 100,
+    "apiFailureRate": 0,
+    "failureReasons": [],
+    "evaluableCases": 60,
+    "validSchemaPercentage": 100,
+    "exactExtractionRate": 75,
+    "omissionRate": 25,
+    "hallucinationRate": 0,
+    "ambiguityDetectionRate": 81.8
+  },
+  "performance": {
+    "avgLatencyMs": 495,
+    "p50LatencyMs": 488,
+    "p95LatencyMs": 556,
+    "avgInputTokens": 1625,
+    "avgOutputTokens": 3596,
+    "avgPromptTokens": 1625,
+    "avgVisibleOutputTokens": 119,
+    "avgReasoningTokens": 3477,
+    "avgBilledCompletionTokens": 3596,
+    "avgTotalBilledTokens": 5221,
+    "totalTokensProcessed": 313232,
+    "calculatedCostPer1000Usd": null
+  },
+  "cases": [
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 1,
+      "category": "simple",
+      "inputText": "Cena con amigos el viernes a las 21 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 584,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 144,
+        "reasoningTokens": 5700,
+        "billedCompletionTokens": 5844,
+        "totalBilledTokens": 7469,
+        "inputTokens": 1625,
+        "outputTokens": 5844
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 1,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 2,
+      "category": "simple",
+      "inputText": "Almuerzo el domingo a las 13 en lo de mamá",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 556,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 177,
+        "reasoningTokens": 2579,
+        "billedCompletionTokens": 2756,
+        "totalBilledTokens": 4384,
+        "inputTokens": 1628,
+        "outputTokens": 2756
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en lo de mamá",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 2,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 3,
+      "category": "simple",
+      "inputText": "Reunión de equipo mañana a las 10 por Google Meet",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 482,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 124,
+        "reasoningTokens": 3873,
+        "billedCompletionTokens": 3997,
+        "totalBilledTokens": 5623,
+        "inputTokens": 1626,
+        "outputTokens": 3997
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de equipo",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 3,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 4,
+      "category": "simple",
+      "inputText": "Cumpleaños de Sofi el sábado a las 20 en Palermo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 478,
+      "usage": {
+        "promptTokens": 1631,
+        "visibleOutputTokens": 201,
+        "reasoningTokens": 2615,
+        "billedCompletionTokens": 2816,
+        "totalBilledTokens": 4447,
+        "inputTokens": 1631,
+        "outputTokens": 2816
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Palermo",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 4,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 5,
+      "category": "simple",
+      "inputText": "Partido de paddle el jueves a las 19 en El Balcón",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 477,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 190,
+        "reasoningTokens": 4852,
+        "billedCompletionTokens": 5042,
+        "totalBilledTokens": 6670,
+        "inputTokens": 1628,
+        "outputTokens": 5042
+      },
+      "output": {
+        "title": {
+          "value": "Partido de paddle",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "jueves",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "El Balcón",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 5,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 6,
+      "category": "simple",
+      "inputText": "Café el lunes a las 16 en Starbucks Belgrano",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 568,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 139,
+        "reasoningTokens": 5796,
+        "billedCompletionTokens": 5935,
+        "totalBilledTokens": 7561,
+        "inputTokens": 1626,
+        "outputTokens": 5935
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "monday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Starbucks Belgrano",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 6,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 7,
+      "category": "simple",
+      "inputText": "Asado el 25 de mayo al mediodía en la quinta de Juan",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 478,
+      "usage": {
+        "promptTokens": 1629,
+        "visibleOutputTokens": 178,
+        "reasoningTokens": 2633,
+        "billedCompletionTokens": 2811,
+        "totalBilledTokens": 4440,
+        "inputTokens": 1629,
+        "outputTokens": 2811
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "explicit",
+          "originalText": "Asado"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 25,
+            "month": 5
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 12,
+            "minute": 0
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la quinta de Juan",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 7,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 8,
+      "category": "simple",
+      "inputText": "Videollamada el martes a las 18 por Zoom: https://zoom.us/j/123456789",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 475,
+      "usage": {
+        "promptTokens": 1636,
+        "visibleOutputTokens": 142,
+        "reasoningTokens": 2501,
+        "billedCompletionTokens": 2643,
+        "totalBilledTokens": 4279,
+        "inputTokens": 1636,
+        "outputTokens": 2643
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "tuesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "https://zoom.us/j/123456789",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 8,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 9,
+      "category": "simple",
+      "inputText": "Clase de yoga el miércoles a las 8 de la mañana en Plaza Francia",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 486,
+      "usage": {
+        "promptTokens": 1631,
+        "visibleOutputTokens": 181,
+        "reasoningTokens": 5012,
+        "billedCompletionTokens": 5193,
+        "totalBilledTokens": 6824,
+        "inputTokens": 1631,
+        "outputTokens": 5193
+      },
+      "output": {
+        "title": {
+          "value": "Clase de yoga",
+          "confidence": "explicit",
+          "originalText": "Clase de yoga"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "wednesday",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 8,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Plaza Francia",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 9,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 10,
+      "category": "simple",
+      "inputText": "After office el viernes a las 19 en Temple Bar",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 496,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 85,
+        "reasoningTokens": 2492,
+        "billedCompletionTokens": 2577,
+        "totalBilledTokens": 4201,
+        "inputTokens": 1624,
+        "outputTokens": 2577
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Temple Bar",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 10,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 11,
+      "category": "typos_informal",
+      "inputText": "cenita el vierns alas 9 en ksa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 475,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 142,
+        "reasoningTokens": 2940,
+        "billedCompletionTokens": 3082,
+        "totalBilledTokens": 4705,
+        "inputTokens": 1623,
+        "outputTokens": 3082
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 11,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 12,
+      "category": "typos_informal",
+      "inputText": "fulbito mañan despues del laburo tipoo 7",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 505,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 62,
+        "reasoningTokens": 4019,
+        "billedCompletionTokens": 4081,
+        "totalBilledTokens": 5707,
+        "inputTokens": 1626,
+        "outputTokens": 4081
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 19
+          },
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 12,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 3,
+        "exactExtractionRate": 33.3,
+        "omissions": 2,
+        "omissionRate": 66.7,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 13,
+      "category": "typos_informal",
+      "inputText": "asadingo el domigo 13hs en lo de marcos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 481,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 162,
+        "reasoningTokens": 10801,
+        "billedCompletionTokens": 10963,
+        "totalBilledTokens": 12589,
+        "inputTokens": 1626,
+        "outputTokens": 10963
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "sunday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "lo de marcos",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "asado",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 13,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 14,
+      "category": "typos_informal",
+      "inputText": "birras hoy a las 20 en la cerveceria de la esquina",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 509,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 104,
+        "reasoningTokens": 1759,
+        "billedCompletionTokens": 1863,
+        "totalBilledTokens": 3491,
+        "inputTokens": 1628,
+        "outputTokens": 1863
+      },
+      "output": {
+        "title": {
+          "value": "birras",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la cerveceria de la esquina",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "drinks",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 14,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 15,
+      "category": "typos_informal",
+      "inputText": "reunion x meet pasadomanana a las 11",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 481,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 113,
+        "reasoningTokens": 4269,
+        "billedCompletionTokens": 4382,
+        "totalBilledTokens": 6006,
+        "inputTokens": 1624,
+        "outputTokens": 4382
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "day_after_tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 11,
+            "minute": 0
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 15,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 4,
+        "exactExtractionRate": 75,
+        "omissions": 1,
+        "omissionRate": 25,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 16,
+      "category": "typos_informal",
+      "inputText": "juntada a comer pizzas este sabdo 2130",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 565,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 125,
+        "reasoningTokens": 1359,
+        "billedCompletionTokens": 1484,
+        "totalBilledTokens": 3108,
+        "inputTokens": 1624,
+        "outputTokens": 1484
+      },
+      "output": {
+        "title": {
+          "value": "Juntada a comer pizzas",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 30
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 16,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 3,
+        "exactExtractionRate": 66.7,
+        "omissions": 1,
+        "omissionRate": 33.3,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 17,
+      "category": "typos_informal",
+      "inputText": "merendola cn las chicas el mie a las 5",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 477,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 52,
+        "reasoningTokens": 7338,
+        "billedCompletionTokens": 7390,
+        "totalBilledTokens": 9015,
+        "inputTokens": 1625,
+        "outputTokens": 7390
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "wednesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 17,
+            "minute": 0
+          },
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 17,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 3,
+        "exactExtractionRate": 33.3,
+        "omissions": 2,
+        "omissionRate": 66.7,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 18,
+      "category": "typos_informal",
+      "inputText": "picadita en mi depto el juevs 20 hs",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 483,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 140,
+        "reasoningTokens": 253,
+        "billedCompletionTokens": 393,
+        "totalBilledTokens": 2018,
+        "inputTokens": 1625,
+        "outputTokens": 393
+      },
+      "output": {
+        "title": {
+          "value": "Picadita en mi depto",
+          "confidence": "explicit",
+          "originalText": "picadita en mi depto el juevs 20 hs"
+        },
+        "description": {
+          "value": "Picadita en mi depto",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "thursday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "mi depto",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 18,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 19,
+      "category": "relative_dates",
+      "inputText": "Cena hoy a las 22 en La Cabrera",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 485,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 191,
+        "reasoningTokens": 1633,
+        "billedCompletionTokens": 1824,
+        "totalBilledTokens": 3447,
+        "inputTokens": 1623,
+        "outputTokens": 1824
+      },
+      "output": {
+        "title": {
+          "value": "Cena",
+          "confidence": "explicit",
+          "originalText": "Cena"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 22,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "La Cabrera",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 19,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 20,
+      "category": "relative_dates",
+      "inputText": "Almuerzo mañana a las 13 en el centro",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 505,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 152,
+        "reasoningTokens": 4892,
+        "billedCompletionTokens": 5044,
+        "totalBilledTokens": 6669,
+        "inputTokens": 1625,
+        "outputTokens": 5044
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el centro",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 20,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 21,
+      "category": "relative_dates",
+      "inputText": "Encuentro pasado mañana a las 15 en Parque Las Heras",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 501,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 166,
+        "reasoningTokens": 5822,
+        "billedCompletionTokens": 5988,
+        "totalBilledTokens": 7615,
+        "inputTokens": 1627,
+        "outputTokens": 5988
+      },
+      "output": {
+        "title": {
+          "value": "Encuentro",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "day_after_tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 15,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Parque Las Heras",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 21,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 22,
+      "category": "relative_dates",
+      "inputText": "Asado este domingo a las 12:30 en el campo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 477,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 170,
+        "reasoningTokens": 2676,
+        "billedCompletionTokens": 2846,
+        "totalBilledTokens": 4472,
+        "inputTokens": 1626,
+        "outputTokens": 2846
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 12,
+            "minute": 30
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en el campo",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "asado",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 22,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 23,
+      "category": "relative_dates",
+      "inputText": "Reunión el próximo martes a las 14 en la oficina",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 477,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 205,
+        "reasoningTokens": 2983,
+        "billedCompletionTokens": 3188,
+        "totalBilledTokens": 4815,
+        "inputTokens": 1627,
+        "outputTokens": 3188
+      },
+      "output": {
+        "title": {
+          "value": "Reunión",
+          "confidence": "explicit",
+          "originalText": "Reunión"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "tuesday",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 14,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la oficina",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 23,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 24,
+      "category": "relative_dates",
+      "inputText": "Picada el próximo viernes a las 20 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 497,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 216,
+        "reasoningTokens": 1633,
+        "billedCompletionTokens": 1849,
+        "totalBilledTokens": 3473,
+        "inputTokens": 1624,
+        "outputTokens": 1849
+      },
+      "output": {
+        "title": {
+          "value": "Picada",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "picada",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 24,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 25,
+      "category": "relative_dates",
+      "inputText": "Festejo este finde en San Isidro",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 508,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 118,
+        "reasoningTokens": 1795,
+        "billedCompletionTokens": 1913,
+        "totalBilledTokens": 3536,
+        "inputTokens": 1623,
+        "outputTokens": 1913
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "this_weekend"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "San Isidro",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 25,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 4,
+        "exactExtractionRate": 75,
+        "omissions": 1,
+        "omissionRate": 25,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": false
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 26,
+      "category": "relative_dates",
+      "inputText": "Salida la semana que viene a la noche",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 507,
+      "usage": {
+        "promptTokens": 1621,
+        "visibleOutputTokens": 79,
+        "reasoningTokens": 983,
+        "billedCompletionTokens": 1062,
+        "totalBilledTokens": 2683,
+        "inputTokens": 1621,
+        "outputTokens": 1062
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "next_week"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "night"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 26,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 3,
+        "exactExtractionRate": 66.7,
+        "omissions": 1,
+        "omissionRate": 33.3,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 27,
+      "category": "relative_dates",
+      "inputText": "Charla el 15 de septiembre a las 18 en el aula magna",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 471,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 166,
+        "reasoningTokens": 1854,
+        "billedCompletionTokens": 2020,
+        "totalBilledTokens": 3647,
+        "inputTokens": 1627,
+        "outputTokens": 2020
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 15,
+            "month": 9
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "aula magna",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 27,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 28,
+      "category": "relative_dates",
+      "inputText": "Brindis de fin de año el 20 de diciembre a las 21",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 485,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 148,
+        "reasoningTokens": 1110,
+        "billedCompletionTokens": 1258,
+        "totalBilledTokens": 2886,
+        "inputTokens": 1628,
+        "outputTokens": 1258
+      },
+      "output": {
+        "title": {
+          "value": "Brindis de fin de año",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 20,
+            "month": 12
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 28,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 29,
+      "category": "ambiguous_time",
+      "inputText": "Reunión el martes tipo 9 en la cafetería",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 486,
+      "usage": {
+        "promptTokens": 1626,
+        "visibleOutputTokens": 79,
+        "reasoningTokens": 7337,
+        "billedCompletionTokens": 7416,
+        "totalBilledTokens": 9042,
+        "inputTokens": 1626,
+        "outputTokens": 7416
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "tuesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 9,
+            "minute": 0
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la cafetería",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 29,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 30,
+      "category": "ambiguous_time",
+      "inputText": "Cena el sábado a la noche en Charly",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 488,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 161,
+        "reasoningTokens": 2630,
+        "billedCompletionTokens": 2791,
+        "totalBilledTokens": 4415,
+        "inputTokens": 1624,
+        "outputTokens": 2791
+      },
+      "output": {
+        "title": {
+          "value": "Cena",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Charly",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 30,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 31,
+      "category": "ambiguous_time",
+      "inputText": "Café el jueves a la tarde por Recoleta",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 484,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 90,
+        "reasoningTokens": 5321,
+        "billedCompletionTokens": 5411,
+        "totalBilledTokens": 7036,
+        "inputTokens": 1625,
+        "outputTokens": 5411
+      },
+      "output": {
+        "title": {
+          "value": "Café",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "thursday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "Recoleta",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 31,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 32,
+      "category": "ambiguous_time",
+      "inputText": "Juntada el viernes después de las 18",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 503,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 55,
+        "reasoningTokens": 3173,
+        "billedCompletionTokens": 3228,
+        "totalBilledTokens": 4851,
+        "inputTokens": 1623,
+        "outputTokens": 3228
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "after",
+            "hour": 18,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 32,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 3,
+        "exactExtractionRate": 33.3,
+        "omissions": 2,
+        "omissionRate": 66.7,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 33,
+      "category": "ambiguous_time",
+      "inputText": "Nos vemos el miércoles entre 19 y 21 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 474,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 178,
+        "reasoningTokens": 6235,
+        "billedCompletionTokens": 6413,
+        "totalBilledTokens": 8040,
+        "inputTokens": 1627,
+        "outputTokens": 6413
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "wednesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "range",
+            "startHour": 19,
+            "startMinute": 0,
+            "endHour": 21,
+            "endMinute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 33,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 34,
+      "category": "ambiguous_time",
+      "inputText": "Entrenamiento el sábado a la mañana temprano en el parque",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 495,
+      "usage": {
+        "promptTokens": 1630,
+        "visibleOutputTokens": 191,
+        "reasoningTokens": 3112,
+        "billedCompletionTokens": 3303,
+        "totalBilledTokens": 4933,
+        "inputTokens": 1630,
+        "outputTokens": 3303
+      },
+      "output": {
+        "title": {
+          "value": "Entrenamiento",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "morning"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en el parque",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 34,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 35,
+      "category": "ambiguous_time",
+      "inputText": "Cerveza el viernes cuando salga del laburo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 491,
+      "usage": {
+        "promptTokens": 1624,
+        "visibleOutputTokens": 137,
+        "reasoningTokens": 6987,
+        "billedCompletionTokens": 7124,
+        "totalBilledTokens": 8748,
+        "inputTokens": 1624,
+        "outputTokens": 7124
+      },
+      "output": {
+        "title": {
+          "value": "Cerveza",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "description": "cuando salga del laburo"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 35,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": false
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 36,
+      "category": "ambiguous_time",
+      "inputText": "Almuerzo el domingo tipo una en lo de los abuelos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 490,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 178,
+        "reasoningTokens": 7761,
+        "billedCompletionTokens": 7939,
+        "totalBilledTokens": 9567,
+        "inputTokens": 1628,
+        "outputTokens": 7939
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "explicit",
+          "originalText": "Almuerzo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 13
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "lo de los abuelos",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 36,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 37,
+      "category": "modality_detection",
+      "inputText": "Reunión de directorio el lunes a las 10 en la sala A",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 507,
+      "usage": {
+        "promptTokens": 1629,
+        "visibleOutputTokens": 222,
+        "reasoningTokens": 2197,
+        "billedCompletionTokens": 2419,
+        "totalBilledTokens": 4048,
+        "inputTokens": 1629,
+        "outputTokens": 2419
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de directorio",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "monday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "sala A",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 37,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 38,
+      "category": "modality_detection",
+      "inputText": "Call por Zoom mañana a las 16 para ver el diseño",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 486,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 189,
+        "reasoningTokens": 1804,
+        "billedCompletionTokens": 1993,
+        "totalBilledTokens": 3618,
+        "inputTokens": 1625,
+        "outputTokens": 1993
+      },
+      "output": {
+        "title": {
+          "value": "Call",
+          "confidence": "explicit",
+          "originalText": "Call"
+        },
+        "description": {
+          "value": "Ver el diseño",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 38,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 39,
+      "category": "modality_detection",
+      "inputText": "Charla virtual el jueves a las 18 hs",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 508,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 111,
+        "reasoningTokens": 5513,
+        "billedCompletionTokens": 5624,
+        "totalBilledTokens": 7247,
+        "inputTokens": 1623,
+        "outputTokens": 5624
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "thursday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 39,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 4,
+        "exactExtractionRate": 50,
+        "omissions": 2,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 40,
+      "category": "modality_detection",
+      "inputText": "Nos vemos en persona en Plaza Serrano el sábado a las 17",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 480,
+      "usage": {
+        "promptTokens": 1629,
+        "visibleOutputTokens": 172,
+        "reasoningTokens": 1474,
+        "billedCompletionTokens": 1646,
+        "totalBilledTokens": 3275,
+        "inputTokens": 1629,
+        "outputTokens": 1646
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "sábado",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 17,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Plaza Serrano",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 40,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 41,
+      "category": "modality_detection",
+      "inputText": "Sincronización online el miércoles a las 11",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 488,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 88,
+        "reasoningTokens": 5156,
+        "billedCompletionTokens": 5244,
+        "totalBilledTokens": 6869,
+        "inputTokens": 1625,
+        "outputTokens": 5244
+      },
+      "output": {
+        "title": {
+          "value": "Sincronización online",
+          "confidence": "explicit",
+          "originalText": "Sincronización online"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "wednesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 11,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 41,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 4,
+        "exactExtractionRate": 75,
+        "omissions": 1,
+        "omissionRate": 25,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 42,
+      "category": "modality_detection",
+      "inputText": "Clase presencial el martes a las 19 en el instituto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 474,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 137,
+        "reasoningTokens": 3816,
+        "billedCompletionTokens": 3953,
+        "totalBilledTokens": 5580,
+        "inputTokens": 1627,
+        "outputTokens": 3953
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "tuesday"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el instituto",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 42,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 43,
+      "category": "modality_detection",
+      "inputText": "Encuentro el viernes a las 20 para charlar del proyecto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 474,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 86,
+        "reasoningTokens": 9390,
+        "billedCompletionTokens": 9476,
+        "totalBilledTokens": 11103,
+        "inputTokens": 1627,
+        "outputTokens": 9476
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 43,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 3,
+        "exactExtractionRate": 33.3,
+        "omissions": 2,
+        "omissionRate": 66.7,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 44,
+      "category": "modality_detection",
+      "inputText": "Llamada con clientes el lunes a las 15",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 497,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 141,
+        "reasoningTokens": 4161,
+        "billedCompletionTokens": 4302,
+        "totalBilledTokens": 5927,
+        "inputTokens": 1625,
+        "outputTokens": 4302
+      },
+      "output": {
+        "title": {
+          "value": "Llamada con clientes",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "monday"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 15,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 44,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 4,
+        "exactExtractionRate": 50,
+        "omissions": 2,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 45,
+      "category": "coordination_intent",
+      "inputText": "Nos podemos juntar jueves o viernes a cenar",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 494,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 17,
+        "reasoningTokens": 3272,
+        "billedCompletionTokens": 3289,
+        "totalBilledTokens": 4914,
+        "inputTokens": 1625,
+        "outputTokens": 3289
+      },
+      "output": {
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 45,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 46,
+      "category": "coordination_intent",
+      "inputText": "Quiero organizar un asado pero vemos qué día puede la mayoría",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 510,
+      "usage": {
+        "promptTokens": 1627,
+        "visibleOutputTokens": 62,
+        "reasoningTokens": 1372,
+        "billedCompletionTokens": 1434,
+        "totalBilledTokens": 3061,
+        "inputTokens": 1627,
+        "outputTokens": 1434
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "explicit",
+          "originalText": "asado"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 46,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 47,
+      "category": "coordination_intent",
+      "inputText": "Juntada el finde, sábado o domingo según el clima",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 524,
+      "usage": {
+        "promptTokens": 1628,
+        "visibleOutputTokens": 95,
+        "reasoningTokens": 7879,
+        "billedCompletionTokens": 7974,
+        "totalBilledTokens": 9602,
+        "inputTokens": 1628,
+        "outputTokens": 7974
+      },
+      "output": {
+        "title": {
+          "value": "Juntada",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "values": [
+              "saturday",
+              "sunday"
+            ]
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 47,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 48,
+      "category": "coordination_intent",
+      "inputText": "Hagamos un café la semana que viene cuando puedan",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 527,
+      "usage": {
+        "promptTokens": 1623,
+        "visibleOutputTokens": 67,
+        "reasoningTokens": 3123,
+        "billedCompletionTokens": 3190,
+        "totalBilledTokens": 4813,
+        "inputTokens": 1623,
+        "outputTokens": 3190
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "next_week"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 48,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 49,
+      "category": "coordination_intent",
+      "inputText": "Votemos fecha para el cumpleaños de Flor entre el 12 y el 14",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 478,
+      "usage": {
+        "promptTokens": 1632,
+        "visibleOutputTokens": 127,
+        "reasoningTokens": 2593,
+        "billedCompletionTokens": 2720,
+        "totalBilledTokens": 4352,
+        "inputTokens": 1632,
+        "outputTokens": 2720
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños de Flor",
+          "confidence": "inferred_high"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "range",
+            "description": "entre el 12 y el 14"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 49,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 50,
+      "category": "coordination_intent",
+      "inputText": "Buscamos qué día nos queda mejor a todos para vernos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 473,
+      "usage": {
+        "promptTokens": 1625,
+        "visibleOutputTokens": 17,
+        "reasoningTokens": 1139,
+        "billedCompletionTokens": 1156,
+        "totalBilledTokens": 2781,
+        "inputTokens": 1625,
+        "outputTokens": 1156
+      },
+      "output": {
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 50,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 51,
+      "category": "incomplete_inputs",
+      "inputText": "Cena con amigos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 473,
+      "usage": {
+        "promptTokens": 1616,
+        "visibleOutputTokens": 17,
+        "reasoningTokens": 2573,
+        "billedCompletionTokens": 2590,
+        "totalBilledTokens": 4206,
+        "inputTokens": 1616,
+        "outputTokens": 2590
+      },
+      "output": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 51,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 52,
+      "category": "incomplete_inputs",
+      "inputText": "El viernes a las 9",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 495,
+      "usage": {
+        "promptTokens": 1619,
+        "visibleOutputTokens": 95,
+        "reasoningTokens": 5082,
+        "billedCompletionTokens": 5177,
+        "totalBilledTokens": 6796,
+        "inputTokens": 1619,
+        "outputTokens": 5177
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "viernes",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 9,
+            "minute": 0
+          },
+          "confidence": "ambiguous"
+        }
+      },
+      "score": {
+        "caseId": 52,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 53,
+      "category": "incomplete_inputs",
+      "inputText": "En casa de Martín",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 479,
+      "usage": {
+        "promptTokens": 1616,
+        "visibleOutputTokens": 32,
+        "reasoningTokens": 549,
+        "billedCompletionTokens": 581,
+        "totalBilledTokens": 2197,
+        "inputTokens": 1616,
+        "outputTokens": 581
+      },
+      "output": {
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "En casa de Martín",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 53,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 54,
+      "category": "incomplete_inputs",
+      "inputText": "Cumpleaños",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 480,
+      "usage": {
+        "promptTokens": 1617,
+        "visibleOutputTokens": 37,
+        "reasoningTokens": 3000,
+        "billedCompletionTokens": 3037,
+        "totalBilledTokens": 4654,
+        "inputTokens": 1617,
+        "outputTokens": 3037
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 54,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 55,
+      "category": "incomplete_inputs",
+      "inputText": "Mañana",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 489,
+      "usage": {
+        "promptTokens": 1614,
+        "visibleOutputTokens": 23,
+        "reasoningTokens": 1067,
+        "billedCompletionTokens": 1090,
+        "totalBilledTokens": 2704,
+        "inputTokens": 1614,
+        "outputTokens": 1090
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 55,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 56,
+      "category": "incomplete_inputs",
+      "inputText": "Por Google Meet",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 501,
+      "usage": {
+        "promptTokens": 1615,
+        "visibleOutputTokens": 15,
+        "reasoningTokens": 392,
+        "billedCompletionTokens": 407,
+        "totalBilledTokens": 2022,
+        "inputTokens": 1615,
+        "outputTokens": 407
+      },
+      "output": {
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 56,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 57,
+      "category": "incomplete_inputs",
+      "inputText": "Fútbol 5 en Caballito",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 515,
+      "usage": {
+        "promptTokens": 1621,
+        "visibleOutputTokens": 104,
+        "reasoningTokens": 1128,
+        "billedCompletionTokens": 1232,
+        "totalBilledTokens": 2853,
+        "inputTokens": 1621,
+        "outputTokens": 1232
+      },
+      "output": {
+        "title": {
+          "value": "Fútbol 5",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Caballito",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 57,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 58,
+      "category": "incomplete_inputs",
+      "inputText": "A las ocho de la noche",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 496,
+      "usage": {
+        "promptTokens": 1618,
+        "visibleOutputTokens": 49,
+        "reasoningTokens": 961,
+        "billedCompletionTokens": 1010,
+        "totalBilledTokens": 2628,
+        "inputTokens": 1618,
+        "outputTokens": 1010
+      },
+      "output": {
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 58,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 59,
+      "category": "incomplete_inputs",
+      "inputText": "Pizzas con el equipo de producto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 492,
+      "usage": {
+        "promptTokens": 1620,
+        "visibleOutputTokens": 32,
+        "reasoningTokens": 941,
+        "billedCompletionTokens": 973,
+        "totalBilledTokens": 2593,
+        "inputTokens": 1620,
+        "outputTokens": 973
+      },
+      "output": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 59,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 60,
+      "category": "incomplete_inputs",
+      "inputText": "Reunión de balance mensual",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 484,
+      "usage": {
+        "promptTokens": 1619,
+        "visibleOutputTokens": 35,
+        "reasoningTokens": 1323,
+        "billedCompletionTokens": 1358,
+        "totalBilledTokens": 2977,
+        "inputTokens": 1619,
+        "outputTokens": 1358
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de balance mensual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 60,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    }
+  ]
+}

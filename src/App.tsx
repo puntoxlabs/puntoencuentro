@@ -9,12 +9,13 @@ import InviteGuest from '@/screens/InviteGuest';
 import JoinGeneral from '@/screens/JoinGeneral';
 import CancelSummary from '@/screens/CancelSummary';
 import CreateCoordinationWizard from '@/screens/CreateCoordinationWizard';
+import CreateAIWizard from '@/screens/CreateAIWizard';
 import DetailHostCoordination from '@/screens/DetailHostCoordination';
 import JoinCoordination from '@/screens/JoinCoordination';
 import InviteCoordination from '@/screens/InviteCoordination';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { usePostAuthRedirect } from '@/hooks/usePostAuthRedirect';
-import { DATE_COORDINATION_ENABLED } from '@/config/features';
+import { DATE_COORDINATION_ENABLED, AI_CREATION_ENABLED } from '@/config/features';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -57,6 +58,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/create" element={<CreateWizard />} />
+      <Route path="/create/ai" element={AI_CREATION_ENABLED ? <CreateAIWizard /> : <CreateWizard />} />
       <Route path="/create/coordination" element={<CreateCoordinationWizard />} />
       <Route path="/meet/:id" element={<DetailHost />} />
       <Route path="/coordination/:id" element={<DetailHostCoordination />} />

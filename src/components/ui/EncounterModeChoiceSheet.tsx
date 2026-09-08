@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Calendar, CalendarDays } from 'lucide-react';
+import { X, Calendar, CalendarDays, Sparkles } from 'lucide-react';
 import './BottomSheet.css';
 import './EncounterModeChoiceSheet.css';
+import { AI_CREATION_ENABLED } from '@/config/features';
 
 import { SelectableOptionCard } from './SelectableOptionCard';
 
@@ -9,6 +10,7 @@ export interface EncounterModeChoiceSheetProps {
   open: boolean;
   onSelectFixed: () => void;
   onSelectCoordination: () => void;
+  onSelectAI?: () => void;
   onClose: () => void;
 }
 
@@ -16,6 +18,7 @@ export const EncounterModeChoiceSheet: React.FC<EncounterModeChoiceSheetProps> =
   open,
   onSelectFixed,
   onSelectCoordination,
+  onSelectAI,
   onClose,
 }) => {
   if (!open) return null;
@@ -44,6 +47,17 @@ export const EncounterModeChoiceSheet: React.FC<EncounterModeChoiceSheetProps> =
 
         <div className="pe-sheet-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {AI_CREATION_ENABLED && onSelectAI && (
+              <SelectableOptionCard
+                title="Crear con IA"
+                description="Contanos qué querés organizar y preparamos el encuentro."
+                icon={<Sparkles size={24} color="#6366f1" />}
+                badge={<span style={{ color: 'var(--color-primary, #6366f1)', fontWeight: 700 }}>Beta</span>}
+                selected={false}
+                onClick={onSelectAI}
+              />
+            )}
+
             <SelectableOptionCard
               title="Fecha definida"
               description="Elegí una fecha y compartí la invitación."

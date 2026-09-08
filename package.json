@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node scripts/run-tests.mjs",
+    "benchmark": "node scripts/ai-benchmark/benchmark.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

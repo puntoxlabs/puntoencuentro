@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 
-interface WizardState {
+export interface WizardState {
   step: number;
   titulo: string;
   fecha: string;

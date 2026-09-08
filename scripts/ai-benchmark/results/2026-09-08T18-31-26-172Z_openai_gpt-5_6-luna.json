@@ -1,0 +1,3372 @@
+{
+  "provider": "openai",
+  "model": "gpt-5.6-luna",
+  "executionTimestamp": "2026-09-08T18:31:26.172Z",
+  "totalCases": 60,
+  "successfulCases": 60,
+  "failedCases": 0,
+  "apiSuccessRate": 100,
+  "apiFailureRate": 0,
+  "failureReasons": [],
+  "aggregatedScore": {
+    "totalCases": 60,
+    "successfulCases": 60,
+    "failedCases": 0,
+    "apiSuccessRate": 100,
+    "apiFailureRate": 0,
+    "failureReasons": [],
+    "evaluableCases": 60,
+    "validSchemaPercentage": 100,
+    "exactExtractionRate": 87,
+    "omissionRate": 13,
+    "hallucinationRate": 0,
+    "ambiguityDetectionRate": 90.9
+  },
+  "performance": {
+    "avgLatencyMs": 4070,
+    "p50LatencyMs": 4118,
+    "p95LatencyMs": 5742,
+    "avgInputTokens": 1322,
+    "avgOutputTokens": 293,
+    "calculatedCostPer1000Usd": null
+  },
+  "cases": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 1,
+      "category": "simple",
+      "inputText": "Cena con amigos el viernes a las 21 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4481,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 330
+      },
+      "output": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 1,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 2,
+      "category": "simple",
+      "inputText": "Almuerzo el domingo a las 13 en lo de mamá",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4228,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 334
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "explicit",
+          "originalText": "Almuerzo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "domingo",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "lo de mamá",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 2,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 3,
+      "category": "simple",
+      "inputText": "Reunión de equipo mañana a las 10 por Google Meet",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4120,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 330
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de equipo",
+          "confidence": "explicit",
+          "originalText": "Reunión de equipo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 3,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 4,
+      "category": "simple",
+      "inputText": "Cumpleaños de Sofi el sábado a las 20 en Palermo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3875,
+      "usage": {
+        "inputTokens": 1325,
+        "outputTokens": 315
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit",
+          "originalText": "Cumpleaños de Sofi"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Palermo",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 4,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 5,
+      "category": "simple",
+      "inputText": "Partido de paddle el jueves a las 19 en El Balcón",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3737,
+      "usage": {
+        "inputTokens": 1326,
+        "outputTokens": 304
+      },
+      "output": {
+        "title": {
+          "value": "Partido de paddle",
+          "confidence": "explicit",
+          "originalText": "Partido de paddle"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "jueves",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "El Balcón",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 5,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 6,
+      "category": "simple",
+      "inputText": "Café el lunes a las 16 en Starbucks Belgrano",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4188,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 325
+      },
+      "output": {
+        "title": {
+          "value": "Café",
+          "confidence": "explicit",
+          "originalText": "Café"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "monday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Starbucks Belgrano",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 6,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 7,
+      "category": "simple",
+      "inputText": "Asado el 25 de mayo al mediodía en la quinta de Juan",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4619,
+      "usage": {
+        "inputTokens": 1327,
+        "outputTokens": 364
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "explicit",
+          "originalText": "Asado"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 25,
+            "month": 5,
+            "value": "today",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "value": "afternoon",
+            "description": "mediodía"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la quinta de Juan",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 7,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 8,
+      "category": "simple",
+      "inputText": "Videollamada el martes a las 18 por Zoom: https://zoom.us/j/123456789",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3613,
+      "usage": {
+        "inputTokens": 1332,
+        "outputTokens": 269
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "next_week",
+            "weekday": "martes",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "https://zoom.us/j/123456789",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 8,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 9,
+      "category": "simple",
+      "inputText": "Clase de yoga el miércoles a las 8 de la mañana en Plaza Francia",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4904,
+      "usage": {
+        "inputTokens": 1326,
+        "outputTokens": 380
+      },
+      "output": {
+        "title": {
+          "value": "Clase de yoga",
+          "confidence": "explicit",
+          "originalText": "Clase de yoga"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "miércoles",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 8,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Plaza Francia",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 9,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 10,
+      "category": "simple",
+      "inputText": "After office el viernes a las 19 en Temple Bar",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3703,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 319
+      },
+      "output": {
+        "title": {
+          "value": "After office",
+          "confidence": "explicit",
+          "originalText": "After office"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Temple Bar",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 10,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 11,
+      "category": "typos_informal",
+      "inputText": "cenita el vierns alas 9 en ksa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5167,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 418
+      },
+      "output": {
+        "title": {
+          "value": "Cenita",
+          "confidence": "explicit",
+          "originalText": "cenita"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "inferred_high"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "ksa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 11,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 12,
+      "category": "typos_informal",
+      "inputText": "fulbito mañan despues del laburo tipoo 7",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4077,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 330
+      },
+      "output": {
+        "title": {
+          "value": "Fulbito",
+          "confidence": "explicit",
+          "originalText": "fulbito"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 19,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 12,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 13,
+      "category": "typos_informal",
+      "inputText": "asadingo el domigo 13hs en lo de marcos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5324,
+      "usage": {
+        "inputTokens": 1325,
+        "outputTokens": 414
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "inferred_high",
+          "originalText": "asadingo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "lo de marcos",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 13,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 14,
+      "category": "typos_informal",
+      "inputText": "birras hoy a las 20 en la cerveceria de la esquina",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3759,
+      "usage": {
+        "inputTokens": 1326,
+        "outputTokens": 295
+      },
+      "output": {
+        "title": {
+          "value": "Birras",
+          "confidence": "explicit",
+          "originalText": "birras"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la cerveceria de la esquina",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 14,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 15,
+      "category": "typos_informal",
+      "inputText": "reunion x meet pasadomanana a las 11",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3245,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 269
+      },
+      "output": {
+        "title": {
+          "value": "reunion",
+          "confidence": "explicit",
+          "originalText": "reunion"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "day_after_tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 11,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 15,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 16,
+      "category": "typos_informal",
+      "inputText": "juntada a comer pizzas este sabdo 2130",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4105,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 350
+      },
+      "output": {
+        "title": {
+          "value": "Juntada a comer pizzas",
+          "confidence": "explicit",
+          "originalText": "juntada a comer pizzas"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 30,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 16,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 3,
+        "exactExtractionRate": 66.7,
+        "omissions": 1,
+        "omissionRate": 33.3,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 17,
+      "category": "typos_informal",
+      "inputText": "merendola cn las chicas el mie a las 5",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4506,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 372
+      },
+      "output": {
+        "title": {
+          "value": "Merendola con las chicas",
+          "confidence": "explicit",
+          "originalText": "merendola cn las chicas"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "wednesday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 17,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 17,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 3,
+        "exactExtractionRate": 66.7,
+        "omissions": 1,
+        "omissionRate": 33.3,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 18,
+      "category": "typos_informal",
+      "inputText": "picadita en mi depto el juevs 20 hs",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4688,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 374
+      },
+      "output": {
+        "title": {
+          "value": "Picadita",
+          "confidence": "explicit",
+          "originalText": "picadita"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "jueves",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "mi depto",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 18,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 19,
+      "category": "relative_dates",
+      "inputText": "Cena hoy a las 22 en La Cabrera",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3676,
+      "usage": {
+        "inputTokens": 1321,
+        "outputTokens": 287
+      },
+      "output": {
+        "title": {
+          "value": "Cena",
+          "confidence": "explicit",
+          "originalText": "Cena"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 22,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "La Cabrera",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 19,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 20,
+      "category": "relative_dates",
+      "inputText": "Almuerzo mañana a las 13 en el centro",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3114,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 262
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "explicit",
+          "originalText": "Almuerzo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el centro",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 20,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 21,
+      "category": "relative_dates",
+      "inputText": "Encuentro pasado mañana a las 15 en Parque Las Heras",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4023,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 300
+      },
+      "output": {
+        "title": {
+          "value": "Encuentro",
+          "confidence": "explicit",
+          "originalText": "Encuentro"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "day_after_tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 15,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Parque Las Heras",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 21,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 22,
+      "category": "relative_dates",
+      "inputText": "Asado este domingo a las 12:30 en el campo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4283,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 328
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "explicit",
+          "originalText": "Asado"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 12,
+            "minute": 30,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el campo",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 22,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 23,
+      "category": "relative_dates",
+      "inputText": "Reunión el próximo martes a las 14 en la oficina",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4617,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 333
+      },
+      "output": {
+        "title": {
+          "value": "Reunión",
+          "confidence": "explicit",
+          "originalText": "Reunión"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "next_week",
+            "weekday": "martes",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 14,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "la oficina",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 23,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 24,
+      "category": "relative_dates",
+      "inputText": "Picada el próximo viernes a las 20 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4118,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 299
+      },
+      "output": {
+        "title": {
+          "value": "Picada",
+          "confidence": "explicit",
+          "originalText": "Picada"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "next_week",
+            "weekday": "viernes",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 24,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 25,
+      "category": "relative_dates",
+      "inputText": "Festejo este finde en San Isidro",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3581,
+      "usage": {
+        "inputTokens": 1320,
+        "outputTokens": 232
+      },
+      "output": {
+        "title": {
+          "value": "Festejo",
+          "confidence": "explicit",
+          "originalText": "Festejo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "this_weekend",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "San Isidro",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 25,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": false
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 26,
+      "category": "relative_dates",
+      "inputText": "Salida la semana que viene a la noche",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4048,
+      "usage": {
+        "inputTokens": 1319,
+        "outputTokens": 280
+      },
+      "output": {
+        "title": {
+          "value": "Salida",
+          "confidence": "explicit",
+          "originalText": "Salida"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "next_week",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "night"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 26,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 27,
+      "category": "relative_dates",
+      "inputText": "Charla el 15 de septiembre a las 18 en el aula magna",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4958,
+      "usage": {
+        "inputTokens": 1326,
+        "outputTokens": 350
+      },
+      "output": {
+        "title": {
+          "value": "Charla",
+          "confidence": "explicit",
+          "originalText": "Charla"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 15,
+            "month": 9,
+            "value": "today",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el aula magna",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 27,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 28,
+      "category": "relative_dates",
+      "inputText": "Brindis de fin de año el 20 de diciembre a las 21",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3826,
+      "usage": {
+        "inputTokens": 1327,
+        "outputTokens": 320
+      },
+      "output": {
+        "title": {
+          "value": "Brindis de fin de año",
+          "confidence": "explicit",
+          "originalText": "Brindis de fin de año"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "absolute",
+            "day": 20,
+            "month": 12,
+            "value": "today",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 28,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 29,
+      "category": "ambiguous_time",
+      "inputText": "Reunión el martes tipo 9 en la cafetería",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4869,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 360
+      },
+      "output": {
+        "title": {
+          "value": "Reunión",
+          "confidence": "explicit",
+          "originalText": "Reunión"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "tuesday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 9,
+            "value": "morning",
+            "description": "tipo 9"
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "la cafetería",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 29,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 30,
+      "category": "ambiguous_time",
+      "inputText": "Cena el sábado a la noche en Charly",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3573,
+      "usage": {
+        "inputTokens": 1320,
+        "outputTokens": 311
+      },
+      "output": {
+        "title": {
+          "value": "Cena",
+          "confidence": "explicit",
+          "originalText": "Cena"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "night",
+            "description": "a la noche"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Charly",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 30,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 31,
+      "category": "ambiguous_time",
+      "inputText": "Café el jueves a la tarde por Recoleta",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4153,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 344
+      },
+      "output": {
+        "title": {
+          "value": "Café",
+          "confidence": "explicit",
+          "originalText": "Café"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "thursday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "Recoleta",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 31,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 32,
+      "category": "ambiguous_time",
+      "inputText": "Juntada el viernes después de las 18",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5742,
+      "usage": {
+        "inputTokens": 1321,
+        "outputTokens": 346
+      },
+      "output": {
+        "title": {
+          "value": "Juntada",
+          "confidence": "explicit",
+          "originalText": "Juntada"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "after",
+            "hour": 18,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 32,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 3,
+        "exactExtractionRate": 66.7,
+        "omissions": 1,
+        "omissionRate": 33.3,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 33,
+      "category": "ambiguous_time",
+      "inputText": "Nos vemos el miércoles entre 19 y 21 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4374,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 326
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "wednesday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "range",
+            "value": "evening",
+            "startHour": 19,
+            "startMinute": 0,
+            "endHour": 21,
+            "endMinute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 33,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 34,
+      "category": "ambiguous_time",
+      "inputText": "Entrenamiento el sábado a la mañana temprano en el parque",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3764,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 303
+      },
+      "output": {
+        "title": {
+          "value": "Entrenamiento",
+          "confidence": "explicit",
+          "originalText": "Entrenamiento"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "morning",
+            "description": "temprano"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el parque",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 34,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 35,
+      "category": "ambiguous_time",
+      "inputText": "Cerveza el viernes cuando salga del laburo",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4369,
+      "usage": {
+        "inputTokens": 1321,
+        "outputTokens": 348
+      },
+      "output": {
+        "title": {
+          "value": "Cerveza",
+          "confidence": "explicit",
+          "originalText": "Cerveza"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "value": "afternoon",
+            "description": "cuando salga del laburo"
+          },
+          "confidence": "inferred_low"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 35,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 36,
+      "category": "ambiguous_time",
+      "inputText": "Almuerzo el domingo tipo una en lo de los abuelos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4861,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 354
+      },
+      "output": {
+        "title": {
+          "value": "Almuerzo",
+          "confidence": "explicit",
+          "originalText": "Almuerzo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "sunday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "approximate",
+            "hour": 13,
+            "value": "afternoon"
+          },
+          "confidence": "inferred_high"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "lo de los abuelos",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 36,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": true
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 37,
+      "category": "modality_detection",
+      "inputText": "Reunión de directorio el lunes a las 10 en la sala A",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4273,
+      "usage": {
+        "inputTokens": 1327,
+        "outputTokens": 346
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de directorio",
+          "confidence": "explicit",
+          "originalText": "Reunión de directorio"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "lunes",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "sala A",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 37,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 38,
+      "category": "modality_detection",
+      "inputText": "Call por Zoom mañana a las 16 para ver el diseño",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2607,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 187
+      },
+      "output": {
+        "title": {
+          "value": "Call por Zoom",
+          "confidence": "explicit",
+          "originalText": "Call por Zoom"
+        },
+        "description": {
+          "value": "para ver el diseño",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 38,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 39,
+      "category": "modality_detection",
+      "inputText": "Charla virtual el jueves a las 18 hs",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2553,
+      "usage": {
+        "inputTokens": 1321,
+        "outputTokens": 163
+      },
+      "output": {
+        "description": {
+          "value": "Charla",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "jueves",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 18,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 39,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 4,
+        "exactExtractionRate": 75,
+        "omissions": 1,
+        "omissionRate": 25,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 40,
+      "category": "modality_detection",
+      "inputText": "Nos vemos en persona en Plaza Serrano el sábado a las 17",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5821,
+      "usage": {
+        "inputTokens": 1325,
+        "outputTokens": 416
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "saturday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 17,
+            "minute": 0,
+            "value": "afternoon"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "Plaza Serrano",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 40,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 5,
+        "exactExtractionRate": 60,
+        "omissions": 2,
+        "omissionRate": 40,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 41,
+      "category": "modality_detection",
+      "inputText": "Sincronización online el miércoles a las 11",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4385,
+      "usage": {
+        "inputTokens": 1321,
+        "outputTokens": 349
+      },
+      "output": {
+        "title": {
+          "value": "Sincronización online",
+          "confidence": "explicit",
+          "originalText": "Sincronización online"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "miércoles",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 11,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "ambiguous"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 41,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 42,
+      "category": "modality_detection",
+      "inputText": "Clase presencial el martes a las 19 en el instituto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5450,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 352
+      },
+      "output": {
+        "title": {
+          "value": "Clase",
+          "confidence": "explicit",
+          "originalText": "Clase"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "martes",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 19,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "el instituto",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 42,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 5,
+        "expectedTotal": 5,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 43,
+      "category": "modality_detection",
+      "inputText": "Encuentro el viernes a las 20 para charlar del proyecto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 6038,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 441
+      },
+      "output": {
+        "title": {
+          "value": "Charlar del proyecto",
+          "confidence": "inferred_high",
+          "originalText": "charlar del proyecto"
+        },
+        "description": {
+          "value": "Charlar del proyecto",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "friday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "evening"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 43,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 3,
+        "exactExtractionRate": 33.3,
+        "omissions": 2,
+        "omissionRate": 66.7,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 44,
+      "category": "modality_detection",
+      "inputText": "Llamada con clientes el lunes a las 15",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5450,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 359
+      },
+      "output": {
+        "title": {
+          "value": "Llamada con clientes",
+          "confidence": "explicit",
+          "originalText": "Llamada con clientes"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "monday",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 15,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 44,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 4,
+        "exactExtractionRate": 50,
+        "omissions": 2,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 45,
+      "category": "coordination_intent",
+      "inputText": "Nos podemos juntar jueves o viernes a cenar",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4570,
+      "usage": {
+        "inputTokens": 1320,
+        "outputTokens": 324
+      },
+      "output": {
+        "title": {
+          "value": "Cena",
+          "confidence": "inferred_high",
+          "originalText": "cenar"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "next_weekend",
+            "modifier": "this",
+            "values": [
+              "jueves",
+              "viernes"
+            ],
+            "description": "jueves o viernes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "night",
+            "description": "a cenar"
+          },
+          "confidence": "inferred_high"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 45,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 46,
+      "category": "coordination_intent",
+      "inputText": "Quiero organizar un asado pero vemos qué día puede la mayoría",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3595,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 215
+      },
+      "output": {
+        "title": {
+          "value": "Asado",
+          "confidence": "explicit",
+          "originalText": "asado"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 46,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 47,
+      "category": "coordination_intent",
+      "inputText": "Juntada el finde, sábado o domingo según el clima",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3839,
+      "usage": {
+        "inputTokens": 1323,
+        "outputTokens": 255
+      },
+      "output": {
+        "title": {
+          "value": "Juntada",
+          "confidence": "explicit",
+          "originalText": "Juntada"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "this_weekend",
+            "modifier": "this",
+            "values": [
+              "sábado",
+              "domingo"
+            ],
+            "description": "sábado o domingo según el clima"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 47,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 48,
+      "category": "coordination_intent",
+      "inputText": "Hagamos un café la semana que viene cuando puedan",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5764,
+      "usage": {
+        "inputTokens": 1322,
+        "outputTokens": 368
+      },
+      "output": {
+        "title": {
+          "value": "Café",
+          "confidence": "inferred_high",
+          "originalText": "un café"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "next_week",
+            "modifier": "next"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 48,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 49,
+      "category": "coordination_intent",
+      "inputText": "Votemos fecha para el cumpleaños de Flor entre el 12 y el 14",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 5505,
+      "usage": {
+        "inputTokens": 1328,
+        "outputTokens": 349
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños de Flor",
+          "confidence": "inferred_high",
+          "originalText": "cumpleaños de Flor"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "range",
+            "value": "this_weekend",
+            "modifier": "this",
+            "values": [
+              "12",
+              "14"
+            ],
+            "description": "entre el 12 y el 14"
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 49,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 50,
+      "category": "coordination_intent",
+      "inputText": "Buscamos qué día nos queda mejor a todos para vernos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2400,
+      "usage": {
+        "inputTokens": 1324,
+        "outputTokens": 102
+      },
+      "output": {
+        "dateModeSignal": {
+          "value": "coordination",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 50,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 51,
+      "category": "incomplete_inputs",
+      "inputText": "Cena con amigos",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4975,
+      "usage": {
+        "inputTokens": 1314,
+        "outputTokens": 158
+      },
+      "output": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        }
+      },
+      "score": {
+        "caseId": 51,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 52,
+      "category": "incomplete_inputs",
+      "inputText": "El viernes a las 9",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 4373,
+      "usage": {
+        "inputTokens": 1317,
+        "outputTokens": 302
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 9,
+            "minute": 0,
+            "value": "morning"
+          },
+          "confidence": "ambiguous"
+        }
+      },
+      "score": {
+        "caseId": 52,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 2,
+        "exactExtractionRate": 50,
+        "omissions": 1,
+        "omissionRate": 50,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 53,
+      "category": "incomplete_inputs",
+      "inputText": "En casa de Martín",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2189,
+      "usage": {
+        "inputTokens": 1315,
+        "outputTokens": 109
+      },
+      "output": {
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "En casa de Martín",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 53,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 2,
+        "expectedTotal": 2,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 54,
+      "category": "incomplete_inputs",
+      "inputText": "Cumpleaños",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2136,
+      "usage": {
+        "inputTokens": 1314,
+        "outputTokens": 81
+      },
+      "output": {
+        "title": {
+          "value": "Cumpleaños",
+          "confidence": "explicit",
+          "originalText": "Cumpleaños"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 54,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 55,
+      "category": "incomplete_inputs",
+      "inputText": "Mañana",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 1778,
+      "usage": {
+        "inputTokens": 1314,
+        "outputTokens": 98
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 55,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 56,
+      "category": "incomplete_inputs",
+      "inputText": "Por Google Meet",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2676,
+      "usage": {
+        "inputTokens": 1314,
+        "outputTokens": 103
+      },
+      "output": {
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 56,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 57,
+      "category": "incomplete_inputs",
+      "inputText": "Fútbol 5 en Caballito",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2786,
+      "usage": {
+        "inputTokens": 1319,
+        "outputTokens": 183
+      },
+      "output": {
+        "title": {
+          "value": "Fútbol 5",
+          "confidence": "explicit",
+          "originalText": "Fútbol 5"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "Caballito",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 57,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 3,
+        "expectedTotal": 3,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 58,
+      "category": "incomplete_inputs",
+      "inputText": "A las ocho de la noche",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2506,
+      "usage": {
+        "inputTokens": 1317,
+        "outputTokens": 167
+      },
+      "output": {
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 0,
+            "value": "night"
+          },
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 58,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 59,
+      "category": "incomplete_inputs",
+      "inputText": "Pizzas con el equipo de producto",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 3541,
+      "usage": {
+        "inputTokens": 1319,
+        "outputTokens": 231
+      },
+      "output": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit",
+          "originalText": "Pizzas con el equipo de producto"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 59,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-luna",
+      "inputId": 60,
+      "category": "incomplete_inputs",
+      "inputText": "Reunión de balance mensual",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 2703,
+      "usage": {
+        "inputTokens": 1317,
+        "outputTokens": 175
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de balance mensual",
+          "confidence": "explicit",
+          "originalText": "Reunión de balance mensual"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 60,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 1,
+        "expectedTotal": 1,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    }
+  ]
+}
