@@ -19,6 +19,7 @@ export interface FallbackExecutionOptions {
 
 export interface FallbackExecutionResult {
   ok: boolean;
+  scope?: 'encounter' | 'off_topic' | 'unclear';
   patch?: Record<string, unknown>;
   providerUsed?: string;
   modelUsed?: string;
@@ -226,6 +227,7 @@ export async function interpretWithFallback(
     // PRIMARY SUCCESS: return immediately without touching fallback
     return {
       ok: true,
+      scope: ((primaryPatch as any).scope as any) || 'encounter',
       patch: primaryPatch,
       providerUsed: primaryProvider.name,
       modelUsed: primaryProvider.model,
@@ -336,6 +338,7 @@ export async function interpretWithFallback(
     const totalLatencyMs = Date.now() - globalStartTime;
     return {
       ok: true,
+      scope: ((fallbackPatch as any).scope as any) || 'encounter',
       patch: fallbackPatch,
       providerUsed: fallbackProvider.name,
       modelUsed: fallbackProvider.model,

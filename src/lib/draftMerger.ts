@@ -1,7 +1,12 @@
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
 import { resolveDateIntent, resolveTimeIntent, addDaysToIsoDate } from '@/lib/dateResolver';
-import { isInvitationTheme, type InvitationTheme } from '@/lib/invitationThemes';
+import {
+  isInvitationTheme,
+  getDefaultInvitationTemplate,
+  resolveTemplateVariant,
+  type InvitationTheme,
+} from '@/lib/invitationThemes';
 
 export interface MergeResult {
   draft: EncounterDraft;
@@ -88,6 +93,17 @@ export function mergeDraftPatch(
   const ambiguities: MergeResult['ambiguities'] = [];
   let coordinationDetected = false;
   let pastDateDetected = false;
+
+  // 0. Off-topic & unclear guards: do not modify draft or config
+  if (patch.scope === 'off_topic' || patch.scope === 'unclear') {
+    return {
+      draft,
+      config,
+      ambiguities,
+      coordinationDetected: false,
+      pastDateDetected: false,
+    };
+  }
 
   // 1. Coordination signal check
   if (
@@ -201,9 +217,21 @@ export function mergeDraftPatch(
     }
   }
 
-  // 7. Theme hint (optional cosmetic hint)
+  // 7. Theme hint (category)
   if (patch.themeHint?.value && isInvitationTheme(patch.themeHint.value)) {
-    config.invitationTheme = patch.themeHint.value as InvitationTheme;
+    const newTheme = patch.themeHint.value as InvitationTheme;
+    if (config.invitationTheme !== newTheme) {
+      config.invitationTheme = newTheme;
+      config.invitationTemplate = getDefaultInvitationTemplate(newTheme);
+    }
+  }
+
+  // 8. Template hint (specific variant)
+  if (patch.templateHint?.value) {
+    const resolved = resolveTemplateVariant(config.invitationTheme, patch.templateHint.value);
+    if (resolved) {
+      config.invitationTemplate = resolved;
+    }
   }
 
   return {

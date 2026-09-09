@@ -31,6 +31,7 @@ export type TimeIntent =
   | { type: 'vague'; description: string };
 
 export interface EncounterDraftPatch {
+  scope?: 'encounter' | 'off_topic' | 'unclear';
   title?: InterpretedField<string>;
   description?: InterpretedField<string>;
   dateIntent?: InterpretedField<DateIntent>;
@@ -40,4 +41,5 @@ export interface EncounterDraftPatch {
   locationText?: InterpretedField<string>;
   virtualLink?: InterpretedField<string>;
   themeHint?: InterpretedField<string>;
+  templateHint?: InterpretedField<string>;
 }

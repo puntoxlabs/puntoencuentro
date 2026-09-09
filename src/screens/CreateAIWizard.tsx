@@ -113,6 +113,12 @@ export const CreateAIWizard: React.FC = () => {
         setTimeout(() => inputRef.current?.focus(), 100);
         return;
       }
+
+      if (lastQuestion.field === 'template' || lastQuestion.field === 'theme') {
+        applyQuickOption(lastQuestion.field, value, displayLabel);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
     }
 
     // Otherwise submit as conversational response
@@ -377,7 +383,7 @@ export const CreateAIWizard: React.FC = () => {
         />
 
         {/* Deterministic Question with Quick Option Chips */}
-        {lastQuestion && !isComplete && (
+        {lastQuestion && (!isComplete || lastQuestion.field === 'template' || lastQuestion.field === 'theme') && (
           <FieldQuestion
             question={lastQuestion}
             onSelectOption={handleQuickOptionSelect}

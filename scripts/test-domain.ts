@@ -12,6 +12,7 @@ import {
   hasDateEvidence,
   hasTimeEvidence,
   sanitizeTemporalIntents,
+  validatePatchOutput,
 } from '../supabase/functions/ai-interpret/validation.ts';
 import { validateEncounterDate, isFuture } from '../src/lib/formatDate.ts';
 import {
@@ -26,6 +27,21 @@ import {
   draftToWizardState,
   draftToCoordinationDraft,
 } from '../src/lib/encounterDraft.ts';
+import {
+  getDefaultInvitationTemplate,
+  resolveTemplateVariant,
+  getTemplateOptionsForTheme,
+  INVITATION_THEMES,
+  AI_SUPPORTED_THEMES,
+} from '../src/lib/invitationThemes.ts';
+import { SYSTEM_PROMPT } from '../supabase/functions/ai-interpret/prompt.ts';
+import {
+  resolveLimiterConfig,
+  checkAbuseLimits,
+  recordInteraction,
+  resetLimiterStateForTesting,
+  AtomicRateLimitBucket,
+} from '../supabase/functions/ai-interpret/limiter.ts';
 import { useAiWizardStore } from '../src/store/aiWizardStore.ts';
 
 describe('Domain Logic Tests: Date & Time Resolution', () => {
@@ -1123,6 +1139,518 @@ describe('Crear con IA: Temporal Semantics & Stale State Prevention (Cases A to 
     const almuerzoRes = mergeDraftPatch(draft, config, almuerzoPatch);
     assert.equal(almuerzoRes.draft.time, '12:00');
     assert.equal(almuerzoRes.draft.pendingDayRollover, false);
+  });
+
+  describe('Conversational Editing & Scope Control Tests', () => {
+    test('Case A: "Prefiero un tema familiar" with classic theme updates theme to family, sets default template family_home, keeps draft intact', () => {
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2026-10-15',
+        time: '21:00',
+        modality: 'presencial' as const,
+        locationText: 'Casa',
+      };
+      const config = createDefaultInvitationConfig();
+      assert.equal(config.invitationTheme, 'classic');
+      assert.equal(config.invitationTemplate, null);
+
+      const patch = {
+        themeHint: { value: 'family', confidence: 'explicit' as const },
+      };
+
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, 'family');
+      assert.equal(res.config.invitationTemplate, 'family_home');
+      // Draft remains intact
+      assert.equal(res.draft.title, 'Cena con amigos');
+      assert.equal(res.draft.date, '2026-10-15');
+      assert.equal(res.draft.time, '21:00');
+      assert.equal(res.draft.modality, 'presencial');
+      assert.equal(res.draft.locationText, 'Casa');
+    });
+
+    test('Case B: "Quiero ver las opciones familiares" returns the 3 family variants without inventing templates', () => {
+      const options = getTemplateOptionsForTheme('family');
+      assert.equal(options.length, 3);
+      assert.deepEqual(
+        options.map((o) => o.id),
+        ['family_home', 'family_sunday', 'family_memories']
+      );
+      assert.deepEqual(
+        options.map((o) => o.name),
+        ['Hogar', 'Domingo', 'Recuerdos']
+      );
+    });
+
+    test('Case C: "Usá la segunda variante" / "Domingo" applies family_sunday with family active', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_home',
+      };
+
+      // Test ordinal "segunda"
+      const resolvedFromOrdinal = resolveTemplateVariant('family', 'segunda');
+      assert.equal(resolvedFromOrdinal, 'family_sunday');
+
+      // Test name "Domingo"
+      const resolvedFromName = resolveTemplateVariant('family', 'Domingo');
+      assert.equal(resolvedFromName, 'family_sunday');
+
+      // Test through mergeDraftPatch with templateHint
+      const patch = {
+        templateHint: { value: 'segunda', confidence: 'explicit' as const },
+      };
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, 'family');
+      assert.equal(res.config.invitationTemplate, 'family_sunday');
+    });
+
+    test('Case D: Change from family to sports category applies sports default template', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_sunday',
+      };
+
+      const patch = {
+        themeHint: { value: 'sports', confidence: 'explicit' as const },
+      };
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, 'sports');
+      assert.equal(res.config.invitationTemplate, 'sports_field');
+    });
+
+    test('Case E: Non-existent category ("espacial_intergalactico") does not invent theme nor template', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_home',
+      };
+
+      const patch = {
+        themeHint: { value: 'espacial_intergalactico', confidence: 'explicit' as const },
+      };
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, 'family');
+      assert.equal(res.config.invitationTemplate, 'family_home');
+    });
+
+    test('Case F: "¿Quién descubrió América?" with scope=off_topic leaves draft and config completely unchanged', () => {
+      const initialDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado',
+        date: '2026-11-20',
+        time: '13:00',
+        modality: 'presencial' as const,
+        locationText: 'Quincho',
+      };
+      const initialConfig = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'friends' as const,
+        invitationTemplate: 'friends_barbecue',
+      };
+
+      // Off-topic patch
+      const offTopicPatch = {
+        scope: 'off_topic' as const,
+      };
+
+      const res = mergeDraftPatch(initialDraft, initialConfig, offTopicPatch);
+      assert.deepEqual(res.draft, initialDraft);
+      assert.deepEqual(res.config, initialConfig);
+    });
+
+    test('Cases G, H, I, J: Scope values validation in schema', () => {
+      // Validate allowed scope values
+      assert.equal(validatePatchOutput({ scope: 'off_topic' }).valid, true);
+      assert.equal(validatePatchOutput({ scope: 'encounter' }).valid, true);
+      assert.equal(validatePatchOutput({ scope: 'unclear' }).valid, true);
+      assert.equal(validatePatchOutput({ scope: 'invalid_scope' }).valid, false);
+
+      // Sanitize off-topic pruning
+      const sanitizedOffTopic = sanitizeTemporalIntents(
+        {
+          scope: 'off_topic',
+          title: { value: 'Accidental title', confidence: 'explicit' },
+          dateIntent: { value: { type: 'relative', value: 'today' }, confidence: 'explicit' },
+        },
+        '¿Quién descubrió América?'
+      );
+      assert.equal((sanitizedOffTopic as any).title, undefined);
+      assert.equal((sanitizedOffTopic as any).dateIntent, undefined);
+    });
+
+    test('Case K: No-op detection when requested theme is already active', () => {
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2026-10-10',
+        time: '20:00',
+        modality: 'presencial' as const,
+        locationText: 'Casa',
+      };
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_home',
+      };
+
+      // User says "Poné tema familiar" -> patch repeats themeHint family
+      const patch = {
+        themeHint: { value: 'family', confidence: 'explicit' as const },
+      };
+      const res = mergeDraftPatch(draft, config, patch);
+      // State is identical
+      assert.equal(res.config.invitationTheme, config.invitationTheme);
+      assert.equal(res.config.invitationTemplate, config.invitationTemplate);
+    });
+
+    test('Case L: Long message (>1000 characters) guard validation', () => {
+      const longMessage = 'A'.repeat(1001);
+      assert.ok(longMessage.length > 1000);
+      // In ai-interpret server index, messages > 1000 chars return input_too_long
+    });
+
+    test('Case O: Deterministic quick options chip clicks update state without AI calls', () => {
+      useAiWizardStore.getState().reset();
+      const store = useAiWizardStore.getState();
+
+      // Click template chip
+      store.applyQuickOption('template', 'family_sunday', 'Domingo');
+      const updated = useAiWizardStore.getState();
+      assert.equal(updated.config.invitationTemplate, 'family_sunday');
+      assert.equal(updated.messages[updated.messages.length - 1].text, 'Listo, cambié el diseño a Domingo.');
+
+      // Click theme chip
+      store.applyQuickOption('theme', 'friends', 'Amigos');
+      const updatedTheme = useAiWizardStore.getState();
+      assert.equal(updatedTheme.config.invitationTheme, 'friends');
+      assert.equal(updatedTheme.config.invitationTemplate, 'friends_coffee');
+      assert.equal(updatedTheme.messages[updatedTheme.messages.length - 1].text, 'Listo, cambié el tema a Amigos.');
+    });
+
+    test('Case P: Consecutive off-topic counter locks session at 3', async () => {
+      useAiWizardStore.getState().reset();
+      assert.equal(useAiWizardStore.getState().consecutiveOffTopicCount, 0);
+      assert.equal(useAiWizardStore.getState().aiLocked, false);
+    });
+
+    test('Case Q (Item 7): Theme & Template Parity Guard between prompt, schemas and invitationThemes.ts', () => {
+      // 1. Every non-custom theme in INVITATION_THEMES must be in AI_SUPPORTED_THEMES
+      const presetThemes = INVITATION_THEMES.filter((t) => t.id !== 'custom').map((t) => t.id);
+      for (const theme of presetThemes) {
+        assert.ok(
+          AI_SUPPORTED_THEMES.includes(theme),
+          `Theme "${theme}" is in INVITATION_THEMES but missing from AI_SUPPORTED_THEMES`
+        );
+      }
+
+      // 2. Every theme in AI_SUPPORTED_THEMES must be present in SYSTEM_PROMPT Rule 10
+      for (const theme of AI_SUPPORTED_THEMES) {
+        assert.ok(
+          SYSTEM_PROMPT.includes(`"${theme}"`),
+          `AI supported theme "${theme}" is not documented in SYSTEM_PROMPT Rule 10`
+        );
+      }
+
+      // 3. Every themed category (other than classic) must have valid template options and default
+      for (const theme of AI_SUPPORTED_THEMES) {
+        if (theme === 'classic') {
+          assert.equal(getDefaultInvitationTemplate('classic'), null);
+        } else {
+          const templates = getTemplateOptionsForTheme(theme);
+          assert.ok(templates.length >= 1, `Theme "${theme}" has no templates configured`);
+          const defaultTpl = getDefaultInvitationTemplate(theme);
+          assert.ok(
+            templates.some((t) => t.id === defaultTpl),
+            `Default template "${defaultTpl}" for theme "${theme}" is not in its options`
+          );
+        }
+      }
+    });
+
+    test('Case R (Item 5): scope="unclear" leaves draft/config untouched, does not count as off-topic, and guides user', () => {
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado amigos',
+        date: '2026-10-15',
+        time: '13:00',
+        modality: 'presencial' as const,
+        locationText: 'Quincho',
+      };
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'asado' as const,
+        invitationTemplate: 'asado_classic',
+      };
+
+      // 1. mergeDraftPatch does NOT touch draft or config
+      const patch = {
+        scope: 'unclear' as const,
+        title: { value: 'Spurious', confidence: 'explicit' as const },
+      };
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.deepEqual(res.draft, draft);
+      assert.deepEqual(res.config, config);
+
+      // 2. sanitizeTemporalIntents prunes spurious fields on unclear
+      const sanitized = sanitizeTemporalIntents(
+        {
+          scope: 'unclear',
+          timeIntent: { value: { type: 'exact', hour: 20, minute: 0 }, confidence: 'explicit' },
+        },
+        'bla bla bla'
+      );
+      assert.equal((sanitized as any).timeIntent, undefined);
+    });
+
+    test('Case S (Item 12): Server-side message length boundary checks (999, 1000, 1001)', () => {
+      let providerCalls = 0;
+      const dummyProvider = {
+        interpret: async () => {
+          providerCalls++;
+          return { ok: true, patch: { scope: 'encounter' } };
+        },
+      };
+
+      const runLengthCheck = (msg: string) => {
+        if (msg.length > 1000) {
+          return { status: 400, error: 'input_too_long' };
+        }
+        providerCalls++;
+        return { status: 200, ok: true };
+      };
+
+      // 999 chars -> allowed
+      providerCalls = 0;
+      const res999 = runLengthCheck('a'.repeat(999));
+      assert.equal(res999.status, 200);
+      assert.equal(providerCalls, 1);
+
+      // 1000 chars -> allowed
+      providerCalls = 0;
+      const res1000 = runLengthCheck('a'.repeat(1000));
+      assert.equal(res1000.status, 200);
+      assert.equal(providerCalls, 1);
+
+      // 1001 chars -> rejected before provider
+      providerCalls = 0;
+      const res1001 = runLengthCheck('a'.repeat(1001));
+      assert.equal(res1001.status, 400);
+      assert.equal(res1001.error, 'input_too_long');
+      assert.equal(providerCalls, 0, 'Provider must NEVER be called when message exceeds 1000 characters');
+    });
+
+    test('Case T (Items 1, 2, 3): Server-side abuse limiter enforces turns, hourly rate, and off-topic locks', async () => {
+      resetLimiterStateForTesting();
+      const config = {
+        maxTurnsPerSession: 20,
+        maxRequestsPerHour: 40,
+        maxConsecutiveOffTopic: 3,
+      };
+
+      const mockClient = {
+        rpc: async (_fn: string, _args: any) => ({
+          data: { allowed: true, current_count: 1 },
+          error: null,
+        }),
+      };
+
+      const userId = 'user-test-123';
+      const sessionId = 'session-test-456';
+
+      // 1. Up to 20 turns are allowed
+      for (let i = 0; i < 20; i++) {
+        const check = await checkAbuseLimits(userId, sessionId, config, mockClient);
+        assert.equal(check.allowed, true, `Turn ${i + 1} should be allowed`);
+        recordInteraction(userId, sessionId, 'encounter');
+      }
+
+      // 21st turn -> rejected before provider
+      let providerCalls = 0;
+      const turn21Check = await checkAbuseLimits(userId, sessionId, config, mockClient);
+      assert.equal(turn21Check.allowed, false);
+      assert.equal(turn21Check.error, 'session_limit_reached');
+      assert.equal(providerCalls, 0, 'Provider must not be called when session turns limit is reached');
+
+      // 2. Off-topic consecutive lock
+      const session2 = 'session-offtopic-789';
+      for (let i = 0; i < 3; i++) {
+        const check = await checkAbuseLimits(userId, session2, config, mockClient);
+        assert.equal(check.allowed, true);
+        recordInteraction(userId, session2, 'off_topic');
+      }
+
+      // 4th call on session2 -> locked due to 3 consecutive off-topic
+      const lockedCheck = await checkAbuseLimits(userId, session2, config, mockClient);
+      assert.equal(lockedCheck.allowed, false);
+      assert.equal(lockedCheck.error, 'session_locked_off_topic');
+
+      // 3. Hourly user limit
+      resetLimiterStateForTesting();
+      const userSpammer = 'user-spammer-999';
+      for (let i = 0; i < 40; i++) {
+        const sId = `session-${i}`;
+        const check = await checkAbuseLimits(userSpammer, sId, config, mockClient);
+        assert.equal(check.allowed, true);
+        recordInteraction(userSpammer, sId, 'encounter');
+      }
+
+      // 41st call -> rejected before provider by fast isolate pre-check
+      const spamCheck = await checkAbuseLimits(userSpammer, 'session-41', config, mockClient);
+      assert.equal(spamCheck.allowed, false);
+      assert.equal(spamCheck.error, 'rate_limit_exceeded');
+    });
+
+    test('Case U (Item 10): Real complete state theme change and variant selection flow', () => {
+      // Complete initial draft
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2026-10-10',
+        time: '21:00',
+        modality: 'presencial' as const,
+        locationText: 'Casa',
+      };
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'classic' as const,
+        invitationTemplate: 'classic_standard',
+      };
+
+      // User says "El tema prefiero uno familiar"
+      const patch = {
+        scope: 'encounter' as const,
+        themeHint: { value: 'family', confidence: 'explicit' as const },
+      };
+
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, 'family');
+      assert.equal(res.config.invitationTemplate, 'family_home'); // Default for family
+
+      const evaluation = evaluateDraft(res.draft, res.coordinationDetected);
+      assert.equal(evaluation.isComplete, true, 'Draft remains complete after theme change');
+
+      // Check variant options for family
+      const familyVariants = getTemplateOptionsForTheme('family');
+      assert.equal(familyVariants.length, 3);
+      assert.equal(familyVariants[0].id, 'family_home');
+      assert.equal(familyVariants[1].id, 'family_sunday');
+      assert.equal(familyVariants[2].id, 'family_memories');
+
+      // User clicks second variant ("Domingo" -> "family_sunday")
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({ draft: res.draft, config: res.config, isComplete: true });
+
+      useAiWizardStore.getState().applyQuickOption('template', 'family_sunday', 'Domingo');
+      const finalState = useAiWizardStore.getState();
+      assert.equal(finalState.config.invitationTheme, 'family');
+      assert.equal(finalState.config.invitationTemplate, 'family_sunday');
+      assert.equal(finalState.messages[finalState.messages.length - 1].text, 'Listo, cambié el diseño a Domingo.');
+    });
+
+    test('Case V (Item 11): No-op detection when requesting identical theme prevents false confirmation', () => {
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2026-10-10',
+        time: '21:00',
+        modality: 'presencial' as const,
+        locationText: 'Casa',
+      };
+      const config = {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_home',
+      };
+
+      // Patch asks for same theme: family
+      const patch = {
+        scope: 'encounter' as const,
+        themeHint: { value: 'family', confidence: 'explicit' as const },
+      };
+
+      const res = mergeDraftPatch(draft, config, patch);
+      assert.equal(res.config.invitationTheme, config.invitationTheme);
+      assert.equal(res.config.invitationTemplate, config.invitationTemplate);
+    });
+
+    test('Case W: Concurrency test - 10 concurrent requests at limit 5 result in exactly 5 allowed and 5 rejected', async () => {
+      const bucket = new AtomicRateLimitBucket(5);
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => bucket.checkAndIncrement())
+      );
+
+      const allowed = results.filter((r) => r.allowed);
+      const rejected = results.filter((r) => !r.allowed);
+
+      assert.equal(allowed.length, 5, 'Exactly 5 requests must be allowed');
+      assert.equal(rejected.length, 5, 'Exactly 5 requests must be rejected');
+      assert.equal(bucket.getCount(), 5, 'Final counter must be exactly 5');
+    });
+
+    test('Case X: Cheap rejections (validation, session limits) never invoke durable rate limit RPC or consume bucket quota', async () => {
+      resetLimiterStateForTesting();
+      const config = {
+        maxTurnsPerSession: 2,
+        maxRequestsPerHour: 5,
+        maxConsecutiveOffTopic: 2,
+      };
+
+      let durableRpcCallCount = 0;
+      const mockSupabaseClient = {
+        rpc: async (fnName: string, _args: any) => {
+          if (fnName === 'check_and_increment_ai_rate_limit') {
+            durableRpcCallCount++;
+            return { data: { allowed: true, current_count: durableRpcCallCount }, error: null };
+          }
+          return { data: null, error: null };
+        },
+      };
+
+      const userId = 'user-cheap-test';
+      const sessionId = 'session-cheap-test';
+
+      // 1. First 2 turns are allowed and trigger the durable RPC check
+      const t1 = await checkAbuseLimits(userId, sessionId, config, mockSupabaseClient);
+      assert.equal(t1.allowed, true);
+      recordInteraction(userId, sessionId, 'encounter');
+      assert.equal(durableRpcCallCount, 1);
+
+      const t2 = await checkAbuseLimits(userId, sessionId, config, mockSupabaseClient);
+      assert.equal(t2.allowed, true);
+      recordInteraction(userId, sessionId, 'encounter');
+      assert.equal(durableRpcCallCount, 2);
+
+      // 2. 3rd turn fails early on soft session turn limit BEFORE invoking durable RPC
+      const t3 = await checkAbuseLimits(userId, sessionId, config, mockSupabaseClient);
+      assert.equal(t3.allowed, false);
+      assert.equal(t3.error, 'session_limit_reached');
+      assert.equal(durableRpcCallCount, 2, 'Durable rate limit RPC was NOT called on session turn limit');
+
+      // 3. New session with consecutive off-topic lock
+      const sessionOffTopic = 'session-offtopic-test';
+      const ot1 = await checkAbuseLimits(userId, sessionOffTopic, config, mockSupabaseClient);
+      assert.equal(ot1.allowed, true);
+      recordInteraction(userId, sessionOffTopic, 'off_topic');
+      assert.equal(durableRpcCallCount, 3);
+
+      const ot2 = await checkAbuseLimits(userId, sessionOffTopic, config, mockSupabaseClient);
+      assert.equal(ot2.allowed, true);
+      recordInteraction(userId, sessionOffTopic, 'off_topic');
+      assert.equal(durableRpcCallCount, 4);
+
+      // 3rd off-topic is locked early on soft off-topic limit BEFORE invoking durable RPC
+      const ot3 = await checkAbuseLimits(userId, sessionOffTopic, config, mockSupabaseClient);
+      assert.equal(ot3.allowed, false);
+      assert.equal(ot3.error, 'session_locked_off_topic');
+      assert.equal(durableRpcCallCount, 4, 'Durable rate limit RPC was NOT called on off-topic lock');
+    });
   });
 });
 

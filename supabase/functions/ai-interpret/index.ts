@@ -16,51 +16,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * Best-effort in-memory rate limiter for Beta.
- * Keyed by verified user.id.
- *
- * NOTE ON SECURITY BOUNDARY:
- * This is an isolate-local defensive limit for Beta, NOT a global security boundary.
- * In a serverless Edge environment, timestamps may reset on cold starts or when multiple
- * isolates execute concurrently. It protects against runaway loops from a single client instance.
- */
-const requestTimestamps = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 30;
-const MAX_MAP_ENTRIES = 1000;
-
-function cleanupExpiredEntries(now: number): void {
-  for (const [key, timestamps] of requestTimestamps.entries()) {
-    const valid = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-    if (valid.length === 0) {
-      requestTimestamps.delete(key);
-    } else {
-      requestTimestamps.set(key, valid);
-    }
-  }
-}
-
-function isRateLimited(userId: string): boolean {
-  const now = Date.now();
-
-  // Prevent unbounded growth of memory in long-running isolates
-  if (requestTimestamps.size > MAX_MAP_ENTRIES) {
-    cleanupExpiredEntries(now);
-  }
-
-  const timestamps = requestTimestamps.get(userId) || [];
-  const validTimestamps = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-
-  if (validTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
-    requestTimestamps.set(userId, validTimestamps);
-    return true;
-  }
-
-  validTimestamps.push(now);
-  requestTimestamps.set(userId, validTimestamps);
-  return false;
-}
+import { resolveLimiterConfig, checkAbuseLimits, recordInteraction } from "./limiter.ts";
 
 declare const Deno: {
   env: {
@@ -128,21 +84,9 @@ Deno.serve(async (req: Request) => {
 
     const verifiedUserId = user.id;
 
-    // 2. Best-effort Rate limiting check keyed by verified user.id
-    if (isRateLimited(verifiedUserId)) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "rate_limited",
-          message: "Demasiadas solicitudes. Esperá un momento."
-        }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 3. Parse input body
+    // 2. Parse input body
     const body = await req.json();
-    const { message, currentDraft } = body;
+    const { message, currentDraft, sessionId } = body;
 
     if (!message || typeof message !== "string" || !message.trim()) {
       return new Response(
@@ -151,10 +95,31 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (message.length > 2000) {
+    if (message.length > 1000) {
       return new Response(
-        JSON.stringify({ ok: false, error: "input_too_long", message: "El mensaje es demasiado largo." }),
+        JSON.stringify({
+          ok: false,
+          error: "input_too_long",
+          message: "El mensaje es demasiado largo. Contame brevemente qué querés organizar o cambiar."
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3. Server-side abuse limiter check (session turns, consecutive off-topic, hourly user limits)
+    const effectiveSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : verifiedUserId;
+    const limiterConfig = resolveLimiterConfig(Deno.env);
+    const limitCheck = await checkAbuseLimits(verifiedUserId, effectiveSessionId, limiterConfig, supabaseClient);
+
+    if (!limitCheck.allowed) {
+      const statusCode = limitCheck.error === "rate_limit_unavailable" ? 503 : 429;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: limitCheck.error || "rate_limit_exceeded",
+          message: limitCheck.message || "Alcanzaste el límite de consultas permitidas. Podés continuar manualmente."
+        }),
+        { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -199,9 +164,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const scope = fallbackResult.scope || ((fallbackResult.patch as any)?.scope as any) || "encounter";
+    recordInteraction(verifiedUserId, effectiveSessionId, scope);
+
     return new Response(
       JSON.stringify({
         ok: true,
+        scope,
         patch: fallbackResult.patch,
         usage: {
           inputTokens: fallbackResult.usage?.inputTokens || 0,

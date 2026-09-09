@@ -5,6 +5,13 @@ import { createEmptyEncounterDraft, createDefaultInvitationConfig } from '@/lib/
 import { mergeDraftPatch } from '@/lib/draftMerger';
 import { addDaysToIsoDate } from '@/lib/dateResolver';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
+import {
+  INVITATION_THEMES,
+  getTemplateOptionsForTheme,
+  getDefaultInvitationTemplate,
+  type InvitationTheme,
+} from '@/lib/invitationThemes';
+import { formatFriendlyDate } from '@/lib/formatDate';
 import { aiService } from '@/services/aiService';
 
 export interface ChatMessage {
@@ -20,6 +27,8 @@ interface AiWizardState {
   config: InvitationConfig;
   messages: ChatMessage[];
   turns: number;
+  consecutiveOffTopicCount: number;
+  aiLocked: boolean;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalLatencyMs: number;
@@ -43,7 +52,7 @@ interface AiWizardState {
   initSession: () => void;
   sendUserMessage: (text: string) => Promise<void>;
   updateDraftField: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K]) => void;
-  applyQuickOption: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K], displayLabel?: string) => void;
+  applyQuickOption: (field: string, value: any, displayLabel?: string) => void;
   updateConfigField: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
   dismissCoordinationHandoff: () => void;
   markFallbackManual: () => void;
@@ -70,6 +79,8 @@ export const useAiWizardStore = create<AiWizardState>()(
       config: createDefaultInvitationConfig(),
       messages: [],
       turns: 0,
+      consecutiveOffTopicCount: 0,
+      aiLocked: false,
       totalInputTokens: 0,
       totalOutputTokens: 0,
       totalLatencyMs: 0,
@@ -99,6 +110,8 @@ export const useAiWizardStore = create<AiWizardState>()(
             config: createDefaultInvitationConfig(),
             messages: [],
             turns: 0,
+            consecutiveOffTopicCount: 0,
+            aiLocked: false,
             startedAt: Date.now(),
             error: null,
             lastQuestion: null,
@@ -153,6 +166,72 @@ export const useAiWizardStore = create<AiWizardState>()(
           timestamp: Date.now(),
         };
 
+        // 1. Session locked due to repeated abuse/off-topic
+        if (state.aiLocked) {
+          set({
+            messages: [
+              ...state.messages,
+              userMsg,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.',
+                timestamp: Date.now() + 1,
+              },
+            ],
+            error: 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.',
+          });
+          return;
+        }
+
+        // 2. Session max turns limit (15-20 turns)
+        if (state.turns >= 20) {
+          set({
+            messages: [
+              ...state.messages,
+              userMsg,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: 'No pudimos seguir procesando cambios con IA en esta sesión. Podés continuar con el formulario manual.',
+                timestamp: Date.now() + 1,
+              },
+            ],
+            error: 'No pudimos seguir procesando cambios con IA en esta sesión. Podés continuar con el formulario manual.',
+          });
+          return;
+        }
+
+        // 3. User explicitly asking to see designs/variants (Token Optimization)
+        const isAskingVariants = /mostrame.*(diseño|variante|opci[oó]n|tema)|qu[eé]\s+(diseños|opciones|variantes)|quiero\s+elegir\s+(el\s+)?(diseño|variante)/i.test(trimmed);
+        if (isAskingVariants) {
+          const themeLabel = INVITATION_THEMES.find((t) => t.id === state.config.invitationTheme)?.label || 'este tema';
+          const templateOptions = getTemplateOptionsForTheme(state.config.invitationTheme);
+          if (templateOptions.length > 0) {
+            const questionText = `Estos son los diseños disponibles para ${themeLabel}:`;
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: questionText,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              messages: [...state.messages, userMsg, assistantMsg],
+              isInterpreting: false,
+              lastQuestion: {
+                field: 'template',
+                question: questionText,
+                quickOptions: templateOptions.map((opt) => ({
+                  label: opt.id === state.config.invitationTemplate ? `${opt.name} ✓` : opt.name,
+                  value: opt.id,
+                })),
+                type: 'choice',
+              },
+            });
+            return;
+          }
+        }
+
         const newTurns = state.turns + 1;
         set({
           messages: [...state.messages, userMsg],
@@ -166,12 +245,34 @@ export const useAiWizardStore = create<AiWizardState>()(
           aiService.startSession(state.sessionId);
         }
 
-        const response = await aiService.interpretMessage(trimmed, state.draft);
+        const response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
 
         if (!response.ok || !response.patch) {
+          const isAbuseOrLimit =
+            response.error === 'session_limit_reached' ||
+            response.error === 'rate_limit_exceeded' ||
+            response.error === 'rate_limit_unavailable' ||
+            response.error === 'session_locked_off_topic' ||
+            response.error === 'input_too_long';
+
+          const errorReply = response.details || 'No pudimos interpretar el mensaje. Intentá de nuevo o completá manualmente.';
+          const newMessages = isAbuseOrLimit
+            ? [
+                ...get().messages,
+                {
+                  id: generateUuid(),
+                  role: 'assistant' as const,
+                  text: errorReply,
+                  timestamp: Date.now() + 1,
+                },
+              ]
+            : get().messages;
+
           set({
+            messages: newMessages,
             isInterpreting: false,
-            error: response.details || 'No pudimos interpretar el mensaje. Intentá de nuevo o completá manualmente.',
+            aiLocked: isAbuseOrLimit || state.aiLocked,
+            error: errorReply,
             fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
             primaryProvider: response.primaryProvider || state.primaryProvider,
             fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
@@ -191,8 +292,95 @@ export const useAiWizardStore = create<AiWizardState>()(
         const primLat = state.primaryLatencyMs + (response.primaryLatencyMs || response.usage?.primaryLatencyMs || 0);
         const fallLat = state.fallbackLatencyMs + (response.fallbackLatencyMs || response.usage?.fallbackLatencyMs || 0);
 
+        // 4. Handle OFF-TOPIC scope
+        if (response.scope === 'off_topic') {
+          const nextOffTopicCount = state.consecutiveOffTopicCount + 1;
+          const isPermanentlyLocked = nextOffTopicCount >= 3;
+          const replyText = isPermanentlyLocked
+            ? 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.'
+            : 'Este asistente solo puede ayudarte a crear o modificar un encuentro. Podés indicarme fecha, hora, lugar, modalidad, tema o cualquier cambio del encuentro.';
+
+          set({
+            messages: [
+              ...get().messages,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: replyText,
+                timestamp: Date.now() + 1,
+              },
+            ],
+            isInterpreting: false,
+            consecutiveOffTopicCount: nextOffTopicCount,
+            aiLocked: isPermanentlyLocked,
+            error: isPermanentlyLocked ? replyText : null,
+            totalInputTokens: totalIn,
+            totalOutputTokens: totalOut,
+            totalLatencyMs: totalLat,
+            primaryLatencyMs: primLat,
+            fallbackLatencyMs: fallLat,
+          });
+          return;
+        }
+
+        // 5. Handle UNCLEAR scope
+        if (response.scope === 'unclear') {
+          let unclearReply =
+            'No llegué a entender qué querés cambiar del encuentro. Podés indicarme, por ejemplo, fecha, hora, lugar, modalidad o diseño.';
+
+          if (state.lastQuestion?.question) {
+            unclearReply = `No llegué a entender esa indicación. ${state.lastQuestion.question}`;
+          }
+
+          set({
+            messages: [
+              ...get().messages,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: unclearReply,
+                timestamp: Date.now() + 1,
+              },
+            ],
+            isInterpreting: false,
+            totalInputTokens: totalIn,
+            totalOutputTokens: totalOut,
+            totalLatencyMs: totalLat,
+            primaryLatencyMs: primLat,
+            fallbackLatencyMs: fallLat,
+          });
+          return;
+        }
+
+        // Reset consecutive off-topic counter since input is in-domain
+        const consecutiveOffTopicCount = 0;
+
+        // Snapshot previous state before applying patch
+        const wasAlreadyComplete = state.isComplete;
+        const prevDraft = { ...state.draft };
+        const prevConfig = { ...state.config };
+
         // Merge patch deterministically
         const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
+
+        // Detect concrete modifications
+        const themeChanged = prevConfig.invitationTheme !== mergeResult.config.invitationTheme;
+        const templateChanged = prevConfig.invitationTemplate !== mergeResult.config.invitationTemplate;
+        const timeChanged = prevDraft.time !== mergeResult.draft.time;
+        const dateChanged = prevDraft.date !== mergeResult.draft.date;
+        const modalityChanged = prevDraft.modality !== mergeResult.draft.modality;
+        const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
+        const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
+        const titleChanged = prevDraft.title !== mergeResult.draft.title;
+        const hasAnyChange =
+          themeChanged ||
+          templateChanged ||
+          timeChanged ||
+          dateChanged ||
+          modalityChanged ||
+          locationChanged ||
+          virtualLinkChanged ||
+          titleChanged;
 
         // Evaluate draft completeness and select next question
         const evaluation = evaluateDraft(
@@ -202,10 +390,74 @@ export const useAiWizardStore = create<AiWizardState>()(
         );
 
         let assistantReply = '';
-        if (evaluation.nextQuestion) {
-          assistantReply = evaluation.nextQuestion.question;
-        } else if (evaluation.isComplete) {
+        if (!hasAnyChange) {
+          if (
+            response.patch?.themeHint?.value &&
+            response.patch.themeHint.value === mergeResult.config.invitationTheme
+          ) {
+            const themeLabel =
+              INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+              mergeResult.config.invitationTheme;
+            assistantReply = `Ya está seleccionado el tema ${themeLabel}.`;
+          } else if (
+            response.patch?.modality?.value &&
+            response.patch.modality.value === mergeResult.draft.modality
+          ) {
+            assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
+          } else if (wasAlreadyComplete) {
+            assistantReply =
+              'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
+          } else if (evaluation.nextQuestion) {
+            assistantReply = evaluation.nextQuestion.question;
+          }
+        } else if (wasAlreadyComplete && evaluation.isComplete) {
+          if (themeChanged) {
+            const themeLabel =
+              INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+              mergeResult.config.invitationTheme;
+            assistantReply = `Listo, cambié el tema a ${themeLabel}.`;
+
+            // Offer variants of the newly selected theme
+            const templateOptions = getTemplateOptionsForTheme(mergeResult.config.invitationTheme);
+            if (templateOptions.length > 1) {
+              evaluation.nextQuestion = {
+                field: 'template',
+                question: `Elegí una variante para ${themeLabel} (o dejá la opción por defecto):`,
+                quickOptions: templateOptions.map((opt) => ({
+                  label: opt.id === mergeResult.config.invitationTemplate ? `${opt.name} (por defecto)` : opt.name,
+                  value: opt.id,
+                })),
+                type: 'choice',
+              };
+            }
+          } else if (templateChanged) {
+            const templateName =
+              getTemplateOptionsForTheme(mergeResult.config.invitationTheme).find(
+                (t) => t.id === mergeResult.config.invitationTemplate
+              )?.name || 'elegido';
+            assistantReply = `Listo, cambié el diseño a ${templateName}.`;
+          } else if (timeChanged) {
+            assistantReply = `Listo, lo pasé a las ${mergeResult.draft.time} hs.`;
+          } else if (dateChanged) {
+            const dateStr = formatFriendlyDate(mergeResult.draft.date || '', '').split('•')[0].trim();
+            assistantReply = `Listo, cambié la fecha al ${dateStr}.`;
+          } else if (modalityChanged) {
+            assistantReply = `Listo, quedó como encuentro ${
+              mergeResult.draft.modality === 'virtual' ? 'virtual' : 'presencial'
+            }.`;
+          } else if (locationChanged) {
+            assistantReply = `Perfecto, ahora es en ${mergeResult.draft.locationText}.`;
+          } else if (virtualLinkChanged) {
+            assistantReply = `Listo, actualicé el enlace a ${mergeResult.draft.virtualLink}.`;
+          } else if (titleChanged) {
+            assistantReply = `Listo, cambié el título a ${mergeResult.draft.title}.`;
+          } else {
+            assistantReply = 'Listo, apliqué los cambios al encuentro.';
+          }
+        } else if (!wasAlreadyComplete && evaluation.isComplete) {
           assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+        } else if (evaluation.nextQuestion) {
+          assistantReply = evaluation.nextQuestion.question;
         }
 
         const assistantMsg: ChatMessage | null = assistantReply
@@ -213,7 +465,7 @@ export const useAiWizardStore = create<AiWizardState>()(
               id: generateUuid(),
               role: 'assistant',
               text: assistantReply,
-              timestamp: Date.now(),
+              timestamp: Date.now() + 1,
             }
           : null;
 
@@ -222,6 +474,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           config: mergeResult.config,
           messages: assistantMsg ? [...get().messages, assistantMsg] : get().messages,
           isInterpreting: false,
+          consecutiveOffTopicCount,
           totalInputTokens: totalIn,
           totalOutputTokens: totalOut,
           totalLatencyMs: totalLat,
@@ -303,6 +556,70 @@ export const useAiWizardStore = create<AiWizardState>()(
           text: userText,
           timestamp: Date.now(),
         };
+
+        // Deterministic template variant selection
+        if (field === 'template') {
+          const templateName =
+            displayLabel?.replace(/\s*\(por defecto\)/i, '').replace(/\s*✓/i, '').trim() || String(value);
+          const newConfig = { ...state.config, invitationTemplate: String(value) };
+          const replyText = `Listo, cambié el diseño a ${templateName}.`;
+          set({
+            config: newConfig,
+            messages: [
+              ...state.messages,
+              userMsg,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: replyText,
+                timestamp: Date.now() + 1,
+              },
+            ],
+            lastQuestion: null,
+          });
+          return;
+        }
+
+        // Deterministic theme selection
+        if (field === 'theme') {
+          const newTheme = value as InvitationTheme;
+          const defaultTemplate = getDefaultInvitationTemplate(newTheme);
+          const newConfig = {
+            ...state.config,
+            invitationTheme: newTheme,
+            invitationTemplate: defaultTemplate,
+          };
+          const themeLabel = INVITATION_THEMES.find((t) => t.id === newTheme)?.label || newTheme;
+          const replyText = `Listo, cambié el tema a ${themeLabel}.`;
+          const templateOptions = getTemplateOptionsForTheme(newTheme);
+          const nextQ: FieldQuestion | null =
+            templateOptions.length > 1
+              ? {
+                  field: 'template',
+                  question: `Elegí una variante para ${themeLabel} (o dejá la opción por defecto):`,
+                  quickOptions: templateOptions.map((opt) => ({
+                    label: opt.id === defaultTemplate ? `${opt.name} (por defecto)` : opt.name,
+                    value: opt.id,
+                  })),
+                  type: 'choice',
+                }
+              : null;
+          set({
+            config: newConfig,
+            messages: [
+              ...state.messages,
+              userMsg,
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: replyText,
+                timestamp: Date.now() + 1,
+              },
+            ],
+            lastQuestion: nextQ,
+          });
+          return;
+        }
 
         let resolvedValue = value;
         let pendingRollover = state.draft.pendingDayRollover;
@@ -432,6 +749,8 @@ export const useAiWizardStore = create<AiWizardState>()(
           config: createDefaultInvitationConfig(),
           messages: [],
           turns: 0,
+          consecutiveOffTopicCount: 0,
+          aiLocked: false,
           totalInputTokens: 0,
           totalOutputTokens: 0,
           totalLatencyMs: 0,

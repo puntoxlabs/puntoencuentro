@@ -23,6 +23,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.12.2",

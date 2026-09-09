@@ -1,6 +1,11 @@
 export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
   type: "object",
   properties: {
+    scope: {
+      type: "string",
+      enum: ["encounter", "off_topic", "unclear"],
+      description: "Classifies whether the user message is about creating/modifying an encounter, completely off-topic, or unclear."
+    },
     title: {
       type: "object",
       properties: {
@@ -112,6 +117,15 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       },
       required: ["value", "confidence"],
       additionalProperties: false
+    },
+    templateHint: {
+      type: "object",
+      properties: {
+        value: { type: "string" },
+        confidence: { type: "string", enum: ["explicit", "inferred_high", "inferred_low", "ambiguous"] }
+      },
+      required: ["value", "confidence"],
+      additionalProperties: false
     }
   },
   additionalProperties: false
@@ -127,6 +141,7 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
 
   const record = data as Record<string, unknown>;
   const allowedKeys = new Set([
+    'scope',
     'title',
     'description',
     'dateIntent',
@@ -135,7 +150,8 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
     'modality',
     'locationText',
     'virtualLink',
-    'themeHint'
+    'themeHint',
+    'templateHint'
   ]);
 
   for (const key of Object.keys(record)) {
@@ -144,6 +160,14 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
     }
 
     const field = record[key];
+
+    if (key === 'scope') {
+      if (typeof field !== 'string' || !['encounter', 'off_topic', 'unclear'].includes(field)) {
+        return { valid: false, error: `Invalid scope: ${field}` };
+      }
+      continue;
+    }
+
     if (typeof field !== 'object' || field === null) {
       return { valid: false, error: `Property ${key} must be an object` };
     }
@@ -401,6 +425,12 @@ export function sanitizeTemporalIntents<T = Record<string, unknown>>(
   if (typeof patch !== 'object' || patch === null) return patch;
 
   const record = { ...(patch as Record<string, unknown>) };
+
+  // If the interpretation is off-topic or unclear, defensively prune all draft fields
+  if (record.scope === 'off_topic' || record.scope === 'unclear') {
+    return { scope: record.scope } as unknown as T;
+  }
+
   const hasDate = hasDateEvidence(message);
   const hasTime = hasTimeEvidence(message);
 

@@ -41,6 +41,21 @@ export type InvitationTheme =
   | 'wellness'
   | 'custom';
 
+export const AI_SUPPORTED_THEMES: readonly InvitationTheme[] = [
+  'family',
+  'friends',
+  'celebration',
+  'kids_birthday',
+  'sports',
+  'entertainment',
+  'learning',
+  'wellness',
+  'romantic',
+  'formal',
+  'special',
+  'classic',
+] as const;
+
 export function isInvitationTheme(value: unknown): value is InvitationTheme {
   return typeof value === 'string' && [
     'classic', 'formal', 'friends', 'celebration', 'kids_birthday',
@@ -418,3 +433,41 @@ export function findDesignOptionIndex(theme: string | null | undefined, template
   const themeIndex = options.findIndex(opt => opt.theme === themeNormalized);
   return themeIndex !== -1 ? themeIndex : 0;
 }
+
+/**
+ * Resolves a user-provided template variant indicator (name, id, ordinal, number)
+ * against the valid templates for a given theme.
+ * Returns the template ID if resolved with certainty, or null.
+ */
+export function resolveTemplateVariant(theme: InvitationTheme, input?: string | null): string | null {
+  if (!input || !theme) return null;
+  const trimmed = input.trim().toLowerCase();
+  const validOptions = getTemplateOptionsForTheme(theme);
+  if (validOptions.length === 0) return null;
+
+  // 1. Direct ID match
+  const exactId = validOptions.find(opt => opt.id.toLowerCase() === trimmed);
+  if (exactId) return exactId.id;
+
+  // 2. Direct Name match
+  const exactName = validOptions.find(opt => opt.name.toLowerCase() === trimmed);
+  if (exactName) return exactName.id;
+
+  // 3. Ordinal / index match ("primero", "1", "primera", "segundo", "2", "tercero", "3")
+  if (trimmed === '1' || trimmed.includes('primer') || trimmed.includes('primero') || trimmed.includes('primera')) {
+    return validOptions[0]?.id || null;
+  }
+  if (trimmed === '2' || trimmed.includes('segund') || trimmed.includes('segundo') || trimmed.includes('segunda')) {
+    return validOptions[1]?.id || null;
+  }
+  if (trimmed === '3' || trimmed.includes('tercer') || trimmed.includes('tercero') || trimmed.includes('tercera')) {
+    return validOptions[2]?.id || null;
+  }
+
+  // 4. Substring in name
+  const partialName = validOptions.find(opt => trimmed.includes(opt.name.toLowerCase()) || opt.name.toLowerCase().includes(trimmed));
+  if (partialName) return partialName.id;
+
+  return null;
+}
+

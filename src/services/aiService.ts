@@ -17,6 +17,7 @@ export interface SessionTelemetryMetadata {
 
 export interface AiInterpretationResponse {
   ok: boolean;
+  scope?: 'encounter' | 'off_topic' | 'unclear';
   patch?: EncounterDraftPatch;
   usage?: {
     inputTokens: number;
@@ -60,18 +61,43 @@ export const aiService = {
    */
   async interpretMessage(
     message: string,
-    currentDraft?: EncounterDraft
+    currentDraft?: EncounterDraft,
+    sessionId?: string
   ): Promise<AiInterpretationResponse> {
     try {
       const { data, error } = await supabase.functions.invoke('ai-interpret', {
         body: {
           message: message.trim(),
           currentDraft,
+          sessionId,
         },
       });
 
       if (error) {
         console.warn('[aiService] Edge Function invoke error:', error);
+        let errorBody: any = null;
+        try {
+          if (typeof (error as any).context?.json === 'function') {
+            errorBody = await (error as any).context.json();
+          }
+        } catch (_) {}
+
+        if (errorBody?.error === 'input_too_long') {
+          return {
+            ok: false,
+            error: 'input_too_long',
+            details: errorBody.message || 'El mensaje es demasiado largo. Contame brevemente qué querés organizar o cambiar.',
+          };
+        }
+
+        if (errorBody?.message) {
+          return {
+            ok: false,
+            error: errorBody.error || 'service_error',
+            details: errorBody.message,
+          };
+        }
+
         return {
           ok: false,
           error: 'service_unavailable',
@@ -97,6 +123,7 @@ export const aiService = {
 
       return {
         ok: true,
+        scope: data.scope || (data.patch as any)?.scope || 'encounter',
         patch: data.patch as EncounterDraftPatch,
         usage: data.usage,
         provider: data.provider,

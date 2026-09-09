@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Clock, MapPin, Video, Sparkles, Edit3, ArrowRight, Share2, Users } from 'lucide-react';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { formatFriendlyDate } from '@/lib/formatDate';
-import { INVITATION_THEMES } from '@/lib/invitationThemes';
+import { INVITATION_THEMES, getTemplateOptionsForTheme } from '@/lib/invitationThemes';
 
 interface DraftSummaryProps {
   draft: EncounterDraft;
@@ -26,6 +26,10 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
   const [showConfigOptions, setShowConfigOptions] = useState(false);
 
   const activeThemeConfig = INVITATION_THEMES.find((t) => t.id === config.invitationTheme);
+  const activeTemplate = getTemplateOptionsForTheme(config.invitationTheme).find(
+    (t) => t.id === config.invitationTemplate
+  );
+  const templateSuffix = activeTemplate ? ` (${activeTemplate.name})` : '';
 
   return (
     <div
@@ -127,7 +131,7 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
         {/* Theme & Invitation Config toggle */}
         <div style={{ paddingTop: '8px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: '12px', color: '#475569' }}>
-            Tema: <strong>{activeThemeConfig?.label || 'Clásico'}</strong> •{' '}
+            Tema: <strong>{activeThemeConfig?.label || 'Clásico'}{templateSuffix}</strong> •{' '}
             {config.invitationType === 'link_general' ? 'Enlace general' : 'Invitación individual'}
           </div>
           <button
