@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DraftSummary } from '../src/components/ai/DraftSummary.tsx';
+import { MemoryRouter } from 'react-router-dom';
+import { DraftSummary } from '@/components/ai/DraftSummary';
+import { CreateAIWizard } from '@/screens/CreateAIWizard';
 
 import {
   resolveDateIntent,
@@ -45,8 +47,8 @@ import {
   resetLimiterStateForTesting,
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
-import { useAiWizardStore } from '../src/store/aiWizardStore.ts';
-import { aiService } from '../src/services/aiService.ts';
+import { useAiWizardStore } from '@/store/aiWizardStore';
+import { aiService } from '@/services/aiService';
 
 describe('Domain Logic Tests: Date & Time Resolution', () => {
   // Baseline date: Monday 2026-09-07
@@ -2501,5 +2503,289 @@ describe('UX & Hardening: Progressive Off-Topic Policy & Theme/Variant Hierarchy
   });
 });
 
+describe('UX Mobile: Timeline Continuity, Compact Collapsible Summary & Smart Auto-Scroll Anchors (Cases A-G)', () => {
+  test('Case A: DraftSummary / DraftPreview no está renderizado entre mensajes del timeline', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado con amigos',
+        date: '2026-10-10',
+        time: '21:00',
+        modality: 'presencial',
+      },
+      config: createDefaultInvitationConfig(),
+      isComplete: false,
+      messages: [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          text: '¿Dónde va a ser el asado?',
+          timestamp: 1000,
+        },
+        {
+          id: 'msg-2',
+          role: 'user',
+          text: 'En casa',
+          timestamp: 2000,
+        },
+        {
+          id: 'msg-3',
+          role: 'assistant',
+          text: 'Perfecto, guardé en casa. ¿Qué tema preferís?',
+          timestamp: 3000,
+        },
+      ],
+    });
 
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
 
+    // DraftPreview card must NOT be rendered in the middle of conversation
+    assert.equal(html.includes('Datos detectados'), false, 'DraftPreview must not be present in timeline');
+    // DraftSummary complete card must NOT be in timeline while !isComplete
+    assert.equal(html.includes('data-testid="complete-draft-summary"'), false, 'DraftSummary must not separate conversation messages');
+    // CompactDraftBar must be present outside conversation
+    assert.ok(html.includes('data-testid="compact-draft-bar"'), 'CompactDraftBar should be pinned at top');
+    assert.ok(html.includes('Asado con amigos'), 'Compact bar should display title');
+  });
+
+  test('Case B: Mensajes se mantienen en estricto orden cronológico', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: createEmptyEncounterDraft(),
+      config: createDefaultInvitationConfig(),
+      messages: [
+        { id: 'm1', role: 'assistant', text: 'PRIMER_MENSAJE_ASISTENTE', timestamp: 100 },
+        { id: 'm2', role: 'user', text: 'SEGUNDO_MENSAJE_USUARIO', timestamp: 200 },
+        { id: 'm3', role: 'assistant', text: 'TERCER_MENSAJE_ASISTENTE', timestamp: 300 },
+      ],
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    const idx1 = html.indexOf('PRIMER_MENSAJE_ASISTENTE');
+    const idx2 = html.indexOf('SEGUNDO_MENSAJE_USUARIO');
+    const idx3 = html.indexOf('TERCER_MENSAJE_ASISTENTE');
+
+    assert.ok(idx1 > -1 && idx2 > -1 && idx3 > -1, 'All messages must be rendered');
+    assert.ok(idx1 < idx2, 'Message 1 must appear before Message 2');
+    assert.ok(idx2 < idx3, 'Message 2 must appear before Message 3');
+  });
+
+  test('Case C: Nuevo mensaje IA obtiene/refleja anchor de scroll', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: createEmptyEncounterDraft(),
+      config: createDefaultInvitationConfig(),
+      messages: [
+        { id: 'm1', role: 'user', text: 'Juntada de trabajo', timestamp: 100 },
+        { id: 'm2', role: 'assistant', text: '¡Excelente! ¿Qué modalidad preferís?', timestamp: 200 },
+      ],
+      lastQuestion: {
+        field: 'modality',
+        question: '¿Qué modalidad preferís?',
+        quickOptions: [
+          { label: '📍 Presencial', value: 'presencial' },
+          { label: '💻 Virtual', value: 'virtual' },
+        ],
+      },
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('data-testid="latest-assistant-message"'), 'Latest assistant message must have anchor');
+    assert.ok(html.includes('data-testid="active-field-question"'), 'Active field question must have container ref');
+
+    const msgAnchorIdx = html.indexOf('data-testid="latest-assistant-message"');
+    const questionAnchorIdx = html.indexOf('data-testid="active-field-question"');
+    assert.ok(msgAnchorIdx < questionAnchorIdx, 'Assistant message anchor must precede chips to allow smooth top-anchored reading');
+  });
+
+  test('Case D: Resumen compacto -> expandir -> resumen completo', () => {
+    useAiWizardStore.getState().reset();
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Pádel con amigos',
+      date: '2026-11-15',
+      time: '19:00',
+      modality: 'presencial' as const,
+      locationText: 'Club Central',
+    };
+    const config = createDefaultInvitationConfig();
+
+    useAiWizardStore.setState({
+      draft,
+      config,
+      isComplete: false,
+    });
+
+    // 1. Initial collapsed state in wizard
+    const htmlCollapsed = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(htmlCollapsed.includes('data-testid="compact-draft-bar"'));
+    assert.ok(htmlCollapsed.includes('data-testid="toggle-draft-summary"'));
+    assert.ok(htmlCollapsed.includes('aria-expanded="false"'));
+    assert.equal(htmlCollapsed.includes('data-testid="expanded-draft-summary"'), false);
+
+    // 2. Full DraftSummary (which renders inside expanded accordion)
+    const htmlFull = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft,
+        config,
+        isLoading: false,
+        onConfirmCreate: () => {},
+        onModify: () => {},
+        onFallbackManual: () => {},
+        onChangeConfig: () => {},
+      })
+    );
+
+    assert.ok(htmlFull.includes('Pádel con amigos'));
+    assert.ok(htmlFull.includes('Club Central'));
+    assert.ok(htmlFull.includes('data-testid="change-theme-button"'));
+  });
+
+  test('Case E: Actualizar draft no reordena mensajes ni altera el timeline', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Pizza party' },
+      config: createDefaultInvitationConfig(),
+      lastQuestion: null,
+      messages: [
+        { id: 'm1', role: 'user', text: 'Quiero organizar una pizza party', timestamp: 100 },
+        { id: 'm2', role: 'assistant', text: '¡Buenísimo! ¿Cuándo sería?', timestamp: 200 },
+      ],
+    });
+
+    const store = useAiWizardStore.getState();
+    store.updateDraftField('date', '2026-10-20');
+    store.updateDraftField('time', '20:30');
+    store.updateDraftField('locationText', 'Mi terraza');
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.messages[0].id, 'm1');
+    assert.equal(state.messages[1].id, 'm2');
+    assert.ok(state.messages.length >= 2, 'Original messages preserved');
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    const idx1 = html.indexOf('Quiero organizar una pizza party');
+    const idx2 = html.indexOf('¡Buenísimo! ¿Cuándo sería?');
+    assert.ok(idx1 > -1 && idx2 > -1 && idx1 < idx2, 'Messages maintain strict chronological order');
+
+    assert.ok(html.includes('Pizza party'));
+    assert.ok(html.includes('20:30 hs'));
+    assert.ok(html.includes('Mi terraza'));
+  });
+
+  test('Case F: aiLocked mantiene editor/resumen accesible', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Encuentro bloqueado' },
+      config: createDefaultInvitationConfig(),
+      aiLocked: true,
+      consecutiveOffTopicCount: 2,
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('data-testid="compact-draft-bar"'), 'Compact summary remains visible with aiLocked');
+    assert.ok(html.includes('data-testid="continue-manually-button"'), 'Continue manually CTA remains accessible');
+    assert.ok(html.includes('Crear con IA no disponible para este borrador'), 'Textarea placeholder communicates lock');
+    assert.ok(html.includes('disabled=""') || html.includes('disabled'), 'Controls must be disabled');
+  });
+
+  test('Case G: Selector Tema/Variante sigue operativo con encuentro completo', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cumpleaños de Diego',
+        date: '2026-12-05',
+        time: '18:00',
+        modality: 'presencial',
+      },
+      config: {
+        ...createDefaultInvitationConfig(),
+        invitationTheme: 'celebration',
+        invitationTemplate: 'celebration_party',
+      },
+      isComplete: true,
+      messages: [
+        {
+          id: 'm-last',
+          role: 'assistant',
+          text: '¡Listo! Tu encuentro está preparado.',
+          timestamp: 9999,
+        },
+      ],
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('data-testid="complete-draft-summary"'), 'Complete summary card rendered at end of chat');
+    assert.ok(html.includes('Cumpleaños de Diego'));
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      const store = useAiWizardStore.getState();
+      store.updateConfigField('invitationTheme', 'sports');
+      store.updateConfigField('invitationTemplate', 'sports_match');
+
+      const updated = useAiWizardStore.getState();
+      assert.equal(updated.config.invitationTheme, 'sports');
+      assert.equal(updated.config.invitationTemplate, 'sports_match');
+      assert.equal(providerCalls, 0, 'Theme/variant updates must consume zero tokens');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});

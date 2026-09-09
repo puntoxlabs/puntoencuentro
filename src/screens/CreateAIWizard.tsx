@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, RefreshCw, AlertCircle } from 'lucide-react';
+import { Send, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from 'lucide-react';
 import { AppBar } from '@/components/ui/AppBar';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AIChatMessage } from '@/components/ai/AIChatMessage';
-import { DraftPreview } from '@/components/ai/DraftPreview';
 import { FieldQuestion } from '@/components/ai/FieldQuestion';
 import { DraftSummary } from '@/components/ai/DraftSummary';
 import { useAiWizardStore } from '@/store/aiWizardStore';
@@ -16,15 +15,35 @@ import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { encuentrosService } from '@/services/encuentrosService';
 import { ensureHostSession } from '@/lib/ensureHostSession';
 import { aiService } from '@/services/aiService';
+import {
+  INVITATION_THEMES,
+  getTemplateOptionsForTheme,
+  getDefaultInvitationTemplate,
+} from '@/lib/invitationThemes';
+import { formatFriendlyDate } from '@/lib/formatDate';
 import './CreateWizard.css';
 
-export const CreateAIWizard: React.FC = () => {
+export interface CreateAIWizardProps {
+  stateOverride?: Partial<ReturnType<typeof useAiWizardStore.getState>>;
+}
+
+export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride }) => {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const latestAssistantMessageRef = useRef<HTMLDivElement>(null);
+  const latestUserMessageRef = useRef<HTMLDivElement>(null);
+  const activeQuestionRef = useRef<HTMLDivElement>(null);
+  const completeSummaryRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const hookState = useAiWizardStore();
+  const store = typeof window === 'undefined' ? useAiWizardStore.getState() : hookState;
+  const activeState = stateOverride ? { ...store, ...stateOverride } : store;
 
   const {
     sessionId,
@@ -58,7 +77,7 @@ export const CreateAIWizard: React.FC = () => {
     dismissCoordinationHandoff,
     markFallbackManual,
     reset,
-  } = useAiWizardStore();
+  } = activeState;
 
   const hasDraftData = Boolean(
     draft.title ||
@@ -69,13 +88,93 @@ export const CreateAIWizard: React.FC = () => {
     draft.virtualLink
   );
 
+  const activeThemeConfig = INVITATION_THEMES.find((t) => t.id === config.invitationTheme);
+  const themeTemplates = getTemplateOptionsForTheme(config.invitationTheme);
+  const defaultTemplate = getDefaultInvitationTemplate(config.invitationTheme);
+  const activeTemplate = themeTemplates.find(
+    (t) => t.id === (config.invitationTemplate || defaultTemplate)
+  );
+  const themeLabel = activeThemeConfig?.label || 'Clásico';
+  const variantLabel = activeTemplate ? ` (${activeTemplate.name})` : '';
+
+  const dateText = draft.date
+    ? `${formatFriendlyDate(draft.date, draft.time || '').split('•')[0]}${draft.time ? ` · ${draft.time} hs` : ''}`
+    : draft.time
+    ? `${draft.time} hs`
+    : 'Cuándo a definir';
+
+  const placeText = draft.locationText || (draft.modality === 'virtual' ? 'Virtual' : draft.modality === 'presencial' ? 'Presencial' : null);
+
+  const lastAssistantIndex = messages.map((m) => m.role).lastIndexOf('assistant');
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
+
+  const prevMessagesCountRef = useRef(messages.length);
+  const prevInterpretingRef = useRef(isInterpreting);
+
   useEffect(() => {
     initSession();
   }, [initSession]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isInterpreting, lastQuestion]);
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const prevCount = prevMessagesCountRef.current;
+    const currentCount = messages.length;
+
+    prevMessagesCountRef.current = currentCount;
+    prevInterpretingRef.current = isInterpreting;
+
+    // 1. User just sent a message or interpreting is ongoing
+    if (isInterpreting || (currentCount > prevCount && messages[currentCount - 1]?.role === 'user')) {
+      if (latestUserMessageRef.current) {
+        const containerRect = container.getBoundingClientRect();
+        const userRect = latestUserMessageRef.current.getBoundingClientRect();
+        const relativeTop = userRect.top - containerRect.top + container.scrollTop;
+        container.scrollTo({
+          top: Math.max(0, relativeTop - 16),
+          behavior: 'smooth',
+        });
+      }
+      return;
+    }
+
+    // 2. AI response arrived (interpreting ended and last message is assistant)
+    if (!isInterpreting && currentCount > 0 && messages[currentCount - 1]?.role === 'assistant') {
+      const target = latestAssistantMessageRef.current;
+      if (target) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
+        container.scrollTo({
+          top: Math.max(0, relativeTop - 12),
+          behavior: 'smooth',
+        });
+      }
+      return;
+    }
+
+    // 3. Question or completion appeared without a new message
+    if (!isInterpreting && (lastQuestion || isComplete)) {
+      const target = activeQuestionRef.current || completeSummaryRef.current;
+      if (target) {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        if (targetRect.bottom > containerRect.bottom) {
+          const relativeBottom = targetRect.bottom - containerRect.top + container.scrollTop;
+          container.scrollTo({
+            top: relativeBottom - containerRect.height + 24,
+            behavior: 'smooth',
+          });
+        }
+      }
+    }
+  }, [messages, isInterpreting, lastQuestion, isComplete]);
+
+  const handleReset = () => {
+    setIsSummaryExpanded(false);
+    reset();
+  };
 
   const handleSend = async () => {
     if (!inputText.trim() || isInterpreting || isCreating || aiLocked) return;
@@ -304,7 +403,7 @@ export const CreateAIWizard: React.FC = () => {
         }}
         rightAction={
           <button
-            onClick={reset}
+            onClick={handleReset}
             style={{
               background: 'none',
               border: 'none',
@@ -319,8 +418,150 @@ export const CreateAIWizard: React.FC = () => {
         }
       />
 
-      {/* Main Conversation & Review Area */}
+      {/* Resumen Compacto Pinned (debajo del AppBar, fuera del scroll conversacional) */}
+      {hasDraftData && (
+        <div
+          data-testid="compact-draft-bar"
+          style={{
+            background: 'var(--color-surface, #ffffff)',
+            borderBottom: '1px solid var(--color-outline-variant, #e2e8f0)',
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexShrink: 0,
+            zIndex: 10,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: isComplete ? '#dcfce7' : 'var(--color-primary-container, #e0e7ff)',
+                color: isComplete ? '#15803d' : 'var(--color-primary, #4f46e5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {isComplete ? <CheckCircle2 size={18} /> : <Sparkles size={16} />}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: 'var(--color-on-surface, #0f172a)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {draft.title || 'Nuevo encuentro'}
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--color-on-surface-variant, #64748b)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {dateText}
+                {placeText ? ` · ${placeText}` : ''}
+                {` · ${themeLabel}${variantLabel}`}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            data-testid="toggle-draft-summary"
+            aria-expanded={isSummaryExpanded}
+            onClick={() => {
+              if (isComplete) {
+                completeSummaryRef.current?.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                setIsSummaryExpanded((prev) => !prev);
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              border: '1px solid var(--color-outline, #cbd5e1)',
+              background: isSummaryExpanded ? 'var(--color-primary-container, #e0e7ff)' : '#ffffff',
+              color: isSummaryExpanded ? 'var(--color-primary, #4f46e5)' : 'var(--color-on-surface, #334155)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isComplete ? (
+              <>
+                <span>Ver abajo</span>
+                <ChevronDown size={14} />
+              </>
+            ) : isSummaryExpanded ? (
+              <>
+                <span>Ocultar</span>
+                <ChevronUp size={14} />
+              </>
+            ) : (
+              <>
+                <span>Ver resumen</span>
+                <ChevronDown size={14} />
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Panel Expandido Colapsable (solo cuando !isComplete y el usuario lo abre) */}
+      {hasDraftData && !isComplete && isSummaryExpanded && (
+        <div
+          data-testid="expanded-draft-summary"
+          style={{
+            background: 'var(--color-surface, #ffffff)',
+            borderBottom: '2px solid var(--color-outline-variant, #cbd5e1)',
+            padding: '12px 16px',
+            maxHeight: '360px',
+            overflowY: 'auto',
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            zIndex: 9,
+          }}
+        >
+          <DraftSummary
+            draft={draft}
+            config={config}
+            isLoading={isCreating}
+            onConfirmCreate={handleConfirmCreate}
+            onModify={(field) => {
+              const val = prompt(`Modificar ${field}:`, (draft as any)[field] || '');
+              if (val !== null) {
+                updateDraftField(field, val);
+              }
+            }}
+            onFallbackManual={handleFallbackManual}
+            onChangeConfig={updateConfigField}
+          />
+        </div>
+      )}
+
+      {/* Main Conversation Area (Scrollable Timeline) */}
       <div
+        ref={chatContainerRef}
         style={{
           flex: 1,
           overflowY: 'auto',
@@ -376,41 +617,64 @@ export const CreateAIWizard: React.FC = () => {
         )}
 
         {/* Chat Messages */}
-        {messages.map((msg) => (
-          <AIChatMessage key={msg.id} message={msg} />
-        ))}
+        {messages.map((msg, index) => {
+          const isLatestAssistant = msg.role === 'assistant' && index === lastAssistantIndex;
+          const isLatestUser = msg.role === 'user' && index === lastUserIndex;
 
-        {/* Live Detected Fields Card */}
-        <DraftPreview
-          draft={draft}
-          onUpdateField={updateDraftField}
-        />
+          return (
+            <div
+              key={msg.id}
+              ref={
+                isLatestAssistant
+                  ? latestAssistantMessageRef
+                  : isLatestUser
+                  ? latestUserMessageRef
+                  : undefined
+              }
+              data-testid={isLatestAssistant ? 'latest-assistant-message' : undefined}
+            >
+              <AIChatMessage message={msg} />
+            </div>
+          );
+        })}
+
+        {/* Loading Bubble */}
+        {isInterpreting && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', margin: '8px 0' }}>
+            <span className="spinner" style={{ width: '16px', height: '16px', border: '2px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span>Interpretando...</span>
+          </div>
+        )}
 
         {/* Deterministic Question with Quick Option Chips */}
         {lastQuestion && (!isComplete || lastQuestion.field === 'template' || lastQuestion.field === 'theme') && (
-          <FieldQuestion
-            question={lastQuestion}
-            onSelectOption={handleQuickOptionSelect}
-            onHandoffCoordination={handleHandoffCoordination}
-          />
+          <div ref={activeQuestionRef} data-testid="active-field-question">
+            <FieldQuestion
+              question={lastQuestion}
+              onSelectOption={handleQuickOptionSelect}
+              onHandoffCoordination={handleHandoffCoordination}
+            />
+          </div>
         )}
 
         {/* Final Confirmation Summary Card */}
         {isComplete && (
-          <DraftSummary
-            draft={draft}
-            config={config}
-            isLoading={isCreating}
-            onConfirmCreate={handleConfirmCreate}
-            onModify={(field) => {
-              const val = prompt(`Modificar ${field}:`, (draft as any)[field] || '');
-              if (val !== null) {
-                updateDraftField(field, val);
-              }
-            }}
-            onFallbackManual={handleFallbackManual}
-            onChangeConfig={updateConfigField}
-          />
+          <div ref={completeSummaryRef} data-testid="complete-draft-summary" style={{ marginTop: '12px' }}>
+            <DraftSummary
+              draft={draft}
+              config={config}
+              isLoading={isCreating}
+              onConfirmCreate={handleConfirmCreate}
+              onModify={(field) => {
+                const val = prompt(`Modificar ${field}:`, (draft as any)[field] || '');
+                if (val !== null) {
+                  updateDraftField(field, val);
+                }
+              }}
+              onFallbackManual={handleFallbackManual}
+              onChangeConfig={updateConfigField}
+            />
+          </div>
         )}
 
         {/* Error Alerts & Lock Notice */}
@@ -461,16 +725,6 @@ export const CreateAIWizard: React.FC = () => {
             )}
           </div>
         )}
-
-        {/* Loading Bubble */}
-        {isInterpreting && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', margin: '8px 0' }}>
-            <span className="spinner" style={{ width: '16px', height: '16px', border: '2px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span>Interpretando...</span>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Bar */}
