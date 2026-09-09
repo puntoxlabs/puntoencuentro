@@ -23,11 +23,11 @@ export type DateIntent =
   | { type: 'vague'; description: string };
 
 export type TimeIntent =
-  | { type: 'exact'; hour: number; minute: number }
-  | { type: 'approximate'; hour: number; minute: number }
-  | { type: 'period'; value: 'morning' | 'afternoon' | 'evening' | 'night' }
-  | { type: 'after'; hour: number; minute: number }
-  | { type: 'range'; startHour: number; startMinute: number; endHour: number; endMinute: number }
+  | { type: 'exact'; hour: number; minute: number; description?: string }
+  | { type: 'approximate'; hour: number; minute: number; description?: string }
+  | { type: 'period'; value: 'morning' | 'afternoon' | 'evening' | 'night'; description?: string }
+  | { type: 'after'; hour: number; minute: number; description?: string }
+  | { type: 'range'; startHour: number; startMinute: number; endHour: number; endMinute: number; description?: string }
   | { type: 'vague'; description: string };
 
 export interface EncounterDraftPatch {

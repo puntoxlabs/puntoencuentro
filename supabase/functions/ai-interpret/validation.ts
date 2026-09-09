@@ -348,16 +348,25 @@ const DATE_EVIDENCE_PATTERNS = [
 ];
 
 /**
+ * Patterns matching durations or quantities of hours that must NOT be treated as a meeting start time.
+ */
+const DURATION_OR_QUANTITY_PATTERNS = [
+  /\b(durante|por|evento\s+de|reuni[oó]n\s+de|juntada\s+de|cumplea[ñn]os\s+de|festival\s+de)\s+\d{1,2}\s*horas?\b/i,
+  /\b\d{1,2}\s*(horas?\s+de\s+(duraci[oó]n|corrido)|horas?\s+seguidas?)\b/i,
+];
+
+/**
  * Patterns matching explicit temporal evidence for times in user messages (Spanish).
  */
 const TIME_EVIDENCE_PATTERNS = [
-  /\b(a\s+las?|alas?|tipo|tipoo|alrededor\s+de|cerca\s+de|despu[eé]s\s+de|despues\s+de|antes\s+de|entre)\s+\d{1,2}(:\d{2})?\b/i,
+  /\b(a\s+las?|alas?|tipo|tipoo|alrededor\s+de|cerca\s+de|despu[eé]s\s+de|despues\s+de|antes\s+de|entre)\s+\d{1,2}(:\d{2})?\s*(horas?)?\b/i,
   /\b(despu[eé]s\s+de\s+las?|despues\s+de\s+las?)\s+\d{1,2}\b/i,
   /\b\d{1,2}(:\d{2})\b/,
-  /\b\d{1,2}\s*(hs|h|hrs|am|pm)\b/i,
+  /\b\d{1,2}\s*(hs|h|hrs|horas?|am|pm)\b/i,
+  /\b(hoy|mañana|manana|ayer|este\s+\w+|el\s+\w+|esta\s+noche)\s+\d{1,2}\s*(horas?|hs|h|hrs)\b/i,
   /\b(1[0-2]|[1-9])\s*(am|pm)\b/i,
   /\b(2[0-3]|1[0-9])([0-5][0-9])\b/,
-  /\b(al\s+mediod[ií]a|al\s+mediodia|mediod[ií]a|mediodia|a\s+la\s+madrugada|de\s+madrugada)\b/i,
+  /\b(al\s+mediod[ií]a|al\s+mediodia|mediod[ií]a|mediodia|a\s+la\s+madrugada|de\s+madrugada|a\s+medianoche|medianoche)\b/i,
   /\b(a\s+la|por\s+la|de\s+la|en\s+la)\s+(tarde|noche|mañana|manana)\b/i,
   /\b(despu[eé]s\s+del\s+laburo|despues\s+del\s+laburo)\b/i,
   /\b(tipo|a\s+la)\s+(una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/i,
@@ -370,7 +379,13 @@ export function hasDateEvidence(text: string): boolean {
 
 export function hasTimeEvidence(text: string): boolean {
   if (!text || typeof text !== 'string') return false;
-  return TIME_EVIDENCE_PATTERNS.some((p) => p.test(text));
+  // If the text contains duration patterns (e.g. "durante 24 horas", "evento de 24 horas"),
+  // strip them first to verify if another real start-time expression exists.
+  let cleaned = text;
+  for (const pattern of DURATION_OR_QUANTITY_PATTERNS) {
+    cleaned = cleaned.replace(pattern, ' ');
+  }
+  return TIME_EVIDENCE_PATTERNS.some((p) => p.test(cleaned));
 }
 
 /**
@@ -390,17 +405,13 @@ export function sanitizeTemporalIntents<T = Record<string, unknown>>(
   const hasTime = hasTimeEvidence(message);
 
   if ('dateIntent' in record) {
-    const dIntent = record.dateIntent as any;
-    const isVague = dIntent?.value?.type === 'vague';
-    if (isVague || !hasDate) {
+    if (!hasDate) {
       delete record.dateIntent;
     }
   }
 
   if ('timeIntent' in record) {
-    const tIntent = record.timeIntent as any;
-    const isVague = tIntent?.value?.type === 'vague';
-    if (isVague || !hasTime) {
+    if (!hasTime) {
       delete record.timeIntent;
     }
   }

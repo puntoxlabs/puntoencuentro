@@ -23,6 +23,7 @@ import {
 import type { EncuentroBase } from '@/lib/encuentroHelper';
 import { useHomeStore } from '@/store/homeStore';
 import { useWizardStore } from '@/store/wizardStore';
+import { useAiWizardStore } from '@/store/aiWizardStore';
 import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
@@ -820,6 +821,7 @@ const Home: React.FC = () => {
         open={isModeChoiceOpen}
         onSelectAI={() => {
           setIsModeChoiceOpen(false);
+          useAiWizardStore.getState().reset();
           navigate('/create/ai');
         }}
         onSelectFixed={() => {

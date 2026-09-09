@@ -25,6 +25,9 @@ export interface EncounterDraft {
   date: string | null; // YYYY-MM-DD
   time: string | null; // HH:MM
 
+  // Multi-turn temporal metadata: indicates a +1 day rollover is pending when date arrives
+  pendingDayRollover?: boolean;
+
   // Coordination mode fields (retained for architectural compatibility with Stage 1.0 Entrega B)
   dateOptions: DateOption[] | null;
   responseDeadline: string | null;
@@ -65,6 +68,7 @@ export function createEmptyEncounterDraft(): EncounterDraft {
     dateMode: 'fixed',
     date: null,
     time: null,
+    pendingDayRollover: false,
     dateOptions: null,
     responseDeadline: null,
     durationMinutes: null,

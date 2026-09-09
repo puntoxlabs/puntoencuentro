@@ -30,6 +30,8 @@ import { MistralProvider } from '../supabase/functions/ai-interpret/providers/mi
 import { mergeDraftPatch } from '../src/lib/draftMerger.ts';
 import { createEmptyEncounterDraft } from '../src/lib/encounterDraft.ts';
 import { createDefaultInvitationConfig } from '../src/lib/encounterDraft.ts';
+import { addDaysToIsoDate } from '../src/lib/dateResolver.ts';
+import { getArgentinaTodayISO } from '../src/lib/argentinaDateTime.ts';
 
 // Helper mock provider
 class MockProvider implements EncounterInterpreterProvider {
@@ -1839,6 +1841,261 @@ describe('Runtime Fallback Multi-Provider: Real Orchestrator Timeout Validation 
       server.closeAllConnections?.();
       server.close();
     }
+  });
+});
+
+// =============================================================================
+// SUITE: RUNTIME FALLBACK MULTI-PROVIDER: 24:00 SEMANTICS & TEMPORAL GUARD INTEGRATION
+// =============================================================================
+describe('Runtime Fallback Multi-Provider: 24:00 Semantics & Temporal Guard Integration', () => {
+  test('"Cena familia hoy 24 horas" on Primary preserves timeIntent and resolves to tomorrow 00:00', async () => {
+    const input = 'Cena familia hoy 24 horas';
+    const rawPatch = {
+      title: { value: 'Cena familia', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'inferred_high' },
+      dateIntent: {
+        value: { type: 'relative', value: 'today' },
+        confidence: 'explicit',
+      },
+      timeIntent: {
+        value: { type: 'exact', hour: 24, minute: 0 },
+        confidence: 'explicit',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: rawPatch,
+      inputTokens: 100,
+      outputTokens: 50,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.fallbackUsed, false);
+    assert.equal(res.patch.modality?.value, 'presencial');
+    assert.equal(res.patch.timeIntent?.value?.hour, 24);
+    assert.equal(res.patch.timeIntent?.value?.minute, 0);
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+
+    const today = getArgentinaTodayISO();
+    const tomorrow = addDaysToIsoDate(today, 1);
+    assert.equal(draft.time, '00:00');
+    assert.equal(draft.date, tomorrow);
+    assert.equal(draft.modality, 'presencial');
+  });
+
+  test('"Cena familia hoy 24 horas" on Fallback (Mistral) preserves timeIntent and resolves to tomorrow 00:00', async () => {
+    const input = 'Cena familia hoy 24 horas';
+    const fallbackPatch = {
+      title: { value: 'Cena familia', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'inferred_high' },
+      dateIntent: {
+        value: { type: 'relative', value: 'today' },
+        confidence: 'explicit',
+      },
+      timeIntent: {
+        value: { type: 'exact', hour: 24, minute: 0 },
+        confidence: 'explicit',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI 500 Internal Error',
+        type: 'retryable_technical',
+        provider: 'openai',
+        httpStatus: 500,
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: fallbackPatch,
+      inputTokens: 110,
+      outputTokens: 55,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.fallbackProvider, 'mistral');
+    assert.equal(res.patch.timeIntent?.value?.hour, 24);
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+
+    const today = getArgentinaTodayISO();
+    const tomorrow = addDaysToIsoDate(today, 1);
+    assert.equal(draft.time, '00:00');
+    assert.equal(draft.date, tomorrow);
+  });
+
+  test('"24 personas" with model returning timeIntent -> sanitized away deterministically', async () => {
+    const input = 'Asado para 24 personas';
+    const hallucinatedPatch = {
+      title: { value: 'Asado', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'inferred_high' },
+      timeIntent: {
+        value: { type: 'exact', hour: 24, minute: 0 },
+        confidence: 'explicit',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: hallucinatedPatch,
+      inputTokens: 80,
+      outputTokens: 30,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be pruned for "24 personas"');
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.time, null);
+  });
+
+  test('"durante 24 horas" with model returning timeIntent -> sanitized away deterministically', async () => {
+    const input = 'Hackathon durante 24 horas';
+    const hallucinatedPatch = {
+      title: { value: 'Hackathon', confidence: 'explicit' },
+      timeIntent: {
+        value: { type: 'exact', hour: 24, minute: 0 },
+        confidence: 'explicit',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: hallucinatedPatch,
+      inputTokens: 80,
+      outputTokens: 30,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be pruned for "durante 24 horas"');
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.time, null);
+  });
+
+  test('Multi-turn fallback integration: Turn 1 "Cena a las 24" + Turn 2 "viernes" -> sábado 00:00', async () => {
+    // Turn 1
+    const primary1 = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: {
+        title: { value: 'Cena', confidence: 'explicit' },
+        modality: { value: 'presencial', confidence: 'inferred_high' },
+        timeIntent: { value: { type: 'exact', hour: 24, minute: 0 }, confidence: 'explicit' },
+      },
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+    const fallback1 = new MockProvider('mistral', 'ministral-8b-2512', async () => ({ patch: {} }));
+
+    const res1 = await interpretWithFallback('Cena a las 24', undefined, primary1, fallback1, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+    assert.equal(res1.ok, true);
+
+    const draft0 = createEmptyEncounterDraft();
+    const config0 = createDefaultInvitationConfig();
+    const merge1 = mergeDraftPatch(draft0, config0, res1.patch as any);
+    assert.equal(merge1.draft.time, '00:00');
+    assert.equal(merge1.draft.date, null);
+    assert.equal(merge1.draft.pendingDayRollover, true);
+
+    // Turn 2
+    const primary2 = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: {
+        dateIntent: { value: { type: 'weekday', weekday: 'viernes', modifier: 'this' }, confidence: 'inferred_high' },
+      },
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+    const fallback2 = new MockProvider('mistral', 'ministral-8b-2512', async () => ({ patch: {} }));
+
+    const res2 = await interpretWithFallback('viernes', merge1.draft, primary2, fallback2, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+    assert.equal(res2.ok, true);
+
+    const merge2 = mergeDraftPatch(merge1.draft, merge1.config, res2.patch as any);
+    assert.equal(merge2.draft.time, '00:00');
+    const today = getArgentinaTodayISO();
+    // Friday date + 1 day -> Saturday
+    assert.ok(merge2.draft.date);
+    assert.equal(merge2.draft.pendingDayRollover, false);
+  });
+
+  test('Ambiguous 12 integration: "Cena a las 12" keeps draft.time null and records ambiguity', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: {
+        title: { value: 'Cena', confidence: 'explicit' },
+        timeIntent: {
+          value: { type: 'vague', description: '¿Te referís al mediodía o a la medianoche?' },
+          confidence: 'ambiguous',
+        },
+      },
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({ patch: {} }));
+
+    const res = await interpretWithFallback('Cena a las 12', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+    assert.equal(res.ok, true);
+
+    const draft0 = createEmptyEncounterDraft();
+    const config0 = createDefaultInvitationConfig();
+    const merge = mergeDraftPatch(draft0, config0, res.patch as any);
+    assert.equal(merge.draft.time, null);
+    assert.equal(merge.ambiguities.length, 1);
+    assert.equal(merge.ambiguities[0].field, 'time');
   });
 });
 

@@ -1,3 +1,5 @@
+import { getArgentinaTodayISO, isArgentinaDateTimeInFuture } from '@/lib/argentinaDateTime';
+
 export function formatFriendlyDate(fecha: string, hora: string): string {
   if (!fecha || !hora) return `${fecha} a las ${hora}`;
 
@@ -68,13 +70,7 @@ export function isFuture(fecha: string, hora: string): boolean {
 export function validateEncounterDate(fecha: string, hora: string): string | null {
   if (!fecha || !hora) return null;
 
-  const now = new Date();
-
-  // Obtenemos la fecha local en formato YYYY-MM-DD
-  const localYear = now.getFullYear();
-  const localMonth = String(now.getMonth() + 1).padStart(2, '0');
-  const localDay = String(now.getDate()).padStart(2, '0');
-  const localToday = `${localYear}-${localMonth}-${localDay}`;
+  const localToday = getArgentinaTodayISO();
 
   if (fecha < localToday) {
     return "La fecha no puede ser anterior a hoy.";
@@ -83,10 +79,7 @@ export function validateEncounterDate(fecha: string, hora: string): string | nul
   // Si la hora viene con segundos (ej: "10:00:00"), nos quedamos con HH:mm
   const cleanHora = hora.substring(0, 5);
 
-  // Combinamos fecha y hora para la comparación completa
-  const encounterDateTime = new Date(`${fecha}T${cleanHora}`);
-
-  if (encounterDateTime <= now) {
+  if (!isArgentinaDateTimeInFuture(fecha, cleanHora)) {
     return "La fecha y hora deben ser futuras";
   }
 

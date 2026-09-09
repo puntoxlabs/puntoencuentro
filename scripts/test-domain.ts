@@ -4,9 +4,20 @@ import { test, describe } from 'node:test';
 import {
   resolveDateIntent,
   resolveTimeIntent,
+  addDaysToIsoDate,
 } from '../src/lib/dateResolver.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
+import {
+  hasDateEvidence,
+  hasTimeEvidence,
+  sanitizeTemporalIntents,
+} from '../supabase/functions/ai-interpret/validation.ts';
+import { validateEncounterDate, isFuture } from '../src/lib/formatDate.ts';
+import {
+  getArgentinaTodayISO,
+  isArgentinaDateTimeInFuture,
+} from '../src/lib/argentinaDateTime.ts';
 import {
   createEmptyEncounterDraft,
   createDefaultInvitationConfig,
@@ -296,6 +307,31 @@ describe('Domain Logic Tests: Ajuste 4 Response Visibility & DTO Translation', (
     assert.equal(dto.tema_invitacion, 'sports');
     assert.equal(dto.host_id, meta.hostId);
     assert.equal(dto.post_event_active_minutes, 60);
+  });
+
+  test('Audit: pendingDayRollover is strictly internal metadata and NEVER leaks into CreateEncuentroDTO or WizardState', () => {
+    const draft = createEmptyEncounterDraft();
+    draft.title = 'Cena medianoche';
+    draft.date = '2026-09-12';
+    draft.time = '00:00';
+    draft.modality = 'presencial';
+    draft.locationText = 'Casa';
+    draft.pendingDayRollover = true;
+
+    const config = createDefaultInvitationConfig();
+    const meta = {
+      hostId: 'usr-123',
+      replacesEncounterId: null,
+      postEventActiveMinutes: 60,
+    };
+
+    const dto = translateToCreateEncuentroDTO(draft, config, meta);
+    assert.equal('pendingDayRollover' in dto, false, 'pendingDayRollover must NOT exist in CreateEncuentroDTO');
+    assert.equal(dto.fecha, '2026-09-12');
+    assert.equal(dto.hora, '00:00');
+
+    const wizardState = draftToWizardState(draft, config);
+    assert.equal('pendingDayRollover' in wizardState, false, 'pendingDayRollover must NOT exist in WizardState');
   });
 
   test('translates EncounterDraft to manual WizardState without losing data', () => {
@@ -744,6 +780,349 @@ describe('Domain Logic Tests: Virtual vs Generic URLs & Mandatory Cases A-E', ()
     assert.notEqual(merged.draft.modality, 'virtual');
     assert.equal(merged.draft.modality, 'presencial');
     assert.equal(merged.draft.virtualLink, null);
+  });
+});
+
+// =============================================================================
+// SUITE: CREAR CON IA: TEMPORAL SEMANTICS & STALE STATE PREVENTION (CASES A TO N)
+// =============================================================================
+describe('Crear con IA: Temporal Semantics & Stale State Prevention (Cases A to N)', () => {
+  test('Case A: New session starts clean without previous encounter draft state', () => {
+    const store = useAiWizardStore.getState();
+    store.updateDraftField('title', 'Cena previa');
+    store.updateDraftField('time', '21:00');
+    store.updateDraftField('date', '2026-09-08');
+    store.updateDraftField('modality', 'presencial');
+    store.updateDraftField('locationText', 'Bar');
+    assert.equal(useAiWizardStore.getState().draft.time, '21:00');
+
+    // Starting new session resets all fields cleanly
+    store.startNewAiCreation();
+
+    const freshState = useAiWizardStore.getState();
+    assert.equal(freshState.draft.title, null);
+    assert.equal(freshState.draft.time, null);
+    assert.equal(freshState.draft.date, null);
+    assert.equal(freshState.draft.modality, null);
+    assert.equal(freshState.draft.locationText, null);
+    assert.equal(freshState.messages.length, 0);
+    assert.equal(freshState.turns, 0);
+    assert.equal(freshState.isComplete, false);
+  });
+
+  test('Case B: Page refresh preserves structured draft while messages is empty', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena familia',
+        date: '2026-09-09',
+        time: '00:00',
+        modality: 'presencial',
+      },
+      messages: [],
+      lastQuestion: null,
+      isComplete: false,
+    });
+    assert.equal(useAiWizardStore.getState().messages.length, 0);
+
+    // Simulate re-entry after refresh (F5 calls initSession)
+    useAiWizardStore.getState().initSession();
+
+    const currentState = useAiWizardStore.getState();
+    assert.equal(currentState.draft.title, 'Cena familia');
+    assert.equal(currentState.draft.date, '2026-09-09');
+    assert.equal(currentState.draft.time, '00:00');
+    assert.equal(currentState.draft.modality, 'presencial');
+    assert.equal(currentState.messages.length, 0);
+    assert.ok(currentState.lastQuestion !== null);
+    assert.equal(currentState.lastQuestion?.field, 'locationText');
+  });
+
+  test('Case C: hasTimeEvidence("Cena familia hoy 24 horas") is true', () => {
+    assert.equal(hasTimeEvidence('Cena familia hoy 24 horas'), true);
+  });
+
+  test('Case D: hasTimeEvidence("hoy a medianoche") is true', () => {
+    assert.equal(hasTimeEvidence('hoy a medianoche'), true);
+  });
+
+  test('Case E: hasTimeEvidence("24 personas") is false', () => {
+    assert.equal(hasTimeEvidence('24 personas'), false);
+  });
+
+  test('Case F: hasTimeEvidence("durante 24 horas") is false', () => {
+    assert.equal(hasTimeEvidence('durante 24 horas'), false);
+  });
+
+  test('Case G: "hoy 24 horas" resolves to tomorrow and time 00:00', () => {
+    const patch = {
+      title: { value: 'Cena familia', confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    };
+
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+    const merged = mergeDraftPatch(draft, config, patch);
+
+    const todayIso = getArgentinaTodayISO();
+    const tomorrowIso = addDaysToIsoDate(todayIso, 1);
+
+    assert.equal(merged.draft.time, '00:00');
+    assert.equal(merged.draft.date, tomorrowIso);
+  });
+
+  test('Case H: "hoy 24:00" resolves to tomorrow and time 00:00', () => {
+    const patch = {
+      title: { value: 'Cena familia', confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    };
+
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+    const merged = mergeDraftPatch(draft, config, patch);
+
+    const todayIso = getArgentinaTodayISO();
+    const tomorrowIso = addDaysToIsoDate(todayIso, 1);
+
+    assert.equal(merged.draft.time, '00:00');
+    assert.equal(merged.draft.date, tomorrowIso);
+  });
+
+  test('Case I: "viernes a las 24" rolls over to Saturday and time 00:00', () => {
+    const baseDate = { year: 2026, month: 9, day: 7 }; // Monday Sep 7, 2026
+    const dateRes = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }, baseDate);
+    assert.equal(dateRes.date, '2026-09-11'); // Friday
+
+    const draft = createEmptyEncounterDraft();
+    draft.date = dateRes.date;
+    const config = createDefaultInvitationConfig();
+
+    const merged = mergeDraftPatch(draft, config, {
+      timeIntent: { value: { type: 'exact', hour: 24, minute: 0 }, confidence: 'explicit' },
+    });
+
+    assert.equal(merged.draft.time, '00:00');
+    assert.equal(merged.draft.date, '2026-09-12'); // Saturday
+  });
+
+  test('Case J: "mañana a las 00:00" remains on tomorrow date without extra dayOffset', () => {
+    const baseDate = { year: 2026, month: 9, day: 7 }; // Monday Sep 7, 2026
+    const dateRes = resolveDateIntent({ type: 'relative', value: 'tomorrow' }, baseDate);
+    assert.equal(dateRes.date, '2026-09-08');
+
+    const draft = createEmptyEncounterDraft();
+    draft.date = dateRes.date;
+    const config = createDefaultInvitationConfig();
+
+    const merged = mergeDraftPatch(draft, config, {
+      timeIntent: { value: { type: 'exact', hour: 0, minute: 0 }, confidence: 'explicit' },
+    });
+
+    assert.equal(merged.draft.time, '00:00');
+    assert.equal(merged.draft.date, '2026-09-08');
+  });
+
+  test('Case K: 24:30 is invalid and rejected with ambiguity reason', () => {
+    const timeRes = resolveTimeIntent({ type: 'exact', hour: 24, minute: 30 });
+    assert.equal(timeRes.resolved, false);
+    assert.equal(timeRes.time, null);
+    assert.ok(timeRes.ambiguityReason?.includes('Hora inválida: 24:30'));
+  });
+
+  test('Case L: event at tomorrow 00:00 is strictly in future when now is 23:10', () => {
+    const today = getArgentinaTodayISO();
+    const tomorrow = addDaysToIsoDate(today, 1);
+    assert.equal(validateEncounterDate(tomorrow, '00:00'), null);
+    assert.equal(isFuture(tomorrow, '00:00'), true);
+  });
+
+  test('Case M: Same conversation turn 1 with 21:00 preserves time on turn 2 location update', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1
+    const turn1 = mergeDraftPatch(draft, config, {
+      title: { value: 'Cena amigos', confidence: 'explicit' },
+      timeIntent: { value: { type: 'exact', hour: 21, minute: 0 }, confidence: 'explicit' },
+    });
+    assert.equal(turn1.draft.time, '21:00');
+
+    // Turn 2: User says "Casa"
+    const turn2 = mergeDraftPatch(turn1.draft, turn1.config, {
+      locationText: { value: 'Casa', confidence: 'explicit' },
+    });
+    assert.equal(turn2.draft.time, '21:00');
+    assert.equal(turn2.draft.locationText, 'Casa');
+    assert.equal(turn2.draft.modality, 'presencial');
+  });
+
+  test('Case N: New session after previous 21:00 never retains or reveals 21:00', () => {
+    const store = useAiWizardStore.getState();
+    store.updateDraftField('title', 'Cena previa');
+    store.updateDraftField('time', '21:00');
+    store.updateDraftField('date', '2026-09-08');
+
+    // Starting new session from Home
+    store.startNewAiCreation();
+    assert.equal(useAiWizardStore.getState().draft.time, null);
+
+    // Turn 1: "Cena familia hoy 24 horas"
+    const turn1Patch = {
+      title: { value: 'Cena familia', confidence: 'explicit' as const },
+      modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+      dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    };
+    const turn1 = mergeDraftPatch(
+      useAiWizardStore.getState().draft,
+      useAiWizardStore.getState().config,
+      turn1Patch
+    );
+    useAiWizardStore.setState({ draft: turn1.draft, config: turn1.config });
+
+    assert.equal(useAiWizardStore.getState().draft.time, '00:00');
+    assert.notEqual(useAiWizardStore.getState().draft.time, '21:00');
+
+    // Turn 2: User says "Casa"
+    const turn2Patch = {
+      locationText: { value: 'Casa', confidence: 'explicit' as const },
+    };
+    const turn2 = mergeDraftPatch(
+      useAiWizardStore.getState().draft,
+      useAiWizardStore.getState().config,
+      turn2Patch
+    );
+    useAiWizardStore.setState({ draft: turn2.draft, config: turn2.config });
+
+    assert.equal(useAiWizardStore.getState().draft.locationText, 'Casa');
+    assert.equal(useAiWizardStore.getState().draft.time, '00:00');
+    assert.notEqual(useAiWizardStore.getState().draft.time, '21:00');
+  });
+
+  test('Case O: Multi-turn Turn 1 "Cena a las 24" + Turn 2 "viernes" rolls over to sábado 00:00', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "Cena a las 24" (no date provided yet)
+    const turn1Patch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    };
+    const turn1Result = mergeDraftPatch(draft, config, turn1Patch);
+    assert.equal(turn1Result.draft.time, '00:00');
+    assert.equal(turn1Result.draft.date, null);
+    assert.equal(turn1Result.draft.pendingDayRollover, true);
+
+    // Turn 2: "viernes"
+    const turn2Patch = {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'inferred_high' as const },
+    };
+    const turn2Result = mergeDraftPatch(turn1Result.draft, turn1Result.config, turn2Patch);
+    assert.equal(turn2Result.draft.time, '00:00');
+    const expectedFriday = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+    const expectedSaturday = addDaysToIsoDate(expectedFriday, 1);
+    assert.equal(turn2Result.draft.date, expectedSaturday);
+    assert.equal(turn2Result.draft.pendingDayRollover, false);
+  });
+
+  test('Case P: Multi-turn Turn 1 "Cena a medianoche" + Turn 2 "viernes" rolls over to sábado 00:00', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "Cena a medianoche"
+    const turn1Patch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 0, minute: 0, description: 'medianoche' }, confidence: 'explicit' as const },
+    };
+    const turn1Result = mergeDraftPatch(draft, config, turn1Patch);
+    assert.equal(turn1Result.draft.time, '00:00');
+    assert.equal(turn1Result.draft.date, null);
+    assert.equal(turn1Result.draft.pendingDayRollover, true);
+
+    // Turn 2: "viernes"
+    const turn2Patch = {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'inferred_high' as const },
+    };
+    const turn2Result = mergeDraftPatch(turn1Result.draft, turn1Result.config, turn2Patch);
+    assert.equal(turn2Result.draft.time, '00:00');
+    const expectedFriday = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+    const expectedSaturday = addDaysToIsoDate(expectedFriday, 1);
+    assert.equal(turn2Result.draft.date, expectedSaturday);
+    assert.equal(turn2Result.draft.pendingDayRollover, false);
+  });
+
+  test('Case Q: Multi-turn Turn 1 "Cena a las 00:00" + Turn 2 "viernes" does NOT add a day (viernes 00:00)', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "Cena a las 00:00" (explicit 00:00 start of day, not 24:00 end of day)
+    const turn1Patch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 0, minute: 0 }, confidence: 'explicit' as const },
+    };
+    const turn1Result = mergeDraftPatch(draft, config, turn1Patch);
+    assert.equal(turn1Result.draft.time, '00:00');
+    assert.equal(turn1Result.draft.date, null);
+    assert.equal(turn1Result.draft.pendingDayRollover, false);
+
+    // Turn 2: "viernes"
+    const turn2Patch = {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'inferred_high' as const },
+    };
+    const turn2Result = mergeDraftPatch(turn1Result.draft, turn1Result.config, turn2Patch);
+    assert.equal(turn2Result.draft.time, '00:00');
+    const expectedFriday = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+    assert.equal(turn2Result.draft.date, expectedFriday); // Friday, NOT Saturday
+    assert.equal(turn2Result.draft.pendingDayRollover, false);
+  });
+
+  test('Case R: "Cena a las 12" is ambiguous and does not automatically infer 00:00 nor 12:00', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Model emits timeIntent with confidence "ambiguous" for "Cena a las 12"
+    const ambiguousPatch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 12, minute: 0 },
+        confidence: 'ambiguous' as const,
+      },
+    };
+
+    const res = mergeDraftPatch(draft, config, ambiguousPatch);
+    assert.equal(res.draft.time, null, 'draft.time must remain null when time is ambiguous');
+    assert.equal(res.ambiguities.length, 1);
+    assert.equal(res.ambiguities[0].field, 'time');
+    assert.ok(res.ambiguities[0].reason.includes('12'));
+
+    // Control 1: "esta noche a las 12" -> midnight rollover to 00:00
+    const nochePatch = {
+      title: { value: 'Encuentro', confidence: 'explicit' as const },
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 24, minute: 0 },
+        confidence: 'explicit' as const,
+      },
+    };
+    const nocheRes = mergeDraftPatch(draft, config, nochePatch);
+    assert.equal(nocheRes.draft.time, '00:00');
+    assert.equal(nocheRes.draft.pendingDayRollover, true);
+
+    // Control 2: "almuerzo a las 12" -> midday 12:00
+    const almuerzoPatch = {
+      title: { value: 'Almuerzo', confidence: 'explicit' as const },
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 12, minute: 0 },
+        confidence: 'inferred_high' as const,
+      },
+    };
+    const almuerzoRes = mergeDraftPatch(draft, config, almuerzoPatch);
+    assert.equal(almuerzoRes.draft.time, '12:00');
+    assert.equal(almuerzoRes.draft.pendingDayRollover, false);
   });
 });
 

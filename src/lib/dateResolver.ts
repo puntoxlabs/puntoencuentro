@@ -21,6 +21,7 @@ export interface TimeResolutionResult {
   confidence: FieldConfidence;
   ambiguousOptions?: string[];
   ambiguityReason?: string;
+  dayOffset?: number; // 0 or 1 for end-of-day rollover (e.g. 24:00 / medianoche fin de día)
 }
 
 const WEEKDAY_NAMES_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -35,12 +36,19 @@ function normalizeWeekday(name: string): number {
   return index; // 0 for domingo, 1 for lunes, etc.
 }
 
-function pad(n: number): string {
+export function pad(n: number): string {
   return n.toString().padStart(2, '0');
 }
 
-function toIsoDate(year: number, month: number, day: number): string {
+export function toIsoDate(year: number, month: number, day: number): string {
   return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return toIsoDate(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
 }
 
 /**
@@ -259,6 +267,23 @@ export function resolveTimeIntent(intent: TimeIntent): TimeResolutionResult {
   switch (intent.type) {
     case 'exact':
     case 'approximate': {
+      if (intent.hour === 24) {
+        if (intent.minute === 0) {
+          return {
+            resolved: true,
+            time: '00:00',
+            confidence: intent.type === 'exact' ? 'explicit' : 'inferred_high',
+            dayOffset: 1,
+          };
+        }
+        return {
+          resolved: false,
+          time: null,
+          confidence: 'ambiguous',
+          ambiguityReason: `Hora inválida: 24:${pad(intent.minute)}. Las 24 sólo admite 00 minutos (medianoche).`,
+        };
+      }
+
       if (
         intent.hour < 0 ||
         intent.hour > 23 ||
@@ -273,11 +298,19 @@ export function resolveTimeIntent(intent: TimeIntent): TimeResolutionResult {
         };
       }
 
+      const dayOffset =
+        intent.hour === 0 &&
+        intent.minute === 0 &&
+        Boolean(intent.description && /media\s*noche|fin\s+de\s+d[ií]a/i.test(intent.description))
+          ? 1
+          : 0;
+
       const cleanTime = `${pad(intent.hour)}:${pad(intent.minute)}`;
       return {
         resolved: true,
         time: cleanTime,
         confidence: intent.type === 'exact' ? 'explicit' : 'inferred_high',
+        dayOffset,
       };
     }
 

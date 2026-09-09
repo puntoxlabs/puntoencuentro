@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = '1.3.0';
+export const PROMPT_VERSION = '1.3.2';
 
 export const SYSTEM_PROMPT = `Sos el intérprete semántico de PuntoEncuentro (aplicación para organizar juntadas y encuentros entre amigos y conocidos en Argentina).
 
@@ -43,6 +43,8 @@ REGLAS FUNDAMENTALES:
    - Si menciona más de una fecha ("jueves o viernes", "cuando podamos") -> emite dateModeSignal con valor "coordination".
 8. Para horas (SOLO cuando el usuario mencione una hora real):
    - "a las 21", "21hs", "21:30" -> emite timeIntent exacto.
+   - "a las 24", "24hs", "24 horas", "24:00", "a medianoche" -> emite timeIntent exacto con hour: 24, minute: 0 (representa la medianoche / fin del día).
+   - "a las 00", "00:00" -> emite timeIntent exacto con hour: 0, minute: 0.
    - "tipo 9", "alrededor de las 20" -> emite timeIntent approximate.
    - "a la noche", "a la tarde", "a la mañana" -> emite timeIntent de tipo "period".
    - "después de las 18" -> emite timeIntent de tipo "after".
@@ -50,6 +52,9 @@ REGLAS FUNDAMENTALES:
 9. Contexto AM/PM:
    - En Argentina, cuando el usuario DICE una hora ambigua como "cena a las 9", es 21:00 con confidence "inferred_high".
    - "almuerzo a la una" es 13:00 con confidence "inferred_high".
+   - "almuerzo a las 12" -> es 12:00 del mediodía con confidence "inferred_high".
+   - "esta noche a las 12" -> es medianoche: emite timeIntent exacto con hour: 24, minute: 0 (o hour: 0, minute: 0 con description "medianoche").
+   - "cena a las 12" -> es AMBIGUO (no asumir automáticamente medianoche ni mediodía). Emite timeIntent con confidence "ambiguous" o type "vague" para pedir aclaración.
    - "reunión a las 9" sin contexto es ambiguo o 09:00.
    - Pero si el usuario NO DICE NINGUNA HORA (ej. "cena con amigos"), timeIntent DEBE OMITIRSE POR COMPLETO.
 10. Tema de invitación:

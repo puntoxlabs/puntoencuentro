@@ -1,6 +1,6 @@
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
-import { resolveDateIntent, resolveTimeIntent } from '@/lib/dateResolver';
+import { resolveDateIntent, resolveTimeIntent, addDaysToIsoDate } from '@/lib/dateResolver';
 import { isInvitationTheme, type InvitationTheme } from '@/lib/invitationThemes';
 
 export interface MergeResult {
@@ -145,6 +145,12 @@ export function mergeDraftPatch(
     const dateRes = resolveDateIntent(patch.dateIntent.value);
     if (dateRes.resolved && dateRes.date) {
       draft.date = dateRes.date;
+      // If there is a pending end-of-day rollover from an earlier turn without a date,
+      // and this patch does NOT specify a new timeIntent, apply the rollover now:
+      if (!patch.timeIntent?.value && draft.pendingDayRollover) {
+        draft.date = addDaysToIsoDate(draft.date, 1);
+        draft.pendingDayRollover = false;
+      }
     } else {
       if (dateRes.isPast) {
         pastDateDetected = true;
@@ -161,15 +167,37 @@ export function mergeDraftPatch(
 
   // 6. Time Intent Resolution
   if (patch.timeIntent?.value) {
-    const timeRes = resolveTimeIntent(patch.timeIntent.value);
-    if (timeRes.resolved && timeRes.time) {
-      draft.time = timeRes.time;
-    } else if (timeRes.ambiguityReason) {
+    if (patch.timeIntent.confidence === 'ambiguous') {
+      const desc =
+        patch.timeIntent.value.type === 'vague' && patch.timeIntent.value.description
+          ? patch.timeIntent.value.description
+          : 'Mencionaste las 12. ¿Te referís al mediodía (12:00) o a la medianoche (00:00)?';
       ambiguities.push({
         field: 'time',
-        reason: timeRes.ambiguityReason,
-        options: timeRes.ambiguousOptions,
+        reason: desc,
+        options: ['12:00', '00:00'],
       });
+    } else {
+      const timeRes = resolveTimeIntent(patch.timeIntent.value);
+      if (timeRes.resolved && timeRes.time) {
+        draft.time = timeRes.time;
+        if (timeRes.dayOffset) {
+          if (draft.date) {
+            draft.date = addDaysToIsoDate(draft.date, timeRes.dayOffset);
+            draft.pendingDayRollover = false;
+          } else {
+            draft.pendingDayRollover = true;
+          }
+        } else {
+          draft.pendingDayRollover = false;
+        }
+      } else if (timeRes.ambiguityReason) {
+        ambiguities.push({
+          field: 'time',
+          reason: timeRes.ambiguityReason,
+          options: timeRes.ambiguousOptions,
+        });
+      }
     }
   }
 

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { createEmptyEncounterDraft, createDefaultInvitationConfig } from '@/lib/encounterDraft';
 import { mergeDraftPatch } from '@/lib/draftMerger';
+import { addDaysToIsoDate } from '@/lib/dateResolver';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
 import { aiService } from '@/services/aiService';
 
@@ -46,6 +47,7 @@ interface AiWizardState {
   updateConfigField: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
   dismissCoordinationHandoff: () => void;
   markFallbackManual: () => void;
+  startNewAiCreation: () => void;
   reset: () => void;
 }
 
@@ -88,8 +90,8 @@ export const useAiWizardStore = create<AiWizardState>()(
       isComplete: false,
 
       initSession: () => {
-        const currentSession = get().sessionId;
-        if (!currentSession) {
+        const state = get();
+        if (!state.sessionId) {
           const newSession = generateUuid();
           set({
             sessionId: newSession,
@@ -114,6 +116,28 @@ export const useAiWizardStore = create<AiWizardState>()(
             fallbackFailureType: null,
           });
           aiService.startSession(newSession);
+          return;
+        }
+
+        // Re-entry / F5 scenario:
+        // If draft has data and lastQuestion is missing (e.g. after page refresh),
+        // reconstruct evaluation, nextQuestion, and isComplete so the user can continue seamlessly.
+        const hasDraftData = Boolean(
+          state.draft.title ||
+          state.draft.date ||
+          state.draft.time ||
+          state.draft.modality ||
+          state.draft.locationText ||
+          state.draft.virtualLink
+        );
+
+        if (hasDraftData && !state.lastQuestion && !state.isComplete) {
+          const evaluation = evaluateDraft(state.draft, state.coordinationDetected);
+          set({
+            lastQuestion: evaluation.nextQuestion,
+            isComplete: evaluation.isComplete,
+            error: evaluation.validationError,
+          });
         }
       },
 
@@ -219,7 +243,17 @@ export const useAiWizardStore = create<AiWizardState>()(
 
       updateDraftField: (field, value) => {
         const state = get();
-        const newDraft = { ...state.draft, [field]: value };
+        let resolvedValue = value;
+        let pendingRollover = state.draft.pendingDayRollover;
+
+        if (field === 'date' && pendingRollover && typeof value === 'string' && value) {
+          resolvedValue = addDaysToIsoDate(value, 1) as any;
+          pendingRollover = false;
+        } else if (field === 'time') {
+          pendingRollover = false;
+        }
+
+        const newDraft = { ...state.draft, [field]: resolvedValue, pendingDayRollover: pendingRollover };
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         // If this update resolved the currently active question, advance the conversation
@@ -270,7 +304,17 @@ export const useAiWizardStore = create<AiWizardState>()(
           timestamp: Date.now(),
         };
 
-        const newDraft = { ...state.draft, [field]: value };
+        let resolvedValue = value;
+        let pendingRollover = state.draft.pendingDayRollover;
+
+        if (field === 'date' && pendingRollover && typeof value === 'string' && value) {
+          resolvedValue = addDaysToIsoDate(value, 1) as any;
+          pendingRollover = false;
+        } else if (field === 'time') {
+          pendingRollover = false;
+        }
+
+        const newDraft = { ...state.draft, [field]: resolvedValue, pendingDayRollover: pendingRollover };
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         let assistantReply = '';
@@ -374,6 +418,10 @@ export const useAiWizardStore = create<AiWizardState>()(
             fallbackFailureType: state.fallbackFailureType || undefined,
           },
         });
+      },
+
+      startNewAiCreation: () => {
+        get().reset();
       },
 
       reset: () => {

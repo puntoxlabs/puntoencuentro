@@ -59,6 +59,15 @@ export const CreateAIWizard: React.FC = () => {
     reset,
   } = useAiWizardStore();
 
+  const hasDraftData = Boolean(
+    draft.title ||
+    draft.date ||
+    draft.time ||
+    draft.modality ||
+    draft.locationText ||
+    draft.virtualLink
+  );
+
   useEffect(() => {
     initSession();
   }, [initSession]);
@@ -311,7 +320,7 @@ export const CreateAIWizard: React.FC = () => {
         }}
       >
         {/* Welcome / Empty State */}
-        {messages.length === 0 && (
+        {messages.length === 0 && !hasDraftData && (
           <div style={{ textAlign: 'center', margin: 'auto 0', padding: '24px 16px' }}>
             <div
               style={{
