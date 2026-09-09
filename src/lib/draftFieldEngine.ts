@@ -1,5 +1,6 @@
 import type { EncounterDraft } from '@/lib/encounterDraft';
 import { validateEncounterDate } from '@/lib/formatDate';
+import { isValidVirtualLink } from '@/lib/draftMerger';
 
 export interface FieldQuestion {
   field: 'title' | 'date' | 'time' | 'modality' | 'locationText' | 'virtualLink' | 'coordination_handoff' | 'theme' | 'template';
@@ -173,7 +174,7 @@ export function evaluateDraft(
     };
   }
 
-  if (draft.modality === 'virtual' && (!draft.virtualLink || !draft.virtualLink.trim())) {
+  if (draft.modality === 'virtual' && (!draft.virtualLink || !draft.virtualLink.trim() || !isValidVirtualLink(draft.virtualLink))) {
     missingFields.push('virtualLink');
     return {
       isComplete: false,
@@ -184,7 +185,9 @@ export function evaluateDraft(
         helperText: 'Pegá el link de Google Meet, Zoom, Teams, etc.',
         type: 'text',
       },
-      validationError: null,
+      validationError: draft.virtualLink && !isValidVirtualLink(draft.virtualLink)
+        ? 'El enlace no parece válido. Pegá el enlace completo de la videollamada.'
+        : null,
     };
   }
 

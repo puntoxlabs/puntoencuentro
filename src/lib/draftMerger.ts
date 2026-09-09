@@ -74,6 +74,58 @@ export function isRecognizedVirtualPlatform(linkOrText: string): boolean {
 }
 
 /**
+ * Normalizes a virtual meeting URL by trimming and prepending https:// if protocol is omitted.
+ */
+export function normalizeVirtualLink(input: string): string {
+  let trimmed = input.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Validates whether an input represents a valid virtual videocall link.
+ *
+ * Requirements:
+ * - Valid HTTP or HTTPS scheme (or normalizable to https)
+ * - No whitespace
+ * - No invalid/unbalanced structural characters (e.g. unencoded parentheses, curly braces, quotes)
+ * - Hostname with valid domain structure and TLD
+ * - Explicitly rejects Google Maps / physical location URLs
+ */
+export function isValidVirtualLink(input: string): boolean {
+  if (!input || typeof input !== 'string') return false;
+  const trimmed = input.trim();
+  if (!trimmed) return false;
+  if (/\s/.test(trimmed)) return false;
+  if (/[()<>{}\\"^`|]/.test(trimmed)) return false;
+
+  let normalized = trimmed;
+  if (!/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//i.test(normalized)) {
+    normalized = `https://${normalized}`;
+  }
+  if (!/^https?:\/\//i.test(normalized)) return false;
+
+  try {
+    const url = new URL(normalized);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const hostname = url.hostname;
+    if (!hostname || !hostname.includes('.')) return false;
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/.test(hostname)) {
+      return false;
+    }
+    const parts = hostname.split('.');
+    const tld = parts[parts.length - 1];
+    if (!tld || tld.length < 2 || !/^[a-zA-Z]+$/.test(tld)) return false;
+    if (/maps\.google\.|goo\.gl\/maps|maps\.app\.goo\.gl/i.test(normalized)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Merges an EncounterDraftPatch into the current EncounterDraft deterministically.
  *
  * Rules:
@@ -126,11 +178,16 @@ export function mergeDraftPatch(
   // 4. Modality, Location & Virtual Link
   if (patch.modality?.value) {
     draft.modality = patch.modality.value;
+    if (patch.modality.value === 'presencial') {
+      draft.virtualLink = null;
+    } else if (patch.modality.value === 'virtual') {
+      draft.locationText = null;
+    }
   }
 
   if (patch.locationText?.value && patch.locationText.value.trim()) {
     draft.locationText = patch.locationText.value.trim();
-    // Contextual inference: physical place provided -> presencial
+    // Contextual inference: physical place provided -> presencial if modality not set
     if (!draft.modality) {
       draft.modality = 'presencial';
     }
@@ -138,20 +195,36 @@ export function mergeDraftPatch(
 
   if (patch.virtualLink?.value && patch.virtualLink.value.trim()) {
     const rawLink = patch.virtualLink.value.trim();
-    if (isRecognizedVirtualPlatform(rawLink)) {
-      draft.virtualLink = rawLink;
-      // Real virtual link overrides any implicit modality
-      draft.modality = 'virtual';
-    } else {
-      // Non-virtual URL passed as virtualLink (e.g. restaurant website, ticket link, Google Maps)
-      // Do NOT set draft.virtualLink, and do NOT allow it to force modality to virtual
-      const isMaps = /maps\.google\.|goo\.gl\/maps|maps\.app\.goo\.gl/i.test(rawLink);
-      if (isMaps && !draft.locationText) {
+    const isMaps = /maps\.google\.|goo\.gl\/maps|maps\.app\.goo\.gl/i.test(rawLink);
+
+    if (isMaps) {
+      if (!draft.locationText) {
         draft.locationText = rawLink;
       }
-      // If modality was marked virtual solely due to a non-virtual URL, correct it
-      if (draft.modality === 'virtual' && patch.modality?.value === 'virtual') {
-        draft.modality = isMaps || draft.locationText ? 'presencial' : null;
+      if (!currentDraft.modality && draft.modality === 'virtual') {
+        draft.modality = 'presencial';
+      }
+    } else {
+      const isVirtualUrl = isValidVirtualLink(rawLink);
+      const isPlatformKeyword = isRecognizedVirtualPlatform(rawLink);
+      const isModalityConfirmedVirtual = currentDraft.modality === 'virtual' || patch.modality?.value === 'virtual';
+
+      if (isVirtualUrl && (isModalityConfirmedVirtual || isPlatformKeyword)) {
+        // Exclusively valid navigable URLs can populate draft.virtualLink
+        draft.virtualLink = normalizeVirtualLink(rawLink);
+        draft.modality = 'virtual';
+      } else if (isPlatformKeyword) {
+        // Platform keywords ("Zoom", "Google Meet", "Teams") indicate virtual modality,
+        // but DO NOT complete virtualLink because they are not navigable URLs.
+        draft.modality = 'virtual';
+        draft.virtualLink = null;
+      } else {
+        // Non-virtual URL (e.g. restaurant website, ticket link) or invalid URL
+        // Do NOT set draft.virtualLink.
+        // Modality must NEVER be wiped if it was already confirmed/set!
+        if (!currentDraft.modality && draft.modality === 'virtual' && patch.modality?.value === 'virtual') {
+          draft.modality = draft.locationText ? 'presencial' : null;
+        }
       }
     }
   }

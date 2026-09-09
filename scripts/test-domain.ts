@@ -11,7 +11,7 @@ import {
   resolveTimeIntent,
   addDaysToIsoDate,
 } from '../src/lib/dateResolver.ts';
-import { mergeDraftPatch, isRecognizedVirtualPlatform } from '../src/lib/draftMerger.ts';
+import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
 import {
   hasDateEvidence,
@@ -2784,6 +2784,754 @@ describe('UX Mobile: Timeline Continuity, Compact Collapsible Summary & Smart Au
       assert.equal(updated.config.invitationTheme, 'sports');
       assert.equal(updated.config.invitationTemplate, 'sports_match');
       assert.equal(providerCalls, 0, 'Theme/variant updates must consume zero tokens');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Production Fix: Virtual Modality Persistence, Link Validation & Anti-Loop (Cases A-J & QA Real Case)', () => {
+  test('Section 7: Link validation and normalization handles valid URLs and rejects invalid/maps links', () => {
+    // Valid URLs
+    assert.equal(isValidVirtualLink('https://meet.google.com/abc-defg-hij'), true);
+    assert.equal(isValidVirtualLink('https://zoom.us/j/123456789'), true);
+    assert.equal(isValidVirtualLink('https://teams.microsoft.com/l/meetup-join/123'), true);
+    assert.equal(isValidVirtualLink('https://example.com/reunion'), true);
+    assert.equal(isValidVirtualLink('http://meet.jit.si/my-room'), true);
+
+    // Normalization with scheme omission
+    assert.equal(isValidVirtualLink('meet.google.com/abc-defg-hij'), true);
+    assert.equal(isValidVirtualLink('zoom.us/j/123'), true);
+    assert.equal(normalizeVirtualLink('meet.google.com/abc-defg-hij'), 'https://meet.google.com/abc-defg-hij');
+    assert.equal(normalizeVirtualLink('zoom.us/j/123'), 'https://zoom.us/j/123');
+
+    // Platform keywords are NOT valid URLs for virtualLink
+    assert.equal(isValidVirtualLink('Zoom'), false);
+    assert.equal(isValidVirtualLink('Google Meet'), false);
+    assert.equal(isValidVirtualLink('Teams'), false);
+
+    // Invalid URLs, maps, and non-URLs
+    assert.equal(isValidVirtualLink('Http://meet.com/$373+28(22'), false);
+    assert.equal(isValidVirtualLink('https://maps.google.com/?q=bar'), false);
+    assert.equal(isValidVirtualLink('https://goo.gl/maps/xyz123'), false);
+    assert.equal(isValidVirtualLink('abc'), false);
+    assert.equal(isValidVirtualLink('no sé'), false);
+    assert.equal(isValidVirtualLink('después te lo paso'), false);
+    assert.equal(isValidVirtualLink('javascript:alert(1)'), false);
+  });
+
+  test('Case A: modality null -> seleccionar Virtual -> modality=virtual -> nextMissingField=virtualLink', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: null,
+      },
+      lastQuestion: {
+        field: 'modality',
+        question: '¿Va a ser presencial o virtual?',
+        type: 'choice',
+        quickOptions: [
+          { label: '🏠 Presencial', value: 'presencial' },
+          { label: '💻 Virtual', value: 'virtual' },
+        ],
+      },
+      isComplete: false,
+    });
+
+    useAiWizardStore.getState().applyQuickOption('modality', 'virtual', '💻 Virtual');
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.modality, 'virtual');
+    assert.equal(state.draft.virtualLink, null);
+    assert.equal(state.lastQuestion?.field, 'virtualLink');
+    assert.equal(state.lastQuestion?.question, '¿Cuál es el enlace de la videollamada?');
+
+    const evalResult = evaluateDraft(state.draft);
+    assert.equal(evalResult.missingFields.includes('modality'), false);
+    assert.deepEqual(evalResult.missingFields, ['virtualLink']);
+  });
+
+  test('Case B: modality=virtual -> virtualLink inválido -> modality sigue virtual -> nextMissingField=virtualLink -> mensaje específico', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Http://meet.com/$373+28(22');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(state.error, 'El enlace no parece válido. Pegá el enlace completo de la videollamada.');
+      assert.equal(providerCalls, 0, 'Invalid link must use deterministic bypass with zero provider calls');
+
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.equal(lastMsg.text, 'El enlace no parece válido. Pegá el enlace completo de la videollamada.');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case C: modality=virtual -> virtualLink válido -> no vuelve a preguntar modalidad ni link -> resumen listo', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('https://meet.google.com/abc-defg-hij');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, 'https://meet.google.com/abc-defg-hij');
+      assert.equal(state.isComplete, true);
+      assert.equal(state.lastQuestion, null);
+      assert.equal(providerCalls, 0, 'Valid link must use deterministic bypass');
+
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.equal(lastMsg.text, '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case D: modality=virtual -> input "abc" -> no off_topic -> modalidad intacta -> error específico link', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena virtual',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      consecutiveOffTopicCount: 0,
+      aiLocked: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('abc');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.consecutiveOffTopicCount, 0, 'Input abc when answering virtualLink must NOT trigger off-topic');
+      assert.equal(state.aiLocked, false);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(providerCalls, 0);
+
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.equal(lastMsg.text, 'El enlace no parece válido. Pegá el enlace completo de la videollamada.');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case E: modality=virtual -> "Mejor presencial" -> modality=presencial -> virtualLink deja de ser requerido', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena virtual',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Mejor que sea presencial');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'presencial');
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.lastQuestion?.field, 'locationText');
+      assert.equal(state.lastQuestion?.question, '¿Dónde va a ser?');
+      assert.equal(providerCalls, 0, 'Switch to presencial handled deterministically');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case F: modality=presencial -> "Mejor virtual" -> modality=virtual -> pide link si falta', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'presencial',
+        locationText: 'Bar Antares',
+      },
+      lastQuestion: null,
+      isComplete: true,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Mejor virtual');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.locationText, null);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(state.lastQuestion?.question, '¿Cuál es el enlace de la videollamada?');
+      assert.equal(state.isComplete, false);
+      assert.equal(providerCalls, 0);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case G: F5 después de seleccionar Virtual -> modality sigue virtual -> no repregunta modalidad', () => {
+    useAiWizardStore.getState().reset();
+    // Simulate rehydration from sessionStorage where user had selected Virtual
+    useAiWizardStore.setState({
+      sessionId: 'test-f5-session',
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena virtual',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: null,
+      isComplete: false,
+    });
+
+    // F5 triggers initSession
+    useAiWizardStore.getState().initSession();
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.modality, 'virtual');
+    assert.notEqual(state.lastQuestion?.field, 'modality', 'Must NOT ask for modality again after F5');
+    assert.equal(state.lastQuestion?.field, 'virtualLink', 'Must continue asking for virtualLink');
+  });
+
+  test('Case H: Virtual seleccionado por chip -> providerCalls=0 para selección', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: null,
+      },
+      lastQuestion: {
+        field: 'modality',
+        question: '¿Va a ser presencial o virtual?',
+        type: 'choice',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      useAiWizardStore.getState().applyQuickOption('modality', 'virtual', '💻 Virtual');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(providerCalls, 0, 'Selecting chip must never call provider');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case I: Link válido ingresado como respuesta a activeQuestion virtualLink -> providerCalls=0', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('https://zoom.us/j/987654321');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.virtualLink, 'https://zoom.us/j/987654321');
+      assert.equal(providerCalls, 0);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case J: Link inválido -> providerCalls=0 -> no mutación de campos ajenos', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena especial',
+        description: 'Una linda velada',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      config: {
+        invitationType: 'individual',
+        invitationTheme: 'party',
+        invitationTemplate: 'party_neon',
+        responseVisibility: 'detail',
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Http://meet.com/$373+28(22');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.title, 'Cena especial');
+      assert.equal(state.draft.description, 'Una linda velada');
+      assert.equal(state.draft.date, '2027-09-08');
+      assert.equal(state.draft.time, '21:00');
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.config.invitationTheme, 'party');
+      assert.equal(state.config.invitationTemplate, 'party_neon');
+      assert.equal(state.config.invitationType, 'individual');
+      assert.equal(state.config.responseVisibility, 'detail');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Section 16: Exact QA Production Sequence Reproduction', async () => {
+    useAiWizardStore.getState().reset();
+    // 1. Initial State: Title, Date, Time filled, Modality pending
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: null,
+        locationText: null,
+        virtualLink: null,
+      },
+      messages: [
+        { id: '1', role: 'assistant', text: '¿Va a ser presencial o virtual?', timestamp: 1 },
+      ],
+      lastQuestion: {
+        field: 'modality',
+        question: '¿Va a ser presencial o virtual?',
+        type: 'choice',
+        quickOptions: [
+          { label: '🏠 Presencial', value: 'presencial' },
+          { label: '💻 Virtual', value: 'virtual' },
+        ],
+      },
+      isComplete: false,
+    });
+
+    // 2. User answers "Virtual"
+    await useAiWizardStore.getState().sendUserMessage('Virtual');
+
+    let state = useAiWizardStore.getState();
+    assert.equal(state.draft.modality, 'virtual');
+    assert.equal(state.lastQuestion?.field, 'virtualLink');
+    assert.equal(state.lastQuestion?.question, '¿Cuál es el enlace de la videollamada?');
+
+    // 3. User inputs the invalid link from real QA: Http://meet.com/$373+28(22
+    await useAiWizardStore.getState().sendUserMessage('Http://meet.com/$373+28(22');
+
+    state = useAiWizardStore.getState();
+
+    // Verify expected outcome strictly:
+    // - modalidad sigue virtual
+    assert.equal(state.draft.modality, 'virtual');
+    // - NO aparece “¿Va a ser presencial o virtual?”
+    const lastAssistantMsg = state.messages.filter((m) => m.role === 'assistant').pop();
+    assert.notEqual(lastAssistantMsg?.text, '¿Va a ser presencial o virtual?');
+    // - aparece “El enlace no parece válido...”
+    assert.ok(lastAssistantMsg?.text.startsWith('El enlace no parece válido'), `Expected warning message, got: ${lastAssistantMsg?.text}`);
+    // - siguiente campo activo = virtualLink
+    assert.equal(state.lastQuestion?.field, 'virtualLink');
+    assert.equal(state.isComplete, false);
+  });
+});
+
+describe('QA Final Release Rule: virtualLink must be a valid navigable URL (Tests A to F)', () => {
+  test('Test A: "Zoom" no completa virtualLink (permanece null, modality=virtual, sigue pidiendo link)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Reunión de equipo',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Zoom');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null, 'virtualLink must remain null when user says Zoom');
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(state.lastQuestion?.question, '¿Cuál es el enlace de la videollamada?');
+      assert.equal(state.isComplete, false);
+      assert.equal(providerCalls, 0, 'Must not call LLM');
+
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.equal(lastMsg.text, '¿Cuál es el enlace de la videollamada?');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test B: "Google Meet" no completa virtualLink (permanece null, modality=virtual, sigue pidiendo link)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Reunión semanal',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Google Meet');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null, 'virtualLink must remain null when user says Google Meet');
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.equal(state.lastQuestion?.question, '¿Cuál es el enlace de la videollamada?');
+      assert.equal(state.isComplete, false);
+      assert.equal(providerCalls, 0, 'Must not call LLM');
+
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.equal(lastMsg.text, '¿Cuál es el enlace de la videollamada?');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test C: dominio sin protocolo válido se normaliza a https://', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Demo de producto',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('meet.google.com/abc-defg-hij');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.virtualLink, 'https://meet.google.com/abc-defg-hij');
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.isComplete, true);
+      assert.equal(providerCalls, 0);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test D: URL custom http/https válida completa virtualLink', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Reunión privada',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('https://video.custom-domain.org/room-42');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.virtualLink, 'https://video.custom-domain.org/room-42');
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.isComplete, true);
+      assert.equal(providerCalls, 0);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test E: link inválido mantiene modality virtual y sigue pidiendo virtualLink', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena virtual',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('javascript:void(0)');
+
+      let state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.ok(state.error?.includes('El enlace no parece válido'));
+
+      await useAiWizardStore.getState().sendUserMessage('Http://meet.com/$373+28(22');
+
+      state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+      assert.ok(state.error?.includes('El enlace no parece válido'));
+      assert.equal(providerCalls, 0);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test F: link válido completa el encuentro sin repreguntar modalidad', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cumpleaños Virtual',
+        date: '2027-09-08',
+        time: '21:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      messages: [
+        { id: '1', role: 'assistant', text: '¿Cuál es el enlace de la videollamada?', timestamp: 1 },
+      ],
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+      isComplete: false,
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('https://zoom.us/j/123456');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.draft.virtualLink, 'https://zoom.us/j/123456');
+      assert.equal(state.isComplete, true);
+      assert.equal(state.lastQuestion, null);
+      assert.equal(providerCalls, 0);
+
+      // Confirm no message asks for modality
+      const allAssistantMsgs = state.messages.filter((m) => m.role === 'assistant');
+      const modalityQuestions = allAssistantMsgs.filter((m) => m.text.includes('presencial o virtual'));
+      assert.equal(modalityQuestions.length, 0, 'Must never ask for modality again');
+
+      const lastMsg = allAssistantMsgs[allAssistantMsgs.length - 1];
+      assert.equal(lastMsg.text, '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.');
     } finally {
       aiService.interpretMessage = originalInterpret;
     }

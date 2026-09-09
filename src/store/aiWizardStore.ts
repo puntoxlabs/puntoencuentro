@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { createEmptyEncounterDraft, createDefaultInvitationConfig } from '@/lib/encounterDraft';
-import { mergeDraftPatch } from '@/lib/draftMerger';
+import { mergeDraftPatch, isValidVirtualLink, normalizeVirtualLink, isRecognizedVirtualPlatform } from '@/lib/draftMerger';
 import { addDaysToIsoDate } from '@/lib/dateResolver';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
 import {
@@ -251,6 +251,201 @@ export const useAiWizardStore = create<AiWizardState>()(
           }
         }
 
+        // 4. Deterministic response when active question is modality
+        if (state.lastQuestion?.field === 'modality') {
+          if (/^(virtual|💻\s*virtual|online|videollamada)$/i.test(trimmed)) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              modality: 'virtual',
+              virtualLink: null,
+              locationText: null,
+            };
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: evaluation.nextQuestion?.question || 'Listo, quedó como encuentro virtual.',
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: evaluation.validationError,
+            });
+            return;
+          }
+
+          if (/^(presencial|🏠\s*presencial|en\s+persona)$/i.test(trimmed)) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              modality: 'presencial',
+              virtualLink: null,
+            };
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: evaluation.nextQuestion?.question || 'Listo, quedó como encuentro presencial.',
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: evaluation.validationError,
+            });
+            return;
+          }
+        }
+
+        // 5. Deterministic response when active question is virtualLink (Bypass Determinístico)
+        if (state.lastQuestion?.field === 'virtualLink') {
+          // A. User explicitly asks to change modality to presencial
+          const isSwitchToPresencial =
+            /\b(presencial|en\s+persona)\b/i.test(trimmed) &&
+            !/\b(no\s+presencial|virtual)\b/i.test(trimmed);
+
+          if (isSwitchToPresencial) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              modality: 'presencial',
+              virtualLink: null,
+            };
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            const reply = evaluation.nextQuestion?.question || 'Listo, lo cambié a presencial.';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: evaluation.validationError,
+            });
+            return;
+          }
+
+          // B. Input is a valid URL
+          if (isValidVirtualLink(trimmed)) {
+            const cleanUrl = normalizeVirtualLink(trimmed);
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              modality: 'virtual',
+              virtualLink: cleanUrl,
+            };
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            let reply = '';
+            if (evaluation.isComplete) {
+              reply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+            } else if (evaluation.nextQuestion) {
+              reply = evaluation.nextQuestion.question;
+            }
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: evaluation.validationError,
+            });
+            return;
+          }
+
+          // C. User inputs a platform keyword like "Zoom", "Google Meet", "Teams"
+          // Maintains modality='virtual', virtualLink remains null, re-asks for link
+          if (isRecognizedVirtualPlatform(trimmed)) {
+            const questionText = '¿Cuál es el enlace de la videollamada?';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: questionText,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: {
+                ...state.draft,
+                modality: 'virtual',
+                virtualLink: null,
+              },
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: {
+                field: 'virtualLink',
+                question: questionText,
+                helperText: 'Pegá el link de Google Meet, Zoom, Teams, etc.',
+                type: 'text',
+              },
+              isInterpreting: false,
+              error: null,
+            });
+            return;
+          }
+
+          // D. If not a valid URL, not a platform keyword, and not an explicit edit of another field (date/time/title/theme),
+          // treat as invalid virtual link response without calling LLM and without off-topic penalty
+          const isEditOtherField =
+            /^(cambi[aá]|pas[aá]|pon[eé]|modific[aá]|a las \d|el (lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)|mañana|hoy)\b/i.test(trimmed);
+
+          if (!isEditOtherField) {
+            const errorMsg = 'El enlace no parece válido. Pegá el enlace completo de la videollamada.';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: errorMsg,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              messages: [...state.messages, userMsg, assistantMsg],
+              isInterpreting: false,
+              error: errorMsg,
+            });
+            return;
+          }
+        }
+
+        // 6. User switches from presencial to virtual
+        if (state.draft.modality === 'presencial') {
+          const isSwitchToVirtual =
+            /\b(virtual|online|videollamada)\b/i.test(trimmed) &&
+            !/\b(no\s+virtual|presencial)\b/i.test(trimmed);
+
+          if (isSwitchToVirtual) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              modality: 'virtual',
+              locationText: null,
+              virtualLink: null,
+            };
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            const reply = evaluation.nextQuestion?.question || 'Listo, quedó como encuentro virtual. ¿Cuál es el enlace de la videollamada?';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: evaluation.validationError,
+            });
+            return;
+          }
+        }
+
         const newTurns = state.turns + 1;
         set({
           messages: [...state.messages, userMsg],
@@ -408,6 +603,21 @@ export const useAiWizardStore = create<AiWizardState>()(
           mergeResult.ambiguities[0]
         );
 
+        // Defensive guard: if modality is virtual, next question must never revert to modality
+        if (mergeResult.draft.modality === 'virtual' && evaluation.nextQuestion?.field === 'modality') {
+          console.warn('[aiWizardStore] Defensive guard: modality was virtual but evaluateDraft requested modality again.');
+          evaluation.missingFields = evaluation.missingFields.filter((f) => f !== 'modality');
+          if (!evaluation.missingFields.includes('virtualLink')) {
+            evaluation.missingFields.push('virtualLink');
+          }
+          evaluation.nextQuestion = {
+            field: 'virtualLink',
+            question: '¿Cuál es el enlace de la videollamada?',
+            helperText: 'Pegá el link de Google Meet, Zoom, Teams, etc.',
+            type: 'text',
+          };
+        }
+
         let assistantReply = '';
         if (!hasAnyChange) {
           if (
@@ -548,6 +758,14 @@ export const useAiWizardStore = create<AiWizardState>()(
           appliedDayRollover: appliedRollover,
           pendingDayRollover: pendingRollover,
         };
+
+        if (field === 'modality') {
+          if (value === 'presencial') {
+            newDraft.virtualLink = null;
+          } else if (value === 'virtual') {
+            newDraft.locationText = null;
+          }
+        }
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         // If this update resolved the currently active question, advance the conversation
@@ -695,6 +913,14 @@ export const useAiWizardStore = create<AiWizardState>()(
           appliedDayRollover: appliedRollover,
           pendingDayRollover: pendingRollover,
         };
+
+        if (field === 'modality') {
+          if (value === 'presencial') {
+            newDraft.virtualLink = null;
+          } else if (value === 'virtual') {
+            newDraft.locationText = null;
+          }
+        }
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         let assistantReply = '';

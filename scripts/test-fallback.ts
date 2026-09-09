@@ -1552,7 +1552,7 @@ describe('Runtime Fallback Multi-Provider: Temporal Non-Inference & Evidence Int
     const emptyConfig = createDefaultInvitationConfig();
     const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
     assert.equal(draft.modality, 'virtual');
-    assert.equal(draft.virtualLink, 'Zoom');
+    assert.equal(draft.virtualLink, null, 'Zoom platform name sets modality=virtual but leaves virtualLink null');
     assert.equal(draft.date, null);
     assert.equal(draft.time, null);
   });
