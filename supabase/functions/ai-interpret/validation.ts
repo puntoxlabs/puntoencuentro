@@ -256,9 +256,31 @@ export function sanitizeSchemaForOpenAI<T = Record<string, unknown>>(schema: T):
 }
 
 /**
- * Strips null and undefined values from an object recursively.
- * Used to translate OpenAI strict outputs (where optional fields return null)
- * back to the canonical EncounterDraftPatch structure.
+ * Detects whether a value is null, undefined, or a string sentinel ("null" / "undefined")
+ * representing structural absence rather than genuine text content.
+ */
+export function isSentinelValue(val: unknown): boolean {
+  if (val === null || val === undefined) return true;
+  if (typeof val === 'string') {
+    const trimmed = val.trim().toLowerCase();
+    return trimmed === 'null' || trimmed === 'undefined';
+  }
+  return false;
+}
+
+/**
+ * Strips null, undefined, and sentinel string values ("null", "undefined") recursively.
+ * Translates model outputs back to the canonical EncounterDraftPatch structure.
+ *
+ * Specific rules:
+ * 1. Omit null or undefined values.
+ * 2. Omit string values that exactly match "null" or "undefined" (case-insensitive, trimmed).
+ * 3. If a property is an EncounterDraftPatch wrapper object containing a 'value' property
+ *    (e.g., title: { value: "null", confidence: "ambiguous" }), and its 'value' is a sentinel
+ *    or null, omit the entire wrapper property from the patch so absence does not create
+ *    hallucinated values or fail schema validation.
+ * 4. Legitimate strings containing the word (e.g., "Null Island", "null pointer") are preserved.
+ * 5. Does not mutate the original object.
  */
 export function cleanNullProperties<T = unknown>(obj: T): T {
   if (typeof obj !== 'object' || obj === null) {
@@ -266,14 +288,33 @@ export function cleanNullProperties<T = unknown>(obj: T): T {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(cleanNullProperties) as unknown as T;
+    return obj
+      .filter((item) => !isSentinelValue(item))
+      .map(cleanNullProperties) as unknown as T;
   }
 
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (value !== null && value !== undefined) {
-      result[key] = cleanNullProperties(value);
+    // 1. Skip direct sentinel null / undefined values
+    if (isSentinelValue(value)) {
+      continue;
     }
+
+    // 2. If property is a field wrapper object with a 'value' property
+    // (e.g. title: { value: "null", ... } or modality: { value: null, ... })
+    // and its 'value' is a sentinel null/undefined, drop the entire field wrapper
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      'value' in (value as Record<string, unknown>) &&
+      isSentinelValue((value as Record<string, unknown>).value)
+    ) {
+      continue;
+    }
+
+    // 3. Otherwise recursively clean
+    result[key] = cleanNullProperties(value);
   }
 
   return result as T;
@@ -289,4 +330,80 @@ export function sanitizeSchemaForDeepSeek<T = Record<string, unknown>>(schema: T
     return schema;
   }
   return JSON.parse(JSON.stringify(schema));
+}
+
+/**
+ * Patterns matching explicit temporal evidence for dates in user messages (Spanish).
+ */
+const DATE_EVIDENCE_PATTERNS = [
+  /\b(hoy|mañana|manana|mañan|pasado\s+mañana|pasado\s+manana|pasadomanana|ayer|finde|fin\s+de\s+semana|semana)\b/i,
+  /\b(lunes|martes|mi[eé]rcoles|miercoles|mie|jueves|juevs|jue|viernes|vierns|vie|s[aá]bado|sabado|sabdo|sab|domingo|domigo|dom)s?\b/i,
+  /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i,
+  /\b(este|esta|pr[oó]xim[oa]|proxim[oa]|siguiente)\s+(semana|finde|mes|año|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/i,
+  /\b(el\s+)?\d{1,2}\s+(de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i,
+  /\b\d{1,2}[\/\-\.]\d{1,2}([\/\-\.]\d{2,4})?\b/,
+  /\bentre\s+(el\s+)?\d{1,2}\s+y\s+(el\s+)?\d{1,2}\b/i,
+  /\bel\s+\d{1,2}\b/i,
+  /\b(cuando\s+puedan|cuando\s+podamos|votemos|coordinemos|qu[eé]\s+d[ií]a|definir\s+fecha)\b/i,
+];
+
+/**
+ * Patterns matching explicit temporal evidence for times in user messages (Spanish).
+ */
+const TIME_EVIDENCE_PATTERNS = [
+  /\b(a\s+las?|alas?|tipo|tipoo|alrededor\s+de|cerca\s+de|despu[eé]s\s+de|despues\s+de|antes\s+de|entre)\s+\d{1,2}(:\d{2})?\b/i,
+  /\b(despu[eé]s\s+de\s+las?|despues\s+de\s+las?)\s+\d{1,2}\b/i,
+  /\b\d{1,2}(:\d{2})\b/,
+  /\b\d{1,2}\s*(hs|h|hrs|am|pm)\b/i,
+  /\b(1[0-2]|[1-9])\s*(am|pm)\b/i,
+  /\b(2[0-3]|1[0-9])([0-5][0-9])\b/,
+  /\b(al\s+mediod[ií]a|al\s+mediodia|mediod[ií]a|mediodia|a\s+la\s+madrugada|de\s+madrugada)\b/i,
+  /\b(a\s+la|por\s+la|de\s+la|en\s+la)\s+(tarde|noche|mañana|manana)\b/i,
+  /\b(despu[eé]s\s+del\s+laburo|despues\s+del\s+laburo)\b/i,
+  /\b(tipo|a\s+la)\s+(una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b/i,
+];
+
+export function hasDateEvidence(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  return DATE_EVIDENCE_PATTERNS.some((p) => p.test(text));
+}
+
+export function hasTimeEvidence(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  return TIME_EVIDENCE_PATTERNS.some((p) => p.test(text));
+}
+
+/**
+ * Deterministic guard that prunes hallucinated or unevidenced dateIntent and timeIntent:
+ * 1. If dateIntent has type 'vague' or the user message lacks date evidence, drop dateIntent.
+ * 2. If timeIntent has type 'vague' or the user message lacks time evidence, drop timeIntent.
+ * Does not mutate the original patch.
+ */
+export function sanitizeTemporalIntents<T = Record<string, unknown>>(
+  patch: T,
+  message: string
+): T {
+  if (typeof patch !== 'object' || patch === null) return patch;
+
+  const record = { ...(patch as Record<string, unknown>) };
+  const hasDate = hasDateEvidence(message);
+  const hasTime = hasTimeEvidence(message);
+
+  if ('dateIntent' in record) {
+    const dIntent = record.dateIntent as any;
+    const isVague = dIntent?.value?.type === 'vague';
+    if (isVague || !hasDate) {
+      delete record.dateIntent;
+    }
+  }
+
+  if ('timeIntent' in record) {
+    const tIntent = record.timeIntent as any;
+    const isVague = tIntent?.value?.type === 'vague';
+    if (isVague || !hasTime) {
+      delete record.timeIntent;
+    }
+  }
+
+  return record as T;
 }

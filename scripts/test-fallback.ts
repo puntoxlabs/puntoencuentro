@@ -15,7 +15,18 @@ import {
   createProvider,
   callWithTimeout,
 } from '../supabase/functions/ai-interpret/fallback.ts';
-import { ENCOUNTER_DRAFT_PATCH_SCHEMA } from '../supabase/functions/ai-interpret/validation.ts';
+import http from 'node:http';
+import type * as net from 'node:net';
+import {
+  ENCOUNTER_DRAFT_PATCH_SCHEMA,
+  cleanNullProperties,
+  isSentinelValue,
+  validatePatchOutput,
+  hasDateEvidence,
+  hasTimeEvidence,
+  sanitizeTemporalIntents,
+} from '../supabase/functions/ai-interpret/validation.ts';
+import { MistralProvider } from '../supabase/functions/ai-interpret/providers/mistral.ts';
 import { mergeDraftPatch } from '../src/lib/draftMerger.ts';
 import { createEmptyEncounterDraft } from '../src/lib/encounterDraft.ts';
 import { createDefaultInvitationConfig } from '../src/lib/encounterDraft.ts';
@@ -638,6 +649,49 @@ describe('Runtime Fallback Multi-Provider: Core Orchestration Tests', () => {
     assert.equal(primaryProvider.name, 'openai');
     assert.equal(fallbackProvider, null);
   });
+
+  test('Provider resolution: defaults to mistral as fallback with ministral-8b-2512 and timeouts (10000ms / 8000ms)', () => {
+    const mockEnv = {
+      get: (key: string) => {
+        const envMap: Record<string, string> = {
+          OPENAI_API_KEY: 'test-openai-key',
+          MISTRAL_API_KEY: 'test-mistral-key',
+        };
+        return envMap[key];
+      },
+    };
+
+    const { primaryProvider, fallbackProvider, primaryTimeoutMs, fallbackTimeoutMs } =
+      resolveProviders(mockEnv);
+
+    assert.equal(primaryProvider.name, 'openai');
+    assert.equal(primaryProvider.model, 'gpt-5.6-luna');
+    assert.equal(fallbackProvider?.name, 'mistral');
+    assert.equal(fallbackProvider?.model, 'ministral-8b-2512');
+    assert.equal(primaryTimeoutMs, 10000);
+    assert.equal(fallbackTimeoutMs, 8000);
+  });
+
+  test('createProvider: instantiates MistralProvider with custom model and checks missing key', () => {
+    const mockEnvWithModel = {
+      get: (key: string) => {
+        if (key === 'MISTRAL_API_KEY') return 'test-key';
+        if (key === 'MISTRAL_MODEL') return 'ministral-8b-custom';
+        return undefined;
+      },
+    };
+    const provider = createProvider('mistral', mockEnvWithModel);
+    assert.equal(provider.name, 'mistral');
+    assert.equal(provider.model, 'ministral-8b-custom');
+
+    const mockEnvWithoutKey = {
+      get: () => undefined,
+    };
+    assert.throws(
+      () => createProvider('mistral', mockEnvWithoutKey),
+      /Missing MISTRAL_API_KEY/
+    );
+  });
 });
 
 // =============================================================================
@@ -776,4 +830,1015 @@ describe('Runtime Fallback Multi-Provider: Observability & Telemetry Tests', () 
     assert.equal(res.fallbackProvider, undefined);
     assert.equal(res.error, 'interpretation_failed');
   });
+
+  test('Observability: exposes primaryModel and fallbackModel in execution result', async () => {
+    const validPatch = { title: { value: 'Asado', confidence: 'explicit' } };
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI 500',
+        type: 'retryable_technical',
+        provider: 'openai',
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: validPatch,
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+
+    const res = await interpretWithFallback('Asado', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.primaryProvider, 'openai');
+    assert.equal(res.primaryModel, 'gpt-5.6-luna');
+    assert.equal(res.fallbackProvider, 'mistral');
+    assert.equal(res.fallbackModel, 'ministral-8b-2512');
+  });
 });
+
+// =============================================================================
+// SUITE 5: MISTRAL PROVIDER ADAPTER & ERROR TAXONOMY
+// =============================================================================
+describe('Mistral Provider Adapter: Error Taxonomy & Serialization', () => {
+  const originalFetch = globalThis.fetch;
+
+  test('MistralProvider parses successful structured output and cleans nulls', async () => {
+    const mockApiResponse = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              title: { value: 'Cena de equipo', confidence: 'explicit' },
+              description: null,
+              modality: { value: 'presencial', confidence: 'inferred_high' },
+            }),
+          },
+        },
+      ],
+      usage: {
+        prompt_tokens: 120,
+        completion_tokens: 45,
+      },
+    };
+
+    globalThis.fetch = async (url: any, opts: any) => {
+      assert.ok(String(url).includes('api.mistral.ai'));
+      const parsedBody = JSON.parse(opts.body);
+      assert.equal(parsedBody.model, 'ministral-8b-2512');
+      assert.equal(opts.headers.Authorization, 'Bearer test-mistral-key');
+      return new Response(JSON.stringify(mockApiResponse), { status: 200 });
+    };
+
+    try {
+      const provider = new MistralProvider('test-mistral-key', 'ministral-8b-2512');
+      const result = await provider.interpret({
+        message: 'Cena de equipo',
+        systemPrompt: dummyPrompt,
+        jsonSchema: dummySchema,
+      });
+
+      assert.equal((result.patch.title as any)?.value, 'Cena de equipo');
+      assert.equal('description' in result.patch, false);
+      assert.equal(result.inputTokens, 120);
+      assert.equal(result.outputTokens, 45);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('MistralProvider maps 401 / 403 to auth_config', async () => {
+    for (const status of [401, 403]) {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ error: { message: 'Unauthorized' } }), { status });
+
+      try {
+        const provider = new MistralProvider('invalid-key');
+        await assert.rejects(
+          () =>
+            provider.interpret({
+              message: 'Hola',
+              systemPrompt: dummyPrompt,
+              jsonSchema: dummySchema,
+            }),
+          (err: any) => {
+            assert.equal(err.type, 'auth_config');
+            assert.equal(err.httpStatus, status);
+            return true;
+          }
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
+  });
+
+  test('MistralProvider maps 429 to retryable_technical', async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'Rate limit exceeded' } }), { status: 429 });
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Hola',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'retryable_technical');
+          assert.equal(err.httpStatus, 429);
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('MistralProvider maps 5xx to retryable_technical', async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'Internal Server Error' } }), { status: 500 });
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Hola',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'retryable_technical');
+          assert.equal(err.httpStatus, 500);
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('MistralProvider maps safety refusal to safety_refusal', async () => {
+    // 1. Via HTTP 400 content policy
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'content_policy_violation' } }), { status: 400 });
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Violating message',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'safety_refusal');
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // 2. Via refusal field in message
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { refusal: 'Cannot generate harmful content' } }],
+        }),
+        { status: 200 }
+      );
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Violating message',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'safety_refusal');
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // 3. Via content_filter finish_reason
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{}' }, finish_reason: 'content_filter' }],
+        }),
+        { status: 200 }
+      );
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Violating message',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'safety_refusal');
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('MistralProvider maps non-safety 400 to non_retryable', async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'Invalid parameter foo' } }), { status: 400 });
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Hola',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'non_retryable');
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('MistralProvider maps empty or invalid JSON to retryable_technical', async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: 'not valid json' } }] }), {
+        status: 200,
+      });
+
+    try {
+      const provider = new MistralProvider('test-key');
+      await assert.rejects(
+        () =>
+          provider.interpret({
+            message: 'Hola',
+            systemPrompt: dummyPrompt,
+            jsonSchema: dummySchema,
+          }),
+        (err: any) => {
+          assert.equal(err.type, 'retryable_technical');
+          return true;
+        }
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+// =============================================================================
+// SUITE 6: MISTRAL FALLBACK RUNTIME INTEGRATION MATRIX (SCENARIOS A TO L)
+// =============================================================================
+describe('Mistral Fallback Runtime Integration Matrix (Scenarios A to L)', () => {
+  const validOpenAiPatch = {
+    title: { value: 'Cena con amigos', confidence: 'explicit' },
+    modality: { value: 'presencial', confidence: 'explicit' },
+  };
+  const validMistralPatch = {
+    title: { value: 'Cena con amigos vía Mistral', confidence: 'explicit' },
+    modality: { value: 'presencial', confidence: 'explicit' },
+  };
+
+  // A. Primary (OpenAI) responde OK -> Mistral NO es llamado
+  test('Scenario A: Primary (OpenAI) responds OK -> Mistral is NOT called', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: validOpenAiPatch,
+      inputTokens: 100,
+      outputTokens: 50,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => {
+      throw new Error('Mistral should not be called when primary succeeds');
+    });
+
+    const res = await interpretWithFallback('Cena con amigos', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, false);
+    assert.equal(res.providerUsed, 'openai');
+    assert.equal(res.modelUsed, 'gpt-5.6-luna');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 0);
+  });
+
+  // B. Primary (OpenAI) falla con 429 -> Mistral ES llamado y responde OK
+  test('Scenario B: Primary (OpenAI) fails with 429 -> Mistral IS called and responds OK', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI rate limit (429)',
+        type: 'retryable_technical',
+        provider: 'openai',
+        httpStatus: 429,
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: validMistralPatch,
+      inputTokens: 90,
+      outputTokens: 45,
+    }));
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.providerUsed, 'mistral');
+    assert.equal(res.modelUsed, 'ministral-8b-2512');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 1);
+  });
+
+  // C. Primary (OpenAI) falla con 500/502/503/504 -> Mistral ES llamado y responde OK
+  test('Scenario C: Primary (OpenAI) fails with 500/502/503/504 -> Mistral IS called and responds OK', async () => {
+    for (const status of [500, 502, 503, 504]) {
+      const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+        throw new ProviderError({
+          message: `OpenAI server error (${status})`,
+          type: 'retryable_technical',
+          provider: 'openai',
+          httpStatus: status,
+        });
+      });
+      const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+        patch: validMistralPatch,
+        inputTokens: 80,
+        outputTokens: 40,
+      }));
+
+      const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+        systemPrompt: dummyPrompt,
+        jsonSchema: dummySchema,
+      });
+
+      assert.equal(res.ok, true);
+      assert.equal(res.fallbackUsed, true);
+      assert.equal(res.providerUsed, 'mistral');
+      assert.equal(primary.callCount, 1);
+      assert.equal(fallback.callCount, 1);
+    }
+  });
+
+  // D. Primary (OpenAI) timeout -> Mistral ES llamado y responde OK
+  test('Scenario D: Primary (OpenAI) timeout -> Mistral IS called and responds OK', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async ({ signal }) => {
+      await new Promise((_, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('Timeout after 20ms')));
+      });
+      return { patch: {}, inputTokens: 0, outputTokens: 0 };
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: validMistralPatch,
+      inputTokens: 95,
+      outputTokens: 50,
+    }));
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+      primaryTimeoutMs: 20,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.providerUsed, 'mistral');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 1);
+  });
+
+  // E. Primary (OpenAI) invalid JSON / schema fail -> Mistral ES llamado y responde OK
+  test('Scenario E: Primary (OpenAI) invalid JSON / schema fail -> Mistral IS called and responds OK', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI schema validation failed: missing confidence',
+        type: 'retryable_technical',
+        provider: 'openai',
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: validMistralPatch,
+      inputTokens: 90,
+      outputTokens: 40,
+    }));
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.providerUsed, 'mistral');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 1);
+  });
+
+  // F. Primary (OpenAI) safety refusal -> Mistral NUNCA es llamado
+  test('Scenario F: Primary (OpenAI) safety refusal -> Mistral is NEVER called', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI safety refusal (400): content_policy_violation',
+        type: 'safety_refusal',
+        provider: 'openai',
+        httpStatus: 400,
+        code: 'content_policy_violation',
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => {
+      throw new Error('SECURITY VIOLATION: Mistral must NEVER be called after safety refusal!');
+    });
+
+    const res = await interpretWithFallback('Inappropriate prompt', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, false);
+    assert.equal(res.fallbackUsed, false);
+    assert.equal(res.error, 'safety_refusal');
+    assert.equal(res.primaryFailureType, 'safety_refusal');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 0);
+  });
+
+  // G. Primary (OpenAI) 401/403 -> Mistral NUNCA es llamado
+  test('Scenario G: Primary (OpenAI) 401/403 auth error -> Mistral is NEVER called', async () => {
+    for (const status of [401, 403]) {
+      const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+        throw new ProviderError({
+          message: `OpenAI API error (${status}): Invalid API key`,
+          type: 'auth_config',
+          provider: 'openai',
+          httpStatus: status,
+        });
+      });
+      const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => {
+        throw new Error('Fallback must not be called on auth_config error');
+      });
+
+      const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+        systemPrompt: dummyPrompt,
+        jsonSchema: dummySchema,
+      });
+
+      assert.equal(res.ok, false);
+      assert.equal(res.fallbackUsed, false);
+      assert.equal(res.primaryFailureType, 'auth_config');
+      assert.equal(primary.callCount, 1);
+      assert.equal(fallback.callCount, 0);
+    }
+  });
+
+  // H. Primary (OpenAI) 400 bad request no safety -> Mistral NUNCA es llamado
+  test('Scenario H: Primary (OpenAI) 400 bad request non-safety -> Mistral is NEVER called', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI request error (400): Malformed parameter',
+        type: 'non_retryable',
+        provider: 'openai',
+        httpStatus: 400,
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => {
+      throw new Error('Fallback must not be called on non-retryable 400');
+    });
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, false);
+    assert.equal(res.fallbackUsed, false);
+    assert.equal(res.primaryFailureType, 'non_retryable');
+    assert.equal(primary.callCount, 1);
+    assert.equal(fallback.callCount, 0);
+  });
+
+  // I. Primary falla retryable + Mistral responde OK -> fallbackUsed=true, patch válido
+  test('Scenario I: Primary fails retryable + Mistral responds OK -> fallbackUsed=true, valid patch', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI API error (503): Service Unavailable',
+        type: 'retryable_technical',
+        provider: 'openai',
+        httpStatus: 503,
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: validMistralPatch,
+      inputTokens: 110,
+      outputTokens: 48,
+    }));
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.providerUsed, 'mistral');
+    assert.equal(res.modelUsed, 'ministral-8b-2512');
+    assert.deepEqual(res.patch, validMistralPatch);
+    assert.equal(res.primaryFailureType, 'retryable_technical');
+    assert.ok(typeof res.primaryLatencyMs === 'number');
+    assert.ok(typeof res.fallbackLatencyMs === 'number');
+  });
+
+  // J. Primary falla retryable + Mistral también falla -> double failure controlado, no crash, fallbackUsed=true
+  test('Scenario J: Primary fails retryable + Mistral also fails -> controlled double failure, no crash', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI API error (500): Server error',
+        type: 'retryable_technical',
+        provider: 'openai',
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => {
+      throw new ProviderError({
+        message: 'Mistral API error (503): Backend offline',
+        type: 'retryable_technical',
+        provider: 'mistral',
+      });
+    });
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, false);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.primaryProvider, 'openai');
+    assert.equal(res.fallbackProvider, 'mistral');
+    assert.equal(res.primaryFailureType, 'retryable_technical');
+    assert.equal(res.fallbackFailureType, 'retryable_technical');
+    assert.equal(res.error, 'interpretation_failed');
+    assert.equal(res.message, 'No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.');
+  });
+
+  // K. Mistral timeout independiente respetado (AI_FALLBACK_TIMEOUT_MS)
+  test('Scenario K: Mistral independent fallback timeout respected (AI_FALLBACK_TIMEOUT_MS)', async () => {
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'Primary timeout',
+        type: 'retryable_technical',
+        provider: 'openai',
+      });
+    });
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async ({ signal }) => {
+      await new Promise((_, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('Timeout after 40ms')));
+      });
+      return { patch: {}, inputTokens: 0, outputTokens: 0 };
+    });
+
+    const res = await interpretWithFallback('Cena', undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+      primaryTimeoutMs: 100,
+      fallbackTimeoutMs: 40,
+    });
+
+    assert.equal(res.ok, false);
+    assert.equal(res.fallbackUsed, true);
+    assert.equal(res.fallbackFailureType, 'retryable_technical');
+    assert.ok(res.fallbackError?.includes('Timeout'));
+  });
+
+  // L. Normalización de sentinels ("null" / "undefined") probada con test unitario específico
+  test('Scenario L: Sentinel normalization converts "null" / "undefined" to absence cleanly', () => {
+    // 1. Raw LLM output with string sentinels
+    const rawOutputWithSentinels = {
+      title: { value: 'null', confidence: 'ambiguous' },
+      description: { value: ' undefined ', confidence: 'inferred_low' },
+      modality: { value: 'NULL', confidence: 'ambiguous' },
+      locationText: { value: 'Null Island', confidence: 'explicit' }, // legitimate string containing word
+      dateIntent: {
+        value: {
+          type: 'weekday',
+          weekday: 'viernes',
+          day: 'null',
+          month: null,
+          year: 'undefined',
+        },
+        confidence: 'explicit',
+      },
+      timeIntent: {
+        value: {
+          type: 'exact',
+          hour: 21,
+          minute: 0,
+        },
+        confidence: 'explicit',
+      },
+    };
+
+    const cleaned = cleanNullProperties(rawOutputWithSentinels) as any;
+
+    // Sentinels stripped from top-level field wrappers
+    assert.equal('title' in cleaned, false, 'title with "null" value must be omitted');
+    assert.equal('description' in cleaned, false, 'description with " undefined " must be omitted');
+    assert.equal('modality' in cleaned, false, 'modality with "NULL" must be omitted');
+
+    // Legitimate string containing "Null Island" is preserved
+    assert.equal(cleaned.locationText.value, 'Null Island');
+    assert.equal(cleaned.locationText.confidence, 'explicit');
+
+    // Inner object properties stripped
+    assert.equal('day' in cleaned.dateIntent.value, false);
+    assert.equal('month' in cleaned.dateIntent.value, false);
+    assert.equal('year' in cleaned.dateIntent.value, false);
+    assert.equal(cleaned.dateIntent.value.weekday, 'viernes');
+
+    // Valid fields remain intact
+    assert.equal(cleaned.timeIntent.value.hour, 21);
+
+    // Schema validation succeeds on cleaned object
+    const validation = validatePatchOutput(cleaned);
+    assert.equal(validation.valid, true);
+  });
+});
+
+// =============================================================================
+// SUITE: TEMPORAL NON-INFERENCE & EVIDENCE INTEGRITY (MANDATORY CASES A TO E)
+// =============================================================================
+describe('Runtime Fallback Multi-Provider: Temporal Non-Inference & Evidence Integrity (Mandatory Cases A to E)', () => {
+  // Caso A: "Cena por Zoom con la familia"
+  // modality: virtual, dateIntent: ausente, timeIntent: ausente
+  test('Case A: "Cena por Zoom con la familia" -> modality: virtual, dateIntent: absent, timeIntent: absent', async () => {
+    const input = 'Cena por Zoom con la familia';
+
+    // Verify evidence detectors
+    assert.equal(hasDateEvidence(input), false, 'Must not detect date evidence in Case A');
+    assert.equal(hasTimeEvidence(input), false, 'Must not detect time evidence in Case A');
+
+    // Simulate LLM output that incorrectly emitted vague date/time
+    const rawPatch = {
+      title: { value: 'Cena con la familia', confidence: 'explicit' },
+      description: { value: 'Reunión familiar para cenar por videollamada', confidence: 'explicit' },
+      modality: { value: 'virtual', confidence: 'explicit' },
+      virtualLink: { value: 'Zoom', confidence: 'explicit' },
+      dateIntent: {
+        value: { type: 'vague', value: 'today', description: 'Sin fecha específica' },
+        confidence: 'ambiguous',
+      },
+      timeIntent: {
+        value: { type: 'vague', value: 'evening', description: 'Hora de cena' },
+        confidence: 'inferred_high',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+      throw new ProviderError({
+        message: 'OpenAI 503',
+        type: 'retryable_technical',
+        provider: 'openai',
+      });
+    });
+
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: rawPatch,
+      inputTokens: 100,
+      outputTokens: 50,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(res.fallbackUsed, true);
+    assert.ok(res.patch);
+    assert.equal(res.patch.modality?.value, 'virtual');
+    assert.equal(res.patch.virtualLink?.value, 'Zoom');
+    assert.equal('dateIntent' in res.patch, false, 'dateIntent must be absent');
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be absent');
+
+    // Verify draft merger result
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.modality, 'virtual');
+    assert.equal(draft.virtualLink, 'Zoom');
+    assert.equal(draft.date, null);
+    assert.equal(draft.time, null);
+  });
+
+  // Caso B: "Cena con amigos"
+  // modality: presencial, dateIntent: ausente, timeIntent: ausente
+  test('Case B: "Cena con amigos" -> modality: presencial, dateIntent: absent, timeIntent: absent', async () => {
+    const input = 'Cena con amigos';
+
+    assert.equal(hasDateEvidence(input), false, 'Must not detect date evidence in Case B');
+    assert.equal(hasTimeEvidence(input), false, 'Must not detect time evidence in Case B');
+
+    const rawPatch = {
+      title: { value: 'Cena con amigos', confidence: 'explicit' },
+      description: { value: 'Cena entre amigos', confidence: 'inferred_high' },
+      modality: { value: 'presencial', confidence: 'explicit' },
+      dateIntent: {
+        value: { type: 'relative', value: 'today', modifier: 'this' },
+        confidence: 'inferred_low',
+      },
+      timeIntent: {
+        value: { type: 'exact', hour: 21, minute: 0 },
+        confidence: 'inferred_low',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: rawPatch,
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.patch.modality?.value, 'presencial');
+    assert.equal('dateIntent' in res.patch, false, 'dateIntent must be stripped due to lack of evidence');
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be stripped due to lack of evidence');
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.modality, 'presencial');
+    assert.equal(draft.date, null);
+    assert.equal(draft.time, null);
+  });
+
+  // Caso C: "Desayuno mañana"
+  // modality: presencial, dateIntent: relative -> tomorrow, timeIntent: ausente
+  test('Case C: "Desayuno mañana" -> modality: presencial, dateIntent: relative tomorrow, timeIntent: absent', async () => {
+    const input = 'Desayuno mañana';
+
+    assert.equal(hasDateEvidence(input), true, 'Must detect date evidence ("mañana")');
+    assert.equal(hasTimeEvidence(input), false, 'Must not detect time evidence');
+
+    const rawPatch = {
+      title: { value: 'Desayuno', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'explicit' },
+      dateIntent: {
+        value: { type: 'relative', value: 'tomorrow', modifier: 'this', description: 'mañana' },
+        confidence: 'explicit',
+      },
+      timeIntent: {
+        value: { type: 'vague', value: 'morning', description: 'Horario matutino' },
+        confidence: 'inferred_low',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: rawPatch,
+      inputTokens: 75,
+      outputTokens: 35,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.patch.modality?.value, 'presencial');
+    assert.ok(res.patch.dateIntent, 'dateIntent must be preserved when evidence exists');
+    assert.equal(res.patch.dateIntent.value.type, 'relative');
+    assert.equal(res.patch.dateIntent.value.value, 'tomorrow');
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be absent');
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.modality, 'presencial');
+    assert.ok(draft.date !== null);
+    assert.equal(draft.time, null);
+  });
+
+  // Caso D: "Cena a las 21"
+  // modality: presencial, dateIntent: ausente, timeIntent: exact -> 21:00
+  test('Case D: "Cena a las 21" -> modality: presencial, dateIntent: absent, timeIntent: exact 21:00', async () => {
+    const input = 'Cena a las 21';
+
+    assert.equal(hasDateEvidence(input), false, 'Must not detect date evidence');
+    assert.equal(hasTimeEvidence(input), true, 'Must detect time evidence ("a las 21")');
+
+    const rawPatch = {
+      title: { value: 'Cena', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'explicit' },
+      dateIntent: {
+        value: { type: 'vague', value: 'today', description: 'Hoy por defecto' },
+        confidence: 'inferred_low',
+      },
+      timeIntent: {
+        value: { type: 'exact', hour: 21, minute: 0, description: '21:00' },
+        confidence: 'explicit',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: rawPatch,
+      inputTokens: 75,
+      outputTokens: 35,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.patch.modality?.value, 'presencial');
+    assert.equal('dateIntent' in res.patch, false, 'dateIntent must be absent');
+    assert.ok(res.patch.timeIntent, 'timeIntent must be preserved when evidence exists');
+    assert.equal(res.patch.timeIntent.value.type, 'exact');
+    assert.equal(res.patch.timeIntent.value.hour, 21);
+    assert.equal(res.patch.timeIntent.value.minute, 0);
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.modality, 'presencial');
+    assert.equal(draft.date, null);
+    assert.equal(draft.time, '21:00');
+  });
+
+  // Caso E: "Partido de pádel"
+  // modality: presencial, dateIntent: ausente, timeIntent: ausente
+  test('Case E: "Partido de pádel" -> modality: presencial, dateIntent: absent, timeIntent: absent', async () => {
+    const input = 'Partido de pádel';
+
+    assert.equal(hasDateEvidence(input), false, 'Must not detect date evidence in Case E');
+    assert.equal(hasTimeEvidence(input), false, 'Must not detect time evidence in Case E');
+
+    const rawPatch = {
+      title: { value: 'Partido de pádel', confidence: 'explicit' },
+      modality: { value: 'presencial', confidence: 'explicit' },
+      themeHint: { value: 'sports', confidence: 'explicit' },
+      dateIntent: {
+        value: { type: 'vague', description: 'Sin fecha' },
+        confidence: 'ambiguous',
+      },
+      timeIntent: {
+        value: { type: 'vague', description: 'Sin hora' },
+        confidence: 'ambiguous',
+      },
+    };
+
+    const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => ({
+      patch: rawPatch,
+      inputTokens: 80,
+      outputTokens: 40,
+    }));
+    const fallback = new MockProvider('mistral', 'ministral-8b-2512', async () => ({
+      patch: {},
+      inputTokens: 0,
+      outputTokens: 0,
+    }));
+
+    const res = await interpretWithFallback(input, undefined, primary, fallback, {
+      systemPrompt: dummyPrompt,
+      jsonSchema: dummySchema,
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(res.patch);
+    assert.equal(res.patch.modality?.value, 'presencial');
+    assert.equal('dateIntent' in res.patch, false, 'dateIntent must be absent');
+    assert.equal('timeIntent' in res.patch, false, 'timeIntent must be absent');
+
+    const emptyDraft = createEmptyEncounterDraft();
+    const emptyConfig = createDefaultInvitationConfig();
+    const { draft } = mergeDraftPatch(emptyDraft, emptyConfig, res.patch as any);
+    assert.equal(draft.modality, 'presencial');
+    assert.equal(draft.date, null);
+    assert.equal(draft.time, null);
+  });
+});
+
+// =============================================================================
+// SUITE: REAL ORCHESTRATOR TIMEOUT VALIDATION (8000 MS)
+// =============================================================================
+describe('Runtime Fallback Multi-Provider: Real Orchestrator Timeout Validation (8000ms)', () => {
+  test('Mistral fallback respects 8000ms timeout with real TCP/HTTP server and yields controlled double failure', async () => {
+    // Start real local HTTP server that hangs/delays for 12 seconds
+    const server = http.createServer((req, res) => {
+      const timer = setTimeout(() => {
+        if (!res.writableEnded) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ choices: [{ message: { content: '{}' } }] }));
+        }
+      }, 12000);
+
+      req.on('close', () => {
+        clearTimeout(timer);
+      });
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address() as net.AddressInfo;
+    const serverUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      // Primary fails with retryable technical error to trigger fallback
+      const primary = new MockProvider('openai', 'gpt-5.6-luna', async () => {
+        throw new ProviderError({
+          message: 'Primary OpenAI 503 Service Unavailable',
+          type: 'retryable_technical',
+          provider: 'openai',
+          httpStatus: 503,
+        });
+      });
+
+      // Real MistralProvider pointing to our local hanging server
+      const fallback = new MistralProvider('test-key', 'ministral-8b-2512', serverUrl);
+
+      const startTime = Date.now();
+      const res = await interpretWithFallback('Cena con amigos', undefined, primary, fallback, {
+        systemPrompt: dummyPrompt,
+        jsonSchema: dummySchema,
+        fallbackTimeoutMs: 8000,
+      });
+      const elapsed = Date.now() - startTime;
+
+      // Verification assertions
+      assert.equal(res.ok, false, 'Result must be ok: false on double failure');
+      assert.equal(res.fallbackUsed, true, 'fallbackUsed must be true');
+      assert.equal(res.primaryProvider, 'openai');
+      assert.equal(res.fallbackProvider, 'mistral');
+      assert.equal(res.primaryFailureType, 'retryable_technical');
+      assert.equal(res.fallbackFailureType, 'retryable_technical');
+      assert.equal(res.error, 'interpretation_failed');
+      assert.equal(
+        res.message,
+        'No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.'
+      );
+      assert.ok(
+        res.fallbackError?.includes('Timeout after 8000ms'),
+        `Fallback error should mention timeout: ${res.fallbackError}`
+      );
+
+      // Verify elapsed time is approximately 8000ms (7800ms - 9500ms tolerance)
+      assert.ok(
+        elapsed >= 7800 && elapsed <= 9500,
+        `Elapsed time ${elapsed}ms must be between 7800ms and 9500ms`
+      );
+    } finally {
+      // Cleanly close server and connections
+      server.closeAllConnections?.();
+      server.close();
+    }
+  });
+});
+

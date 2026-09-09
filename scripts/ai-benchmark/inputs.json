@@ -593,7 +593,7 @@
       "title": "Cena con amigos",
       "dateIntent": null,
       "timeIntent": null,
-      "modality": null,
+      "modality": "presencial",
       "locationText": null
     }
   },
@@ -628,7 +628,7 @@
       "title": "Cumpleaños",
       "dateIntent": null,
       "timeIntent": null,
-      "modality": null
+      "modality": "presencial"
     }
   },
   {
@@ -684,7 +684,7 @@
       "title": "Pizzas con el equipo de producto",
       "dateIntent": null,
       "timeIntent": null,
-      "modality": null
+      "modality": "presencial"
     }
   },
   {

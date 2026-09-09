@@ -4,10 +4,11 @@ import type {
   ProviderErrorType,
 } from "./providers/base.ts";
 import { ProviderError, classifyProviderError } from "./providers/base.ts";
-import { validatePatchOutput } from "./validation.ts";
+import { validatePatchOutput, sanitizeTemporalIntents } from "./validation.ts";
 import { OpenAiProvider } from "./providers/openai.ts";
 import { DeepSeekProvider } from "./providers/deepseek.ts";
 import { GoogleGeminiProvider } from "./providers/google.ts";
+import { MistralProvider } from "./providers/mistral.ts";
 
 export interface FallbackExecutionOptions {
   systemPrompt: string;
@@ -23,7 +24,9 @@ export interface FallbackExecutionResult {
   modelUsed?: string;
   fallbackUsed: boolean;
   primaryProvider: string;
+  primaryModel?: string;
   fallbackProvider?: string;
+  fallbackModel?: string;
   primaryError?: string;
   primaryFailureType?: ProviderErrorType;
   fallbackError?: string;
@@ -92,6 +95,13 @@ export function createProvider(
     return new OpenAiProvider(apiKey, model);
   }
 
+  if (normalized === "mistral") {
+    const apiKey = env.get("MISTRAL_API_KEY") || env.get("AI_API_KEY");
+    if (!apiKey) throw new Error("Missing MISTRAL_API_KEY / AI_API_KEY in environment");
+    const model = modelOverride || env.get("MISTRAL_MODEL") || env.get("AI_MODEL") || "ministral-8b-2512";
+    return new MistralProvider(apiKey, model);
+  }
+
   if (normalized === "deepseek") {
     const apiKey = env.get("DEEPSEEK_API_KEY") || env.get("AI_API_KEY");
     if (!apiKey) throw new Error("Missing DEEPSEEK_API_KEY / AI_API_KEY in environment");
@@ -114,7 +124,7 @@ export function createProvider(
  */
 export function resolveProviders(env: EnvGetter): ProviderResolutionConfig {
   const primaryName = env.get("PRIMARY_AI_PROVIDER") || env.get("AI_PROVIDER") || "openai";
-  const fallbackName = env.get("FALLBACK_AI_PROVIDER") || "deepseek";
+  const fallbackName = env.get("FALLBACK_AI_PROVIDER") || "mistral";
 
   const primaryTimeoutMs = parseInt(env.get("AI_PRIMARY_TIMEOUT_MS") || "10000", 10) || 10000;
   const fallbackTimeoutMs = parseInt(env.get("AI_FALLBACK_TIMEOUT_MS") || "8000", 10) || 8000;
@@ -203,7 +213,8 @@ export async function interpretWithFallback(
       });
     }
 
-    const validation = validatePatchOutput(primaryResult.patch);
+    const primaryPatch = sanitizeTemporalIntents(primaryResult.patch, message);
+    const validation = validatePatchOutput(primaryPatch);
     if (!validation.valid) {
       throw new ProviderError({
         message: `Primary schema validation failed: ${validation.error}`,
@@ -215,12 +226,14 @@ export async function interpretWithFallback(
     // PRIMARY SUCCESS: return immediately without touching fallback
     return {
       ok: true,
-      patch: primaryResult.patch,
+      patch: primaryPatch,
       providerUsed: primaryProvider.name,
       modelUsed: primaryProvider.model,
       fallbackUsed: false,
       primaryProvider: primaryProvider.name,
+      primaryModel: primaryProvider.model,
       fallbackProvider: fallbackProvider ? fallbackProvider.name : undefined,
+      fallbackModel: fallbackProvider ? fallbackProvider.model : undefined,
       primaryLatencyMs,
       totalLatencyMs: primaryLatencyMs,
       usage: {
@@ -248,7 +261,9 @@ export async function interpretWithFallback(
         ok: false,
         fallbackUsed: false,
         primaryProvider: primaryProvider.name,
+        primaryModel: primaryProvider.model,
         fallbackProvider: fallbackProvider ? fallbackProvider.name : undefined,
+        fallbackModel: fallbackProvider ? fallbackProvider.model : undefined,
         primaryError,
         primaryFailureType,
         primaryLatencyMs,
@@ -270,6 +285,7 @@ export async function interpretWithFallback(
       ok: false,
       fallbackUsed: false,
       primaryProvider: primaryProvider.name,
+      primaryModel: primaryProvider.model,
       primaryError,
       primaryFailureType,
       primaryLatencyMs,
@@ -306,7 +322,8 @@ export async function interpretWithFallback(
       });
     }
 
-    const validation = validatePatchOutput(fallbackResult.patch);
+    const fallbackPatch = sanitizeTemporalIntents(fallbackResult.patch, message);
+    const validation = validatePatchOutput(fallbackPatch);
     if (!validation.valid) {
       throw new ProviderError({
         message: `Fallback schema validation failed: ${validation.error}`,
@@ -319,12 +336,14 @@ export async function interpretWithFallback(
     const totalLatencyMs = Date.now() - globalStartTime;
     return {
       ok: true,
-      patch: fallbackResult.patch,
+      patch: fallbackPatch,
       providerUsed: fallbackProvider.name,
       modelUsed: fallbackProvider.model,
       fallbackUsed: true,
       primaryProvider: primaryProvider.name,
+      primaryModel: primaryProvider.model,
       fallbackProvider: fallbackProvider.name,
+      fallbackModel: fallbackProvider.model,
       primaryError,
       primaryFailureType,
       primaryLatencyMs,
@@ -354,7 +373,9 @@ export async function interpretWithFallback(
     ok: false,
     fallbackUsed: true,
     primaryProvider: primaryProvider.name,
+    primaryModel: primaryProvider.model,
     fallbackProvider: fallbackProvider.name,
+    fallbackModel: fallbackProvider.model,
     primaryError,
     primaryFailureType,
     fallbackError,

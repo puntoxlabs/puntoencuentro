@@ -165,7 +165,7 @@ export function evaluateDraft(
       missingFields,
       nextQuestion: {
         field: 'locationText',
-        question: '¿Dónde se encuentran?',
+        question: '¿Dónde va a ser?',
         helperText: 'Ej: "En casa", "Bar Antares", "Av. Corrientes 1234"',
         type: 'text',
       },

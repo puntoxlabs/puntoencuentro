@@ -8,6 +8,7 @@ import { ENCOUNTER_DRAFT_PATCH_SCHEMA, validatePatchOutput } from "./validation.
 import { GoogleGeminiProvider } from "./providers/google.ts";
 import { OpenAiProvider } from "./providers/openai.ts";
 import { DeepSeekProvider } from "./providers/deepseek.ts";
+import { MistralProvider } from "./providers/mistral.ts";
 import type { EncounterInterpreterProvider } from "./providers/base.ts";
 
 const corsHeaders = {
@@ -184,7 +185,9 @@ Deno.serve(async (req: Request) => {
           message: fallbackResult.message || "No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.",
           fallbackUsed: fallbackResult.fallbackUsed,
           primaryProvider: fallbackResult.primaryProvider,
+          primaryModel: fallbackResult.primaryModel,
           fallbackProvider: fallbackResult.fallbackProvider,
+          fallbackModel: fallbackResult.fallbackModel,
           primaryFailureType: fallbackResult.primaryFailureType,
           fallbackFailureType: fallbackResult.fallbackFailureType,
           primaryLatencyMs: fallbackResult.primaryLatencyMs,
@@ -211,7 +214,9 @@ Deno.serve(async (req: Request) => {
         model: fallbackResult.modelUsed,
         fallbackUsed: fallbackResult.fallbackUsed,
         primaryProvider: fallbackResult.primaryProvider,
+        primaryModel: fallbackResult.primaryModel,
         fallbackProvider: fallbackResult.fallbackProvider,
+        fallbackModel: fallbackResult.fallbackModel,
         primaryLatencyMs: fallbackResult.primaryLatencyMs,
         fallbackLatencyMs: fallbackResult.fallbackLatencyMs,
         totalLatencyMs: fallbackResult.totalLatencyMs,

@@ -52,6 +52,7 @@ export const CreateAIWizard: React.FC = () => {
     initSession,
     sendUserMessage,
     updateDraftField,
+    applyQuickOption,
     updateConfigField,
     dismissCoordinationHandoff,
     markFallbackManual,
@@ -83,12 +84,26 @@ export const CreateAIWizard: React.FC = () => {
   const handleQuickOptionSelect = async (value: string) => {
     if (value === 'keep_fixed') {
       dismissCoordinationHandoff();
+      setTimeout(() => inputRef.current?.focus(), 100);
       return;
     }
 
-    if (lastQuestion?.field === 'modality') {
-      updateDraftField('modality', value as 'presencial' | 'virtual');
-      return;
+    if (lastQuestion) {
+      const option = lastQuestion.quickOptions?.find((opt) => opt.value === value);
+      const rawLabel = option?.label || value;
+      const displayLabel = rawLabel.replace(/^[^\p{L}\p{N}]+\s*/u, '').trim() || value;
+
+      if (lastQuestion.field === 'modality') {
+        applyQuickOption('modality', value as 'presencial' | 'virtual', displayLabel);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
+      if (lastQuestion.field === 'date' || lastQuestion.field === 'time') {
+        applyQuickOption(lastQuestion.field, value, displayLabel);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
     }
 
     // Otherwise submit as conversational response

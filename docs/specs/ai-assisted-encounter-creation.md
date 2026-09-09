@@ -167,20 +167,25 @@ Traducción determinística a CreateEncuentroDTO
 encuentrosService.createEncuentro() -> RPC crear_encuentro_seguro
 ```
 
-### 4.1 Prioridad de Preguntas Determinísticas
+### 4.1 Prioridad de Preguntas Determinísticas y Reglas de Modalidad
 1. `title`: Si no hay título -> "¿Cómo se llama el encuentro?"
 2. `dateMode`: Si hay intención de coordinar -> Handoff a `/create/coordination`
 3. `date`: Si no hay fecha -> "¿Qué día sería?"
 4. `time`: Si no hay hora -> "¿A qué hora?"
-5. `modality`: **Sin default silencioso**. Si no se deduce por contexto -> "¿Va a ser presencial o virtual?"
-6. `locationText` / `virtualLink`: Según modalidad -> "¿Dónde se encuentran?" o "¿Cuál es el link?"
+5. `modality`:
+   - **Prioridad Máxima Virtual (Evidencia Real):** Infiere `modality = 'virtual'` ÚNICAMENTE ante evidencia explícita y real de videollamada o plataformas de reunión virtual (Zoom, Google Meet, Teams, Discord, videollamada). Prevalece sobre actividades físicas (ej: "cena por Zoom" -> virtual).
+   - **URLs Genéricas NO implican virtualidad:** Una URL genérica (sitios de restaurantes, venta de entradas como Ticketek, portales web, o Google Maps) NUNCA debe considerarse evidencia virtual ni asignarse a `virtualLink`. Google Maps y sitios de locales acompañando comidas o shows implican `modality = 'presencial'`.
+   - **Inferencia Semántica Presencial:** Actividades que naturalmente implican presencia física (cena, almuerzo, desayuno, merienda, asado, pizzas, café, cumpleaños, fiesta, paseo, caminata, partido, recital, entrenamiento, etc.) se infieren como `modality = 'presencial'` sin inventar `locationText`.
+   - **Términos Genéricos:** Términos como "encuentro", "reunión" o "juntada" sin lugar físico ni plataforma virtual dejan `modality = null` -> pregunta determinística "¿Va a ser presencial o virtual?".
+6. `locationText` / `virtualLink`: Según modalidad -> "¿Dónde va a ser?" (presencial) o "¿Cuál es el enlace de la videollamada?" (virtual).
+7. **Flujo de Respuestas Rápidas (Chips):** Toda selección de chip (presencial/virtual, fechas, horas o desestimación de coordinación) persiste la respuesta del usuario en el chat, actualiza el borrador y genera automáticamente la siguiente pregunta necesaria sin detener el flujo conversacional.
 
 ### 4.2 Runtime Fallback Multi-Provider (OpenAI Primary → DeepSeek Fallback)
 
 El backend orquesta la interpretación semántica con una política estricta de **máximo 1 fallback automático** y tipado mediante taxonomía explícita (`ProviderError`):
 
-1. **Proveedor Primario (PRIMARY):** OpenAI (`gpt-5.6-luna`), seleccionado por su superioridad semántica (87.0% extracción exacta, 90.9% detección de ambigüedad).
-2. **Proveedor de Contingencia (FALLBACK):** DeepSeek (`deepseek-v4-flash`), seleccionado por su solidez interpretativa (75.0%), 0% alucinaciones y latencia ultrarrápida (495 ms).
+1. **Proveedor Primario (PRIMARY):** OpenAI (`gpt-5.6-luna`), ratificado por su superioridad semántica empírica (87.7% extracción exacta, 12.3% omisión, 0% alucinaciones).
+2. **Proveedor de Contingencia (FALLBACK):** DeepSeek (`deepseek-v4-flash`), ratificado por su solidez interpretativa (73.9% extracción exacta, 100% schema compliance), 100% éxito técnico de API y latencia ultrarrápida (498 ms).
 3. **Taxonomía de Errores Tipada (`ProviderError`):**
    - `retryable_technical`: Errores transitorios de infraestructura o parsing que **SÍ activan fallback**.
    - `safety_refusal`: Rechazos de contenido, violaciones de políticas de seguridad y moderación que **NUNCA activan fallback** (prohibido eludir políticas enviando a otro proveedor).

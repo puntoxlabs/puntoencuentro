@@ -16,6 +16,59 @@ export interface MergeResult {
 }
 
 /**
+ * Detects whether a URL or text represents a recognized virtual meeting platform or virtual signal.
+ * Generic URLs (e.g. restaurant websites, ticket sales, Google Maps) return false.
+ */
+export function isRecognizedVirtualPlatform(linkOrText: string): boolean {
+  if (!linkOrText || typeof linkOrText !== 'string') return false;
+  const trimmed = linkOrText.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  // Recognizable virtual meeting URL patterns
+  const virtualUrlPatterns = [
+    /^(https?:\/\/)?([a-z0-9-]+\.)?meet\.google\.com(\/.*)?$/i,
+    /^(https?:\/\/)?([a-z0-9-]+\.)?zoom\.us(\/.*)?$/i,
+    /^(https?:\/\/)?teams\.microsoft\.com(\/.*)?$/i,
+    /^(https?:\/\/)?teams\.live\.com(\/.*)?$/i,
+    /^(https?:\/\/)?([a-z0-9-]+\.)?webex\.com(\/.*)?$/i,
+    /^(https?:\/\/)?([a-z0-9-]+\.)?whereby\.com(\/.*)?$/i,
+    /^(https?:\/\/)?discord\.(gg|com)(\/.*)?$/i,
+    /^(https?:\/\/)?facetime\.apple\.com(\/.*)?$/i,
+    /^(https?:\/\/)?([a-z0-9-]+\.)?skype\.com(\/.*)?$/i,
+    /^(https?:\/\/)?([a-z0-9-]+\.)?jitsi\.org(\/.*)?$/i,
+    /^(https?:\/\/)?meet\.jit\.si(\/.*)?$/i,
+  ];
+
+  if (virtualUrlPatterns.some((pattern) => pattern.test(trimmed))) {
+    return true;
+  }
+
+  // Keywords that denote virtual meeting if passed as platform/link text
+  const virtualKeywords = [
+    'meet',
+    'google meet',
+    'zoom',
+    'teams',
+    'microsoft teams',
+    'videollamada',
+    'videocall',
+    'virtual',
+    'online',
+    'discord',
+    'skype',
+    'webex',
+    'whereby',
+    'jitsi',
+  ];
+
+  if (virtualKeywords.includes(trimmed)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Merges an EncounterDraftPatch into the current EncounterDraft deterministically.
  *
  * Rules:
@@ -68,10 +121,22 @@ export function mergeDraftPatch(
   }
 
   if (patch.virtualLink?.value && patch.virtualLink.value.trim()) {
-    draft.virtualLink = patch.virtualLink.value.trim();
-    // Contextual inference: virtual link provided -> virtual
-    if (!draft.modality) {
+    const rawLink = patch.virtualLink.value.trim();
+    if (isRecognizedVirtualPlatform(rawLink)) {
+      draft.virtualLink = rawLink;
+      // Real virtual link overrides any implicit modality
       draft.modality = 'virtual';
+    } else {
+      // Non-virtual URL passed as virtualLink (e.g. restaurant website, ticket link, Google Maps)
+      // Do NOT set draft.virtualLink, and do NOT allow it to force modality to virtual
+      const isMaps = /maps\.google\.|goo\.gl\/maps|maps\.app\.goo\.gl/i.test(rawLink);
+      if (isMaps && !draft.locationText) {
+        draft.locationText = rawLink;
+      }
+      // If modality was marked virtual solely due to a non-virtual URL, correct it
+      if (draft.modality === 'virtual' && patch.modality?.value === 'virtual') {
+        draft.modality = isMaps || draft.locationText ? 'presencial' : null;
+      }
     }
   }
 

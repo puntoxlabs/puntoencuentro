@@ -42,6 +42,7 @@ interface AiWizardState {
   initSession: () => void;
   sendUserMessage: (text: string) => Promise<void>;
   updateDraftField: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K]) => void;
+  applyQuickOption: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K], displayLabel?: string) => void;
   updateConfigField: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
   dismissCoordinationHandoff: () => void;
   markFallbackManual: () => void;
@@ -217,10 +218,85 @@ export const useAiWizardStore = create<AiWizardState>()(
       },
 
       updateDraftField: (field, value) => {
-        const newDraft = { ...get().draft, [field]: value };
-        const evaluation = evaluateDraft(newDraft, get().coordinationDetected);
+        const state = get();
+        const newDraft = { ...state.draft, [field]: value };
+        const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+
+        // If this update resolved the currently active question, advance the conversation
+        const wasAnsweringActiveQuestion = state.lastQuestion?.field === field;
+        let newMessages = state.messages;
+
+        if (wasAnsweringActiveQuestion) {
+          let nextReply = '';
+          if (evaluation.nextQuestion) {
+            nextReply = evaluation.nextQuestion.question;
+          } else if (evaluation.isComplete) {
+            nextReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+          }
+
+          if (nextReply) {
+            const lastMsg = state.messages[state.messages.length - 1];
+            if (lastMsg?.text !== nextReply) {
+              newMessages = [
+                ...state.messages,
+                {
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: nextReply,
+                  timestamp: Date.now(),
+                },
+              ];
+            }
+          }
+        }
+
         set({
           draft: newDraft,
+          messages: newMessages,
+          lastQuestion: evaluation.nextQuestion,
+          isComplete: evaluation.isComplete,
+          error: evaluation.validationError,
+        });
+      },
+
+      applyQuickOption: (field, value, displayLabel) => {
+        const state = get();
+        const userText = displayLabel || (typeof value === 'string' ? value : String(value));
+
+        const userMsg: ChatMessage = {
+          id: generateUuid(),
+          role: 'user',
+          text: userText,
+          timestamp: Date.now(),
+        };
+
+        const newDraft = { ...state.draft, [field]: value };
+        const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+
+        let assistantReply = '';
+        if (evaluation.nextQuestion) {
+          assistantReply = evaluation.nextQuestion.question;
+        } else if (evaluation.isComplete) {
+          assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+        }
+
+        const newMessages = [...state.messages, userMsg];
+
+        if (assistantReply) {
+          const lastMsg = state.messages[state.messages.length - 1];
+          if (lastMsg?.text !== assistantReply) {
+            newMessages.push({
+              id: generateUuid(),
+              role: 'assistant',
+              text: assistantReply,
+              timestamp: Date.now() + 1,
+            });
+          }
+        }
+
+        set({
+          draft: newDraft,
+          messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
           error: evaluation.validationError,
@@ -234,13 +310,42 @@ export const useAiWizardStore = create<AiWizardState>()(
       },
 
       dismissCoordinationHandoff: () => {
-        const newDraft = { ...get().draft, dateMode: 'fixed' as const };
+        const state = get();
+        const newDraft = { ...state.draft, dateMode: 'fixed' as const };
         const evaluation = evaluateDraft(newDraft, false);
+
+        const userMsg: ChatMessage = {
+          id: generateUuid(),
+          role: 'user',
+          text: 'Elegir una fecha fija acá',
+          timestamp: Date.now(),
+        };
+
+        const newMessages = [...state.messages, userMsg];
+
+        let nextReply = '';
+        if (evaluation.nextQuestion) {
+          nextReply = evaluation.nextQuestion.question;
+        } else if (evaluation.isComplete) {
+          nextReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+        }
+
+        if (nextReply) {
+          newMessages.push({
+            id: generateUuid(),
+            role: 'assistant',
+            text: nextReply,
+            timestamp: Date.now() + 1,
+          });
+        }
+
         set({
           draft: newDraft,
           coordinationDetected: false,
+          messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
+          error: evaluation.validationError,
         });
       },
 
@@ -302,7 +407,11 @@ export const useAiWizardStore = create<AiWizardState>()(
     }),
     {
       name: 'pe-ai-wizard-session',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() =>
+        typeof window !== 'undefined' && typeof sessionStorage !== 'undefined'
+          ? sessionStorage
+          : ({ getItem: () => null, setItem: () => {}, removeItem: () => {} } as any)
+      ),
       // Preserve only structured draft & config; do not persist full textual conversation across browser sessions
       partialize: (state) => ({
         sessionId: state.sessionId,
