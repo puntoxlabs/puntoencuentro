@@ -25,8 +25,10 @@ export interface EncounterDraft {
   date: string | null; // YYYY-MM-DD
   time: string | null; // HH:MM
 
-  // Multi-turn temporal metadata: indicates a +1 day rollover is pending when date arrives
-  pendingDayRollover?: boolean;
+  // Multi-turn temporal metadata:
+  baseDate?: string | null; // Semantic anchor date before day-rollover (e.g. 'hoy' = 2026-09-09)
+  appliedDayRollover?: boolean; // True if date was bumped +1 day due to 24:00 (or midnight rollover)
+  pendingDayRollover?: boolean; // Indicates a +1 day rollover is pending when date arrives
 
   // Coordination mode fields (retained for architectural compatibility with Stage 1.0 Entrega B)
   dateOptions: DateOption[] | null;
@@ -68,6 +70,8 @@ export function createEmptyEncounterDraft(): EncounterDraft {
     dateMode: 'fixed',
     date: null,
     time: null,
+    baseDate: null,
+    appliedDayRollover: false,
     pendingDayRollover: false,
     dateOptions: null,
     responseDeadline: null,

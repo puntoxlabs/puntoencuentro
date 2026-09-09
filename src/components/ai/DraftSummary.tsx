@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, MapPin, Video, Sparkles, Edit3, ArrowRight, Share2, Users } from 'lucide-react';
+import { Calendar, Clock, MapPin, Video, Sparkles, Edit3, ArrowRight, Share2, Users, Check, X } from 'lucide-react';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { formatFriendlyDate } from '@/lib/formatDate';
-import { INVITATION_THEMES, getTemplateOptionsForTheme } from '@/lib/invitationThemes';
+import {
+  INVITATION_THEMES,
+  AI_SUPPORTED_THEMES,
+  getTemplateOptionsForTheme,
+  getDefaultInvitationTemplate,
+} from '@/lib/invitationThemes';
 
 interface DraftSummaryProps {
   draft: EncounterDraft;
@@ -23,11 +28,14 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
   onFallbackManual,
   onChangeConfig,
 }) => {
-  const [showConfigOptions, setShowConfigOptions] = useState(false);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [showInvitationTypeSelector, setShowInvitationTypeSelector] = useState(false);
 
   const activeThemeConfig = INVITATION_THEMES.find((t) => t.id === config.invitationTheme);
-  const activeTemplate = getTemplateOptionsForTheme(config.invitationTheme).find(
-    (t) => t.id === config.invitationTemplate
+  const themeTemplates = getTemplateOptionsForTheme(config.invitationTheme);
+  const defaultTemplate = getDefaultInvitationTemplate(config.invitationTheme);
+  const activeTemplate = themeTemplates.find(
+    (t) => t.id === (config.invitationTemplate || defaultTemplate)
   );
   const templateSuffix = activeTemplate ? ` (${activeTemplate.name})` : '';
 
@@ -128,64 +136,344 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
           </button>
         </div>
 
-        {/* Theme & Invitation Config toggle */}
-        <div style={{ paddingTop: '8px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '12px', color: '#475569' }}>
-            Tema: <strong>{activeThemeConfig?.label || 'Clásico'}{templateSuffix}</strong> •{' '}
-            {config.invitationType === 'link_general' ? 'Enlace general' : 'Invitación individual'}
+        {/* Row 1: Tema */}
+        <div
+          style={{
+            paddingTop: '10px',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1, paddingRight: '8px' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                color: '#64748b',
+                fontWeight: 600,
+                display: 'block',
+              }}
+            >
+              Tema
+            </span>
+            <div
+              style={{
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#0f172a',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {activeThemeConfig?.label || 'Clásico'}
+              {templateSuffix}
+            </div>
           </div>
           <button
-            onClick={() => setShowConfigOptions(!showConfigOptions)}
-            style={{ background: 'none', border: 'none', color: 'var(--color-primary, #4f46e5)', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+            type="button"
+            data-testid="change-theme-button"
+            onClick={() => setShowThemeSelector(!showThemeSelector)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary, #4f46e5)',
+              fontSize: '13px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              padding: '6px 8px',
+              flexShrink: 0,
+            }}
           >
-            {showConfigOptions ? 'Cerrar' : 'Cambiar'}
+            {showThemeSelector ? 'Cerrar' : 'Cambiar'}
           </button>
         </div>
 
-        {showConfigOptions && (
-          <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '6px' }}>
-            <div style={{ marginBottom: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                Tipo de invitación:
+        {/* Inline Theme & Variant Selector */}
+        {showThemeSelector && (
+          <div
+            data-testid="theme-selector-panel"
+            style={{
+              background: '#ffffff',
+              padding: '14px',
+              borderRadius: '10px',
+              border: '1px solid #e2e8f0',
+              marginTop: '4px',
+              marginBottom: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                Elegí una categoría y diseño:
               </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => onChangeConfig('invitationType', 'link_general')}
-                  style={{
-                    flex: 1,
-                    padding: '6px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    border: config.invitationType === 'link_general' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                    background: config.invitationType === 'link_general' ? '#eef2ff' : '#ffffff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Share2 size={13} /> Link general
-                </button>
-                <button
-                  onClick={() => onChangeConfig('invitationType', 'individual')}
-                  style={{
-                    flex: 1,
-                    padding: '6px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    border: config.invitationType === 'individual' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                    background: config.invitationType === 'individual' ? '#eef2ff' : '#ffffff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Users size={13} /> Individual
-                </button>
+              <button
+                type="button"
+                onClick={() => setShowThemeSelector(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '12px',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                }}
+              >
+                <X size={13} /> Cerrar
+              </button>
+            </div>
+
+            {/* Categorías */}
+            <div>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  display: 'block',
+                  marginBottom: '6px',
+                }}
+              >
+                Categoría
+              </span>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                  gap: '6px',
+                  maxHeight: '160px',
+                  overflowY: 'auto',
+                  paddingRight: '4px',
+                }}
+              >
+                {AI_SUPPORTED_THEMES.map((themeId) => {
+                  const themeItem = INVITATION_THEMES.find((t) => t.id === themeId);
+                  if (!themeItem) return null;
+                  const isSelected = config.invitationTheme === themeId;
+                  const Icon = themeItem.icon;
+                  return (
+                    <button
+                      key={themeId}
+                      type="button"
+                      data-testid={`theme-option-${themeId}`}
+                      onClick={() => {
+                        const defaultTpl = getDefaultInvitationTemplate(themeId);
+                        onChangeConfig('invitationTheme', themeId);
+                        onChangeConfig('invitationTemplate', defaultTpl);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: isSelected
+                          ? '2px solid var(--color-primary, #4f46e5)'
+                          : '1px solid #e2e8f0',
+                        background: isSelected ? '#eef2ff' : '#ffffff',
+                        color: isSelected ? 'var(--color-primary, #4f46e5)' : '#334155',
+                        fontSize: '12px',
+                        fontWeight: isSelected ? 700 : 500,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <Icon size={14} style={{ flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {themeItem.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Variantes del tema seleccionado */}
+            {themeTemplates.length > 0 && (
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    display: 'block',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Variante de diseño
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {themeTemplates.map((tpl) => {
+                    const isVariantSelected = (config.invitationTemplate || defaultTemplate) === tpl.id;
+                    const isDefault = tpl.id === defaultTemplate;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        data-testid={`template-variant-${tpl.id}`}
+                        onClick={() => {
+                          onChangeConfig('invitationTemplate', tpl.id);
+                        }}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '16px',
+                          border: isVariantSelected
+                            ? '2px solid var(--color-primary, #4f46e5)'
+                            : '1px solid #cbd5e1',
+                          background: isVariantSelected ? '#eef2ff' : '#ffffff',
+                          color: isVariantSelected ? 'var(--color-primary, #4f46e5)' : '#334155',
+                          fontSize: '12px',
+                          fontWeight: isVariantSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {isVariantSelected && <Check size={12} />}
+                        {tpl.name}
+                        {isDefault && <span style={{ fontSize: '10px', opacity: 0.7 }}> (por defecto)</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Row 2: Tipo de invitación */}
+        <div
+          style={{
+            paddingTop: '10px',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1, paddingRight: '8px' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                color: '#64748b',
+                fontWeight: 600,
+                display: 'block',
+              }}
+            >
+              Tipo de invitación
+            </span>
+            <div
+              style={{
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#0f172a',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {config.invitationType === 'link_general' ? 'Enlace general' : 'Invitación individual'}
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="change-invitation-type-button"
+            onClick={() => setShowInvitationTypeSelector(!showInvitationTypeSelector)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary, #4f46e5)',
+              fontSize: '13px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              padding: '6px 8px',
+              flexShrink: 0,
+            }}
+          >
+            {showInvitationTypeSelector ? 'Cerrar' : 'Cambiar'}
+          </button>
+        </div>
+
+        {/* Inline Invitation Type Selector */}
+        {showInvitationTypeSelector && (
+          <div
+            data-testid="invitation-type-panel"
+            style={{
+              background: '#ffffff',
+              padding: '12px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginTop: '4px',
+              marginBottom: '6px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                data-testid="invitation-type-link-general"
+                onClick={() => {
+                  onChangeConfig('invitationType', 'link_general');
+                  setShowInvitationTypeSelector(false);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border:
+                    config.invitationType === 'link_general'
+                      ? '2px solid var(--color-primary, #4f46e5)'
+                      : '1px solid #cbd5e1',
+                  background: config.invitationType === 'link_general' ? '#eef2ff' : '#ffffff',
+                  color: config.invitationType === 'link_general' ? 'var(--color-primary, #4f46e5)' : '#334155',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Share2 size={14} /> Link general
+              </button>
+              <button
+                type="button"
+                data-testid="invitation-type-individual"
+                onClick={() => {
+                  onChangeConfig('invitationType', 'individual');
+                  setShowInvitationTypeSelector(false);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border:
+                    config.invitationType === 'individual'
+                      ? '2px solid var(--color-primary, #4f46e5)'
+                      : '1px solid #cbd5e1',
+                  background: config.invitationType === 'individual' ? '#eef2ff' : '#ffffff',
+                  color: config.invitationType === 'individual' ? 'var(--color-primary, #4f46e5)' : '#334155',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Users size={14} /> Individual
+              </button>
             </div>
           </div>
         )}

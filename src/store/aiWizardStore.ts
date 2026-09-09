@@ -498,15 +498,37 @@ export const useAiWizardStore = create<AiWizardState>()(
         const state = get();
         let resolvedValue = value;
         let pendingRollover = state.draft.pendingDayRollover;
+        let appliedRollover = state.draft.appliedDayRollover;
+        let baseDate = state.draft.baseDate;
+        let finalDate = state.draft.date;
 
-        if (field === 'date' && pendingRollover && typeof value === 'string' && value) {
-          resolvedValue = addDaysToIsoDate(value, 1) as any;
-          pendingRollover = false;
+        if (field === 'date' && typeof value === 'string' && value) {
+          baseDate = value;
+          if (pendingRollover || appliedRollover) {
+            resolvedValue = addDaysToIsoDate(value, 1) as any;
+            finalDate = resolvedValue as any;
+            appliedRollover = true;
+            pendingRollover = false;
+          } else {
+            finalDate = value;
+            appliedRollover = false;
+          }
         } else if (field === 'time') {
+          if (baseDate && appliedRollover) {
+            finalDate = baseDate;
+            appliedRollover = false;
+          }
           pendingRollover = false;
         }
 
-        const newDraft = { ...state.draft, [field]: resolvedValue, pendingDayRollover: pendingRollover };
+        const newDraft: EncounterDraft = {
+          ...state.draft,
+          [field]: resolvedValue,
+          date: finalDate,
+          baseDate,
+          appliedDayRollover: appliedRollover,
+          pendingDayRollover: pendingRollover,
+        };
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         // If this update resolved the currently active question, advance the conversation
@@ -623,15 +645,37 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         let resolvedValue = value;
         let pendingRollover = state.draft.pendingDayRollover;
+        let appliedRollover = state.draft.appliedDayRollover;
+        let baseDate = state.draft.baseDate;
+        let finalDate = state.draft.date;
 
-        if (field === 'date' && pendingRollover && typeof value === 'string' && value) {
-          resolvedValue = addDaysToIsoDate(value, 1) as any;
-          pendingRollover = false;
+        if (field === 'date' && typeof value === 'string' && value) {
+          baseDate = value;
+          if (pendingRollover || appliedRollover) {
+            resolvedValue = addDaysToIsoDate(value, 1) as any;
+            finalDate = resolvedValue as any;
+            appliedRollover = true;
+            pendingRollover = false;
+          } else {
+            finalDate = value;
+            appliedRollover = false;
+          }
         } else if (field === 'time') {
+          if (baseDate && appliedRollover) {
+            finalDate = baseDate;
+            appliedRollover = false;
+          }
           pendingRollover = false;
         }
 
-        const newDraft = { ...state.draft, [field]: resolvedValue, pendingDayRollover: pendingRollover };
+        const newDraft: EncounterDraft = {
+          ...state.draft,
+          [field]: resolvedValue,
+          date: finalDate,
+          baseDate,
+          appliedDayRollover: appliedRollover,
+          pendingDayRollover: pendingRollover,
+        };
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         let assistantReply = '';

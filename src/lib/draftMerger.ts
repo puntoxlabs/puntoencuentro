@@ -160,11 +160,23 @@ export function mergeDraftPatch(
   if (patch.dateIntent?.value) {
     const dateRes = resolveDateIntent(patch.dateIntent.value);
     if (dateRes.resolved && dateRes.date) {
-      draft.date = dateRes.date;
-      // If there is a pending end-of-day rollover from an earlier turn without a date,
-      // and this patch does NOT specify a new timeIntent, apply the rollover now:
-      if (!patch.timeIntent?.value && draft.pendingDayRollover) {
-        draft.date = addDaysToIsoDate(draft.date, 1);
+      draft.baseDate = dateRes.date;
+
+      // If this patch does NOT specify a new timeIntent, preserve existing temporal semantics:
+      // If 24:00 rollover was applied or pending, advance date to +1 day and keep appliedDayRollover = true.
+      if (!patch.timeIntent?.value) {
+        if (draft.appliedDayRollover || draft.pendingDayRollover) {
+          draft.date = addDaysToIsoDate(draft.baseDate, 1);
+          draft.appliedDayRollover = true;
+          draft.pendingDayRollover = false;
+        } else {
+          draft.date = dateRes.date;
+          draft.appliedDayRollover = false;
+          draft.pendingDayRollover = false;
+        }
+      } else {
+        draft.date = dateRes.date;
+        draft.appliedDayRollover = false;
         draft.pendingDayRollover = false;
       }
     } else {
@@ -197,15 +209,30 @@ export function mergeDraftPatch(
       const timeRes = resolveTimeIntent(patch.timeIntent.value);
       if (timeRes.resolved && timeRes.time) {
         draft.time = timeRes.time;
+
+        const baseAnchor = draft.baseDate || draft.date;
+
         if (timeRes.dayOffset) {
-          if (draft.date) {
-            draft.date = addDaysToIsoDate(draft.date, timeRes.dayOffset);
+          if (baseAnchor) {
+            draft.baseDate = baseAnchor;
+            draft.date = addDaysToIsoDate(baseAnchor, timeRes.dayOffset);
+            draft.appliedDayRollover = true;
             draft.pendingDayRollover = false;
           } else {
             draft.pendingDayRollover = true;
+            draft.appliedDayRollover = false;
           }
         } else {
-          draft.pendingDayRollover = false;
+          if (baseAnchor) {
+            draft.baseDate = baseAnchor;
+            // Restore date to semantic base anchor, undoing any prior 24:00 day-rollover
+            draft.date = baseAnchor;
+            draft.appliedDayRollover = false;
+            draft.pendingDayRollover = false;
+          } else {
+            draft.pendingDayRollover = false;
+            draft.appliedDayRollover = false;
+          }
         }
       } else if (timeRes.ambiguityReason) {
         ambiguities.push({

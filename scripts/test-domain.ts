@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { DraftSummary } from '../src/components/ai/DraftSummary.tsx';
 
 import {
   resolveDateIntent,
@@ -1652,5 +1655,502 @@ describe('Crear con IA: Temporal Semantics & Stale State Prevention (Cases A to 
       assert.equal(durableRpcCallCount, 4, 'Durable rate limit RPC was NOT called on off-topic lock');
     });
   });
+
+  describe('QA Production Fixes: Post-Editing Temporal Semantics & Theme/Invitation Separation', () => {
+    const todayDate = new Date();
+    const todayIso = todayDate.toISOString().split('T')[0];
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowIso = tomorrowDate.toISOString().split('T')[0];
+
+    test('Case A: "hoy a las 24" -> mañana 00:00; then "a las 23" -> hoy 23:00 (reverts rollover to baseDate)', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      // Turn 1: "Cena en casa hoy a las 24"
+      const turn1Patch = {
+        title: { value: 'Cena en casa', confidence: 'explicit' as const },
+        dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+        modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+        locationText: { value: 'casa', confidence: 'explicit' as const },
+      };
+
+      const t1 = mergeDraftPatch(draft, config, turn1Patch);
+      assert.equal(t1.draft.baseDate, todayIso);
+      assert.equal(t1.draft.date, tomorrowIso, 'Canonical date must be tomorrow 00:00');
+      assert.equal(t1.draft.time, '00:00');
+      assert.equal(t1.draft.appliedDayRollover, true);
+
+      // Turn 2: "Cambiar a las 23"
+      const turn2Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t2 = mergeDraftPatch(t1.draft, t1.config, turn2Patch);
+      assert.equal(t2.draft.baseDate, todayIso);
+      assert.equal(t2.draft.date, todayIso, 'Date must revert to original semantic anchor today');
+      assert.equal(t2.draft.time, '23:00');
+      assert.equal(t2.draft.appliedDayRollover, false);
+    });
+
+    test('Case B: "viernes a las 24" -> sábado 00:00; then "a las 23" -> viernes 23:00', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      const fridayIso = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+      const saturdayIso = addDaysToIsoDate(fridayIso, 1);
+
+      // Turn 1: "viernes a las 24"
+      const turn1Patch = {
+        dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t1 = mergeDraftPatch(draft, config, turn1Patch);
+      assert.equal(t1.draft.baseDate, fridayIso);
+      assert.equal(t1.draft.date, saturdayIso);
+      assert.equal(t1.draft.time, '00:00');
+      assert.equal(t1.draft.appliedDayRollover, true);
+
+      // Turn 2: "a las 23"
+      const turn2Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t2 = mergeDraftPatch(t1.draft, t1.config, turn2Patch);
+      assert.equal(t2.draft.baseDate, fridayIso);
+      assert.equal(t2.draft.date, fridayIso, 'Must revert to Friday');
+      assert.equal(t2.draft.time, '23:00');
+      assert.equal(t2.draft.appliedDayRollover, false);
+    });
+
+    test('Case C: "viernes a las 00:00" -> viernes 00:00; then "a las 23" -> viernes 23:00 (does NOT subtract a day)', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      const fridayIso = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+
+      // Turn 1: "viernes a las 00:00" (explicit 00:00, no rollover)
+      const turn1Patch = {
+        dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 0, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t1 = mergeDraftPatch(draft, config, turn1Patch);
+      assert.equal(t1.draft.baseDate, fridayIso);
+      assert.equal(t1.draft.date, fridayIso);
+      assert.equal(t1.draft.time, '00:00');
+      assert.equal(t1.draft.appliedDayRollover, false);
+
+      // Turn 2: "a las 23"
+      const turn2Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t2 = mergeDraftPatch(t1.draft, t1.config, turn2Patch);
+      assert.equal(t2.draft.baseDate, fridayIso);
+      assert.equal(t2.draft.date, fridayIso, 'Must remain Friday, not Thursday');
+      assert.equal(t2.draft.time, '23:00');
+      assert.equal(t2.draft.appliedDayRollover, false);
+    });
+
+    test('Case D: "hoy a las 23" -> hoy 23:00; then "a las 24" -> mañana 00:00 (applies rollover to baseDate)', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      // Turn 1: "hoy a las 23"
+      const turn1Patch = {
+        dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t1 = mergeDraftPatch(draft, config, turn1Patch);
+      assert.equal(t1.draft.baseDate, todayIso);
+      assert.equal(t1.draft.date, todayIso);
+      assert.equal(t1.draft.time, '23:00');
+      assert.equal(t1.draft.appliedDayRollover, false);
+
+      // Turn 2: "a las 24"
+      const turn2Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t2 = mergeDraftPatch(t1.draft, t1.config, turn2Patch);
+      assert.equal(t2.draft.baseDate, todayIso);
+      assert.equal(t2.draft.date, tomorrowIso, 'Must roll over to tomorrow 00:00');
+      assert.equal(t2.draft.time, '00:00');
+      assert.equal(t2.draft.appliedDayRollover, true);
+    });
+
+    test('Case E: "a las 24" sin fecha -> pending rollover -> "viernes" -> sábado 00:00 -> "a las 23" -> viernes 23:00', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      const fridayIso = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+      const saturdayIso = addDaysToIsoDate(fridayIso, 1);
+
+      // Turn 1: "a las 24" (no date yet)
+      const turn1Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t1 = mergeDraftPatch(draft, config, turn1Patch);
+      assert.equal(t1.draft.time, '00:00');
+      assert.equal(t1.draft.date, null);
+      assert.equal(t1.draft.pendingDayRollover, true);
+
+      // Turn 2: "viernes"
+      const turn2Patch = {
+        dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      };
+      const t2 = mergeDraftPatch(t1.draft, t1.config, turn2Patch);
+      assert.equal(t2.draft.baseDate, fridayIso);
+      assert.equal(t2.draft.date, saturdayIso);
+      assert.equal(t2.draft.time, '00:00');
+      assert.equal(t2.draft.appliedDayRollover, true);
+      assert.equal(t2.draft.pendingDayRollover, false);
+
+      // Turn 3: "a las 23"
+      const turn3Patch = {
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      };
+      const t3 = mergeDraftPatch(t2.draft, t2.config, turn3Patch);
+      assert.equal(t3.draft.baseDate, fridayIso);
+      assert.equal(t3.draft.date, fridayIso, 'Must revert to Friday');
+      assert.equal(t3.draft.time, '23:00');
+      assert.equal(t3.draft.appliedDayRollover, false);
+    });
+
+    test('Case Multi-Turn: 24 -> 22 -> 21 does not perform double subtraction', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      // Turn 1: "hoy a las 24"
+      const t1 = mergeDraftPatch(draft, config, {
+        dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+      });
+      assert.equal(t1.draft.date, tomorrowIso);
+      assert.equal(t1.draft.time, '00:00');
+
+      // Turn 2: "Mejor a las 22"
+      const t2 = mergeDraftPatch(t1.draft, t1.config, {
+        timeIntent: { value: { type: 'exact' as const, hour: 22, minute: 0 }, confidence: 'explicit' as const },
+      });
+      assert.equal(t2.draft.date, todayIso);
+      assert.equal(t2.draft.time, '22:00');
+
+      // Turn 3: "Ahora a las 21"
+      const t3 = mergeDraftPatch(t2.draft, t2.config, {
+        timeIntent: { value: { type: 'exact' as const, hour: 21, minute: 0 }, confidence: 'explicit' as const },
+      });
+      assert.equal(t3.draft.date, todayIso, 'Must still be today, no double subtraction');
+      assert.equal(t3.draft.time, '21:00');
+    });
+
+    test('Case F5 / Persistence: JSON serialization/deserialization preserves baseDate and appliedDayRollover', () => {
+      const draft = createEmptyEncounterDraft();
+      const config = createDefaultInvitationConfig();
+
+      // Turn 1: "hoy a las 24"
+      const t1 = mergeDraftPatch(draft, config, {
+        title: { value: 'Cena familiar', confidence: 'explicit' as const },
+        dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+      });
+
+      // Simulate F5 page reload via JSON serialization
+      const serialized = JSON.stringify(t1.draft);
+      const restoredDraft = JSON.parse(serialized) as EncounterDraft;
+
+      assert.equal(restoredDraft.baseDate, todayIso);
+      assert.equal(restoredDraft.date, tomorrowIso);
+      assert.equal(restoredDraft.time, '00:00');
+      assert.equal(restoredDraft.appliedDayRollover, true);
+
+      // Turn 2 after reload: "cambiar a las 23"
+      const t2 = mergeDraftPatch(restoredDraft, t1.config, {
+        timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+      });
+
+      assert.equal(t2.draft.date, todayIso, 'After F5 reload, changing to 23 reverts to today');
+      assert.equal(t2.draft.time, '23:00');
+      assert.equal(t2.draft.appliedDayRollover, false);
+    });
+
+    test('Future validation: executes on final canonical datetime', () => {
+      // 1. Tomorrow 00:00 is in the future
+      const futureDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        date: tomorrowIso,
+        time: '00:00',
+        modality: 'presencial',
+        locationText: 'Casa',
+      };
+      const evalFuture = evaluateDraft(futureDraft);
+      assert.equal(evalFuture.isComplete, true);
+      assert.equal(evalFuture.validationError, null);
+
+      // 2. Past date returns validation error
+      const pastDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena pasada',
+        date: '2020-01-01',
+        time: '12:00',
+        modality: 'presencial',
+        locationText: 'Casa',
+      };
+      const evalPast = evaluateDraft(pastDraft);
+      assert.equal(evalPast.isComplete, false);
+      assert.ok(
+        evalPast.validationError?.includes('anterior') ||
+        evalPast.validationError?.includes('futur') ||
+        evalPast.validationError?.includes('pasad')
+      );
+
+      // 3. Today with past time returns "La fecha y hora deben ser futuras"
+      const todayPastDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena pasada hoy',
+        date: todayIso,
+        time: '00:01',
+        modality: 'presencial',
+        locationText: 'Casa',
+      };
+      const evalTodayPast = evaluateDraft(todayPastDraft);
+      assert.equal(evalTodayPast.isComplete, false);
+      assert.ok(evalTodayPast.validationError?.includes('futur'));
+    });
+
+    test('UI Theme & Invitation Type Isolation: changing theme applies default template without touching invitationType', () => {
+      const initialConfig: InvitationConfig = {
+        invitationType: 'link_general',
+        invitationTheme: 'family',
+        invitationTemplate: 'family_sunday',
+        responseVisibility: 'hidden',
+      };
+
+      // Change category to sports
+      const defaultSportsTemplate = getDefaultInvitationTemplate('sports');
+      assert.ok(defaultSportsTemplate);
+
+      const updatedConfig: InvitationConfig = {
+        ...initialConfig,
+        invitationTheme: 'sports',
+        invitationTemplate: defaultSportsTemplate,
+      };
+
+      assert.equal(updatedConfig.invitationTheme, 'sports');
+      assert.equal(updatedConfig.invitationTemplate, defaultSportsTemplate);
+      assert.equal(updatedConfig.invitationType, 'link_general', 'invitationType was NOT modified');
+
+      // Change invitationType to individual
+      const typeOnlyConfig: InvitationConfig = {
+        ...updatedConfig,
+        invitationType: 'individual',
+      };
+
+      assert.equal(typeOnlyConfig.invitationType, 'individual');
+      assert.equal(typeOnlyConfig.invitationTheme, 'sports', 'Theme was NOT modified');
+      assert.equal(typeOnlyConfig.invitationTemplate, defaultSportsTemplate, 'Template was NOT modified');
+    });
+
+    test('DraftSummary UI Rendering: renders separated Tema and Tipo de Invitación rows with independent Cambiar buttons', () => {
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado en casa',
+        date: todayIso,
+        time: '21:00',
+        modality: 'presencial' as const,
+        locationText: 'Casa',
+      };
+      const config = {
+        invitationType: 'link_general' as const,
+        invitationTheme: 'family' as const,
+        invitationTemplate: 'family_home',
+        responseVisibility: 'hidden' as const,
+      };
+
+      const html = renderToStaticMarkup(
+        React.createElement(DraftSummary, {
+          draft,
+          config,
+          isLoading: false,
+          onConfirmCreate: () => {},
+          onModify: () => {},
+          onFallbackManual: () => {},
+          onChangeConfig: () => {},
+        })
+      );
+
+      // Verify separated row headers exist
+      assert.ok(html.includes('Tema'), 'Must include Tema label');
+      assert.ok(html.includes('Tipo de invitación'), 'Must include Tipo de invitación label');
+
+      // Verify independent action buttons exist
+      assert.ok(html.includes('data-testid="change-theme-button"'), 'Must include change-theme-button');
+      assert.ok(html.includes('data-testid="change-invitation-type-button"'), 'Must include change-invitation-type-button');
+
+      // Verify displayed values
+      assert.ok(html.includes('Familia'), 'Must display active theme name');
+      assert.ok(html.includes('Hogar'), 'Must display active template name');
+      assert.ok(html.includes('Enlace general'), 'Must display active invitation type');
+
+      // Verify they are NOT concatenated on a single line
+      assert.ok(!html.includes('Tema: Familia (Hogar) • Enlace general'), 'Must NOT mix theme and invitation type in single line');
+    });
+  });
 });
+
+describe('Domain Logic Tests: Date-Only Edits with 24:00 Rollover Semantics Preservation (Control Cases A-F)', () => {
+  const fridayIso = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }).date!;
+  const saturdayIso = addDaysToIsoDate(fridayIso, 1);
+  const sundayIso = resolveDateIntent({ type: 'weekday', weekday: 'domingo', modifier: 'this' }).date!;
+  const mondayIso = addDaysToIsoDate(sundayIso, 1);
+  const todayIso = getArgentinaTodayISO();
+  const tomorrowIso = addDaysToIsoDate(todayIso, 1);
+
+  test('Case A: "viernes a las 24" -> "pasalo al domingo" (date-only) -> lunes 00:00 (appliedDayRollover=true)', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "viernes a las 24"
+    const t1 = mergeDraftPatch(draft, config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t1.draft.baseDate, fridayIso);
+    assert.equal(t1.draft.date, saturdayIso);
+    assert.equal(t1.draft.time, '00:00');
+    assert.equal(t1.draft.appliedDayRollover, true);
+
+    // Turn 2: "pasalo al domingo" (no timeIntent)
+    const t2 = mergeDraftPatch(t1.draft, t1.config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'domingo', modifier: 'this' as const }, confidence: 'explicit' as const },
+    });
+    assert.equal(t2.draft.baseDate, sundayIso);
+    assert.equal(t2.draft.date, mondayIso, 'Must roll over to Monday 00:00 preserving 24:00 semantics');
+    assert.equal(t2.draft.time, '00:00');
+    assert.equal(t2.draft.appliedDayRollover, true);
+    assert.equal(t2.draft.pendingDayRollover, false);
+  });
+
+  test('Case B: "viernes a las 00:00" explícito -> "pasalo al domingo" -> domingo 00:00 (appliedDayRollover=false)', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "viernes a las 00:00" (explicit 00:00, no rollover)
+    const t1 = mergeDraftPatch(draft, config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 0, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t1.draft.baseDate, fridayIso);
+    assert.equal(t1.draft.date, fridayIso);
+    assert.equal(t1.draft.time, '00:00');
+    assert.equal(t1.draft.appliedDayRollover, false);
+
+    // Turn 2: "pasalo al domingo" (no timeIntent)
+    const t2 = mergeDraftPatch(t1.draft, t1.config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'domingo', modifier: 'this' as const }, confidence: 'explicit' as const },
+    });
+    assert.equal(t2.draft.baseDate, sundayIso);
+    assert.equal(t2.draft.date, sundayIso, 'Must remain Sunday 00:00 since 00:00 was explicit without rollover');
+    assert.equal(t2.draft.time, '00:00');
+    assert.equal(t2.draft.appliedDayRollover, false);
+  });
+
+  test('Case C: "viernes a las 24" -> "pasalo al domingo a las 23" -> domingo 23:00 (appliedDayRollover=false)', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "viernes a las 24"
+    const t1 = mergeDraftPatch(draft, config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t1.draft.date, saturdayIso);
+    assert.equal(t1.draft.appliedDayRollover, true);
+
+    // Turn 2: "pasalo al domingo a las 23" (new timeIntent overrides rollover)
+    const t2 = mergeDraftPatch(t1.draft, t1.config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'domingo', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t2.draft.baseDate, sundayIso);
+    assert.equal(t2.draft.date, sundayIso, 'Must be Sunday 23:00, rollover cleared');
+    assert.equal(t2.draft.time, '23:00');
+    assert.equal(t2.draft.appliedDayRollover, false);
+  });
+
+  test('Case D: "viernes a las 24" -> "pasalo al domingo a las 24" -> lunes 00:00 (appliedDayRollover=true)', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "viernes a las 24"
+    const t1 = mergeDraftPatch(draft, config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+
+    // Turn 2: "pasalo al domingo a las 24"
+    const t2 = mergeDraftPatch(t1.draft, t1.config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'domingo', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t2.draft.baseDate, sundayIso);
+    assert.equal(t2.draft.date, mondayIso, 'Must roll over to Monday 00:00 for Sunday 24:00');
+    assert.equal(t2.draft.time, '00:00');
+    assert.equal(t2.draft.appliedDayRollover, true);
+  });
+
+  test('Case E (Regression): "hoy a las 24" -> "a las 23" -> hoy 23:00 PASS', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "hoy a las 24"
+    const t1 = mergeDraftPatch(draft, config, {
+      dateIntent: { value: { type: 'relative' as const, value: 'today' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t1.draft.baseDate, todayIso);
+    assert.equal(t1.draft.date, tomorrowIso);
+    assert.equal(t1.draft.time, '00:00');
+    assert.equal(t1.draft.appliedDayRollover, true);
+
+    // Turn 2: "a las 23"
+    const t2 = mergeDraftPatch(t1.draft, t1.config, {
+      timeIntent: { value: { type: 'exact' as const, hour: 23, minute: 0 }, confidence: 'explicit' as const },
+    });
+    assert.equal(t2.draft.baseDate, todayIso);
+    assert.equal(t2.draft.date, todayIso, 'Must revert back to today');
+    assert.equal(t2.draft.time, '23:00');
+    assert.equal(t2.draft.appliedDayRollover, false);
+  });
+
+  test('Case F (Persistence / F5): "viernes a las 24" -> reload/parse -> "pasalo al domingo" -> lunes 00:00', () => {
+    const draft = createEmptyEncounterDraft();
+    const config = createDefaultInvitationConfig();
+
+    // Turn 1: "viernes a las 24"
+    const t1 = mergeDraftPatch(draft, config, {
+      title: { value: 'Cena con amigos', confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'viernes', modifier: 'this' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 24, minute: 0 }, confidence: 'explicit' as const },
+    });
+
+    // Simulate F5 page reload via JSON serialization
+    const serialized = JSON.stringify(t1.draft);
+    const restoredDraft = JSON.parse(serialized) as EncounterDraft;
+
+    assert.equal(restoredDraft.baseDate, fridayIso);
+    assert.equal(restoredDraft.date, saturdayIso);
+    assert.equal(restoredDraft.time, '00:00');
+    assert.equal(restoredDraft.appliedDayRollover, true);
+
+    // Turn 2 after reload: "pasalo al domingo" (no timeIntent)
+    const t2 = mergeDraftPatch(restoredDraft, t1.config, {
+      dateIntent: { value: { type: 'weekday' as const, weekday: 'domingo', modifier: 'this' as const }, confidence: 'explicit' as const },
+    });
+
+    assert.equal(t2.draft.baseDate, sundayIso);
+    assert.equal(t2.draft.date, mondayIso, 'After F5 reload, changing only date to sunday preserves 24:00 rollover to monday');
+    assert.equal(t2.draft.time, '00:00');
+    assert.equal(t2.draft.appliedDayRollover, true);
+  });
+});
+
 
