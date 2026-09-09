@@ -248,7 +248,7 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
                   gap: '6px',
-                  maxHeight: '160px',
+                  maxHeight: '150px',
                   overflowY: 'auto',
                   paddingRight: '4px',
                 }}
@@ -286,9 +286,10 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
                       }}
                     >
                       <Icon size={14} style={{ flexShrink: 0 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                         {themeItem.label}
                       </span>
+                      {isSelected && <Check size={12} style={{ flexShrink: 0, color: 'var(--color-primary, #4f46e5)' }} />}
                     </button>
                   );
                 })}
@@ -296,22 +297,22 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
             </div>
 
             {/* Variantes del tema seleccionado */}
-            {themeTemplates.length > 0 && (
-              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#64748b',
-                    textTransform: 'uppercase',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Variante de diseño
-                </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {themeTemplates.map((tpl) => {
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  display: 'block',
+                  marginBottom: '6px',
+                }}
+              >
+                Variante de diseño
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {themeTemplates.length > 0 ? (
+                  themeTemplates.map((tpl) => {
                     const isVariantSelected = (config.invitationTemplate || defaultTemplate) === tpl.id;
                     const isDefault = tpl.id === defaultTemplate;
                     return (
@@ -339,14 +340,37 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
                         }}
                       >
                         {isVariantSelected && <Check size={12} />}
-                        {tpl.name}
+                        <span>{tpl.name}</span>
                         {isDefault && <span style={{ fontSize: '10px', opacity: 0.7 }}> (por defecto)</span>}
                       </button>
                     );
-                  })}
-                </div>
+                  })
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    data-testid="template-variant-classic-default"
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '16px',
+                      border: '2px solid var(--color-primary, #4f46e5)',
+                      background: '#eef2ff',
+                      color: 'var(--color-primary, #4f46e5)',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'default',
+                    }}
+                  >
+                    <Check size={12} />
+                    <span>Estándar</span>
+                    <span style={{ fontSize: '10px', opacity: 0.7 }}> (por defecto)</span>
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 

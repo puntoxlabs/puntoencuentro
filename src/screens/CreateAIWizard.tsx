@@ -46,6 +46,7 @@ export const CreateAIWizard: React.FC = () => {
     fallbackFailureType,
     startedAt,
     isInterpreting,
+    aiLocked,
     error: aiError,
     lastQuestion,
     isComplete,
@@ -77,7 +78,7 @@ export const CreateAIWizard: React.FC = () => {
   }, [messages, isInterpreting, lastQuestion]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || isInterpreting || isCreating) return;
+    if (!inputText.trim() || isInterpreting || isCreating || aiLocked) return;
     const text = inputText;
     setInputText('');
     await sendUserMessage(text);
@@ -86,7 +87,9 @@ export const CreateAIWizard: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (!aiLocked) {
+        handleSend();
+      }
     }
   };
 
@@ -122,6 +125,7 @@ export const CreateAIWizard: React.FC = () => {
     }
 
     // Otherwise submit as conversational response
+    if (aiLocked) return;
     await sendUserMessage(value);
   };
 
@@ -409,9 +413,10 @@ export const CreateAIWizard: React.FC = () => {
           />
         )}
 
-        {/* Error Alerts */}
-        {(aiError || creationError) && (
+        {/* Error Alerts & Lock Notice */}
+        {(aiError || creationError || aiLocked) && (
           <div
+            data-testid="ai-status-banner"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -427,11 +432,16 @@ export const CreateAIWizard: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>{aiError || creationError}</div>
+              <div style={{ flex: 1 }}>
+                {aiLocked
+                  ? 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.'
+                  : aiError || creationError}
+              </div>
             </div>
-            {aiError && (
+            {(aiError || aiLocked) && (
               <button
                 type="button"
+                data-testid="continue-manually-button"
                 onClick={handleFallbackManual}
                 style={{
                   alignSelf: 'flex-start',
@@ -446,7 +456,7 @@ export const CreateAIWizard: React.FC = () => {
                   marginTop: '4px',
                 }}
               >
-                Continuar manualmente con este borrador →
+                Continuar manualmente →
               </button>
             )}
           </div>
@@ -478,14 +488,16 @@ export const CreateAIWizard: React.FC = () => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              messages.length === 0
+              aiLocked
+                ? 'Crear con IA no disponible para este borrador'
+                : messages.length === 0
                 ? 'Escribí qué querés organizar...'
                 : 'Respondé acá o agregá detalles...'
             }
             rows={1}
             autoCapitalize="sentences"
             enterKeyHint="send"
-            disabled={isInterpreting || isCreating}
+            disabled={isInterpreting || isCreating || aiLocked}
             style={{
               flex: 1,
               minHeight: '40px',
@@ -493,29 +505,39 @@ export const CreateAIWizard: React.FC = () => {
               padding: '10px 14px',
               borderRadius: '20px',
               border: '1px solid var(--color-outline, #cbd5e1)',
-              background: 'var(--color-surface-variant, #f8fafc)',
-              color: 'var(--color-on-surface, #0f172a)',
+              background: aiLocked ? '#f1f5f9' : 'var(--color-surface-variant, #f8fafc)',
+              color: aiLocked ? '#94a3b8' : 'var(--color-on-surface, #0f172a)',
               fontSize: '14px',
               resize: 'none',
               fontFamily: 'inherit',
               outline: 'none',
+              cursor: aiLocked ? 'not-allowed' : 'text',
             }}
           />
 
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() || isInterpreting || isCreating}
+            disabled={!inputText.trim() || isInterpreting || isCreating || aiLocked}
             style={{
               width: '40px',
               height: '40px',
               borderRadius: '50%',
-              background: inputText.trim() && !isInterpreting ? 'var(--color-primary, #4f46e5)' : '#e2e8f0',
-              color: inputText.trim() && !isInterpreting ? '#ffffff' : '#94a3b8',
+              background:
+                inputText.trim() && !isInterpreting && !aiLocked
+                  ? 'var(--color-primary, #4f46e5)'
+                  : '#e2e8f0',
+              color:
+                inputText.trim() && !isInterpreting && !aiLocked
+                  ? '#ffffff'
+                  : '#94a3b8',
               border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: inputText.trim() && !isInterpreting ? 'pointer' : 'default',
+              cursor:
+                inputText.trim() && !isInterpreting && !aiLocked
+                  ? 'pointer'
+                  : 'default',
               flexShrink: 0,
               transition: 'background 0.2s',
             }}

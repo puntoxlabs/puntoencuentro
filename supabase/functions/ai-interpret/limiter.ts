@@ -35,7 +35,7 @@ export function resolveLimiterConfig(env: { get: (k: string) => string | undefin
   return {
     maxTurnsPerSession: turnsRaw ? parseInt(turnsRaw, 10) : 20,
     maxRequestsPerHour: hourlyRaw ? parseInt(hourlyRaw, 10) : 40,
-    maxConsecutiveOffTopic: offTopicRaw ? parseInt(offTopicRaw, 10) : 3,
+    maxConsecutiveOffTopic: offTopicRaw ? parseInt(offTopicRaw, 10) : 2,
   };
 }
 
@@ -78,7 +78,7 @@ export async function checkAbuseLimits(
     return {
       allowed: false,
       error: 'session_locked_off_topic',
-      message: 'Se alcanzó el límite de consultas fuera de tema para este borrador. Podés continuar de forma manual.',
+      message: 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.',
     };
   }
 

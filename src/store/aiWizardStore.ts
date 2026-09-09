@@ -149,7 +149,26 @@ export const useAiWizardStore = create<AiWizardState>()(
           set({
             lastQuestion: evaluation.nextQuestion,
             isComplete: evaluation.isComplete,
-            error: evaluation.validationError,
+            error: state.aiLocked
+              ? 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.'
+              : evaluation.validationError,
+          });
+        } else if (state.aiLocked && !state.error) {
+          set({
+            error: 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.',
+          });
+        }
+
+        if (state.aiLocked && state.messages.length === 0) {
+          set({
+            messages: [
+              {
+                id: generateUuid(),
+                role: 'assistant',
+                text: 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.',
+                timestamp: Date.now(),
+              },
+            ],
           });
         }
       },
@@ -175,11 +194,11 @@ export const useAiWizardStore = create<AiWizardState>()(
               {
                 id: generateUuid(),
                 role: 'assistant',
-                text: 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.',
+                text: 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.',
                 timestamp: Date.now() + 1,
               },
             ],
-            error: 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.',
+            error: 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.',
           });
           return;
         }
@@ -295,9 +314,9 @@ export const useAiWizardStore = create<AiWizardState>()(
         // 4. Handle OFF-TOPIC scope
         if (response.scope === 'off_topic') {
           const nextOffTopicCount = state.consecutiveOffTopicCount + 1;
-          const isPermanentlyLocked = nextOffTopicCount >= 3;
+          const isPermanentlyLocked = nextOffTopicCount >= 2;
           const replyText = isPermanentlyLocked
-            ? 'Crear con IA está pensado exclusivamente para organizar encuentros. Podés continuar con el formulario manual.'
+            ? 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.'
             : 'Este asistente solo puede ayudarte a crear o modificar un encuentro. Podés indicarme fecha, hora, lugar, modalidad, tema o cualquier cambio del encuentro.';
 
           set({
@@ -823,12 +842,14 @@ export const useAiWizardStore = create<AiWizardState>()(
           ? sessionStorage
           : ({ getItem: () => null, setItem: () => {}, removeItem: () => {} } as any)
       ),
-      // Preserve only structured draft & config; do not persist full textual conversation across browser sessions
+      // Preserve only structured draft, config and session anti-abuse flags; do not persist full textual conversation across browser sessions
       partialize: (state) => ({
         sessionId: state.sessionId,
         draft: state.draft,
         config: state.config,
         turns: state.turns,
+        consecutiveOffTopicCount: state.consecutiveOffTopicCount,
+        aiLocked: state.aiLocked,
         startedAt: state.startedAt,
         isComplete: state.isComplete,
       }),
