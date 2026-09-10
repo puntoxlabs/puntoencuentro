@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Send, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, CheckCircle2, Mic, Square } from 'lucide-react';
 import { AppBar } from '@/components/ui/AppBar';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AIChatMessage } from '@/components/ai/AIChatMessage';
@@ -25,19 +25,27 @@ import {
   getTemplateOptionsForTheme,
   getDefaultInvitationTemplate,
 } from '@/lib/invitationThemes';
+import { useTranslation } from 'react-i18next';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useSpeechDictation, isTouchDevice, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import './CreateWizard.css';
 
 export interface CreateAIWizardProps {
   stateOverride?: Partial<ReturnType<typeof useAiWizardStore.getState>>;
   showExitConfirmOverride?: boolean;
   onExitConfirmChange?: (showing: boolean) => void;
+  isTouchOverride?: boolean;
+  showKeyboardVoiceHintOverride?: boolean;
+  speechLangOverride?: string;
 }
 
 export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   stateOverride,
   showExitConfirmOverride,
   onExitConfirmChange,
+  isTouchOverride,
+  showKeyboardVoiceHintOverride,
+  speechLangOverride,
 }) => {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
@@ -109,6 +117,69 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     reset,
   } = activeState;
 
+  const [isTouch, setIsTouch] = useState<boolean>(() => {
+    if (isTouchOverride !== undefined) return isTouchOverride;
+    return typeof window !== 'undefined' ? isTouchDevice() : false;
+  });
+
+  useEffect(() => {
+    if (isTouchOverride !== undefined) {
+      setIsTouch(isTouchOverride);
+    } else {
+      setIsTouch(isTouchDevice());
+    }
+  }, [isTouchOverride]);
+
+  const [showKeyboardVoiceHint, setShowKeyboardVoiceHint] = useState<boolean>(() => {
+    if (showKeyboardVoiceHintOverride !== undefined) return showKeyboardVoiceHintOverride;
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('pe_voice_keyboard_hint_seen') !== 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (showKeyboardVoiceHintOverride !== undefined) {
+      setShowKeyboardVoiceHint(showKeyboardVoiceHintOverride);
+    }
+  }, [showKeyboardVoiceHintOverride]);
+
+  const dismissKeyboardVoiceHint = () => {
+    setShowKeyboardVoiceHint(false);
+    try {
+      localStorage.setItem('pe_voice_keyboard_hint_seen', 'true');
+    } catch {}
+  };
+
+  const { i18n } = useTranslation();
+  const appLanguage = i18n?.language || 'es';
+
+  const effectiveSpeechLocale =
+    speechLangOverride || getSpeechRecognitionLocale(appLanguage);
+
+  const {
+    isListening,
+    isSupported: isSpeechSupported,
+    error: dictationError,
+    startListening: startDictation,
+    stopListening: stopDictation,
+    clearError: clearDictationError,
+  } = useSpeechDictation({
+    lang: effectiveSpeechLocale,
+    onTranscriptChange: (newText) => {
+      setInputText(newText);
+    },
+  });
+
+  // Stop recognition if AI starts interpreting or session locks
+  useEffect(() => {
+    if ((isInterpreting || aiLocked) && isListening) {
+      stopDictation();
+    }
+  }, [isInterpreting, aiLocked, isListening, stopDictation]);
+
   const hasMeaningfulDraft = hasMeaningfulDraftData(draft, config);
 
   const hasDraftData = Boolean(
@@ -160,6 +231,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   };
 
   const handleDiscardAndExit = () => {
+    if (isListening) {
+      stopDictation();
+    }
     isDiscardingRef.current = true;
     hasHistoryGuardRef.current = false;
     updateShowExitConfirm(false);
@@ -171,6 +245,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   };
 
   const handleBack = () => {
+    if (isListening) {
+      stopDictation();
+    }
     if (hasMeaningfulDraft && !isCreatedRef.current) {
       updateShowExitConfirm(true);
     } else {
@@ -284,9 +361,13 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   };
 
   const handleSend = async () => {
+    if (isListening) {
+      stopDictation();
+    }
     if (!inputText.trim() || isInterpreting || isCreating || aiLocked) return;
     const text = inputText;
     setInputText('');
+    dismissKeyboardVoiceHint();
     await sendUserMessage(text);
   };
 
@@ -365,6 +446,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   };
 
   const handleFallbackManual = () => {
+    if (isListening) {
+      stopDictation();
+    }
     isNavigatingToManualRef.current = true;
     const wizardPartial = draftToWizardState(draft, config);
     const wizardStore = useWizardStore.getState();
@@ -897,19 +981,64 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             }}
           />
 
+          {/* Desktop Voice Dictation Button (visible on non-touch/desktop devices when Web Speech is supported).
+              Privacidad: PuntoEncuentro no graba, almacena ni envía audio a sus propios servidores
+              ni a OpenAI/Mistral. El reconocimiento de voz es gestionado por el navegador o sistema operativo
+              según sus propias políticas. */}
+          {!isTouch && isSpeechSupported && (
+            <button
+              type="button"
+              data-testid="speech-dictation-button"
+              onClick={() => {
+                if (isListening) {
+                  stopDictation();
+                } else {
+                  startDictation(inputText);
+                }
+              }}
+              disabled={isInterpreting || isCreating || aiLocked}
+              title={isListening ? 'Detener dictado por voz' : 'Iniciar dictado por voz'}
+              aria-label={isListening ? 'Detener dictado por voz' : 'Iniciar dictado por voz'}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: isListening
+                  ? '#fee2e2'
+                  : 'var(--color-surface-variant, #f1f5f9)',
+                color: isListening
+                  ? '#ef4444'
+                  : 'var(--color-on-surface-variant, #64748b)',
+                border: isListening
+                  ? '1px solid #fca5a5'
+                  : '1px solid var(--color-outline-variant, #e2e8f0)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: isInterpreting || isCreating || aiLocked ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.2s',
+              }}
+            >
+              {isListening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}
+            </button>
+          )}
+
           <button
             onClick={handleSend}
-            disabled={!inputText.trim() || isInterpreting || isCreating || aiLocked}
+            disabled={!inputText.trim() || isInterpreting || isCreating || aiLocked || isListening}
+            title="Enviar mensaje"
+            aria-label="Enviar mensaje"
             style={{
               width: '40px',
               height: '40px',
               borderRadius: '50%',
               background:
-                inputText.trim() && !isInterpreting && !aiLocked
+                inputText.trim() && !isInterpreting && !aiLocked && !isListening
                   ? 'var(--color-primary, #4f46e5)'
                   : '#e2e8f0',
               color:
-                inputText.trim() && !isInterpreting && !aiLocked
+                inputText.trim() && !isInterpreting && !aiLocked && !isListening
                   ? '#ffffff'
                   : '#94a3b8',
               border: 'none',
@@ -917,7 +1046,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               cursor:
-                inputText.trim() && !isInterpreting && !aiLocked
+                inputText.trim() && !isInterpreting && !aiLocked && !isListening
                   ? 'pointer'
                   : 'default',
               flexShrink: 0,
@@ -927,6 +1056,107 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             <Send size={18} />
           </button>
         </div>
+
+        {/* Listening indicator */}
+        {isListening && (
+          <div
+            data-testid="speech-listening-indicator"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginTop: '6px',
+              fontSize: '12px',
+              color: '#dc2626',
+              fontWeight: 500,
+            }}
+          >
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#dc2626',
+                display: 'inline-block',
+              }}
+            />
+            <span>Escuchando... Hablá para dictar tu encuentro</span>
+          </div>
+        )}
+
+        {/* Dictation error notice */}
+        {dictationError && (
+          <div
+            data-testid="speech-dictation-error"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              marginTop: '6px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              background: '#fef2f2',
+              border: '1px solid #fee2e2',
+              fontSize: '12px',
+              color: '#991b1b',
+            }}
+          >
+            <span>{dictationError.message}</span>
+            <button
+              type="button"
+              onClick={clearDictationError}
+              aria-label="Cerrar aviso"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#991b1b',
+                cursor: 'pointer',
+                padding: '0 4px',
+                fontSize: '14px',
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Mobile keyboard voice hint */}
+        {isTouch && showKeyboardVoiceHint && (
+          <div
+            data-testid="keyboard-voice-hint"
+            style={{
+              fontSize: '11px',
+              color: 'var(--color-on-surface-variant, #64748b)',
+              marginTop: '6px',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+            }}
+          >
+            <Mic size={12} style={{ opacity: 0.7 }} />
+            <span>También podés dictar usando el micrófono del teclado.</span>
+            <button
+              type="button"
+              onClick={dismissKeyboardVoiceHint}
+              aria-label="Cerrar sugerencia"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-on-surface-variant, #94a3b8)',
+                cursor: 'pointer',
+                padding: '2px 4px',
+                fontSize: '11px',
+                marginLeft: '4px',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Fallback to manual link */}
         <div style={{ textAlign: 'center', marginTop: '8px' }}>

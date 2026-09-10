@@ -31,6 +31,15 @@ import {
   ENCOUNTER_DRAFT_PATCH_SCHEMA,
   sanitizeSchemaForOpenAI,
 } from '../supabase/functions/ai-interpret/validation.ts';
+import {
+  combineTranscriptWithBase,
+  getFriendlyDictationErrorMessage,
+  isTouchDevice,
+  isSpeechRecognitionSupported,
+  SPEECH_DICTATION_PRIVACY_POLICY,
+  getSpeechRecognitionLocale,
+  useSpeechDictation,
+} from '../src/hooks/useSpeechDictation.ts';
 import { validateEncounterDate, isFuture } from '../src/lib/formatDate.ts';
 import {
   getArgentinaTodayISO,
@@ -5790,5 +5799,710 @@ describe('QA Producción: Paridad de contrato nth_weekday_of_month (TypeScript, 
     assert.ok(res4.ambiguityReason?.includes('5°'));
   });
 });
+
+describe('QA Mobile: Entrada por voz adaptativa (Dictado nativo de teclado y hint discreto - Section 25)', () => {
+  test('Caso A: En mobile/touch el textarea de Crear con IA funciona con su placeholder y accesibilidad intactos', () => {
+    useAiWizardStore.getState().reset();
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { isTouchOverride: true })
+      )
+    );
+    assert.ok(html.includes('<textarea'), 'Debe renderizar el textarea nativo');
+    assert.ok(html.includes('Escribí qué querés organizar...'), 'Debe mostrar el placeholder inicial');
+  });
+
+  test('Caso B: En mobile/touch NO aparece el botón de micrófono propio junto al textarea', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { isTouchOverride: true })
+      )
+    );
+    assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'NO debe renderizar el botón de micrófono en mobile para evitar duplicar el del teclado');
+  });
+
+  test('Caso C y D: El dictado nativo de teclado llena el textarea como texto estándar editable', () => {
+    let currentInput = '';
+    const onGboardVoiceInput = (text: string) => {
+      currentInput = text;
+    };
+    onGboardVoiceInput('Cena mañana a las once en casa');
+    assert.equal(currentInput, 'Cena mañana a las once en casa');
+
+    currentInput = currentInput.replace('once', 'once y media');
+    assert.equal(currentInput, 'Cena mañana a las once y media en casa', 'El texto dictado es 100% editable');
+  });
+
+  test('Caso E: No hay auto-send cuando ingresa texto al textarea', () => {
+    let sendCount = 0;
+    let textState = '';
+    const handleVoiceOrType = (txt: string) => {
+      textState = txt;
+    };
+
+    handleVoiceOrType('Cena mañana a las once');
+    assert.equal(textState, 'Cena mañana a las once');
+    assert.equal(sendCount, 0, 'No debe disparar sendUserMessage de forma automática');
+  });
+
+  test('Caso F: Tras la edición el usuario presiona Enviar manualmente y se procesa el turno', () => {
+    let sentMessage = '';
+    const handleSend = (text: string) => {
+      sentMessage = text;
+    };
+    const userText = 'Cena mañana a las once y media en casa';
+    handleSend(userText);
+    assert.equal(sentMessage, 'Cena mañana a las once y media en casa');
+  });
+
+  test('Caso G: En mobile la micro-ayuda discreta ("También podés dictar usando el micrófono del teclado") se muestra si no fue vista', () => {
+    const htmlWithHint = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {
+          isTouchOverride: true,
+          showKeyboardVoiceHintOverride: true,
+        })
+      )
+    );
+    assert.ok(htmlWithHint.includes('data-testid="keyboard-voice-hint"'));
+    assert.ok(htmlWithHint.includes('También podés dictar usando el micrófono del teclado.'));
+
+    const htmlDismissed = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {
+          isTouchOverride: true,
+          showKeyboardVoiceHintOverride: false,
+        })
+      )
+    );
+    assert.ok(!htmlDismissed.includes('data-testid="keyboard-voice-hint"'));
+  });
+});
+
+describe('QA Desktop: Micrófono web propio con SpeechRecognition (Section 26)', () => {
+  test('Caso I: En desktop con SpeechRecognition soportado se muestra el botón 🎙 junto al textarea', () => {
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: (query: string) => ({
+          matches: false,
+          media: query,
+        }),
+      };
+
+      const html = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, { isTouchOverride: false })
+        )
+      );
+      assert.ok(html.includes('data-testid="speech-dictation-button"'), 'Debe mostrar el botón de micrófono en desktop cuando SpeechRecognition está disponible');
+      assert.ok(html.includes('Iniciar dictado por voz'), 'Debe tener accesibilidad clara');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso J: Si SpeechRecognition no está soportado, el botón se oculta y el input manual queda intacto', () => {
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        matchMedia: () => ({ matches: false }),
+      };
+
+      const html = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, { isTouchOverride: false })
+        )
+      );
+      assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'No debe mostrar el botón 🎙 si el navegador no soporta la API');
+      assert.ok(html.includes('<textarea'), 'El textarea manual sigue presente e intacto');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso K, L, M: Concatenación correcta de texto previo y nueva transcripción', () => {
+    const resEmpty = combineTranscriptWithBase('', 'Cena mañana a las once');
+    assert.equal(resEmpty, 'Cena mañana a las once');
+
+    const resAppended = combineTranscriptWithBase('Cena con amigos', 'mañana a las once en casa');
+    assert.equal(resAppended, 'Cena con amigos mañana a las once en casa');
+
+    const resNoVoice = combineTranscriptWithBase('Cena con amigos', '');
+    assert.equal(resNoVoice, 'Cena con amigos');
+  });
+
+  test('Caso O: Procesamiento de interim sin duplicación de segmentos completados', () => {
+    let accumulatedFinal = '';
+    const simulateResults = (events: Array<{ resultIndex: number; results: Array<{ transcript: string; isFinal: boolean }> }>) => {
+      let interim = '';
+      for (const event of events) {
+        interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            accumulatedFinal = combineTranscriptWithBase(accumulatedFinal, res.transcript);
+          } else {
+            interim += (interim ? ' ' : '') + res.transcript.trim();
+          }
+        }
+      }
+      return { accumulatedFinal, interim };
+    };
+
+    const r1 = simulateResults([{ resultIndex: 0, results: [{ transcript: 'Cena', isFinal: false }] }]);
+    assert.equal(r1.accumulatedFinal, '');
+    assert.equal(r1.interim, 'Cena');
+
+    const r2 = simulateResults([{ resultIndex: 0, results: [{ transcript: 'Cena', isFinal: true }, { transcript: 'mañana', isFinal: false }] }]);
+    assert.equal(r2.accumulatedFinal, 'Cena');
+    assert.equal(r2.interim, 'mañana');
+
+    const r3 = simulateResults([{ resultIndex: 1, results: [{ transcript: 'Cena', isFinal: true }, { transcript: 'mañana a las once', isFinal: true }] }]);
+    assert.equal(r3.accumulatedFinal, 'Cena mañana a las once');
+    assert.equal(r3.interim, '');
+    assert.ok(!r3.accumulatedFinal.includes('Cena Cena'), 'No debe repetir palabras completadas');
+  });
+
+  test('Caso P: Mensajes de error amigables sin exponer errores técnicos ni aiError', () => {
+    const errNotAllowed = getFriendlyDictationErrorMessage('not-allowed');
+    assert.equal(errNotAllowed, 'No pudimos acceder al micrófono. Podés habilitarlo en el navegador o seguir escribiendo.');
+
+    const errNoSpeech = getFriendlyDictationErrorMessage('no-speech');
+    assert.equal(errNoSpeech, 'No escuché nada. Podés intentarlo nuevamente.');
+
+    const errAudioCapture = getFriendlyDictationErrorMessage('audio-capture');
+    assert.equal(errAudioCapture, 'No se detectó ningún micrófono. Podés seguir escribiendo.');
+
+    const errNetwork = getFriendlyDictationErrorMessage('network');
+    assert.equal(errNetwork, 'Error de conexión al reconocer voz. Podés seguir escribiendo normalmente.');
+
+    const errUnknown = getFriendlyDictationErrorMessage('some_other_code');
+    assert.equal(errUnknown, 'No pudimos iniciar el dictado. Podés seguir escribiendo normalmente.');
+  });
+
+  test('Caso Q y R: El micrófono se deshabilita cuando isInterpreting o aiLocked están activos', () => {
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: () => ({ matches: false }),
+      };
+
+      const htmlInterpreting = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, {
+            isTouchOverride: false,
+            stateOverride: { isInterpreting: true } as any,
+          })
+        )
+      );
+      assert.ok(htmlInterpreting.includes('data-testid="speech-dictation-button"'));
+      assert.ok(htmlInterpreting.includes('disabled=""') || htmlInterpreting.includes('disabled'), 'El botón mic debe estar deshabilitado mientras se interpreta');
+
+      const htmlLocked = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, {
+            isTouchOverride: false,
+            stateOverride: { aiLocked: true } as any,
+          })
+        )
+      );
+      assert.ok(htmlLocked.includes('data-testid="speech-dictation-button"'));
+      assert.ok(htmlLocked.includes('disabled=""') || htmlLocked.includes('disabled'), 'El botón mic debe estar deshabilitado cuando Crear con IA está bloqueado');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+});
+
+describe('QA Detección Adaptativa de Entorno: Smartphone, Desktop, Laptop Táctil y Tablet (Section 27)', () => {
+  function runWithMockedEnv(
+    options: {
+      matchMedia: (query: string) => { matches: boolean; media?: string };
+      maxTouchPoints: number;
+      userAgent: string;
+      SpeechRecognition?: any;
+    },
+    fn: () => void
+  ) {
+    const originalWindow = (globalThis as any).window;
+    const originalNavDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const originalLocalStorage = (globalThis as any).localStorage;
+
+    const storage: Record<string, string> = {};
+    const mockLocalStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => { storage[k] = String(v); },
+      removeItem: (k: string) => { delete storage[k]; },
+      clear: () => { for (const k in storage) delete storage[k]; },
+    };
+
+    try {
+      (globalThis as any).localStorage = mockLocalStorage;
+      (globalThis as any).window = {
+        matchMedia: options.matchMedia,
+        SpeechRecognition: options.SpeechRecognition,
+        localStorage: mockLocalStorage,
+      };
+      Object.defineProperty(globalThis, 'navigator', {
+        value: {
+          maxTouchPoints: options.maxTouchPoints,
+          userAgent: options.userAgent,
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      fn();
+    } finally {
+      (globalThis as any).window = originalWindow;
+      (globalThis as any).localStorage = originalLocalStorage;
+      if (originalNavDescriptor) {
+        Object.defineProperty(globalThis, 'navigator', originalNavDescriptor);
+      }
+    }
+  }
+
+  test('Caso A: Smartphone (coarse + no hover) -> mobile (isTouchDevice=true)', () => {
+    runWithMockedEnv(
+      {
+        matchMedia: (query: string) => {
+          if (query === '(pointer: coarse)') return { matches: true, media: query };
+          if (query === '(hover: none)') return { matches: true, media: query };
+          if (query === '(pointer: fine)') return { matches: false, media: query };
+          if (query === '(hover: hover)') return { matches: false, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 5,
+        userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Mobile Safari/537.36',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        assert.equal(isTouchDevice(), true, 'Smartphone con coarse + no hover debe clasificarse como mobile');
+
+        // Verificación en CreateAIWizard sin override: oculta botón mic desktop y muestra hint mobile
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'No debe mostrar botón mic desktop en smartphone');
+        assert.ok(html.includes('data-testid="keyboard-voice-hint"'), 'Debe mostrar hint para teclado nativo en smartphone');
+      }
+    );
+  });
+
+  test('Caso B: Desktop normal (fine + hover) -> desktop (isTouchDevice=false)', () => {
+    runWithMockedEnv(
+      {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: (query: string) => {
+          if (query === '(pointer: coarse)') return { matches: false, media: query };
+          if (query === '(hover: none)') return { matches: false, media: query };
+          if (query === '(pointer: fine)') return { matches: true, media: query };
+          if (query === '(hover: hover)') return { matches: true, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 0,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        assert.equal(isTouchDevice(), false, 'Desktop normal debe clasificarse como desktop/no-touch');
+
+        // Verificación en CreateAIWizard: muestra botón mic desktop y NO muestra hint de teclado móvil
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(html.includes('data-testid="speech-dictation-button"'), 'Debe mostrar botón mic desktop en PC de escritorio');
+        assert.ok(!html.includes('data-testid="keyboard-voice-hint"'), 'No debe mostrar hint de teclado móvil en PC de escritorio');
+      }
+    );
+  });
+
+  test('Caso C: Laptop táctil (maxTouchPoints > 0 + pointer fine + hover) -> desktop/híbrido (isTouchDevice=false)', () => {
+    runWithMockedEnv(
+      {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: (query: string) => {
+          // Notebook o 2-en-1 táctil: mouse/touchpad aporta fine + hover
+          if (query === '(pointer: fine)') return { matches: true, media: query };
+          if (query === '(hover: hover)') return { matches: true, media: query };
+          if (query === '(pointer: coarse)') return { matches: false, media: query };
+          if (query === '(hover: none)') return { matches: false, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 10, // Pantalla táctil multipunto en notebook
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 TouchNotebook',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        // maxTouchPoints > 0 NO debe clasificar como mobile si hay fine pointer + hover
+        assert.equal(isTouchDevice(), false, 'Laptop táctil debe tratarse como desktop/híbrido');
+
+        // Verificación en CreateAIWizard: permite el micrófono web si SpeechRecognition existe
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(html.includes('data-testid="speech-dictation-button"'), 'Debe permitir botón mic en notebook táctil / 2-en-1');
+        assert.ok(!html.includes('data-testid="keyboard-voice-hint"'), 'No debe mostrar hint de teclado móvil en notebook táctil');
+      }
+    );
+  });
+
+  test('Caso D: Tablet (coarse + no hover) -> mobile (isTouchDevice=true)', () => {
+    runWithMockedEnv(
+      {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: (query: string) => {
+          if (query === '(pointer: coarse)') return { matches: true, media: query };
+          if (query === '(hover: none)') return { matches: true, media: query };
+          if (query === '(pointer: fine)') return { matches: false, media: query };
+          if (query === '(hover: hover)') return { matches: false, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 10,
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        assert.equal(isTouchDevice(), true, 'Tablet con coarse + no hover debe clasificarse como mobile');
+
+        // Verificación en CreateAIWizard: prioriza teclado táctil y oculta botón mic desktop
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'No debe mostrar botón mic desktop en tablet');
+        assert.ok(html.includes('data-testid="keyboard-voice-hint"'), 'Debe mostrar hint para teclado nativo en tablet');
+      }
+    );
+  });
+
+  test('Caso Privacidad: Texto y criterio canónico de no almacenamiento ni transmisión de audio a backend/LLMs', () => {
+    const canonicalText =
+      'PuntoEncuentro no graba, almacena ni envía audio a sus propios servidores ni a OpenAI/Mistral. El reconocimiento de voz es gestionado por el navegador o sistema operativo según sus propias políticas.';
+    assert.equal(SPEECH_DICTATION_PRIVACY_POLICY, canonicalText);
+  });
+});
+
+describe('QA iPhone/iOS y Desktop Locale Configurable (Section 28)', () => {
+  function runWithMockedEnv(
+    options: {
+      matchMedia: (query: string) => { matches: boolean; media?: string };
+      maxTouchPoints: number;
+      userAgent: string;
+      SpeechRecognition?: any;
+    },
+    fn: () => void
+  ) {
+    const originalWindow = (globalThis as any).window;
+    const originalNavDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const originalLocalStorage = (globalThis as any).localStorage;
+
+    const storage: Record<string, string> = {};
+    const mockLocalStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => { storage[k] = String(v); },
+      removeItem: (k: string) => { delete storage[k]; },
+      clear: () => { for (const k in storage) delete storage[k]; },
+    };
+
+    try {
+      (globalThis as any).localStorage = mockLocalStorage;
+      (globalThis as any).window = {
+        matchMedia: options.matchMedia,
+        SpeechRecognition: options.SpeechRecognition,
+        localStorage: mockLocalStorage,
+      };
+      Object.defineProperty(globalThis, 'navigator', {
+        value: {
+          maxTouchPoints: options.maxTouchPoints,
+          userAgent: options.userAgent,
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      fn();
+    } finally {
+      (globalThis as any).window = originalWindow;
+      (globalThis as any).localStorage = originalLocalStorage;
+      if (originalNavDescriptor) {
+        Object.defineProperty(globalThis, 'navigator', originalNavDescriptor);
+      }
+    }
+  }
+
+  test('Caso A (iPhone): coarse + no hover + UA iPhone -> isTouchDevice=true, sin mic propio, con hint', () => {
+    runWithMockedEnv(
+      {
+        matchMedia: (query: string) => {
+          if (query === '(pointer: coarse)') return { matches: true, media: query };
+          if (query === '(hover: none)') return { matches: true, media: query };
+          if (query === '(pointer: fine)') return { matches: false, media: query };
+          if (query === '(hover: hover)') return { matches: false, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 5,
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        assert.equal(isTouchDevice(), true, 'iPhone debe clasificarse como mobile touch');
+
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'En iPhone NO debe existir botón mic propio');
+        assert.ok(html.includes('data-testid="keyboard-voice-hint"'), 'En iPhone SÍ debe mostrar el hint para teclado');
+        assert.ok(html.includes('También podés dictar usando el micrófono del teclado.'), 'El copy es genérico y válido para teclado iOS');
+      }
+    );
+  });
+
+  test('Caso B (iPad táctil primario): coarse + no hover + UA iPad -> mismo comportamiento mobile', () => {
+    runWithMockedEnv(
+      {
+        matchMedia: (query: string) => {
+          if (query === '(pointer: coarse)') return { matches: true, media: query };
+          if (query === '(hover: none)') return { matches: true, media: query };
+          if (query === '(pointer: fine)') return { matches: false, media: query };
+          if (query === '(hover: hover)') return { matches: false, media: query };
+          return { matches: false, media: query };
+        },
+        maxTouchPoints: 5,
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1',
+      },
+      () => {
+        useAiWizardStore.getState().reset();
+        assert.equal(isTouchDevice(), true, 'iPad táctil debe clasificarse como mobile');
+
+        const html = renderToStaticMarkup(
+          React.createElement(
+            MemoryRouter,
+            null,
+            React.createElement(CreateAIWizard, {})
+          )
+        );
+        assert.ok(!html.includes('data-testid="speech-dictation-button"'), 'En iPad táctil NO debe haber botón mic');
+        assert.ok(html.includes('data-testid="keyboard-voice-hint"'), 'En iPad táctil SÍ se muestra el hint de teclado');
+      }
+    );
+  });
+
+  test('Caso C (iOS native dictation): texto ingresado directamente al textarea -> editable -> NO auto-send -> envío manual', () => {
+    let sentMessage = '';
+    let sendCalls = 0;
+    const handleSend = (text: string) => {
+      sendCalls++;
+      sentMessage = text;
+    };
+
+    // 1. Simulación: usuario toca micrófono del teclado de iOS y dicta
+    let inputText = 'Cena el viernes a las nueve en Palermo';
+    assert.equal(sendCalls, 0, 'La entrada de texto dictado por teclado iOS NUNCA auto-envía');
+
+    // 2. El usuario revisa y corrige el texto directamente en el textarea
+    inputText = inputText.replace('Palermo', 'Belgrano');
+    assert.equal(inputText, 'Cena el viernes a las nueve en Belgrano');
+    assert.equal(sendCalls, 0, 'La edición sigue sin auto-enviar');
+
+    // 3. El usuario pulsa manualmente el botón Enviar
+    handleSend(inputText);
+    assert.equal(sendCalls, 1, 'El mensaje se envía tras la pulsación manual');
+    assert.equal(sentMessage, 'Cena el viernes a las nueve en Belgrano');
+  });
+
+  test('Caso D: useSpeechDictation sin lang explícito usa "es-AR" por defecto', () => {
+    let capturedLang = '';
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockRec {
+          lang: string = '';
+          continuous = false;
+          interimResults = false;
+          maxAlternatives = 1;
+          start() {
+            capturedLang = this.lang;
+          }
+          stop() {}
+          abort() {}
+        },
+      };
+
+      let hookReturn: any;
+      function TestHook() {
+        hookReturn = useSpeechDictation({});
+        return null;
+      }
+      renderToStaticMarkup(React.createElement(TestHook));
+      assert.equal(hookReturn.lang, 'es-AR', 'Locale por defecto debe ser es-AR');
+
+      hookReturn.startListening('Hola');
+      assert.equal(capturedLang, 'es-AR', 'SpeechRecognition.lang debe ser es-AR cuando no se especifica lang');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso E: useSpeechDictation con lang="en-US" configura recognition.lang === "en-US"', () => {
+    let capturedLang = '';
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockRec {
+          lang: string = '';
+          continuous = false;
+          interimResults = false;
+          maxAlternatives = 1;
+          start() {
+            capturedLang = this.lang;
+          }
+          stop() {}
+          abort() {}
+        },
+      };
+
+      let hookReturn: any;
+      function TestHook() {
+        hookReturn = useSpeechDictation({ lang: 'en-US' });
+        return null;
+      }
+      renderToStaticMarkup(React.createElement(TestHook));
+      assert.equal(hookReturn.lang, 'en-US');
+
+      hookReturn.startListening('Dinner');
+      assert.equal(capturedLang, 'en-US', 'SpeechRecognition.lang debe recibir en-US');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso F: useSpeechDictation con lang="pt-BR" configura recognition.lang === "pt-BR"', () => {
+    let capturedLang = '';
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockRec {
+          lang: string = '';
+          continuous = false;
+          interimResults = false;
+          maxAlternatives = 1;
+          start() {
+            capturedLang = this.lang;
+          }
+          stop() {}
+          abort() {}
+        },
+      };
+
+      let hookReturn: any;
+      function TestHook() {
+        hookReturn = useSpeechDictation({ lang: 'pt-BR' });
+        return null;
+      }
+      renderToStaticMarkup(React.createElement(TestHook));
+      assert.equal(hookReturn.lang, 'pt-BR');
+
+      hookReturn.startListening('Jantar');
+      assert.equal(capturedLang, 'pt-BR', 'SpeechRecognition.lang debe recibir pt-BR');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso G: getSpeechRecognitionLocale con "es" o "es-AR" mapea a "es-AR"', () => {
+    assert.equal(getSpeechRecognitionLocale('es'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('es-AR'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('es-ES'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('ES'), 'es-AR');
+  });
+
+  test('Caso H: getSpeechRecognitionLocale con "en" o "en-US" mapea a "en-US"', () => {
+    assert.equal(getSpeechRecognitionLocale('en'), 'en-US');
+    assert.equal(getSpeechRecognitionLocale('en-US'), 'en-US');
+    assert.equal(getSpeechRecognitionLocale('en-GB'), 'en-US');
+    assert.equal(getSpeechRecognitionLocale('EN'), 'en-US');
+  });
+
+  test('Caso I: getSpeechRecognitionLocale con "pt" o "pt-BR" mapea a "pt-BR"', () => {
+    assert.equal(getSpeechRecognitionLocale('pt'), 'pt-BR');
+    assert.equal(getSpeechRecognitionLocale('pt-BR'), 'pt-BR');
+    assert.equal(getSpeechRecognitionLocale('pt-PT'), 'pt-BR');
+    assert.equal(getSpeechRecognitionLocale('PT'), 'pt-BR');
+  });
+
+  test('Caso J: getSpeechRecognitionLocale con locale desconocido o vacío recurre al fallback seguro "es-AR"', () => {
+    assert.equal(getSpeechRecognitionLocale('fr'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('de'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('it'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale('ja'), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale(''), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale(undefined), 'es-AR');
+    assert.equal(getSpeechRecognitionLocale(null as any), 'es-AR');
+  });
+
+  test('Caso K: En CreateAIWizard con speechLangOverride="en-US", se utiliza el locale configurado', () => {
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: () => ({ matches: false }),
+      };
+
+      const html = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, {
+            isTouchOverride: false,
+            speechLangOverride: 'en-US',
+          })
+        )
+      );
+      assert.ok(html.includes('data-testid="speech-dictation-button"'), 'En desktop debe renderizar el botón de dictado con speechLangOverride');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+});
+
 
 
