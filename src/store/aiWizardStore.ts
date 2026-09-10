@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { createEmptyEncounterDraft, createDefaultInvitationConfig } from '@/lib/encounterDraft';
 import { mergeDraftPatch, isValidVirtualLink, normalizeVirtualLink, isRecognizedVirtualPlatform } from '@/lib/draftMerger';
-import { addDaysToIsoDate } from '@/lib/dateResolver';
+import { addDaysToIsoDate, parseDeterministicTimeInput, looksLikeOtherFieldIntent } from '@/lib/dateResolver';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
 import {
   INVITATION_THEMES,
@@ -572,6 +572,136 @@ export const useAiWizardStore = create<AiWizardState>()(
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
               error: evaluation.validationError,
+            });
+            return;
+          }
+        }
+
+        // 4b. Deterministic response when active question is time (Bypass Determinístico)
+        if (state.lastQuestion?.field === 'time') {
+          // If user explicitly wants to edit another field (date, modality, location, theme, title),
+          // escape deterministic time handler and delegate to normal flow
+          if (!looksLikeOtherFieldIntent(trimmed)) {
+            // B. Check if user is confirming a previously proposed start time from a range question
+            // e.g. "¿Querés que el encuentro empiece a las 10:00?" -> user says "sí", "si", "dale", "ok", "bueno", "perfecto"
+            const proposedMatch = state.lastQuestion?.question?.match(/empiece a las (\d{2}:\d{2})/i);
+            const isAffirmative = /^(s[ií]|dale|ok|bueno|de una|perfecto|confirm[oó]|est[aá] bien|claro)$/i.test(trimmed);
+
+            let parsed = parseDeterministicTimeInput(trimmed);
+            if (proposedMatch && isAffirmative) {
+              parsed = { kind: 'exact', time: proposedMatch[1], dayOffset: 0 };
+            }
+
+            // C. Range input: "10 a 18", "de 10 a 18", "10-18"
+            if (parsed.kind === 'range') {
+              const questionText = `¿Querés que el encuentro empiece a las ${parsed.start}?`;
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: questionText,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: {
+                  field: 'time',
+                  question: questionText,
+                  type: 'choice',
+                  quickOptions: [
+                    { label: `Sí, a las ${parsed.start}`, value: parsed.start },
+                    { label: `A las ${parsed.end}`, value: parsed.end },
+                  ],
+                },
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
+
+            // D. Valid single/exact time: "10", "18", "10:30", "a las 18", "10 hs", "24", "medianoche"
+            if (parsed.kind === 'exact') {
+              let finalDate = state.draft.date;
+              let baseDate = state.draft.baseDate;
+              let appliedRollover = state.draft.appliedDayRollover;
+              let pendingRollover = state.draft.pendingDayRollover;
+
+              const baseAnchor = state.draft.baseDate || state.draft.date;
+
+              if (parsed.dayOffset) {
+                if (baseAnchor) {
+                  baseDate = baseAnchor;
+                  finalDate = addDaysToIsoDate(baseAnchor, parsed.dayOffset);
+                  appliedRollover = true;
+                  pendingRollover = false;
+                } else {
+                  pendingRollover = true;
+                  appliedRollover = false;
+                }
+              } else {
+                if (baseAnchor && appliedRollover) {
+                  finalDate = baseAnchor;
+                  appliedRollover = false;
+                  pendingRollover = false;
+                }
+              }
+
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                time: parsed.time,
+                date: finalDate,
+                baseDate,
+                appliedDayRollover: appliedRollover,
+                pendingDayRollover: pendingRollover,
+              };
+
+              const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+
+              let assistantReply = '';
+              if (evaluation.isComplete) {
+                assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                assistantReply = evaluation.nextQuestion.question;
+              }
+
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: assistantReply,
+                timestamp: Date.now() + 1,
+              };
+
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                isComplete: evaluation.isComplete,
+                error: evaluation.validationError,
+                isInterpreting: false,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
+
+            // E. Invalid time input: "27", "10:99", "abc"
+            const errorMsg = 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: errorMsg,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              messages: [...state.messages, userMsg, assistantMsg],
+              isInterpreting: false,
+              error: errorMsg,
+              lastQuestion: {
+                field: 'time',
+                question: '¿A qué hora?',
+                helperText: 'Podés escribir, por ejemplo, 10:00 o 18:30.',
+                type: 'text',
+              },
+              lastUserPrompt: trimmed,
             });
             return;
           }

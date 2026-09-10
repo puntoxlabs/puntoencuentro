@@ -470,3 +470,194 @@ export function resolveTimeIntent(intent: TimeIntent): TimeResolutionResult {
 export function validateResolvedDateTimeInFuture(date: string, time: string): boolean {
   return isArgentinaDateTimeInFuture(date, time);
 }
+
+export interface ParsedTimeResult {
+  kind: 'exact';
+  time: string; // "HH:MM"
+  dayOffset?: number; // 0 or 1 for end-of-day rollover (e.g. 24:00 / medianoche)
+}
+
+export interface ParsedRangeResult {
+  kind: 'range';
+  start: string; // "HH:MM"
+  end: string; // "HH:MM"
+}
+
+export interface ParsedInvalidResult {
+  kind: 'invalid';
+  raw: string;
+}
+
+export type ParsedTimeInput = ParsedTimeResult | ParsedRangeResult | ParsedInvalidResult;
+
+function parseSingleTimeToken(
+  token: string,
+  periodModifier?: string
+): { hour: number; minute: number; dayOffset: number } | null {
+  const clean = token.trim();
+  if (/^media\s*noche$/i.test(clean)) {
+    return { hour: 0, minute: 0, dayOffset: 1 };
+  }
+  if (/^medio\s*d[ií]a$/i.test(clean)) {
+    return { hour: 12, minute: 0, dayOffset: 0 };
+  }
+
+  const match = clean.match(/^(\d{1,2})(?:[:.](\d{2}))?$/);
+  if (!match) return null;
+
+  let hour = Number(match[1]);
+  const minute = match[2] !== undefined ? Number(match[2]) : 0;
+
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+
+  // Handle period modifier (e.g. "de la noche", "de la tarde", "pm", "am")
+  if (periodModifier) {
+    if (/(?:noche|tarde|pm)/i.test(periodModifier)) {
+      if (hour >= 1 && hour <= 11) {
+        hour += 12;
+      }
+    } else if (/(?:mañana|madrugada|am)/i.test(periodModifier)) {
+      if (hour === 12) {
+        hour = 0;
+      }
+    }
+  }
+
+  if (hour === 24) {
+    if (minute === 0) {
+      return { hour: 0, minute: 0, dayOffset: 1 };
+    }
+    return null; // 24:30 is invalid
+  }
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  return { hour, minute, dayOffset: 0 };
+}
+
+/**
+ * Deterministically parses a user response when the active question is time.
+ * Supports:
+ * - Exact hours: "10", "18", "10:30", "18:45", "10 hs", "10 horas", "a las 10", "a las 18:30"
+ * - Midnight/rollover: "24", "24:00", "24 hs", "medianoche", "a la medianoche"
+ * - Midday: "mediodia", "al mediodia"
+ * - Ranges: "10 a 18", "de 10 a 18", "10-18", "10 - 18", "10:30 a 18:45", "10 a 18 hs"
+ * - Invalid: "27", "10:99", "abc"
+ */
+export function parseDeterministicTimeInput(text: string): ParsedTimeInput {
+  let cleaned = text.trim();
+
+  // Strip leading affirmative prefix like "sí, ", "dale, ", "ok, "
+  cleaned = cleaned.replace(/^(?:s[ií]|dale|ok|bueno),?\s+/i, '').trim();
+
+  // 1. Check named expressions
+  if (/^(?:a\s+la\s+)?media\s*noche$/i.test(cleaned)) {
+    return { kind: 'exact', time: '00:00', dayOffset: 1 };
+  }
+  if (/^(?:al?\s+)?medio\s*d[ií]a$/i.test(cleaned)) {
+    return { kind: 'exact', time: '12:00', dayOffset: 0 };
+  }
+
+  // 2. Check Range expressions
+  const rangeRegex = /^(?:de\s+)?(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:a|al?|-|hasta)\s*(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?$/i;
+  const entreRegex = /^entre\s+(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*y\s*(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?$/i;
+
+  const rangeMatch = cleaned.match(rangeRegex) || cleaned.match(entreRegex);
+  if (rangeMatch) {
+    const startToken = parseSingleTimeToken(rangeMatch[1]);
+    const endToken = parseSingleTimeToken(rangeMatch[2]);
+    if (startToken && endToken) {
+      return {
+        kind: 'range',
+        start: `${pad(startToken.hour)}:${pad(startToken.minute)}`,
+        end: `${pad(endToken.hour)}:${pad(endToken.minute)}`,
+      };
+    }
+  }
+
+  // 3. Check Single Time expressions
+  const singleRegex = /^(?:a\s+las?\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?(?:\s+(de\s+la\s+noche|de\s+la\s+tarde|de\s+la\s+mañana|de\s+la\s+madrugada|am|pm))?$/i;
+
+  const singleMatch = cleaned.match(singleRegex);
+  if (singleMatch) {
+    const periodModifier = singleMatch[2];
+    const parsed = parseSingleTimeToken(singleMatch[1], periodModifier);
+    if (parsed) {
+      return {
+        kind: 'exact',
+        time: `${pad(parsed.hour)}:${pad(parsed.minute)}`,
+        dayOffset: parsed.dayOffset,
+      };
+    }
+  }
+
+  return { kind: 'invalid', raw: text };
+}
+
+/**
+ * Detects whether user input represents an explicit edit or intention for another draft field
+ * (date, modality, location, theme, or title).
+ * Used when the active question is time to safely escape the deterministic time parser
+ * and delegate to the general LLM / domain flow instead of showing an invalid time error.
+ */
+export function looksLikeOtherFieldIntent(text: string): boolean {
+  const clean = text.trim();
+
+  // 1. Date intent
+  if (
+    /\b(mañana|hoy|pasado\s+mañana|este\s+finde|fin\s+de\s+semana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+
+  // 2. Modality intent
+  if (
+    /\b(virtual|presencial|en\s+persona|online|remoto|videollamada|zoom|meet|teams)\b/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+
+  // 3. Location intent (e.g. "en casa", "en la oficina", starts with "en ", or location nouns)
+  if (
+    /^en\s+/i.test(clean) ||
+    /\b(lugar|direcci[oó]n|ubicaci[oó]n|calle|avenida)\b/i.test(clean)
+  ) {
+    return true;
+  }
+
+  // 4. Theme / Template intent
+  if (
+    /\b(tema|diseño|diseno|plantilla|estilo|color|colores|variante|variantes)\b/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+
+  // 5. Title / Description intent
+  if (
+    /\b(t[ií]tulo|titulo|nombre|llamalo|ponele|descripci[oó]n|descripcion)\b/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+
+  // 6. Generic modification verbs without numbers
+  if (
+    /^(?:cambi[aá]|pas[aá]|pon[eé]|modific[aá]|sac[aá]|borr[aá]|edit[aá]|mejor|prefiero|quiero|hacelo|hagamos)\b/i.test(
+      clean
+    ) &&
+    !/\d/.test(clean)
+  ) {
+    return true;
+  }
+
+  return false;
+}

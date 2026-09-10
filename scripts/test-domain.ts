@@ -14,6 +14,8 @@ import {
   resolveNextValidDayOfMonth,
   isValidCalendarDate,
   getDaysInMonth,
+  parseDeterministicTimeInput,
+  looksLikeOtherFieldIntent,
 } from '../src/lib/dateResolver.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
@@ -4031,5 +4033,322 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
     );
     assert.equal(caseRollover.resolved, true);
     assert.equal(caseRollover.date, '2027-01-12');
+  });
+
+  test('Deterministic Time Question Handling: Cases A through J (No LLM Loop, providerCalls = 0)', async () => {
+    const originalInterpret = aiService.interpretMessage;
+    let providerCalls = 0;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      // Helper to initialize store in state: title = 'Evento', date = '2026-10-31', time = null, lastQuestion = 'time'
+      const initTimeQuestionState = () => {
+        useAiWizardStore.getState().reset();
+        useAiWizardStore.setState({
+          draft: {
+            ...createEmptyEncounterDraft(),
+            title: 'Evento',
+            date: '2026-10-31',
+            baseDate: '2026-10-31',
+            time: null,
+            modality: null,
+          },
+          messages: [
+            { id: '1', role: 'user', text: 'Evento el 31', timestamp: 1 },
+            { id: '2', role: 'assistant', text: '¿A qué hora?', timestamp: 2 },
+          ],
+          lastQuestion: {
+            field: 'time',
+            question: '¿A qué hora?',
+            helperText: 'Ej: "a las 21", "19:30", "a las 9 de la noche"',
+            type: 'text',
+          },
+          isComplete: false,
+          error: null,
+        });
+        providerCalls = 0;
+      };
+
+      // Case A: pregunta activa hora + "10" -> 10:00 -> avanza
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('10');
+      let state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case A must not call LLM');
+      assert.equal(state.draft.time, '10:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+      assert.equal(state.messages.at(-1)?.text, '¿Va a ser presencial o virtual?');
+
+      // Case B: "18" -> 18:00
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('18');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case B must not call LLM');
+      assert.equal(state.draft.time, '18:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case C: "10:30" -> 10:30
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('10:30');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case C must not call LLM');
+      assert.equal(state.draft.time, '10:30');
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case D: "a las 18" -> 18:00
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('a las 18');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case D must not call LLM');
+      assert.equal(state.draft.time, '18:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case E: "10 hs" -> 10:00
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('10 hs');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case E must not call LLM');
+      assert.equal(state.draft.time, '10:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case F: "10 a 18" -> aclaración de rango / inicio -> no loop silencioso
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('10 a 18');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case F must not call LLM');
+      assert.equal(state.draft.time, null, 'Must not set draft.time yet');
+      assert.equal(state.lastQuestion?.field, 'time', 'Field remains time');
+      assert.equal(state.lastQuestion?.question, '¿Querés que el encuentro empiece a las 10:00?');
+      assert.equal(state.messages.at(-1)?.text, '¿Querés que el encuentro empiece a las 10:00?');
+      // Verify subsequent confirmation with "10" or "Sí" confirms 10:00 and advances
+      await useAiWizardStore.getState().sendUserMessage('10');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '10:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case G: "27" -> error específico -> sigue en hora
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('27');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case G must not call LLM');
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time', 'Must keep field = time');
+      assert.equal(state.messages.at(-1)?.text, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+
+      // Case H: "10:99" -> error específico
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('10:99');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case H must not call LLM');
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.equal(state.messages.at(-1)?.text, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+
+      // Case I: "24" -> semántica 24:00 existente (00:00, date +1 day rollover)
+      initTimeQuestionState();
+      await useAiWizardStore.getState().sendUserMessage('24');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Case I must not call LLM');
+      assert.equal(state.draft.time, '00:00');
+      assert.equal(state.draft.date, '2026-11-01', 'Must apply +1 day rollover from 2026-10-31');
+      assert.equal(state.draft.appliedDayRollover, true);
+      assert.equal(state.lastQuestion?.field, 'modality');
+
+      // Case J: reproducción exacta del caso reportado
+      // Step 1: Initial interpretation of "Evento el 31"
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Evento', confidence: 'explicit' },
+          dateIntent: { value: { type: 'absolute', day: 31 }, confidence: 'explicit' },
+        },
+      });
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage('Evento el 31');
+      state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Evento');
+      assert.ok(state.draft.date?.endsWith('-31'));
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.equal(state.lastQuestion?.question, '¿A qué hora?');
+
+      // Re-enable spy ensuring subsequent steps make 0 LLM calls
+      providerCalls = 0;
+      aiService.interpretMessage = async () => {
+        providerCalls++;
+        throw new Error('LLM was called during time flow!');
+      };
+
+      // Step 2: User responds "10 a 18" -> clarification of range, no loop
+      await useAiWizardStore.getState().sendUserMessage('10 a 18');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Step 2 must not call LLM');
+      assert.equal(state.messages.at(-1)?.text, '¿Querés que el encuentro empiece a las 10:00?');
+      assert.equal(state.lastQuestion?.field, 'time');
+
+      // Step 3: User responds "10" -> sets 10:00, advances to modality
+      await useAiWizardStore.getState().sendUserMessage('10');
+      state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Step 3 must not call LLM');
+      assert.equal(state.draft.time, '10:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+      assert.equal(state.messages.at(-1)?.text, '¿Va a ser presencial o virtual?');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Escape from Time Parser & Range Confirmation Context: Cases A through E and "Sí" handling', async () => {
+    // 1. Unit assertions for looksLikeOtherFieldIntent
+    assert.equal(looksLikeOtherFieldIntent('mejor mañana'), true);
+    assert.equal(looksLikeOtherFieldIntent('que sea virtual'), true);
+    assert.equal(looksLikeOtherFieldIntent('en casa'), true);
+    assert.equal(looksLikeOtherFieldIntent('cambiá el tema'), true);
+    assert.equal(looksLikeOtherFieldIntent('prefiero presencial'), true);
+
+    assert.equal(looksLikeOtherFieldIntent('10'), false);
+    assert.equal(looksLikeOtherFieldIntent('18'), false);
+    assert.equal(looksLikeOtherFieldIntent('10 a 18'), false);
+    assert.equal(looksLikeOtherFieldIntent('27'), false);
+    assert.equal(looksLikeOtherFieldIntent('10:99'), false);
+    assert.equal(looksLikeOtherFieldIntent('abc'), false);
+    assert.equal(looksLikeOtherFieldIntent('Sí'), false);
+
+    const originalInterpret = aiService.interpretMessage;
+
+    try {
+      const setupTimeQuestion = () => {
+        useAiWizardStore.getState().reset();
+        useAiWizardStore.setState({
+          draft: {
+            ...createEmptyEncounterDraft(),
+            title: 'Evento',
+            date: '2026-10-31',
+            baseDate: '2026-10-31',
+            time: null,
+            modality: null,
+          },
+          messages: [
+            { id: '1', role: 'user', text: 'Evento el 31', timestamp: 1 },
+            { id: '2', role: 'assistant', text: '¿A qué hora?', timestamp: 2 },
+          ],
+          lastQuestion: {
+            field: 'time',
+            question: '¿A qué hora?',
+            type: 'text',
+          },
+          isComplete: false,
+          error: null,
+        });
+      };
+
+      // Case A: "mejor mañana" -> delegates to LLM, no error de hora, updates date, still asks for time
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          dateIntent: { value: { type: 'relative', value: 'tomorrow' }, confidence: 'explicit' },
+        },
+      });
+      await useAiWizardStore.getState().sendUserMessage('mejor mañana');
+      let state = useAiWizardStore.getState();
+      assert.equal(state.error, null, 'Must NOT show time error');
+      assert.equal(state.lastQuestion?.field, 'time', 'Still needs time');
+      assert.notEqual(state.draft.date, '2026-10-31', 'Date was updated');
+
+      // Case B: "que sea virtual" -> delegates to LLM, no error de hora, modality = virtual
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          modality: { value: 'virtual', confidence: 'explicit' },
+        },
+      });
+      await useAiWizardStore.getState().sendUserMessage('que sea virtual');
+      state = useAiWizardStore.getState();
+      assert.equal(state.error, null, 'Must NOT show time error');
+      assert.equal(state.draft.modality, 'virtual');
+      assert.equal(state.lastQuestion?.field, 'time', 'Still needs time');
+
+      // Case C: "en casa" -> delegates to LLM, no error de hora, locationText updated
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          locationText: { value: 'en casa', confidence: 'explicit' },
+        },
+      });
+      await useAiWizardStore.getState().sendUserMessage('en casa');
+      state = useAiWizardStore.getState();
+      assert.equal(state.error, null, 'Must NOT show time error');
+      assert.equal(state.draft.locationText, 'en casa');
+      assert.equal(state.lastQuestion?.field, 'time', 'Still needs time');
+
+      // Case D: "cambiá el tema" -> delegates to LLM, no error de hora
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          themeHint: { value: 'celebration', confidence: 'explicit' },
+        },
+      });
+      await useAiWizardStore.getState().sendUserMessage('cambiá el tema');
+      state = useAiWizardStore.getState();
+      assert.equal(state.error, null, 'Must NOT show time error');
+      assert.equal(state.config.invitationTheme, 'celebration');
+
+      // Case E: "prefiero presencial" -> delegates to LLM, no error de hora, modality = presencial
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          modality: { value: 'presencial', confidence: 'explicit' },
+        },
+      });
+      await useAiWizardStore.getState().sendUserMessage('prefiero presencial');
+      state = useAiWizardStore.getState();
+      assert.equal(state.error, null, 'Must NOT show time error');
+      assert.equal(state.draft.modality, 'presencial');
+
+      // Confirmation of range vs generic question:
+      // Subcase 1: Generic question "¿A qué hora?" + "Sí" -> NO set 10:00, keeps time null, asks for valid time
+      setupTimeQuestion();
+      aiService.interpretMessage = async () => {
+        throw new Error('Should NOT call LLM for "Sí"');
+      };
+      await useAiWizardStore.getState().sendUserMessage('Sí');
+      state = useAiWizardStore.getState();
+      assert.equal(state.draft.time, null, '"Sí" without range proposal must NOT set 10:00');
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+
+      // Subcase 2: Pending range proposal "¿Querés que el encuentro empiece a las 10:00?" + "Sí" -> sets 10:00!
+      useAiWizardStore.setState({
+        lastQuestion: {
+          field: 'time',
+          question: '¿Querés que el encuentro empiece a las 10:00?',
+          type: 'choice',
+        },
+        error: null,
+      });
+      await useAiWizardStore.getState().sendUserMessage('Sí');
+      state = useAiWizardStore.getState();
+      assert.equal(state.draft.time, '10:00', '"Sí" with pending proposal MUST set 10:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
   });
 });
