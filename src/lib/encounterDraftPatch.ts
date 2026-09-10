@@ -15,10 +15,29 @@ export type RelativeDateToken =
   | 'next_weekend'
   | 'next_week';
 
+export type CanonicalWeekday =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export type OrdinalValue = 1 | 2 | 3 | 4 | 5 | 'first' | 'second' | 'third' | 'fourth' | 'fifth' | 'last';
+
 export type DateIntent =
   | { type: 'absolute'; day: number; month?: number; year?: number }
   | { type: 'relative'; value: RelativeDateToken }
   | { type: 'weekday'; weekday: string; modifier?: 'this' | 'next' }
+  | {
+      type: 'nth_weekday_of_month';
+      weekday: string;
+      ordinal: OrdinalValue;
+      monthOffset?: number;
+      month?: number;
+      year?: number;
+    }
   | { type: 'range'; values: string[] }
   | { type: 'vague'; description: string };
 

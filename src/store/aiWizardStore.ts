@@ -9,9 +9,11 @@ import {
   looksLikeOtherFieldIntent,
   resolveContextualHour,
   parseCompositeEncounterInput,
+  parseDeterministicDateIntent,
+  parseDeterministicDateExpression,
   pad,
 } from '@/lib/dateResolver';
-import type { EncounterDraftPatch, DateIntent } from '@/lib/encounterDraftPatch';
+import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
 import {
   INVITATION_THEMES,
@@ -128,22 +130,6 @@ const THEMES_MAP: Record<string, string> = {
   festejo: 'celebration',
 };
 
-const MONTHS_MAP: Record<string, number> = {
-  enero: 1,
-  febrero: 2,
-  marzo: 3,
-  abril: 4,
-  mayo: 5,
-  junio: 6,
-  julio: 7,
-  agosto: 8,
-  septiembre: 9,
-  setiembre: 9,
-  octubre: 10,
-  noviembre: 11,
-  diciembre: 12,
-};
-
 export function resolveMinimalInputFallback(
   input: string,
   draft: EncounterDraft,
@@ -180,47 +166,11 @@ export function resolveMinimalInputFallback(
   }
 
   // 3. Date expressions
-  let dateIntent: DateIntent | null = null;
-  if (lower === 'manana' || lower === 'de manana') {
-    dateIntent = { type: 'relative', value: 'tomorrow' };
-  } else if (lower === 'hoy') {
-    dateIntent = { type: 'relative', value: 'today' };
-  } else if (lower === 'pasado manana') {
-    dateIntent = { type: 'relative', value: 'day_after_tomorrow' };
-  } else if (lower === 'este fin de semana' || lower === 'el finde' || lower === 'finde') {
-    dateIntent = { type: 'relative', value: 'this_weekend' };
-  } else {
-    const weekdayMatch = lower.match(
-      /^(?:el\s+|este\s+|el\s+proximo\s+|el\s+pr[oó]ximo\s+|proximo\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)$/i
-    );
-    if (weekdayMatch) {
-      const isNext = lower.includes('proximo');
-      dateIntent = {
-        type: 'weekday',
-        weekday: weekdayMatch[1],
-        modifier: isNext ? 'next' : 'this',
-      };
-    } else {
-      const dayOnlyMatch = lower.match(/^(?:el\s+)?([1-9]|[12]\d|3[01])$/);
-      if (dayOnlyMatch) {
-        dateIntent = { type: 'absolute', day: parseInt(dayOnlyMatch[1], 10) };
-      } else {
-        const dayMonthMatch = lower.match(/^(?:el\s+)?([1-9]|[12]\d|3[01])\s+de\s+([a-z]+)$/);
-        if (dayMonthMatch && MONTHS_MAP[dayMonthMatch[2]]) {
-          dateIntent = {
-            type: 'absolute',
-            day: parseInt(dayMonthMatch[1], 10),
-            month: MONTHS_MAP[dayMonthMatch[2]],
-          };
-        }
-      }
-    }
-  }
-
-  if (dateIntent) {
+  const deterministicDate = parseDeterministicDateIntent(clean);
+  if (deterministicDate) {
     return {
       scope: 'encounter',
-      dateIntent: { value: dateIntent, confidence: 'explicit', originalText: clean },
+      dateIntent: { value: deterministicDate, confidence: 'explicit', originalText: clean },
     };
   }
 
@@ -1025,6 +975,83 @@ export const useAiWizardStore = create<AiWizardState>()(
               lastUserPrompt: trimmed,
             });
             return;
+          }
+        }
+
+        // 4c. Deterministic response when active question is date (Bypass Determinístico)
+        if (state.lastQuestion?.field === 'date') {
+          const dateResolved = parseDeterministicDateExpression(trimmed);
+          if (dateResolved) {
+            if (dateResolved.resolved && dateResolved.date) {
+              const baseAnchor = dateResolved.date;
+              let finalDate = baseAnchor;
+              let appliedRollover = false;
+              let pendingRollover = false;
+
+              if (state.draft.appliedDayRollover || state.draft.pendingDayRollover) {
+                finalDate = addDaysToIsoDate(baseAnchor, 1);
+                appliedRollover = true;
+                pendingRollover = false;
+              }
+
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                date: finalDate,
+                baseDate: baseAnchor,
+                appliedDayRollover: appliedRollover,
+                pendingDayRollover: pendingRollover,
+              };
+
+              const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+              let assistantReply = '';
+              if (evaluation.isComplete) {
+                assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                assistantReply = evaluation.nextQuestion.question;
+              }
+
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: assistantReply,
+                timestamp: Date.now() + 1,
+              };
+
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                isComplete: evaluation.isComplete,
+                error: null,
+                isInterpreting: false,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            } else if (!dateResolved.resolved && dateResolved.ambiguityReason) {
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: dateResolved.ambiguityReason,
+                timestamp: Date.now() + 1,
+              };
+
+              set({
+                messages: [...state.messages, userMsg, assistantMsg],
+                isInterpreting: false,
+                error: null,
+                lastQuestion: {
+                  field: 'date',
+                  question: dateResolved.ambiguityReason,
+                  quickOptions: dateResolved.ambiguousOptions?.map((opt) => ({
+                    label: opt,
+                    value: opt,
+                  })),
+                  type: dateResolved.ambiguousOptions ? 'choice' : 'text',
+                },
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
           }
         }
 

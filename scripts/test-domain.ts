@@ -16,6 +16,10 @@ import {
   getDaysInMonth,
   parseDeterministicTimeInput,
   looksLikeOtherFieldIntent,
+  normalizeToCanonicalWeekday,
+  resolveNthWeekdayOfMonth,
+  parseDeterministicDateIntent,
+  parseDeterministicDateExpression,
 } from '../src/lib/dateResolver.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
@@ -24,6 +28,8 @@ import {
   hasTimeEvidence,
   sanitizeTemporalIntents,
   validatePatchOutput,
+  ENCOUNTER_DRAFT_PATCH_SCHEMA,
+  sanitizeSchemaForOpenAI,
 } from '../supabase/functions/ai-interpret/validation.ts';
 import { validateEncounterDate, isFuture } from '../src/lib/formatDate.ts';
 import {
@@ -46,7 +52,8 @@ import {
   INVITATION_THEMES,
   AI_SUPPORTED_THEMES,
 } from '../src/lib/invitationThemes.ts';
-import { SYSTEM_PROMPT } from '../supabase/functions/ai-interpret/prompt.ts';
+import { SYSTEM_PROMPT, PROMPT_VERSION } from '../supabase/functions/ai-interpret/prompt.ts';
+import type { DateIntent, OrdinalValue, CanonicalWeekday } from '../src/lib/encounterDraftPatch.ts';
 import {
   resolveLimiterConfig,
   checkAbuseLimits,
@@ -90,7 +97,7 @@ describe('Domain Logic Tests: Date & Time Resolution', () => {
   test('resolves "el próximo viernes" from Monday 2026-09-07', () => {
     const res = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'next' }, baseDate);
     assert.equal(res.resolved, true);
-    assert.equal(res.date, '2026-09-18');
+    assert.equal(res.date, '2026-09-11');
   });
 
   test('Ajuste 3: resolves "15 de septiembre" without year to current year if future', () => {
@@ -5458,4 +5465,330 @@ describe('QA Mobile: Android Back, History Guard & Popstate (Section 21: Cases P
     assert.equal(guardActive, true);
   });
 });
+
+describe('QA Producción: Weekdays EN/ES, Ordinales y Semántica Relativa (Section 15: Cases A to F)', () => {
+  const baseThu = { year: 2026, month: 9, day: 10 }; // Jueves 10 Sep 2026
+
+  test('Caso A: "viernes próximo" -> próximo viernes válido (2026-09-11)', () => {
+    const res = parseDeterministicDateExpression('viernes próximo', baseThu);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-11');
+  });
+
+  test('Caso B: "friday" como weekday interno -> se resuelve correctamente', () => {
+    const info = normalizeToCanonicalWeekday('friday');
+    assert.ok(info !== null);
+    assert.equal(info.canonical, 'friday');
+    assert.equal(info.dayIndex, 5);
+
+    const res = resolveDateIntent({ type: 'weekday', weekday: 'friday' }, baseThu);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-11');
+  });
+
+  test('Caso C: "viernes" -> mismo resultado canónico que friday', () => {
+    const infoVie = normalizeToCanonicalWeekday('viernes');
+    const infoFri = normalizeToCanonicalWeekday('friday');
+    assert.ok(infoVie !== null && infoFri !== null);
+    assert.equal(infoVie.canonical, infoFri.canonical);
+    assert.equal(infoVie.dayIndex, infoFri.dayIndex);
+
+    const res = resolveDateIntent({ type: 'weekday', weekday: 'viernes' }, baseThu);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-11');
+  });
+
+  test('Caso D: "vie" -> mismo weekday canónico', () => {
+    const info = normalizeToCanonicalWeekday('vie');
+    assert.ok(info !== null);
+    assert.equal(info.canonical, 'friday');
+    assert.equal(info.dayIndex, 5);
+  });
+
+  test('Caso E: "miércoles" -> wednesday canónico', () => {
+    const info = normalizeToCanonicalWeekday('miércoles');
+    assert.ok(info !== null);
+    assert.equal(info.canonical, 'wednesday');
+    assert.equal(info.dayIndex, 3);
+  });
+
+  test('Caso F: "miercoles" -> idem wednesday canónico', () => {
+    const info = normalizeToCanonicalWeekday('miercoles');
+    assert.ok(info !== null);
+    assert.equal(info.canonical, 'wednesday');
+    assert.equal(info.dayIndex, 3);
+  });
+});
+
+describe('QA Producción: Expresiones Ordinales de Fecha (Section 16: Cases G to K)', () => {
+  const baseSep10 = { year: 2026, month: 9, day: 10 }; // 10 Sep 2026
+
+  test('Caso G: base 2026-09-10 + "primer viernes del mes que viene" -> 2026-10-02', () => {
+    const res = parseDeterministicDateExpression('primer viernes del mes que viene', baseSep10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-10-02');
+  });
+
+  test('Caso H: base 2026-09-10 + "segundo viernes del mes que viene" -> 2026-10-09', () => {
+    const res = parseDeterministicDateExpression('segundo viernes del mes que viene', baseSep10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-10-09');
+  });
+
+  test('Caso I: base 2026-09-10 + "tercer jueves de octubre de 2026" -> 2026-10-15', () => {
+    const res = parseDeterministicDateExpression('tercer jueves de octubre de 2026', baseSep10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-10-15');
+  });
+
+  test('Caso J1: base 2026-09-10 + "último sábado de octubre de 2026" -> 2026-10-31', () => {
+    const res = parseDeterministicDateExpression('último sábado de octubre de 2026', baseSep10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-10-31');
+  });
+
+  test('Caso J2: base 2026-09-10 + "último sábado del mes" -> 2026-09-26', () => {
+    const res = parseDeterministicDateExpression('último sábado del mes', baseSep10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-26');
+  });
+
+  test('Caso K: ordinal inexistente ("5to lunes de febrero de 2026") -> ambiguous/unresolvable sin inventar fecha', () => {
+    const res = resolveNthWeekdayOfMonth(
+      { type: 'nth_weekday_of_month', weekday: 'lunes', ordinal: 5, month: 2, year: 2026 },
+      baseSep10
+    );
+    assert.equal(res.resolved, false);
+    assert.equal(res.date, null);
+    assert.equal(res.confidence, 'ambiguous');
+    assert.ok(res.ambiguityReason?.includes('no tiene 5° lunes'));
+  });
+});
+
+describe('QA Producción: Semántica Relativa "este" vs "próximo" y Rollover (Section 17: Cases L to O)', () => {
+  const baseThu10 = { year: 2026, month: 9, day: 10 }; // Jueves 10 Sep 2026
+  const baseFri11 = { year: 2026, month: 9, day: 11 }; // Viernes 11 Sep 2026
+
+  test('Caso L: "este viernes" -> desde Jueves 10 es 2026-09-11; desde Viernes 11 es hoy (2026-09-11)', () => {
+    const resFromThu = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }, baseThu10);
+    assert.equal(resFromThu.resolved, true);
+    assert.equal(resFromThu.date, '2026-09-11');
+
+    const resFromFri = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'this' }, baseFri11);
+    assert.equal(resFromFri.resolved, true);
+    assert.equal(resFromFri.date, '2026-09-11');
+  });
+
+  test('Caso M: "viernes próximo" -> desde Jueves 10 es 2026-09-11; desde Viernes 11 es 2026-09-18', () => {
+    const resFromThu = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'next' }, baseThu10);
+    assert.equal(resFromThu.resolved, true);
+    assert.equal(resFromThu.date, '2026-09-11');
+
+    const resFromFri = resolveDateIntent({ type: 'weekday', weekday: 'viernes', modifier: 'next' }, baseFri11);
+    assert.equal(resFromFri.resolved, true);
+    assert.equal(resFromFri.date, '2026-09-18');
+  });
+
+  test('Caso N: "viernes que viene" -> equivalente a próximo (desde Viernes 11 es 2026-09-18)', () => {
+    const res = parseDeterministicDateExpression('viernes que viene', baseFri11);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-18');
+  });
+
+  test('Caso O: cambio diciembre -> enero: base 2026-12-10 + "primer viernes del mes que viene" -> 2027-01-01', () => {
+    const baseDec10 = { year: 2026, month: 12, day: 10 };
+    const res = parseDeterministicDateExpression('primer viernes del mes que viene', baseDec10);
+    assert.ok(res !== null);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2027-01-01');
+  });
+});
+
+describe('QA Producción: Rescate defensivo de outputs LLM y UX de Error (Section 18 & 19)', () => {
+  const baseSep10 = { year: 2026, month: 9, day: 10 };
+
+  test('Caso P: Rescate de patch LLM con type: "vague" y description "el primer viernes del mes que viene"', () => {
+    const vagueIntent: any = {
+      type: 'vague',
+      weekday: 'friday',
+      modifier: 'next',
+      description: 'el primer viernes del mes que viene',
+    };
+    const res = resolveDateIntent(vagueIntent, baseSep10);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-10-02');
+  });
+
+  test('Caso Q: Rescate de patch LLM con weekday: "friday" sin fallar ni exponer error interno', () => {
+    const patchIntent: any = {
+      type: 'weekday',
+      weekday: 'friday',
+      modifier: 'next',
+    };
+    const res = resolveDateIntent(patchIntent, baseSep10);
+    assert.equal(res.resolved, true);
+    assert.equal(res.date, '2026-09-11');
+  });
+
+  test('Caso R: UX de error para weekday inválido -> copy amigable sin enum interno ni banner rojo', () => {
+    const invalidIntent: any = {
+      type: 'weekday',
+      weekday: 'unknown_day_xyz',
+    };
+    const res = resolveDateIntent(invalidIntent, baseSep10);
+    assert.equal(res.resolved, false);
+    assert.equal(res.date, null);
+    assert.equal(res.confidence, 'ambiguous');
+    assert.ok(!res.ambiguityReason?.includes('unknown_day_xyz'));
+    assert.equal(res.ambiguityReason, 'No pude determinar bien la fecha. ¿Podés indicarme el día de otra forma?');
+  });
+
+  test('Caso S: Bypass determinístico en aiWizardStore cuando lastQuestion.field === "date" (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: null,
+      },
+      lastQuestion: {
+        field: 'date',
+        question: '¿Qué día sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called during deterministic date flow!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('el primer viernes del mes que viene');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Zero provider calls for deterministic date expression');
+      assert.ok(state.draft.date !== null);
+      assert.equal(state.error, null);
+      assert.notEqual(state.lastQuestion?.field, 'date');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Producción: Paridad de contrato nth_weekday_of_month (TypeScript, JSON Schema, Prompt, dateResolver)', () => {
+  const baseSep10 = { year: 2026, month: 9, day: 10 };
+
+  test('Paridad 1: TypeScript type checking de DateIntent soporta nth_weekday_of_month con ordinales string y numéricos', () => {
+    const intentNumeric: DateIntent = {
+      type: 'nth_weekday_of_month',
+      weekday: 'friday',
+      ordinal: 1,
+      monthOffset: 1,
+    };
+    const intentString: DateIntent = {
+      type: 'nth_weekday_of_month',
+      weekday: 'saturday',
+      ordinal: 'last',
+      month: 10,
+    };
+    const intentNamed: DateIntent = {
+      type: 'nth_weekday_of_month',
+      weekday: 'thursday',
+      ordinal: 'third',
+      month: 10,
+      year: 2026,
+    };
+    assert.equal(intentNumeric.type, 'nth_weekday_of_month');
+    assert.equal(intentString.type, 'nth_weekday_of_month');
+    assert.equal(intentNamed.type, 'nth_weekday_of_month');
+  });
+
+  test('Paridad 2: JSON Schema en validation.ts define nth_weekday_of_month, ordinal (anyOf integer/string) y monthOffset', () => {
+    const dateIntentValueSchema = (ENCOUNTER_DRAFT_PATCH_SCHEMA.properties as any).dateIntent.properties.value.properties;
+    assert.ok(dateIntentValueSchema.type.enum.includes('nth_weekday_of_month'), 'Schema type enum must include nth_weekday_of_month');
+    assert.ok(dateIntentValueSchema.ordinal, 'Schema must define ordinal property');
+    assert.ok(Array.isArray(dateIntentValueSchema.ordinal.anyOf), 'ordinal must use anyOf');
+
+    // Check integer branch
+    const intBranch = dateIntentValueSchema.ordinal.anyOf.find((b: any) => b.type === 'integer');
+    assert.ok(intBranch, 'ordinal must have integer branch');
+    assert.deepEqual(intBranch.enum, [1, 2, 3, 4, 5]);
+
+    // Check string branch
+    const strBranch = dateIntentValueSchema.ordinal.anyOf.find((b: any) => b.type === 'string');
+    assert.ok(strBranch, 'ordinal must have string branch');
+    assert.deepEqual(strBranch.enum, ['first', 'second', 'third', 'fourth', 'fifth', 'last']);
+
+    // Check monthOffset
+    assert.equal(dateIntentValueSchema.monthOffset.type, 'integer');
+
+    // Check strict OpenAI transform
+    const openAiSchema: any = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA);
+    const openAiDateIntent = openAiSchema.properties.dateIntent.properties.value.properties;
+    assert.ok(openAiDateIntent.ordinal, 'OpenAI transformed schema must contain ordinal');
+    assert.ok(openAiSchema.properties.dateIntent.properties.value.required.includes('ordinal'), 'All properties must be in required for OpenAI strict mode');
+  });
+
+  test('Paridad 3: SYSTEM_PROMPT version 1.5.0 documenta explícitamente nth_weekday_of_month con ejemplos', () => {
+    assert.equal(PROMPT_VERSION, '1.5.0');
+    assert.ok(SYSTEM_PROMPT.includes('nth_weekday_of_month'), 'SYSTEM_PROMPT must reference nth_weekday_of_month');
+    assert.ok(SYSTEM_PROMPT.includes('primer viernes del mes que viene'), 'SYSTEM_PROMPT must include primer viernes example');
+    assert.ok(SYSTEM_PROMPT.includes('último sábado de octubre'), 'SYSTEM_PROMPT must include último sábado example');
+  });
+
+  test('Paridad 4: dateResolver procesa intents con ordinales numéricos y semánticos (EN y ES)', () => {
+    // EN weekday + string ordinal:
+    const res1 = resolveDateIntent({
+      type: 'nth_weekday_of_month',
+      weekday: 'friday',
+      ordinal: 'first',
+      monthOffset: 1,
+    }, baseSep10);
+    assert.equal(res1.resolved, true);
+    assert.equal(res1.date, '2026-10-02');
+
+    // ES weekday + numeric ordinal:
+    const res2 = resolveDateIntent({
+      type: 'nth_weekday_of_month',
+      weekday: 'viernes',
+      ordinal: 1,
+      monthOffset: 1,
+    }, baseSep10);
+    assert.equal(res2.resolved, true);
+    assert.equal(res2.date, '2026-10-02');
+
+    // 'last' ordinal with explicit month:
+    const res3 = resolveDateIntent({
+      type: 'nth_weekday_of_month',
+      weekday: 'saturday',
+      ordinal: 'last',
+      month: 10,
+    }, baseSep10);
+    assert.equal(res3.resolved, true);
+    assert.equal(res3.date, '2026-10-31');
+
+    // Impossible calendar date:
+    const res4 = resolveDateIntent({
+      type: 'nth_weekday_of_month',
+      weekday: 'monday',
+      ordinal: 5,
+      month: 2,
+      year: 2026,
+    }, baseSep10);
+    assert.equal(res4.resolved, false);
+    assert.equal(res4.confidence, 'ambiguous');
+    assert.ok(res4.ambiguityReason?.includes('5°'));
+  });
+});
+
 

@@ -31,12 +31,19 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
         value: {
           type: "object",
           properties: {
-            type: { type: "string", enum: ["absolute", "relative", "weekday", "range", "vague"] },
+            type: { type: "string", enum: ["absolute", "relative", "weekday", "nth_weekday_of_month", "range", "vague"] },
             day: { type: "integer" },
             month: { type: "integer" },
             year: { type: "integer" },
             value: { type: "string", enum: ["today", "tomorrow", "day_after_tomorrow", "this_weekend", "next_weekend", "next_week"] },
             weekday: { type: "string" },
+            ordinal: {
+              anyOf: [
+                { type: "integer", enum: [1, 2, 3, 4, 5] },
+                { type: "string", enum: ["first", "second", "third", "fourth", "fifth", "last"] }
+              ]
+            },
+            monthOffset: { type: "integer" },
             modifier: { type: "string", enum: ["this", "next"] },
             values: { type: "array", items: { type: "string" } },
             description: { type: "string" }
@@ -364,6 +371,7 @@ const DATE_EVIDENCE_PATTERNS = [
   /\b(lunes|martes|mi[eé]rcoles|miercoles|mie|jueves|juevs|jue|viernes|vierns|vie|s[aá]bado|sabado|sabdo|sab|domingo|domigo|dom)s?\b/i,
   /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i,
   /\b(este|esta|pr[oó]xim[oa]|proxim[oa]|siguiente)\s+(semana|finde|mes|año|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/i,
+  /\b(primer|primero|segundo|tercer|tercero|cuarto|quinto|[uú]ltimo)\b/i,
   /\b(el\s+)?\d{1,2}\s+(de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i,
   /\b\d{1,2}[\/\-\.]\d{1,2}([\/\-\.]\d{2,4})?\b/,
   /\bentre\s+(el\s+)?\d{1,2}\s+y\s+(el\s+)?\d{1,2}\b/i,

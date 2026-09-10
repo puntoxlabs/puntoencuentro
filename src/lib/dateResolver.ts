@@ -2,7 +2,13 @@ import {
   getArgentinaDateTimeParts,
   isArgentinaDateTimeInFuture,
 } from '@/lib/argentinaDateTime';
-import type { DateIntent, TimeIntent, FieldConfidence } from '@/lib/encounterDraftPatch';
+import type {
+  DateIntent,
+  TimeIntent,
+  FieldConfidence,
+  CanonicalWeekday,
+  OrdinalValue,
+} from '@/lib/encounterDraftPatch';
 
 export interface DateResolutionResult {
   resolved: boolean;
@@ -22,17 +28,155 @@ export interface TimeResolutionResult {
   dayOffset?: number; // 0 or 1 for end-of-day rollover (e.g. 24:00 / medianoche fin de día)
 }
 
-const WEEKDAY_NAMES_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+export interface WeekdayInfo {
+  canonical: CanonicalWeekday;
+  dayIndex: number; // 0 for domingo/sunday, 1 for lunes/monday, ..., 6 for sabado/saturday
+  nameEs: string;
+}
 
-function normalizeWeekday(name: string): number {
+export const WEEKDAY_MAPPING: Record<string, WeekdayInfo> = {
+  // Sunday (0)
+  domingo: { canonical: 'sunday', dayIndex: 0, nameEs: 'domingo' },
+  dom: { canonical: 'sunday', dayIndex: 0, nameEs: 'domingo' },
+  sunday: { canonical: 'sunday', dayIndex: 0, nameEs: 'domingo' },
+  sun: { canonical: 'sunday', dayIndex: 0, nameEs: 'domingo' },
+
+  // Monday (1)
+  lunes: { canonical: 'monday', dayIndex: 1, nameEs: 'lunes' },
+  lun: { canonical: 'monday', dayIndex: 1, nameEs: 'lunes' },
+  monday: { canonical: 'monday', dayIndex: 1, nameEs: 'lunes' },
+  mon: { canonical: 'monday', dayIndex: 1, nameEs: 'lunes' },
+
+  // Tuesday (2)
+  martes: { canonical: 'tuesday', dayIndex: 2, nameEs: 'martes' },
+  mar: { canonical: 'tuesday', dayIndex: 2, nameEs: 'martes' },
+  tuesday: { canonical: 'tuesday', dayIndex: 2, nameEs: 'martes' },
+  tue: { canonical: 'tuesday', dayIndex: 2, nameEs: 'martes' },
+
+  // Wednesday (3)
+  miercoles: { canonical: 'wednesday', dayIndex: 3, nameEs: 'miércoles' },
+  mie: { canonical: 'wednesday', dayIndex: 3, nameEs: 'miércoles' },
+  wednesday: { canonical: 'wednesday', dayIndex: 3, nameEs: 'miércoles' },
+  wed: { canonical: 'wednesday', dayIndex: 3, nameEs: 'miércoles' },
+
+  // Thursday (4)
+  jueves: { canonical: 'thursday', dayIndex: 4, nameEs: 'jueves' },
+  jue: { canonical: 'thursday', dayIndex: 4, nameEs: 'jueves' },
+  thursday: { canonical: 'thursday', dayIndex: 4, nameEs: 'jueves' },
+  thu: { canonical: 'thursday', dayIndex: 4, nameEs: 'jueves' },
+
+  // Friday (5)
+  viernes: { canonical: 'friday', dayIndex: 5, nameEs: 'viernes' },
+  vie: { canonical: 'friday', dayIndex: 5, nameEs: 'viernes' },
+  friday: { canonical: 'friday', dayIndex: 5, nameEs: 'viernes' },
+  fri: { canonical: 'friday', dayIndex: 5, nameEs: 'viernes' },
+
+  // Saturday (6)
+  sabado: { canonical: 'saturday', dayIndex: 6, nameEs: 'sábado' },
+  sab: { canonical: 'saturday', dayIndex: 6, nameEs: 'sábado' },
+  saturday: { canonical: 'saturday', dayIndex: 6, nameEs: 'sábado' },
+  sat: { canonical: 'saturday', dayIndex: 6, nameEs: 'sábado' },
+};
+
+export function normalizeToCanonicalWeekday(name: string): WeekdayInfo | null {
+  if (!name || typeof name !== 'string') return null;
   const clean = name
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
-  const index = WEEKDAY_NAMES_ES.indexOf(clean);
-  return index; // 0 for domingo, 1 for lunes, etc.
+  return WEEKDAY_MAPPING[clean] || null;
 }
+
+export function normalizeWeekday(name: string): number {
+  const info = normalizeToCanonicalWeekday(name);
+  return info ? info.dayIndex : -1;
+}
+
+export const ORDINAL_MAPPING: Record<string, OrdinalValue> = {
+  primer: 'first',
+  primero: 'first',
+  primera: 'first',
+  '1er': 'first',
+  '1ro': 'first',
+  '1ra': 'first',
+  '1': 'first',
+  '1°': 'first',
+  '1ª': 'first',
+  first: 'first',
+
+  segundo: 'second',
+  segunda: 'second',
+  '2do': 'second',
+  '2da': 'second',
+  '2': 'second',
+  '2°': 'second',
+  '2ª': 'second',
+  second: 'second',
+
+  tercer: 'third',
+  tercero: 'third',
+  tercera: 'third',
+  '3er': 'third',
+  '3ro': 'third',
+  '3ra': 'third',
+  '3': 'third',
+  '3°': 'third',
+  '3ª': 'third',
+  third: 'third',
+
+  cuarto: 'fourth',
+  cuarta: 'fourth',
+  '4to': 'fourth',
+  '4ta': 'fourth',
+  '4': 'fourth',
+  '4°': 'fourth',
+  '4ª': 'fourth',
+  fourth: 'fourth',
+
+  quinto: 'fifth',
+  quinta: 'fifth',
+  '5to': 'fifth',
+  '5ta': 'fifth',
+  '5': 'fifth',
+  '5°': 'fifth',
+  '5ª': 'fifth',
+  fifth: 'fifth',
+
+  ultimo: 'last',
+  último: 'last',
+  ultima: 'last',
+  última: 'last',
+  last: 'last',
+};
+
+export const MONTHS_MAP: Record<string, number> = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+  january: 1,
+  february: 2,
+  march: 3,
+  april: 4,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  december: 12,
+};
 
 export function pad(n: number): string {
   if (typeof n !== 'number' || !Number.isFinite(n) || Number.isNaN(n)) {
@@ -107,6 +251,123 @@ export function addDaysToIsoDate(isoDate: string, days: number): string {
   const dt = new Date(y, m - 1, d);
   dt.setDate(dt.getDate() + days);
   return toIsoDate(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+}
+
+/**
+ * Resolves an nth_weekday_of_month expression (e.g. "primer viernes del mes que viene",
+ * "tercer jueves de octubre", "último sábado del mes").
+ */
+export function resolveNthWeekdayOfMonth(
+  intent: {
+    weekday: string;
+    ordinal: OrdinalValue;
+    monthOffset?: number;
+    month?: number;
+    year?: number;
+  },
+  baseDateParts: { year: number; month: number; day: number }
+): DateResolutionResult {
+  const weekdayInfo = normalizeToCanonicalWeekday(intent.weekday);
+  if (!weekdayInfo) {
+    return {
+      resolved: false,
+      date: null,
+      confidence: 'ambiguous',
+      ambiguityReason: 'No pude determinar bien la fecha. ¿Podés indicarme el día de otra forma?',
+    };
+  }
+
+  let targetYear = intent.year ?? baseDateParts.year;
+  let targetMonth: number;
+
+  if (intent.month !== undefined && intent.month !== null) {
+    targetMonth = intent.month;
+    if (intent.year === undefined) {
+      if (targetMonth < baseDateParts.month) {
+        targetYear = baseDateParts.year + 1;
+      }
+    }
+  } else {
+    const offset = intent.monthOffset ?? 0;
+    targetMonth = baseDateParts.month + offset;
+    while (targetMonth > 12) {
+      targetMonth -= 12;
+      targetYear += 1;
+    }
+    while (targetMonth < 1) {
+      targetMonth += 12;
+      targetYear -= 1;
+    }
+  }
+
+  const daysInMonth = getDaysInMonth(targetYear, targetMonth);
+  const matchingDays: number[] = [];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(targetYear, targetMonth - 1, d);
+    if (dt.getDay() === weekdayInfo.dayIndex) {
+      matchingDays.push(d);
+    }
+  }
+
+  let chosenDay: number | null = null;
+  const ord = intent.ordinal;
+
+  if (ord === 'last') {
+    chosenDay = matchingDays[matchingDays.length - 1] ?? null;
+  } else {
+    let index: number;
+    if (typeof ord === 'number') {
+      index = ord;
+    } else {
+      const ordNumMap: Record<string, number> = {
+        first: 1,
+        second: 2,
+        third: 3,
+        fourth: 4,
+        fifth: 5,
+      };
+      index = ordNumMap[ord] || 1;
+    }
+
+    if (index > matchingDays.length) {
+      return {
+        resolved: false,
+        date: null,
+        confidence: 'ambiguous',
+        ambiguityReason: `El mes indicado no tiene ${index}° ${weekdayInfo.nameEs}. ¿Podés elegir otra fecha?`,
+      };
+    }
+    chosenDay = matchingDays[index - 1];
+  }
+
+  if (!chosenDay) {
+    return {
+      resolved: false,
+      date: null,
+      confidence: 'ambiguous',
+      ambiguityReason: 'No se pudo encontrar el día solicitado en ese mes.',
+    };
+  }
+
+  const resolvedIso = toIsoDate(targetYear, targetMonth, chosenDay);
+  const todayIso = toIsoDate(baseDateParts.year, baseDateParts.month, baseDateParts.day);
+
+  if (resolvedIso < todayIso) {
+    return {
+      resolved: false,
+      date: null,
+      confidence: 'ambiguous',
+      isPast: true,
+      ambiguityReason: 'La fecha indicada ya pasó. ¿Podés elegir una fecha futura?',
+    };
+  }
+
+  return {
+    resolved: true,
+    date: resolvedIso,
+    confidence: 'inferred_high',
+  };
 }
 
 /**
@@ -302,33 +563,33 @@ export function resolveDateIntent(
     }
 
     case 'weekday': {
-      const targetWeekday = normalizeWeekday(intent.weekday);
-      if (targetWeekday === -1) {
+      const weekdayInfo = normalizeToCanonicalWeekday(intent.weekday);
+      if (!weekdayInfo) {
         return {
           resolved: false,
           date: null,
           confidence: 'ambiguous',
-          ambiguityReason: `Día de la semana no reconocido: ${intent.weekday}`,
+          ambiguityReason: 'No pude determinar bien la fecha. ¿Podés indicarme el día de otra forma?',
         };
       }
 
+      const targetWeekday = weekdayInfo.dayIndex;
       const todayDate = new Date(currentYear, currentMonth - 1, currentDay);
       const todayWeekday = todayDate.getDay();
 
       let daysToAdd = (targetWeekday - todayWeekday + 7) % 7;
 
       if (intent.modifier === 'next') {
-        // "el próximo viernes": if today is Friday, +7; otherwise jump to next week's occurrence
+        // "el próximo viernes" / "viernes próximo": strictly next future occurrence.
+        // If today is that weekday (daysToAdd === 0), jump to next week (+7).
+        // If today is before that weekday in current cycle (daysToAdd > 0),
+        // it refers to this upcoming weekday in the current cycle.
         if (daysToAdd === 0) {
           daysToAdd = 7;
-        } else {
-          daysToAdd += 7;
         }
       } else {
-        // "este viernes" (modifier === 'this' or undefined)
-        // If daysToAdd === 0 (e.g. today is Friday):
-        // It refers to today!
-        // daysToAdd = 0
+        // "este viernes" (modifier === 'this' or undefined):
+        // If daysToAdd === 0 (today is that weekday), it refers to today (daysToAdd = 0).
       }
 
       const resolvedDate = new Date(todayDate);
@@ -347,6 +608,10 @@ export function resolveDateIntent(
       };
     }
 
+    case 'nth_weekday_of_month': {
+      return resolveNthWeekdayOfMonth(intent, baseDateParts);
+    }
+
     case 'range':
       return {
         resolved: false,
@@ -356,14 +621,191 @@ export function resolveDateIntent(
       };
 
     case 'vague':
-    default:
+    default: {
+      if (intent.description) {
+        const rescued = parseDeterministicDateExpression(intent.description, baseDateParts);
+        if (rescued && rescued.resolved) {
+          return rescued;
+        }
+      }
       return {
         resolved: false,
         date: null,
         confidence: 'ambiguous',
         ambiguityReason: intent.description || 'Expresión de fecha vaga o indeterminada',
       };
+    }
   }
+}
+
+/**
+ * Parses deterministic date expressions from raw user text, including:
+ * - Relative days: "hoy", "mañana", "pasado mañana", "este finde", "finde", "este fin de semana", "el próximo fin de semana"
+ * - Ordinal weekday expressions: "el primer viernes del mes que viene", "segundo martes del próximo mes", "tercer jueves de octubre", "último sábado del mes"
+ * - Relative weekday expressions: "el viernes próximo", "viernes próximo", "el viernes que viene", "viernes que viene", "este viernes", "el viernes", "viernes", "friday", "next friday"
+ * - Day of month / day + month: "el 12", "12", "15 de septiembre", "15 de octubre de 2026"
+ */
+export function parseDeterministicDateIntent(text: string): DateIntent | null {
+  if (!text || typeof text !== 'string') return null;
+  const clean = text.trim();
+  const normalized = clean
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  // 1. Relatives
+  if (normalized === 'hoy') {
+    return { type: 'relative', value: 'today' };
+  }
+  if (normalized === 'manana' || normalized === 'de manana') {
+    return { type: 'relative', value: 'tomorrow' };
+  }
+  if (normalized === 'pasado manana') {
+    return { type: 'relative', value: 'day_after_tomorrow' };
+  }
+  if (normalized === 'este fin de semana' || normalized === 'el finde' || normalized === 'finde') {
+    return { type: 'relative', value: 'this_weekend' };
+  }
+  if (
+    normalized === 'el proximo fin de semana' ||
+    normalized === 'proximo fin de semana' ||
+    normalized === 'el proximo finde' ||
+    normalized === 'proximo finde'
+  ) {
+    return { type: 'relative', value: 'next_weekend' };
+  }
+  if (normalized === 'la proxima semana' || normalized === 'la semana que viene') {
+    return { type: 'relative', value: 'next_week' };
+  }
+
+  // 2. Ordinals: e.g. "primer viernes del mes que viene", "segundo martes del proximo mes", "tercer jueves de octubre", "ultimo sabado del mes"
+  const ordinalPattern = /^(?:el\s+)?(primer|primero|primera|segundo|segunda|tercer|tercero|tercera|cuarto|cuarta|quinto|quinta|ultimo|último|ultima|última|1er|1ro|1ra|1°|1ª|2do|2da|2°|2ª|3er|3ro|3ra|3°|3ª|4to|4ta|4°|4ª|5to|5ta|5°|5ª|first|second|third|fourth|fifth|last)\s+([a-z]+)(?:\s+(?:del?\s+)?(?:(este|proximo|pr[oó]ximo|que\s+viene)\s+mes|mes\s+(?:que\s+viene|proximo|pr[oó]ximo)|mes|(?:de\s+([a-z]+)(?:\s+(?:del?\s+)?(\d{4}))?)))?$/i;
+
+  const ordMatch = normalized.match(ordinalPattern);
+  if (ordMatch) {
+    const rawOrd = ordMatch[1];
+    const rawWk = ordMatch[2];
+    const monthMod = ordMatch[3]; // "este", "proximo", "que viene"
+    const explicitMonth = ordMatch[4]; // e.g. "octubre"
+    const explicitYear = ordMatch[5] ? parseInt(ordMatch[5], 10) : undefined;
+
+    const ordVal = ORDINAL_MAPPING[rawOrd];
+    const wkInfo = normalizeToCanonicalWeekday(rawWk);
+
+    if (ordVal && wkInfo) {
+      let monthOffset = 0;
+      let monthNum: number | undefined;
+
+      if (explicitMonth && MONTHS_MAP[explicitMonth]) {
+        monthNum = MONTHS_MAP[explicitMonth];
+      } else if (
+        monthMod === 'proximo' ||
+        monthMod === 'que viene' ||
+        normalized.includes('mes que viene') ||
+        normalized.includes('proximo mes')
+      ) {
+        monthOffset = 1;
+      } else if (monthMod === 'este' || normalized.includes('este mes') || normalized.includes('del mes')) {
+        monthOffset = 0;
+      }
+
+      return {
+        type: 'nth_weekday_of_month',
+        weekday: wkInfo.canonical,
+        ordinal: ordVal,
+        monthOffset: monthNum ? undefined : monthOffset,
+        month: monthNum,
+        year: explicitYear,
+      };
+    }
+  }
+
+  // 3. Weekday expressions
+  // "viernes proximo", "el viernes proximo", "viernes que viene", "el viernes que viene"
+  const suffixNextMatch = normalized.match(/^(?:el\s+)?([a-z]+)\s+(?:proximo|que\s+viene)$/);
+  if (suffixNextMatch) {
+    const wkInfo = normalizeToCanonicalWeekday(suffixNextMatch[1]);
+    if (wkInfo) {
+      return {
+        type: 'weekday',
+        weekday: wkInfo.canonical,
+        modifier: 'next',
+      };
+    }
+  }
+
+  // "el proximo viernes", "proximo viernes", "next friday"
+  const prefixNextMatch = normalized.match(/^(?:el\s+proximo\s+|proximo\s+|next\s+)([a-z]+)$/);
+  if (prefixNextMatch) {
+    const wkInfo = normalizeToCanonicalWeekday(prefixNextMatch[1]);
+    if (wkInfo) {
+      return {
+        type: 'weekday',
+        weekday: wkInfo.canonical,
+        modifier: 'next',
+      };
+    }
+  }
+
+  // "este viernes", "this friday"
+  const thisWkMatch = normalized.match(/^(?:este\s+|this\s+)([a-z]+)$/);
+  if (thisWkMatch) {
+    const wkInfo = normalizeToCanonicalWeekday(thisWkMatch[1]);
+    if (wkInfo) {
+      return {
+        type: 'weekday',
+        weekday: wkInfo.canonical,
+        modifier: 'this',
+      };
+    }
+  }
+
+  // "el viernes", "viernes", "friday", "fri", "vie"
+  const singleWkMatch = normalized.match(/^(?:el\s+)?([a-z]+)$/);
+  if (singleWkMatch) {
+    const wkInfo = normalizeToCanonicalWeekday(singleWkMatch[1]);
+    if (wkInfo) {
+      return {
+        type: 'weekday',
+        weekday: wkInfo.canonical,
+        modifier: 'this',
+      };
+    }
+  }
+
+  // 4. Absolute day or day + month
+  const dayOnlyMatch = normalized.match(/^(?:el\s+)?([1-9]|[12]\d|3[01])$/);
+  if (dayOnlyMatch) {
+    return { type: 'absolute', day: parseInt(dayOnlyMatch[1], 10) };
+  }
+
+  const dayMonthMatch = normalized.match(
+    /^(?:el\s+)?([1-9]|[12]\d|3[01])\s+de\s+([a-z]+)(?:\s+(?:del?\s+)?(\d{4}))?$/
+  );
+  if (dayMonthMatch && MONTHS_MAP[dayMonthMatch[2]]) {
+    return {
+      type: 'absolute',
+      day: parseInt(dayMonthMatch[1], 10),
+      month: MONTHS_MAP[dayMonthMatch[2]],
+      year: dayMonthMatch[3] ? parseInt(dayMonthMatch[3], 10) : undefined,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Deterministically parses and resolves a date expression against baseDateParts.
+ * Returns DateResolutionResult or null if input does not match any date expression.
+ */
+export function parseDeterministicDateExpression(
+  text: string,
+  baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts()
+): DateResolutionResult | null {
+  const intent = parseDeterministicDateIntent(text);
+  if (!intent) return null;
+  return resolveDateIntent(intent, baseDateParts);
 }
 
 /**
@@ -980,8 +1422,19 @@ export function looksLikeOtherFieldIntent(text: string): boolean {
   const clean = text.trim();
 
   // 1. Date intent
+  // Bare numbers like "10", "18", "27" are potential hour inputs, not date edits
+  const isBareNumber = /^\d{1,2}(?::\d{2})?$/.test(clean);
+  if (!isBareNumber) {
+    const parsedDate = parseDeterministicDateIntent(clean);
+    if (parsedDate && parsedDate.type !== 'absolute') {
+      return true;
+    }
+    if (parsedDate && parsedDate.type === 'absolute' && (/^(?:el\s+)/i.test(clean) || /\bde\b/i.test(clean))) {
+      return true;
+    }
+  }
   if (
-    /\b(mañana|hoy|pasado\s+mañana|este\s+finde|fin\s+de\s+semana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i.test(
+    /\b(mañana|hoy|pasado\s+mañana|este\s+finde|fin\s+de\s+semana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday|primer|primero|segundo|tercer|cuarto|quinto|ultimo|último|próximo|proximo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i.test(
       clean
     )
   ) {
