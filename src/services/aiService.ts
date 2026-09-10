@@ -72,6 +72,14 @@ export const aiService = {
     const controller = new AbortController();
     let isTimedOut = false;
 
+    console.log('[aiService] requestStarted:', {
+      hasMessage: Boolean(message),
+      messageLength: message?.length,
+      hasCurrentDraft: Boolean(currentDraft),
+      hasSessionId: Boolean(sessionId),
+      timeoutMs: customTimeoutMs,
+    });
+
     const timeoutId = setTimeout(() => {
       isTimedOut = true;
       controller.abort();
@@ -80,6 +88,7 @@ export const aiService = {
     let logResult: string = 'unknown';
 
     try {
+      console.log('[aiService] invokeStarted');
       const { data, error } = await supabase.functions.invoke('ai-interpret', {
         body: {
           message: message.trim(),
@@ -88,6 +97,13 @@ export const aiService = {
         },
         signal: controller.signal,
         timeout: customTimeoutMs,
+      });
+
+      console.log('[aiService] invokeResolved:', {
+        dataPresent: Boolean(data),
+        errorPresent: Boolean(error),
+        errorName: error?.name,
+        errorMessage: error?.message,
       });
 
       if (error) {
@@ -253,6 +269,11 @@ export const aiService = {
         fallbackFailureType: data.fallbackFailureType,
       };
     } catch (err: any) {
+      console.warn('[aiService] catch error:', {
+        name: err?.name,
+        message: err?.message,
+        constructor: err?.constructor?.name,
+      });
       if (
         isTimedOut ||
         controller.signal.aborted ||

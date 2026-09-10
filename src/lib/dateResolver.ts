@@ -1,7 +1,5 @@
 import {
   getArgentinaDateTimeParts,
-  getArgentinaTodayISO,
-  isValidDateTime,
   isArgentinaDateTimeInFuture,
 } from '@/lib/argentinaDateTime';
 import type { DateIntent, TimeIntent, FieldConfidence } from '@/lib/encounterDraftPatch';
@@ -37,11 +35,71 @@ function normalizeWeekday(name: string): number {
 }
 
 export function pad(n: number): string {
-  return n.toString().padStart(2, '0');
+  if (typeof n !== 'number' || !Number.isFinite(n) || Number.isNaN(n)) {
+    throw new TypeError(`[pad] Expected a valid number, got: ${n}`);
+  }
+  return Math.trunc(n).toString().padStart(2, '0');
 }
 
 export function toIsoDate(year: number, month: number, day: number): string {
   return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+export function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+export function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+  if (month < 1 || month > 12) {
+    return false;
+  }
+  if (day < 1 || day > 31) {
+    return false;
+  }
+  const maxDays = getDaysInMonth(year, month);
+  return day <= maxDays;
+}
+
+/**
+ * Finds the next real calendar date for a given day-of-month (1..31).
+ * If the day does not exist in the current month (e.g. day 31 in September)
+ * or has already passed in the current month, searches ahead month by month
+ * to find the next month where that day physically exists in the calendar.
+ */
+export function resolveNextValidDayOfMonth(
+  day: number,
+  baseParts: { year: number; month: number; day: number }
+): { year: number; month: number; day: number } | null {
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    return null;
+  }
+
+  let y = baseParts.year;
+  let m = baseParts.month;
+
+  for (let offset = 0; offset < 48; offset++) {
+    const maxDays = getDaysInMonth(y, m);
+    if (day <= maxDays) {
+      if (offset === 0) {
+        if (day >= baseParts.day) {
+          return { year: y, month: m, day };
+        }
+      } else {
+        return { year: y, month: m, day };
+      }
+    }
+
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+  }
+
+  return null;
 }
 
 export function addDaysToIsoDate(isoDate: string, days: number): string {
@@ -54,9 +112,11 @@ export function addDaysToIsoDate(isoDate: string, days: number): string {
 /**
  * Resolves a DateIntent into a canonical YYYY-MM-DD calendar date in Argentina timezone.
  *
- * Mandatory rule (Ajuste 3):
+ * Mandatory rule:
  * When an absolute date is given without a year (e.g. "15 de septiembre"),
  * deterministically calculate whether it belongs to current year or next year.
+ * When an absolute date is given without a month (e.g. "el 12", "el 31"),
+ * deterministically find the next real calendar date using resolveNextValidDayOfMonth.
  */
 export function resolveDateIntent(
   intent: DateIntent,
@@ -65,18 +125,63 @@ export function resolveDateIntent(
   const currentYear = baseDateParts.year;
   const currentMonth = baseDateParts.month;
   const currentDay = baseDateParts.day;
-  const todayIso = getArgentinaTodayISO();
+  const todayIso = toIsoDate(currentYear, currentMonth, currentDay);
 
   switch (intent.type) {
     case 'absolute': {
-      let targetYear = intent.year;
+      const day = intent.day;
+      const month = intent.month;
+      const year = intent.year;
 
+      if (typeof day !== 'number' || !Number.isInteger(day) || day < 1 || day > 31) {
+        return {
+          resolved: false,
+          date: null,
+          confidence: 'ambiguous',
+          ambiguityReason: `Día inválido o no especificado: ${day}`,
+        };
+      }
+
+      // Case: Day-only (no month provided, e.g. "el 12", "el 5", "el 31")
+      if (month === undefined || month === null) {
+        const nextDate = resolveNextValidDayOfMonth(day, baseDateParts);
+        if (!nextDate) {
+          return {
+            resolved: false,
+            date: null,
+            confidence: 'ambiguous',
+            ambiguityReason: `No se pudo encontrar una fecha válida en el calendario para el día ${day}.`,
+          };
+        }
+
+        const candidate = toIsoDate(nextDate.year, nextDate.month, nextDate.day);
+        const isPast = candidate < todayIso;
+
+        return {
+          resolved: !isPast,
+          date: candidate,
+          confidence: 'inferred_high',
+          isPast,
+        };
+      }
+
+      // Case: Explicit month provided (e.g. "12 de octubre", "31 de septiembre", "29 de febrero de 2028")
+      if (typeof month !== 'number' || !Number.isInteger(month) || month < 1 || month > 12) {
+        return {
+          resolved: false,
+          date: null,
+          confidence: 'ambiguous',
+          ambiguityReason: `Mes inválido: ${month}`,
+        };
+      }
+
+      let targetYear = year;
       if (!targetYear) {
         // Deterministic year deduction:
         // If the month/day has already passed this year, it must be for next year.
         if (
-          intent.month < currentMonth ||
-          (intent.month === currentMonth && intent.day < currentDay)
+          month < currentMonth ||
+          (month === currentMonth && day < currentDay)
         ) {
           targetYear = currentYear + 1;
         } else {
@@ -84,22 +189,23 @@ export function resolveDateIntent(
         }
       }
 
-      const candidate = toIsoDate(targetYear, intent.month, intent.day);
-      if (!isValidDateTime(candidate, '12:00')) {
+      // Strict calendar existence check:
+      if (!isValidCalendarDate(targetYear, month, day)) {
         return {
           resolved: false,
           date: null,
           confidence: 'ambiguous',
-          ambiguityReason: `Fecha inválida: ${intent.day}/${intent.month}/${targetYear}`,
+          ambiguityReason: `Fecha inválida en el calendario: ${day}/${month}/${targetYear}`,
         };
       }
 
+      const candidate = toIsoDate(targetYear, month, day);
       const isPast = candidate < todayIso;
 
       return {
         resolved: !isPast,
         date: candidate,
-        confidence: intent.year ? 'explicit' : 'inferred_high',
+        confidence: year ? 'explicit' : 'inferred_high',
         isPast,
       };
     }

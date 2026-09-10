@@ -16,7 +16,7 @@ export type RelativeDateToken =
   | 'next_week';
 
 export type DateIntent =
-  | { type: 'absolute'; day: number; month: number; year?: number }
+  | { type: 'absolute'; day: number; month?: number; year?: number }
   | { type: 'relative'; value: RelativeDateToken }
   | { type: 'weekday'; weekday: string; modifier?: 'this' | 'next' }
   | { type: 'range'; values: string[] }

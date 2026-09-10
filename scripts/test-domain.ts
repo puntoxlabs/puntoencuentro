@@ -10,6 +10,10 @@ import {
   resolveDateIntent,
   resolveTimeIntent,
   addDaysToIsoDate,
+  pad,
+  resolveNextValidDayOfMonth,
+  isValidCalendarDate,
+  getDaysInMonth,
 } from '../src/lib/dateResolver.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
@@ -3879,13 +3883,14 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
     const originalInterpret = aiService.interpretMessage;
 
     try {
-      // Case 1: Normal interpretation of "Taller de cocina el 12 a las 16"
+      // Case 1: Exact real reproduction of "Taller de cocina el 12 a las 16"
+      // Real LLM returns type: 'absolute', day: 12 WITHOUT month or year
       aiService.interpretMessage = async () => ({
         ok: true,
         scope: 'encounter',
         patch: {
           title: { value: 'Taller de cocina', confidence: 'explicit' },
-          dateIntent: { value: { type: 'absolute', day: 12, month: 10, year: 2027 }, confidence: 'explicit' },
+          dateIntent: { value: { type: 'absolute', day: 12 }, confidence: 'explicit' },
           timeIntent: { value: { type: 'exact', hour: 16, minute: 0 }, confidence: 'explicit' },
         },
       });
@@ -3896,9 +3901,9 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
       assert.equal(state.isInterpreting, false, 'Must not hang');
       assert.equal(state.draft.title, 'Taller de cocina');
       assert.equal(state.draft.time, '16:00');
-      assert.equal(state.draft.date, '2027-10-12');
+      assert.ok(state.draft.date?.endsWith('-12'), 'Date must resolve to 12th');
       assert.equal(state.lastQuestion?.field, 'modality', 'Only asks for missing field (modality)');
-      assert.equal(state.error, null);
+      assert.equal(state.error, null, 'Must not display unexpected error');
 
       // Case 2: Simulated provider slow >25s -> aborts and recovers UI
       useAiWizardStore.getState().reset();
@@ -3923,5 +3928,108 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
     } finally {
       aiService.interpretMessage = originalInterpret;
     }
+  });
+
+  test('Strict pad behavior: throws on undefined/null/NaN and formats integers correctly', () => {
+    assert.throws(() => pad(undefined as any), TypeError);
+    assert.throws(() => pad(null as any), TypeError);
+    assert.throws(() => pad(NaN as any), TypeError);
+    assert.throws(() => pad('abc' as any), TypeError);
+    assert.equal(pad(0), '00');
+    assert.equal(pad(5), '05');
+    assert.equal(pad(12), '12');
+  });
+
+  test('Calendar Hardening: Semantics for day >= currentDay and Cases A through D', () => {
+    // A. base 2026-01-31 + "el 31" -> 2026-01-31 (mismo día si existe)
+    const testA = resolveDateIntent(
+      { type: 'absolute', day: 31 },
+      { year: 2026, month: 1, day: 31 }
+    );
+    assert.equal(testA.resolved, true);
+    assert.equal(testA.date, '2026-01-31');
+
+    // B. base 2026-02-01 + "el 31" -> 2026-03-31 (febrero no tiene 31, salta a marzo)
+    const testB = resolveDateIntent(
+      { type: 'absolute', day: 31 },
+      { year: 2026, month: 2, day: 1 }
+    );
+    assert.equal(testB.resolved, true);
+    assert.equal(testB.date, '2026-03-31');
+
+    // C. base 2026-09-10 + "el 10" -> 2026-09-10 (mismo día)
+    const testC = resolveDateIntent(
+      { type: 'absolute', day: 10 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(testC.resolved, true);
+    assert.equal(testC.date, '2026-09-10');
+
+    // D. base 2026-09-10 + "el 5" -> 2026-10-05 (ya pasó en mes actual, próximo mes)
+    const testD = resolveDateIntent(
+      { type: 'absolute', day: 5 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(testD.resolved, true);
+    assert.equal(testD.date, '2026-10-05');
+
+    // Extra: hoy 10 sep + "el 12" -> 12 sep
+    const case12 = resolveDateIntent(
+      { type: 'absolute', day: 12 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(case12.resolved, true);
+    assert.equal(case12.date, '2026-09-12');
+
+    // Extra: hoy 10 sep + "el 31" -> 31 oct (Septiembre tiene 30 días, busca próxima existencia real)
+    const case31 = resolveDateIntent(
+      { type: 'absolute', day: 31 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(case31.resolved, true);
+    assert.equal(case31.date, '2026-10-31');
+
+    // Inexistentes: 31 de septiembre -> inválido (no normalizar silenciosamente)
+    const caseInvalSep = resolveDateIntent(
+      { type: 'absolute', day: 31, month: 9 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(caseInvalSep.resolved, false);
+    assert.equal(caseInvalSep.confidence, 'ambiguous');
+    assert.ok(caseInvalSep.ambiguityReason?.includes('Fecha inválida en el calendario'));
+
+    // Inexistentes: 30 de febrero -> inválido
+    const caseInvalFeb = resolveDateIntent(
+      { type: 'absolute', day: 30, month: 2 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(caseInvalFeb.resolved, false);
+    assert.equal(caseInvalFeb.confidence, 'ambiguous');
+    assert.ok(caseInvalFeb.ambiguityReason?.includes('Fecha inválida en el calendario'));
+
+    // Bisiesto: 29 feb 2028 -> válido (año bisiesto)
+    const caseBis = resolveDateIntent(
+      { type: 'absolute', day: 29, month: 2, year: 2028 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(caseBis.resolved, true);
+    assert.equal(caseBis.date, '2028-02-29');
+
+    // No bisiesto: 29 feb 2027 -> inválido
+    const caseNoBis = resolveDateIntent(
+      { type: 'absolute', day: 29, month: 2, year: 2027 },
+      { year: 2026, month: 9, day: 10 }
+    );
+    assert.equal(caseNoBis.resolved, false);
+    assert.equal(caseNoBis.confidence, 'ambiguous');
+    assert.ok(caseNoBis.ambiguityReason?.includes('Fecha inválida en el calendario'));
+
+    // Rollover de año: 25 dic + "el 12" -> 12 ene próximo año
+    const caseRollover = resolveDateIntent(
+      { type: 'absolute', day: 12 },
+      { year: 2026, month: 12, day: 25 }
+    );
+    assert.equal(caseRollover.resolved, true);
+    assert.equal(caseRollover.date, '2027-01-12');
   });
 });

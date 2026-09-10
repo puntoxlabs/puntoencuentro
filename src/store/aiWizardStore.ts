@@ -737,10 +737,18 @@ export const useAiWizardStore = create<AiWizardState>()(
         }
 
         try {
+          console.log('[aiWizardStore] before interpretMessage');
           const response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
+          console.log('[aiWizardStore] after interpretMessage:', { ok: response.ok, error: response.error });
+          console.log('[aiWizardStore] before applyInterpretationResponse');
           applyInterpretationResponse(response, get(), set, get);
+          console.log('[aiWizardStore] after applyInterpretationResponse');
         } catch (err: any) {
-          console.error('[aiWizardStore] Unhandled exception in sendUserMessage:', err);
+          console.error('[aiWizardStore] Unhandled exception in sendUserMessage:', {
+            name: err?.name,
+            message: err?.message,
+            stack: import.meta.env?.DEV ? err?.stack : undefined,
+          });
           set({
             error: 'Ocurrió un error inesperado al procesar el mensaje. Podés intentar nuevamente o continuar manualmente.',
           });
@@ -760,10 +768,18 @@ export const useAiWizardStore = create<AiWizardState>()(
         });
 
         try {
+          console.log('[aiWizardStore] [retry] before interpretMessage');
           const response = await aiService.interpretMessage(promptToRetry, state.draft, state.sessionId);
+          console.log('[aiWizardStore] [retry] after interpretMessage:', { ok: response.ok, error: response.error });
+          console.log('[aiWizardStore] [retry] before applyInterpretationResponse');
           applyInterpretationResponse(response, get(), set, get);
+          console.log('[aiWizardStore] [retry] after applyInterpretationResponse');
         } catch (err: any) {
-          console.error('[aiWizardStore] Unhandled exception in retryLastMessage:', err);
+          console.error('[aiWizardStore] Unhandled exception in retryLastMessage:', {
+            name: err?.name,
+            message: err?.message,
+            stack: import.meta.env?.DEV ? err?.stack : undefined,
+          });
           set({
             error: 'Ocurrió un error inesperado al reintentar. Podés intentar nuevamente o continuar manualmente.',
           });
