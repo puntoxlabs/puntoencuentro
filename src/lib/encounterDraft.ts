@@ -95,6 +95,39 @@ export function createDefaultInvitationConfig(): InvitationConfig {
 }
 
 /**
+ * Determines whether the user has provided or confirmed meaningful encounter data
+ * that should be protected from accidental exit/discard.
+ *
+ * Excludes purely technical defaults, empty strings, and initial session boilerplate.
+ */
+export function hasMeaningfulDraftData(
+  draft?: EncounterDraft | null,
+  config?: InvitationConfig | null
+): boolean {
+  if (draft) {
+    if (typeof draft.title === 'string' && draft.title.trim().length > 0) return true;
+    if (typeof draft.description === 'string' && draft.description.trim().length > 0) return true;
+    if (typeof draft.date === 'string' && draft.date.trim().length > 0) return true;
+    if (typeof draft.time === 'string' && draft.time.trim().length > 0) return true;
+    if (draft.modality === 'presencial' || draft.modality === 'virtual') return true;
+    if (typeof draft.locationText === 'string' && draft.locationText.trim().length > 0) return true;
+    if (typeof draft.virtualLink === 'string' && draft.virtualLink.trim().length > 0) return true;
+    if (Array.isArray(draft.dateOptions) && draft.dateOptions.length > 0) return true;
+    if (typeof draft.responseDeadline === 'string' && draft.responseDeadline.trim().length > 0) return true;
+    if (typeof draft.durationMinutes === 'number' && draft.durationMinutes > 0) return true;
+    if (typeof draft.baseDate === 'string' && draft.baseDate.trim().length > 0) return true;
+  }
+  if (config) {
+    if (config.invitationTheme && config.invitationTheme !== 'classic') return true;
+    if (config.invitationTemplate !== null && config.invitationTemplate !== undefined) return true;
+    if (config.invitationType && config.invitationType !== 'link_general') return true;
+    if (config.responseVisibility && config.responseVisibility !== 'hidden') return true;
+  }
+  return false;
+}
+
+
+/**
  * Ajuste 4: Mapping between modern responseVisibility and legacy database/RPC fields.
  *
  * Relationship:

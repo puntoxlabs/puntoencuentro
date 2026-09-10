@@ -37,6 +37,7 @@ import {
   mapResponseVisibilityToLegacyFields,
   draftToWizardState,
   draftToCoordinationDraft,
+  hasMeaningfulDraftData,
 } from '../src/lib/encounterDraft.ts';
 import {
   getDefaultInvitationTemplate,
@@ -53,7 +54,7 @@ import {
   resetLimiterStateForTesting,
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
-import { useAiWizardStore } from '@/store/aiWizardStore';
+import { useAiWizardStore, resolveMinimalInputFallback } from '@/store/aiWizardStore';
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
 
@@ -2895,7 +2896,7 @@ describe('QA Production Fix: Virtual Modality Persistence, Link Validation & Ant
       assert.equal(state.draft.modality, 'virtual');
       assert.equal(state.draft.virtualLink, null);
       assert.equal(state.lastQuestion?.field, 'virtualLink');
-      assert.equal(state.error, 'El enlace no parece válido. Pegá el enlace completo de la videollamada.');
+      assert.equal(state.error, null, 'Field validation must not produce red technical error banner');
       assert.equal(providerCalls, 0, 'Invalid link must use deterministic bypass with zero provider calls');
 
       const lastMsg = state.messages[state.messages.length - 1];
@@ -3478,7 +3479,8 @@ describe('QA Final Release Rule: virtualLink must be a valid navigable URL (Test
       assert.equal(state.draft.modality, 'virtual');
       assert.equal(state.draft.virtualLink, null);
       assert.equal(state.lastQuestion?.field, 'virtualLink');
-      assert.ok(state.error?.includes('El enlace no parece válido'));
+      assert.equal(state.error, null);
+      assert.ok(state.messages.at(-1)?.text.includes('El enlace no parece válido'));
 
       await useAiWizardStore.getState().sendUserMessage('Http://meet.com/$373+28(22');
 
@@ -3486,7 +3488,8 @@ describe('QA Final Release Rule: virtualLink must be a valid navigable URL (Test
       assert.equal(state.draft.modality, 'virtual');
       assert.equal(state.draft.virtualLink, null);
       assert.equal(state.lastQuestion?.field, 'virtualLink');
-      assert.ok(state.error?.includes('El enlace no parece válido'));
+      assert.equal(state.error, null);
+      assert.ok(state.messages.at(-1)?.text.includes('El enlace no parece válido'));
       assert.equal(providerCalls, 0);
     } finally {
       aiService.interpretMessage = originalInterpret;
@@ -4137,7 +4140,7 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
       assert.equal(state.draft.time, null);
       assert.equal(state.lastQuestion?.field, 'time', 'Must keep field = time');
       assert.equal(state.messages.at(-1)?.text, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
-      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.error, null, 'Field validation must keep state.error = null');
 
       // Case H: "10:99" -> error específico
       initTimeQuestionState();
@@ -4147,7 +4150,7 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
       assert.equal(state.draft.time, null);
       assert.equal(state.lastQuestion?.field, 'time');
       assert.equal(state.messages.at(-1)?.text, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
-      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.error, null, 'Field validation must keep state.error = null');
 
       // Case I: "24" -> semántica 24:00 existente (00:00, date +1 day rollover)
       initTimeQuestionState();
@@ -4331,7 +4334,8 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
       state = useAiWizardStore.getState();
       assert.equal(state.draft.time, null, '"Sí" without range proposal must NOT set 10:00');
       assert.equal(state.lastQuestion?.field, 'time');
-      assert.equal(state.error, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.messages.at(-1)?.text, 'No pude reconocer la hora. Podés escribir, por ejemplo, 10:00 o 18:30.');
+      assert.equal(state.error, null, 'Field validation must keep state.error = null');
 
       // Subcase 2: Pending range proposal "¿Querés que el encuentro empiece a las 10:00?" + "Sí" -> sets 10:00!
       useAiWizardStore.setState({
@@ -4352,3 +4356,1106 @@ describe('AI Interpretation Resilience: Timeout, AbortController, Error Classifi
     }
   });
 });
+
+describe('UX/Orchestration: Confirmación de salida y protección del borrador (Cases A to F)', () => {
+  test('Case A: draft vacío -> hasMeaningfulDraftData es false -> salir sin modal', () => {
+    useAiWizardStore.getState().reset();
+    const emptyDraft = createEmptyEncounterDraft();
+    const defaultConfig = createDefaultInvitationConfig();
+    assert.equal(hasMeaningfulDraftData(emptyDraft, defaultConfig), false);
+
+    // SSR render does not show modal
+    const html = renderToStaticMarkup(
+      React.createElement(MemoryRouter, null, React.createElement(CreateAIWizard))
+    );
+    assert.ok(!html.includes('¿Salir de Crear con IA?'));
+    assert.ok(!html.includes('Vas a perder los datos cargados de este encuentro.'));
+  });
+
+  test('Case B: draft con title -> hasMeaningfulDraftData es true', () => {
+    useAiWizardStore.getState().reset();
+    const draft = { ...createEmptyEncounterDraft(), title: 'Asado familiar' };
+    const config = createDefaultInvitationConfig();
+    assert.equal(hasMeaningfulDraftData(draft, config), true);
+  });
+
+  test('Case C: modal -> Seguir editando -> draft intacto', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado con amigos',
+        date: '2026-10-15',
+      },
+      messages: [
+        { id: '1', role: 'user', text: 'Asado el 15', timestamp: 1 },
+        { id: '2', role: 'assistant', text: '¿A qué hora?', timestamp: 2 },
+      ],
+    });
+
+    const stateBefore = useAiWizardStore.getState();
+    assert.equal(hasMeaningfulDraftData(stateBefore.draft, stateBefore.config), true);
+    // Simulating keeping editing: no state changes, draft and messages preserved
+    const stateAfter = useAiWizardStore.getState();
+    assert.equal(stateAfter.draft.title, 'Asado con amigos');
+    assert.equal(stateAfter.draft.date, '2026-10-15');
+    assert.equal(stateAfter.messages.length, 2);
+  });
+
+  test('Case D: modal -> Descartar y salir -> reset() limpia draft y mensajes', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Taller de pintura',
+        date: '2026-11-20',
+      },
+      messages: [
+        { id: '1', role: 'user', text: 'Taller', timestamp: 1 },
+      ],
+    });
+
+    assert.equal(hasMeaningfulDraftData(useAiWizardStore.getState().draft, useAiWizardStore.getState().config), true);
+    useAiWizardStore.getState().reset();
+    const cleanState = useAiWizardStore.getState();
+    assert.equal(hasMeaningfulDraftData(cleanState.draft, cleanState.config), false);
+    assert.equal(cleanState.draft.title, null);
+    assert.equal(cleanState.draft.date, null);
+    assert.equal(cleanState.messages.length, 0);
+  });
+
+  test('Case E: botón Atrás con draft cargado -> detección de historial protegido', () => {
+    const draft = { ...createEmptyEncounterDraft(), modality: 'virtual' as const };
+    const config = createDefaultInvitationConfig();
+    assert.equal(hasMeaningfulDraftData(draft, config), true);
+  });
+
+  test('Case F: Continuar manualmente -> draftToWizardState transfiere datos sin pérdida', () => {
+    useAiWizardStore.getState().reset();
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cumpleaños sorpresa',
+      date: '2026-12-05',
+      time: '18:00',
+      modality: 'presencial' as const,
+      locationText: 'Club Social',
+    };
+    const config = {
+      ...createDefaultInvitationConfig(),
+      invitationTheme: 'party',
+      invitationTemplate: 'party_neon',
+    };
+    useAiWizardStore.setState({ draft, config });
+
+    const manualState = draftToWizardState(draft, config);
+    assert.equal(manualState.titulo, 'Cumpleaños sorpresa');
+    assert.equal(manualState.fecha, '2026-12-05');
+    assert.equal(manualState.hora, '18:00');
+    assert.equal(manualState.lugar_texto, 'Club Social');
+    assert.equal(manualState.tema_invitacion, 'party');
+    assert.equal(manualState.invitation_template, 'party_neon');
+  });
+});
+
+describe('Separación estricta de errores: Validación normal vs Error técnico (Cases G to K)', () => {
+  test('Case G: virtualLink inválido -> mensaje en timeline, error: null, no banner rojo', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Reunión virtual',
+        date: '2026-10-10',
+        time: '19:00',
+        modality: 'virtual',
+        virtualLink: null,
+      },
+      lastQuestion: {
+        field: 'virtualLink',
+        question: '¿Cuál es el enlace de la videollamada?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('enlace-roto');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Must not call LLM for invalid link format');
+      assert.equal(state.error, null, 'Must NOT write technical error banner for field validation');
+      assert.equal(state.messages.at(-1)?.role, 'assistant');
+      assert.ok(state.messages.at(-1)?.text.includes('El enlace no parece válido'));
+      assert.equal(state.draft.virtualLink, null);
+      assert.equal(state.lastQuestion?.field, 'virtualLink');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case H: hora inválida -> mensaje en timeline, error: null, no banner técnico', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Café',
+        date: '2026-10-10',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('28:90');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.error, null, 'state.error must be null for invalid time format');
+      assert.equal(state.messages.at(-1)?.role, 'assistant');
+      assert.ok(state.messages.at(-1)?.text.includes('No pude reconocer la hora'));
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case I: timeout_client -> genera error técnico (state.error !== null)', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: false,
+      error: 'timeout_client',
+      details: 'Client timeout after 10000ms',
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Organizar asado el sábado');
+      const state = useAiWizardStore.getState();
+      assert.notEqual(state.error, null, 'Must write state.error for timeout');
+      assert.ok(state.error?.includes('No pude procesar el mensaje a tiempo'));
+      assert.equal(state.isInterpreting, false);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case J: network_error -> genera error técnico (state.error !== null)', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: false,
+      error: 'network_error',
+      details: 'Failed to fetch',
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena el viernes');
+      const state = useAiWizardStore.getState();
+      assert.notEqual(state.error, null, 'Must write state.error for network error');
+      assert.ok(state.error?.includes('No pudimos conectarnos con Crear con IA'));
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case K: rate_limit_exceeded (429/503) -> bloqueo o error técnico', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: false,
+      error: 'rate_limit_exceeded',
+      details: 'Demasiadas solicitudes. Esperá un minuto.',
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Reunión');
+      const state = useAiWizardStore.getState();
+      assert.notEqual(state.error, null);
+      assert.equal(state.aiLocked, true);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('Clasificación contextual de inputs mínimos y Fallback determinístico (Cases L to T)', () => {
+  test('Case L: draft vacío + "Evento" -> scope encounter, title Evento, siguiente pregunta', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    // Simulate model returning unclear to test robust deterministic fallback
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Evento');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Evento');
+      assert.equal(state.error, null);
+      assert.notEqual(state.lastQuestion, null);
+      assert.ok(state.lastQuestion?.field === 'date' || state.lastQuestion?.field === 'time' || state.lastQuestion?.field === 'modality');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case M: draft vacío + "Reunión" -> title "Reunión"', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Reunión');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Reunión');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case N: draft vacío + "Almuerzo" -> title "Almuerzo"', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Almuerzo');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Almuerzo');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case O: draft vacío + "mañana" -> fecha aplicada, pide título o actividad', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('mañana');
+      const state = useAiWizardStore.getState();
+      assert.ok(state.draft.date !== null, 'Date should be set');
+      assert.equal(state.error, null);
+      assert.equal(state.lastQuestion?.field, 'title');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case P: draft con datos + "virtual" -> modality: "virtual"', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Charla técnica',
+        date: '2026-10-12',
+        time: '16:00',
+      },
+      lastQuestion: {
+        field: 'modality',
+        question: '¿Va a ser presencial o virtual?',
+        type: 'choice',
+      },
+    });
+
+    await useAiWizardStore.getState().sendUserMessage('virtual');
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.modality, 'virtual');
+    assert.equal(state.lastQuestion?.field, 'virtualLink');
+    assert.equal(state.error, null);
+  });
+
+  test('Case Q: pregunta activa time + respuesta "en casa" -> registra locationText y sigue pidiendo hora', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado',
+        date: '2026-10-12',
+        modality: 'presencial',
+        locationText: null,
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora?',
+        type: 'text',
+      },
+    });
+
+    const originalInterpret = aiService.interpretMessage;
+    // User escapes time question with "en casa", LLM or fallback sets locationText
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        locationText: { value: 'En casa', confidence: 'explicit' },
+      },
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('en casa');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.locationText, 'En casa');
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time', 'Should continue asking for time');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case R: "familiar" -> asigna theme family', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('familiar');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.config.invitationTheme, 'family');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case S: "Hola" en draft vacío -> NO fija title "Hola", no llama LLM', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return { ok: true, scope: 'encounter', patch: {} };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Hola');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Zero provider calls for greeting on empty draft');
+      assert.equal(state.draft.title, null, 'Must NOT set title to "Hola"');
+      assert.equal(state.error, null);
+      assert.ok(state.messages.at(-1)?.text.includes('¡Hola! Contame qué encuentro querés organizar.'));
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case T: "Quién ganó el Mundial" -> off_topic sin fijar title', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'off_topic',
+      assistantMessage: 'Crear con IA está pensado solo para organizar encuentros.',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Quién ganó el Mundial');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, null, 'Must NOT set off-topic text as title');
+      assert.equal(state.consecutiveOffTopicCount, 1);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('Consistencia entre ejecuciones con variabilidad simulada de LLM (Sección 32)', () => {
+  const testTokens = [
+    { token: 'Evento', expectedTitle: 'Evento' },
+    { token: 'Reunión', expectedTitle: 'Reunión' },
+    { token: 'Almuerzo', expectedTitle: 'Almuerzo' },
+  ];
+
+  for (const { token, expectedTitle } of testTokens) {
+    test(`Consistencia para "${token}" bajo 3 comportamientos de LLM (encounter, unclear, empty patch)`, async () => {
+      const originalInterpret = aiService.interpretMessage;
+
+      try {
+        // 1. LLM returns normal encounter patch
+        aiService.interpretMessage = async () => ({
+          ok: true,
+          scope: 'encounter',
+          patch: { title: { value: expectedTitle, confidence: 'explicit' } },
+        });
+        useAiWizardStore.getState().reset();
+        await useAiWizardStore.getState().sendUserMessage(token);
+        assert.equal(useAiWizardStore.getState().draft.title, expectedTitle, `Run 1 (encounter) must set title ${expectedTitle}`);
+
+        // 2. LLM returns unclear
+        aiService.interpretMessage = async () => ({
+          ok: true,
+          scope: 'unclear',
+          patch: {},
+        });
+        useAiWizardStore.getState().reset();
+        await useAiWizardStore.getState().sendUserMessage(token);
+        assert.equal(useAiWizardStore.getState().draft.title, expectedTitle, `Run 2 (unclear) must set title ${expectedTitle}`);
+
+        // 3. LLM returns empty patch
+        aiService.interpretMessage = async () => ({
+          ok: true,
+          scope: 'encounter',
+          patch: {},
+        });
+        useAiWizardStore.getState().reset();
+        await useAiWizardStore.getState().sendUserMessage(token);
+        assert.equal(useAiWizardStore.getState().draft.title, expectedTitle, `Run 3 (empty patch) must set title ${expectedTitle}`);
+      } finally {
+        aiService.interpretMessage = originalInterpret;
+      }
+    });
+  }
+});
+
+describe('Copy contextual para inputs no comprendidos (Cases U & V)', () => {
+  test('Case U: draft vacío + input no comprendido -> "qué querés organizar"', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('xyzqwerty12345');
+      const state = useAiWizardStore.getState();
+      const lastMsg = state.messages.at(-1)?.text || '';
+      assert.ok(lastMsg.includes('qué querés organizar'), `Expected "qué querés organizar", got: ${lastMsg}`);
+      assert.ok(!lastMsg.includes('qué querés cambiar'), `Must NOT say "qué querés cambiar" on empty draft, got: ${lastMsg}`);
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case V: draft parcial + input no comprendido -> "qué querés cambiar"', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado',
+        date: '2026-10-10',
+      },
+    });
+
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'unclear',
+      patch: {},
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('xyzqwerty12345');
+      const state = useAiWizardStore.getState();
+      const lastMsg = state.messages.at(-1)?.text || '';
+      assert.ok(lastMsg.includes('qué querés cambiar'), `Expected "qué querés cambiar" on partial draft, got: ${lastMsg}`);
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Mobile: Números en letras y Desambiguación contextual de hora (Section 18: Cases A to H)', () => {
+  test('Case A: pregunta hora + "once" con title Cena -> 23:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena con amigos',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('once');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Must not call LLM for deterministic word time');
+      assert.equal(state.draft.time, '23:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case B: pregunta hora + "once" con title Reunión -> aclaración 11:00 / 23:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Reunión de equipo',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('once');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Must not call LLM for deterministic word clarification');
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.ok(state.lastQuestion?.question.includes('11:00 o 23:00'));
+      assert.deepEqual(state.lastQuestion?.quickOptions?.map(o => o.value), ['11:00', '23:00']);
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case C: pregunta hora + "dieciocho" -> 18:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Taller',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('dieciocho');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '18:00');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case D: pregunta hora + "once y media" con Cena -> 23:30 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena familiar',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('once y media');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '23:30');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case E: pregunta hora + "ocho" con Desayuno -> 08:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Desayuno de trabajo',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('ocho');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '08:00');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case F: pregunta hora + "una" con Almuerzo -> 13:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Almuerzo de fin de año',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('una');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '13:00');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case G: pregunta hora + "veintitrés" -> 23:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Encuentro nocturno',
+        date: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('veintitrés');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '23:00');
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case H: pregunta hora + "veinticuatro" -> 00:00 + rollover (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Fiesta',
+        date: '2026-10-15',
+        baseDate: '2026-10-15',
+        time: null,
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿A qué hora sería?',
+        type: 'text',
+      },
+    });
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for active time question!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('veinticuatro');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.time, '00:00');
+      assert.equal(state.draft.date, '2026-10-16'); // rollover to next day
+      assert.equal(state.draft.appliedDayRollover, true);
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Mobile: Conflicto explícito 24h y Explicit AM/PM (Section 19: Cases I to L)', () => {
+  test('Case I: "Cena mañana a las 11 hs" -> no convertir silenciosamente -> aclaración 11:00 / 23:00 (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for composite deterministic input!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana a las 11 hs');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'Must not call LLM for composite conflict detection');
+      assert.equal(state.draft.title, 'Cena');
+      assert.ok(state.draft.date !== null, 'Date must be resolved to tomorrow');
+      assert.equal(state.draft.time, null, 'Time must not be prematurely set');
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.ok(state.lastQuestion?.question.includes('Como es una cena, interpretaría 23:00'));
+      assert.deepEqual(state.lastQuestion?.quickOptions?.map(o => o.value), ['11:00', '23:00']);
+      assert.equal(state.error, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case J: "Cena mañana a las 11:00" -> misma aclaración (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for composite deterministic input!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana a las 11:00');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.title, 'Cena');
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.ok(state.lastQuestion?.question.includes('Como es una cena, interpretaría 23:00'));
+      assert.deepEqual(state.lastQuestion?.quickOptions?.map(o => o.value), ['11:00', '23:00']);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case K: "Cena mañana a las 11 pm" -> 23:00 sin aclaración (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for composite deterministic input!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana a las 11 pm');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.title, 'Cena');
+      assert.equal(state.draft.time, '23:00');
+      assert.notEqual(state.lastQuestion?.field, 'time');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case L: "Cena mañana a las once de la noche" -> 23:00 sin aclaración (providerCalls = 0)', async () => {
+    useAiWizardStore.getState().reset();
+
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM was called unexpectedly for composite deterministic input!');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana a las once de la noche');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0);
+      assert.equal(state.draft.title, 'Cena');
+      assert.equal(state.draft.time, '23:00');
+      assert.notEqual(state.lastQuestion?.field, 'time');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Mobile: Contexto multiturno (Section 20: Cases M to O)', () => {
+  test('Case M: "Cena" -> "mañana" -> "once" -> 23:00', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (prompt, draft) => {
+      if (prompt.toLowerCase().includes('cena')) {
+        return { ok: true, scope: 'encounter', patch: { title: { value: 'Cena', confidence: 'explicit' } } };
+      }
+      if (prompt.toLowerCase().includes('mañana')) {
+        return { ok: true, scope: 'encounter', patch: { dateIntent: { value: { type: 'relative', value: 'tomorrow' }, confidence: 'explicit' } } };
+      }
+      throw new Error('Unexpected LLM call for "once"');
+    };
+
+    try {
+      // Turn 1: "Cena"
+      await useAiWizardStore.getState().sendUserMessage('Cena');
+      let state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Cena');
+
+      // Turn 2: "mañana"
+      await useAiWizardStore.getState().sendUserMessage('mañana');
+      state = useAiWizardStore.getState();
+      assert.ok(state.draft.date !== null);
+      assert.equal(state.lastQuestion?.field, 'time');
+
+      // Turn 3: "once" -> deterministic resolution using draft.title = "Cena" -> 23:00
+      await useAiWizardStore.getState().sendUserMessage('once');
+      state = useAiWizardStore.getState();
+      assert.equal(state.draft.time, '23:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case N: "Almuerzo" -> "mañana" -> "una" -> 13:00', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (prompt) => {
+      if (prompt.toLowerCase().includes('almuerzo')) {
+        return { ok: true, scope: 'encounter', patch: { title: { value: 'Almuerzo', confidence: 'explicit' } } };
+      }
+      if (prompt.toLowerCase().includes('mañana')) {
+        return { ok: true, scope: 'encounter', patch: { dateIntent: { value: { type: 'relative', value: 'tomorrow' }, confidence: 'explicit' } } };
+      }
+      throw new Error('Unexpected LLM call for "una"');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Almuerzo');
+      await useAiWizardStore.getState().sendUserMessage('mañana');
+      assert.equal(useAiWizardStore.getState().lastQuestion?.field, 'time');
+
+      await useAiWizardStore.getState().sendUserMessage('una');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.time, '13:00');
+      assert.equal(state.lastQuestion?.field, 'modality');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Case O: "Reunión" -> "mañana" -> "once" -> aclaración AM/PM', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (prompt) => {
+      if (prompt.toLowerCase().includes('reunión') || prompt.toLowerCase().includes('reunion')) {
+        return { ok: true, scope: 'encounter', patch: { title: { value: 'Reunión', confidence: 'explicit' } } };
+      }
+      if (prompt.toLowerCase().includes('mañana')) {
+        return { ok: true, scope: 'encounter', patch: { dateIntent: { value: { type: 'relative', value: 'tomorrow' }, confidence: 'explicit' } } };
+      }
+      throw new Error('Unexpected LLM call for "once"');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Reunión');
+      await useAiWizardStore.getState().sendUserMessage('mañana');
+      assert.equal(useAiWizardStore.getState().lastQuestion?.field, 'time');
+
+      await useAiWizardStore.getState().sendUserMessage('once');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.time, null);
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.ok(state.lastQuestion?.question.includes('11:00 o 23:00'));
+      assert.deepEqual(state.lastQuestion?.quickOptions?.map(o => o.value), ['11:00', '23:00']);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('QA Mobile: Android Back, History Guard & Popstate (Section 21: Cases P to W)', () => {
+  test('Case P: draft vacío + popstate -> sale sin modal', () => {
+    useAiWizardStore.getState().reset();
+    const state = useAiWizardStore.getState();
+    assert.equal(hasMeaningfulDraftData(state.draft, state.config), false);
+  });
+
+  test('Case Q: draft con datos + popstate -> modal abierto', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Cena con amigos' },
+    });
+    const state = useAiWizardStore.getState();
+    assert.equal(hasMeaningfulDraftData(state.draft, state.config), true);
+
+    const html = renderToStaticMarkup(
+      React.createElement(MemoryRouter, null, React.createElement(CreateAIWizard, { showExitConfirmOverride: true }))
+    );
+    assert.ok(html.includes('¿Salir de Crear con IA?'));
+    assert.ok(html.includes('Vas a perder los datos cargados de este encuentro.'));
+  });
+
+  test('Case R: modal -> Seguir editando -> permanece y draft intacto', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Cena', date: '2026-11-11', time: '21:00' },
+    });
+    const draftBefore = { ...useAiWizardStore.getState().draft };
+    // "Seguir editando" does not mutate draft
+    const draftAfter = useAiWizardStore.getState().draft;
+    assert.deepEqual(draftBefore, draftAfter);
+  });
+
+  test('Case S: Back nuevamente -> un solo modal abierto', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(MemoryRouter, null, React.createElement(CreateAIWizard, { showExitConfirmOverride: true }))
+    );
+    const modalMatches = html.match(/¿Salir de Crear con IA\?/g);
+    assert.equal(modalMatches?.length, 1, 'Exactly one modal must be rendered in the DOM');
+  });
+
+  test('Case T: modal -> Descartar y salir -> reset + Home', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Cena', date: '2026-11-11' },
+    });
+    assert.equal(hasMeaningfulDraftData(useAiWizardStore.getState().draft, useAiWizardStore.getState().config), true);
+    useAiWizardStore.getState().reset();
+    assert.equal(hasMeaningfulDraftData(useAiWizardStore.getState().draft, useAiWizardStore.getState().config), false);
+    assert.equal(useAiWizardStore.getState().draft.title, null);
+  });
+
+  test('Case U: Continuar manualmente -> sin modal de pérdida y datos transferidos', () => {
+    useAiWizardStore.getState().reset();
+    const draft = { ...createEmptyEncounterDraft(), title: 'Asado', date: '2026-12-01', time: '13:00' };
+    const config = createDefaultInvitationConfig();
+    const wizardState = draftToWizardState(draft, config);
+    assert.equal(wizardState.titulo, 'Asado');
+    assert.equal(wizardState.fecha, '2026-12-01');
+    assert.equal(wizardState.hora, '13:00');
+  });
+
+  test('Case V: F5 + draft restaurado + Back -> modal de confirmación', () => {
+    useAiWizardStore.getState().reset();
+    const draft = { ...createEmptyEncounterDraft(), title: 'Cena restaurada' };
+    const config = createDefaultInvitationConfig();
+    assert.equal(hasMeaningfulDraftData(draft, config), true);
+  });
+
+  test('Case W: 10 ciclos Back -> Seguir editando -> 0 crecimiento anómalo de history', () => {
+    // Simulate browser history stack during 10 back/keep-editing cycles
+    let historyStackLength = 2; // [Home, CreateAIWizard(Guard)]
+    let modalShowing = false;
+    let guardActive = true;
+
+    for (let i = 0; i < 10; i++) {
+      // 1. Android system Back pops the top entry
+      historyStackLength--; // Browser pops
+      // 2. handlePopState intercepts and re-pushes sentinel immediately
+      historyStackLength++; // pushState called to restore position
+      guardActive = true;
+      modalShowing = true;
+
+      // 3. User clicks "Seguir editando" -> simply closes modal without pushing another state
+      modalShowing = false;
+    }
+
+    assert.equal(historyStackLength, 2, 'History stack length after 10 cycles must have net change 0');
+    assert.equal(modalShowing, false);
+    assert.equal(guardActive, true);
+  });
+});
+

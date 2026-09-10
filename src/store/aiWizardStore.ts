@@ -1,9 +1,17 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
-import { createEmptyEncounterDraft, createDefaultInvitationConfig } from '@/lib/encounterDraft';
+import { createEmptyEncounterDraft, createDefaultInvitationConfig, hasMeaningfulDraftData } from '@/lib/encounterDraft';
 import { mergeDraftPatch, isValidVirtualLink, normalizeVirtualLink, isRecognizedVirtualPlatform } from '@/lib/draftMerger';
-import { addDaysToIsoDate, parseDeterministicTimeInput, looksLikeOtherFieldIntent } from '@/lib/dateResolver';
+import {
+  addDaysToIsoDate,
+  parseDeterministicTimeInput,
+  looksLikeOtherFieldIntent,
+  resolveContextualHour,
+  parseCompositeEncounterInput,
+  pad,
+} from '@/lib/dateResolver';
+import type { EncounterDraftPatch, DateIntent } from '@/lib/encounterDraftPatch';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
 import {
   INVITATION_THEMES,
@@ -73,7 +81,176 @@ function generateUuid(): string {
   });
 }
 
+const KNOWN_ACTIVITIES: Record<string, string> = {
+  evento: 'Evento',
+  reunion: 'Reunión',
+  almuerzo: 'Almuerzo',
+  cena: 'Cena',
+  asado: 'Asado',
+  taller: 'Taller',
+  partido: 'Partido',
+  salida: 'Salida',
+  cumpleanos: 'Cumpleaños',
+  cumple: 'Cumpleaños',
+  cafe: 'Café',
+  caminata: 'Caminata',
+  clase: 'Clase',
+  videollamada: 'Videollamada',
+  juntada: 'Juntada',
+  picada: 'Picada',
+  after: 'After',
+  'after office': 'After Office',
+  merienda: 'Merienda',
+  desayuno: 'Desayuno',
+};
+
+const THEMES_MAP: Record<string, string> = {
+  familiar: 'family',
+  familia: 'family',
+  deportes: 'sports',
+  deporte: 'sports',
+  futbol: 'sports',
+  romantico: 'romantic',
+  pareja: 'romantic',
+  'cumple infantil': 'kids_birthday',
+  infantil: 'kids_birthday',
+  'cumpleanos infantil': 'kids_birthday',
+  chicos: 'kids_birthday',
+  formal: 'formal',
+  corporativo: 'formal',
+  trabajo: 'formal',
+  empresa: 'formal',
+  amigos: 'friends',
+  amigas: 'friends',
+  amistad: 'friends',
+  celebracion: 'celebration',
+  fiesta: 'celebration',
+  festejo: 'celebration',
+};
+
+const MONTHS_MAP: Record<string, number> = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+};
+
+export function resolveMinimalInputFallback(
+  input: string,
+  draft: EncounterDraft,
+  _config: InvitationConfig
+): EncounterDraftPatch | null {
+  const clean = input.trim();
+  if (!clean) return null;
+  const lower = clean
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  // 1. Modality
+  if (lower === 'virtual' || lower === 'online') {
+    return {
+      scope: 'encounter',
+      modality: { value: 'virtual', confidence: 'explicit', originalText: clean },
+    };
+  }
+  if (lower === 'presencial' || lower === 'en persona') {
+    return {
+      scope: 'encounter',
+      modality: { value: 'presencial', confidence: 'explicit', originalText: clean },
+    };
+  }
+
+  // 2. Activity / Title: "Evento", "Reunión", "Almuerzo", etc.
+  if (!draft.title && KNOWN_ACTIVITIES[lower]) {
+    return {
+      scope: 'encounter',
+      title: { value: KNOWN_ACTIVITIES[lower], confidence: 'explicit', originalText: clean },
+    };
+  }
+
+  // 3. Date expressions
+  let dateIntent: DateIntent | null = null;
+  if (lower === 'manana' || lower === 'de manana') {
+    dateIntent = { type: 'relative', value: 'tomorrow' };
+  } else if (lower === 'hoy') {
+    dateIntent = { type: 'relative', value: 'today' };
+  } else if (lower === 'pasado manana') {
+    dateIntent = { type: 'relative', value: 'day_after_tomorrow' };
+  } else if (lower === 'este fin de semana' || lower === 'el finde' || lower === 'finde') {
+    dateIntent = { type: 'relative', value: 'this_weekend' };
+  } else {
+    const weekdayMatch = lower.match(
+      /^(?:el\s+|este\s+|el\s+proximo\s+|el\s+pr[oó]ximo\s+|proximo\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)$/i
+    );
+    if (weekdayMatch) {
+      const isNext = lower.includes('proximo');
+      dateIntent = {
+        type: 'weekday',
+        weekday: weekdayMatch[1],
+        modifier: isNext ? 'next' : 'this',
+      };
+    } else {
+      const dayOnlyMatch = lower.match(/^(?:el\s+)?([1-9]|[12]\d|3[01])$/);
+      if (dayOnlyMatch) {
+        dateIntent = { type: 'absolute', day: parseInt(dayOnlyMatch[1], 10) };
+      } else {
+        const dayMonthMatch = lower.match(/^(?:el\s+)?([1-9]|[12]\d|3[01])\s+de\s+([a-z]+)$/);
+        if (dayMonthMatch && MONTHS_MAP[dayMonthMatch[2]]) {
+          dateIntent = {
+            type: 'absolute',
+            day: parseInt(dayMonthMatch[1], 10),
+            month: MONTHS_MAP[dayMonthMatch[2]],
+          };
+        }
+      }
+    }
+  }
+
+  if (dateIntent) {
+    return {
+      scope: 'encounter',
+      dateIntent: { value: dateIntent, confidence: 'explicit', originalText: clean },
+    };
+  }
+
+  // 4. Location: "en casa", "oficina", "en la plaza", "en lo de Juan"
+  const isLocation =
+    /^en\s+/i.test(lower) ||
+    lower === 'oficina' ||
+    lower === 'mi casa';
+
+  if (isLocation && !/^en\s+\d+\s+(minutos?|horas?|d[ií]as?)/i.test(lower)) {
+    return {
+      scope: 'encounter',
+      locationText: { value: clean, confidence: 'explicit', originalText: clean },
+      modality: { value: 'presencial', confidence: 'inferred_high' },
+    };
+  }
+
+  // 5. Theme: "familiar", "deportes", "romántico", "cumple infantil", "formal", "amigos"
+  if (THEMES_MAP[lower]) {
+    return {
+      scope: 'encounter',
+      themeHint: { value: THEMES_MAP[lower], confidence: 'explicit', originalText: clean },
+    };
+  }
+
+  return null;
+}
+
 function applyInterpretationResponse(
+
   response: AiInterpretationResponse,
   state: AiWizardState,
   set: (partial: Partial<AiWizardState> | ((state: AiWizardState) => Partial<AiWizardState>)) => void,
@@ -163,10 +340,12 @@ function applyInterpretationResponse(
 
   // 5. Handle UNCLEAR scope
   if (response.scope === 'unclear') {
-    let unclearReply =
-      'No llegué a entender qué querés cambiar del encuentro. Podés indicarme, por ejemplo, fecha, hora, lugar, modalidad o diseño.';
+    const hasData = hasMeaningfulDraftData(state.draft, state.config);
+    let unclearReply = hasData
+      ? 'No llegué a entender qué querés cambiar del encuentro. Podés indicarme fecha, hora, lugar, modalidad o diseño.'
+      : 'No llegué a entender qué querés organizar. Podés contarme, por ejemplo, qué actividad querés hacer, cuándo o dónde.';
 
-    if (state.lastQuestion?.question) {
+    if (hasData && state.lastQuestion?.question) {
       unclearReply = `No llegué a entender esa indicación. ${state.lastQuestion.question}`;
     }
 
@@ -180,6 +359,7 @@ function applyInterpretationResponse(
           timestamp: Date.now() + 1,
         },
       ],
+      error: null,
       totalInputTokens: totalIn,
       totalOutputTokens: totalOut,
       totalLatencyMs: totalLat,
@@ -341,7 +521,7 @@ function applyInterpretationResponse(
     lastQuestion: evaluation.nextQuestion,
     coordinationDetected: mergeResult.coordinationDetected,
     isComplete: evaluation.isComplete,
-    error: evaluation.validationError,
+    error: null,
   });
 }
 
@@ -497,6 +677,29 @@ export const useAiWizardStore = create<AiWizardState>()(
           return;
         }
 
+        // 2b. Generic greeting on empty draft: guide user without polluting draft or off-topic count
+        const isGreeting =
+          !hasMeaningfulDraftData(state.draft, state.config) &&
+          /^(?:hola|buenas|buen\s+d[ií]a|buenas\s+tardes|buenas\s+noches|qu[eé]\s+tal|ayuda|ay[uú]dame|quiero\s+hacer\s+algo)[!.]*$/i.test(
+            trimmed
+          );
+
+        if (isGreeting) {
+          const assistantMsg: ChatMessage = {
+            id: generateUuid(),
+            role: 'assistant',
+            text: '¡Hola! Contame qué encuentro querés organizar. Podés decirme qué actividad querés hacer, cuándo o dónde.',
+            timestamp: Date.now() + 1,
+          };
+          set({
+            messages: [...state.messages, userMsg, assistantMsg],
+            isInterpreting: false,
+            error: null,
+            lastUserPrompt: trimmed,
+          });
+          return;
+        }
+
         // 3. User explicitly asking to see designs/variants (Token Optimization)
         const isAskingVariants = /mostrame.*(diseño|variante|opci[oó]n|tema)|qu[eé]\s+(diseños|opciones|variantes)|quiero\s+elegir\s+(el\s+)?(diseño|variante)/i.test(trimmed);
         if (isAskingVariants) {
@@ -527,6 +730,71 @@ export const useAiWizardStore = create<AiWizardState>()(
           }
         }
 
+        // 3b. Deterministic Composite Input (Activity + Date + Time) e.g. "Cena mañana a las once", "Cena mañana a las 11 hs"
+        if (!state.draft.title) {
+          const composite = parseCompositeEncounterInput(trimmed);
+          if (composite) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              title: composite.title,
+              date: composite.date,
+              baseDate: composite.baseDate,
+              time: composite.time,
+              appliedDayRollover: composite.appliedDayRollover ?? false,
+            };
+
+            if (composite.requiresConfirmation && composite.questionText) {
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: composite.questionText,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: {
+                  field: 'time',
+                  question: composite.questionText,
+                  quickOptions: composite.quickOptions,
+                  type: 'choice',
+                },
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
+
+            // Successfully resolved activity, date and time
+            const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+            let assistantReply = '';
+            if (evaluation.isComplete) {
+              assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+            } else if (evaluation.nextQuestion) {
+              assistantReply = evaluation.nextQuestion.question;
+            }
+
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: assistantReply,
+              timestamp: Date.now() + 1,
+            };
+
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              error: null,
+              isInterpreting: false,
+              lastUserPrompt: trimmed,
+            });
+            return;
+          }
+        }
+
         // 4. Deterministic response when active question is modality
         if (state.lastQuestion?.field === 'modality') {
           if (/^(virtual|💻\s*virtual|online|videollamada)$/i.test(trimmed)) {
@@ -548,7 +816,7 @@ export const useAiWizardStore = create<AiWizardState>()(
               messages: [...state.messages, userMsg, assistantMsg],
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
-              error: evaluation.validationError,
+              error: null,
             });
             return;
           }
@@ -571,11 +839,12 @@ export const useAiWizardStore = create<AiWizardState>()(
               messages: [...state.messages, userMsg, assistantMsg],
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
-              error: evaluation.validationError,
+              error: null,
             });
             return;
           }
         }
+
 
         // 4b. Deterministic response when active question is time (Bypass Determinístico)
         if (state.lastQuestion?.field === 'time') {
@@ -589,7 +858,15 @@ export const useAiWizardStore = create<AiWizardState>()(
 
             let parsed = parseDeterministicTimeInput(trimmed);
             if (proposedMatch && isAffirmative) {
-              parsed = { kind: 'exact', time: proposedMatch[1], dayOffset: 0 };
+              const [propH, propM] = proposedMatch[1].split(':').map(Number);
+              parsed = {
+                kind: 'exact',
+                time: proposedMatch[1],
+                hour: propH,
+                minute: propM,
+                sourceForm: 'explicit_24h',
+                dayOffset: 0,
+              };
             }
 
             // C. Range input: "10 a 18", "de 10 a 18", "10-18"
@@ -619,8 +896,52 @@ export const useAiWizardStore = create<AiWizardState>()(
               return;
             }
 
-            // D. Valid single/exact time: "10", "18", "10:30", "a las 18", "10 hs", "24", "medianoche"
+            // D. Valid single/exact time: "10", "18", "10:30", "a las 18", "10 hs", "24", "medianoche", "once"
             if (parsed.kind === 'exact') {
+              const isAnsweringHourClarification = /¿(?:Querés decir )?\d{1,2}:\d{2} o \d{1,2}:\d{2}\?/i.test(
+                state.lastQuestion?.question || ''
+              );
+
+              let finalTime = parsed.time;
+              let finalDayOffset = parsed.dayOffset ?? 0;
+
+              if (!isAnsweringHourClarification) {
+                const contextualRes = resolveContextualHour(
+                  parsed.hour,
+                  parsed.sourceForm,
+                  { title: state.draft.title, description: state.draft.description },
+                  parsed.minute,
+                  parsed.dayOffset || 0
+                );
+
+                if (contextualRes.requiresConfirmation && contextualRes.questionText) {
+                  const assistantMsg: ChatMessage = {
+                    id: generateUuid(),
+                    role: 'assistant',
+                    text: contextualRes.questionText,
+                    timestamp: Date.now() + 1,
+                  };
+                  set({
+                    messages: [...state.messages, userMsg, assistantMsg],
+                    lastQuestion: {
+                      field: 'time',
+                      question: contextualRes.questionText,
+                      type: 'choice',
+                      quickOptions: contextualRes.options?.map((opt) => ({ label: opt, value: opt })),
+                    },
+                    isInterpreting: false,
+                    error: null,
+                    lastUserPrompt: trimmed,
+                  });
+                  return;
+                }
+
+                const resolvedHour = contextualRes.resolvedHour !== null ? contextualRes.resolvedHour : parsed.hour;
+                const resolvedMinute = contextualRes.minute;
+                finalTime = `${pad(resolvedHour)}:${pad(resolvedMinute)}`;
+                finalDayOffset = contextualRes.dayOffset ?? parsed.dayOffset ?? 0;
+              }
+
               let finalDate = state.draft.date;
               let baseDate = state.draft.baseDate;
               let appliedRollover = state.draft.appliedDayRollover;
@@ -628,10 +949,10 @@ export const useAiWizardStore = create<AiWizardState>()(
 
               const baseAnchor = state.draft.baseDate || state.draft.date;
 
-              if (parsed.dayOffset) {
+              if (finalDayOffset) {
                 if (baseAnchor) {
                   baseDate = baseAnchor;
-                  finalDate = addDaysToIsoDate(baseAnchor, parsed.dayOffset);
+                  finalDate = addDaysToIsoDate(baseAnchor, finalDayOffset);
                   appliedRollover = true;
                   pendingRollover = false;
                 } else {
@@ -648,7 +969,7 @@ export const useAiWizardStore = create<AiWizardState>()(
 
               const newDraft: EncounterDraft = {
                 ...state.draft,
-                time: parsed.time,
+                time: finalTime,
                 date: finalDate,
                 baseDate,
                 appliedDayRollover: appliedRollover,
@@ -676,7 +997,7 @@ export const useAiWizardStore = create<AiWizardState>()(
                 messages: [...state.messages, userMsg, assistantMsg],
                 lastQuestion: evaluation.nextQuestion,
                 isComplete: evaluation.isComplete,
-                error: evaluation.validationError,
+                error: null,
                 isInterpreting: false,
                 lastUserPrompt: trimmed,
               });
@@ -694,7 +1015,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             set({
               messages: [...state.messages, userMsg, assistantMsg],
               isInterpreting: false,
-              error: errorMsg,
+              error: null,
               lastQuestion: {
                 field: 'time',
                 question: '¿A qué hora?',
@@ -733,7 +1054,7 @@ export const useAiWizardStore = create<AiWizardState>()(
               messages: [...state.messages, userMsg, assistantMsg],
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
-              error: evaluation.validationError,
+              error: null,
             });
             return;
           }
@@ -764,7 +1085,7 @@ export const useAiWizardStore = create<AiWizardState>()(
               messages: [...state.messages, userMsg, assistantMsg],
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
-              error: evaluation.validationError,
+              error: null,
             });
             return;
           }
@@ -814,7 +1135,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             set({
               messages: [...state.messages, userMsg, assistantMsg],
               isInterpreting: false,
-              error: errorMsg,
+              error: null,
             });
             return;
           }
@@ -846,11 +1167,12 @@ export const useAiWizardStore = create<AiWizardState>()(
               messages: [...state.messages, userMsg, assistantMsg],
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
-              error: evaluation.validationError,
+              error: null,
             });
             return;
           }
         }
+
 
         const newTurns = state.turns + 1;
         set({
@@ -868,8 +1190,19 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         try {
           console.log('[aiWizardStore] before interpretMessage');
-          const response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
-          console.log('[aiWizardStore] after interpretMessage:', { ok: response.ok, error: response.error });
+          let response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
+          console.log('[aiWizardStore] after interpretMessage:', { ok: response.ok, error: response.error, scope: response.scope });
+          const hasPatchData = response.patch && Object.keys(response.patch).length > 0;
+          if (response.ok && (response.scope === 'unclear' || !hasPatchData)) {
+            const fallbackPatch = resolveMinimalInputFallback(trimmed, state.draft, state.config);
+            if (fallbackPatch) {
+              response = {
+                ...response,
+                scope: 'encounter',
+                patch: fallbackPatch,
+              };
+            }
+          }
           console.log('[aiWizardStore] before applyInterpretationResponse');
           applyInterpretationResponse(response, get(), set, get);
           console.log('[aiWizardStore] after applyInterpretationResponse');
@@ -899,8 +1232,19 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         try {
           console.log('[aiWizardStore] [retry] before interpretMessage');
-          const response = await aiService.interpretMessage(promptToRetry, state.draft, state.sessionId);
-          console.log('[aiWizardStore] [retry] after interpretMessage:', { ok: response.ok, error: response.error });
+          let response = await aiService.interpretMessage(promptToRetry, state.draft, state.sessionId);
+          console.log('[aiWizardStore] [retry] after interpretMessage:', { ok: response.ok, error: response.error, scope: response.scope });
+          const hasPatchData = response.patch && Object.keys(response.patch).length > 0;
+          if (response.ok && (response.scope === 'unclear' || !hasPatchData)) {
+            const fallbackPatch = resolveMinimalInputFallback(promptToRetry, state.draft, state.config);
+            if (fallbackPatch) {
+              response = {
+                ...response,
+                scope: 'encounter',
+                patch: fallbackPatch,
+              };
+            }
+          }
           console.log('[aiWizardStore] [retry] before applyInterpretationResponse');
           applyInterpretationResponse(response, get(), set, get);
           console.log('[aiWizardStore] [retry] after applyInterpretationResponse');
@@ -996,9 +1340,10 @@ export const useAiWizardStore = create<AiWizardState>()(
           messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
-          error: evaluation.validationError,
+          error: null,
         });
       },
+
 
       applyQuickOption: (field, value, displayLabel) => {
         const state = get();
@@ -1144,7 +1489,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
-          error: evaluation.validationError,
+          error: null,
         });
       },
 
@@ -1190,7 +1535,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
-          error: evaluation.validationError,
+          error: null,
         });
       },
 

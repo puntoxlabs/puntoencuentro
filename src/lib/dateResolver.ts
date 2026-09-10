@@ -471,9 +471,67 @@ export function validateResolvedDateTimeInFuture(date: string, time: string): bo
   return isArgentinaDateTimeInFuture(date, time);
 }
 
+export type HourSourceForm =
+  | 'ambiguous_12h_word'
+  | 'explicit_24h'
+  | 'am_pm_explicit'
+  | 'contextual_explicit';
+
+export const SPANISH_HOUR_WORDS: Record<string, number> = {
+  cero: 0,
+  un: 1,
+  uno: 1,
+  una: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
+  once: 11,
+  doce: 12,
+  trece: 13,
+  catorce: 14,
+  quince: 15,
+  dieciseis: 16,
+  dieciséis: 16,
+  diecisiete: 17,
+  dieciocho: 18,
+  diecinueve: 19,
+  veinte: 20,
+  veintiun: 21,
+  veintiún: 21,
+  veintiuno: 21,
+  veintiuna: 21,
+  veintidos: 22,
+  veintidós: 22,
+  veintitres: 23,
+  veintitrés: 23,
+  veinticuatro: 24,
+};
+
+export const SPANISH_MINUTE_WORDS: Record<string, number> = {
+  media: 30,
+  cuarto: 15,
+  treinta: 30,
+  quince: 15,
+  veinte: 20,
+  diez: 10,
+  cinco: 5,
+  'cuarenta y cinco': 45,
+  cuarenta: 40,
+  cincuenta: 50,
+};
+
 export interface ParsedTimeResult {
   kind: 'exact';
   time: string; // "HH:MM"
+  hour: number;
+  minute: number;
+  sourceForm: HourSourceForm;
   dayOffset?: number; // 0 or 1 for end-of-day rollover (e.g. 24:00 / medianoche)
 }
 
@@ -490,25 +548,85 @@ export interface ParsedInvalidResult {
 
 export type ParsedTimeInput = ParsedTimeResult | ParsedRangeResult | ParsedInvalidResult;
 
+interface SingleTimeParsed {
+  hour: number;
+  minute: number;
+  dayOffset: number;
+  sourceForm: HourSourceForm;
+}
+
 function parseSingleTimeToken(
   token: string,
   periodModifier?: string
-): { hour: number; minute: number; dayOffset: number } | null {
-  const clean = token.trim();
+): SingleTimeParsed | null {
+  let clean = token.trim().toLowerCase();
+
+  // Strip leading "a las", "a la", "las", "la"
+  clean = clean.replace(/^(?:a\s+)?(?:las?\s+)/i, '').trim();
+
+  // Strip trailing "hs", "horas", "hrs", "h"
+  const hasHsSuffix = /(?:hs?|horas?|hrs?)$/i.test(clean);
+  clean = clean.replace(/\s*(?:hs?|horas?|hrs?)$/i, '').trim();
+
   if (/^media\s*noche$/i.test(clean)) {
-    return { hour: 0, minute: 0, dayOffset: 1 };
+    return { hour: 0, minute: 0, dayOffset: 1, sourceForm: 'explicit_24h' };
   }
   if (/^medio\s*d[ií]a$/i.test(clean)) {
-    return { hour: 12, minute: 0, dayOffset: 0 };
+    return { hour: 12, minute: 0, dayOffset: 0, sourceForm: 'explicit_24h' };
   }
 
-  const match = clean.match(/^(\d{1,2})(?:[:.](\d{2}))?$/);
-  if (!match) return null;
+  // 1. Try splitting minutes: "y media", "y cuarto", "treinta", "quince", ":MM", ".MM"
+  let hourPart = clean;
+  let minutePart: number | null = null;
+  let hasExplicitMinutesColon = false;
 
-  let hour = Number(match[1]);
-  const minute = match[2] !== undefined ? Number(match[2]) : 0;
+  const wordMinuteMatch = clean.match(/^(.+?)\s+(?:y\s+)?(media|cuarto|treinta|quince|cuarenta\s+y\s+cinco|veinte|diez|cinco)$/i);
+  if (wordMinuteMatch) {
+    hourPart = wordMinuteMatch[1].trim();
+    const minWord = wordMinuteMatch[2].toLowerCase().trim();
+    minutePart = SPANISH_MINUTE_WORDS[minWord] ?? null;
+  } else {
+    const colonMatch = clean.match(/^(\d{1,2})[:.](\d{2})$/);
+    if (colonMatch) {
+      hourPart = colonMatch[1];
+      minutePart = Number(colonMatch[2]);
+      hasExplicitMinutesColon = true;
+    }
+  }
 
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  // 2. Resolve hour value (either digits or Spanish word)
+  let rawHour: number | null = null;
+  let isWordHour = false;
+
+  if (SPANISH_HOUR_WORDS[hourPart] !== undefined) {
+    rawHour = SPANISH_HOUR_WORDS[hourPart];
+    isWordHour = true;
+  } else if (/^\d{1,2}$/.test(hourPart)) {
+    rawHour = Number(hourPart);
+    isWordHour = false;
+  }
+
+  if (rawHour === null || !Number.isInteger(rawHour)) return null;
+  const minute = minutePart !== null ? minutePart : 0;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+
+  // Determine initial sourceForm
+  let sourceForm: HourSourceForm;
+  if (periodModifier) {
+    if (/(?:pm|am)/i.test(periodModifier)) {
+      sourceForm = 'am_pm_explicit';
+    } else {
+      sourceForm = 'contextual_explicit';
+    }
+  } else if (hasHsSuffix || hasExplicitMinutesColon || rawHour > 12) {
+    sourceForm = 'explicit_24h';
+  } else if (isWordHour) {
+    sourceForm = 'ambiguous_12h_word';
+  } else {
+    sourceForm = 'explicit_24h';
+  }
+
+  let hour = rawHour;
 
   // Handle period modifier (e.g. "de la noche", "de la tarde", "pm", "am")
   if (periodModifier) {
@@ -525,25 +643,26 @@ function parseSingleTimeToken(
 
   if (hour === 24) {
     if (minute === 0) {
-      return { hour: 0, minute: 0, dayOffset: 1 };
+      return { hour: 0, minute: 0, dayOffset: 1, sourceForm: 'explicit_24h' };
     }
     return null; // 24:30 is invalid
   }
 
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+  if (hour < 0 || hour > 23) {
     return null;
   }
 
-  return { hour, minute, dayOffset: 0 };
+  return { hour, minute, dayOffset: 0, sourceForm };
 }
 
 /**
  * Deterministically parses a user response when the active question is time.
  * Supports:
  * - Exact hours: "10", "18", "10:30", "18:45", "10 hs", "10 horas", "a las 10", "a las 18:30"
- * - Midnight/rollover: "24", "24:00", "24 hs", "medianoche", "a la medianoche"
+ * - Numbers in words: "once", "diez", "dieciocho", "veintitrés", "once y media", "once treinta"
+ * - Midnight/rollover: "24", "24:00", "24 hs", "medianoche", "veinticuatro", "a la medianoche"
  * - Midday: "mediodia", "al mediodia"
- * - Ranges: "10 a 18", "de 10 a 18", "10-18", "10 - 18", "10:30 a 18:45", "10 a 18 hs"
+ * - Ranges: "10 a 18", "de 10 a 18", "10-18", "de diez a doce", "diez a dieciocho"
  * - Invalid: "27", "10:99", "abc"
  */
 export function parseDeterministicTimeInput(text: string): ParsedTimeInput {
@@ -554,15 +673,15 @@ export function parseDeterministicTimeInput(text: string): ParsedTimeInput {
 
   // 1. Check named expressions
   if (/^(?:a\s+la\s+)?media\s*noche$/i.test(cleaned)) {
-    return { kind: 'exact', time: '00:00', dayOffset: 1 };
+    return { kind: 'exact', time: '00:00', hour: 0, minute: 0, sourceForm: 'explicit_24h', dayOffset: 1 };
   }
   if (/^(?:al?\s+)?medio\s*d[ií]a$/i.test(cleaned)) {
-    return { kind: 'exact', time: '12:00', dayOffset: 0 };
+    return { kind: 'exact', time: '12:00', hour: 12, minute: 0, sourceForm: 'explicit_24h', dayOffset: 0 };
   }
 
-  // 2. Check Range expressions
-  const rangeRegex = /^(?:de\s+)?(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:a|al?|-|hasta)\s*(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?$/i;
-  const entreRegex = /^entre\s+(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*y\s*(?:las\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?$/i;
+  // 2. Check Range expressions (supports digits and words)
+  const rangeRegex = /^(?:de\s+)?(?:las\s+)?([a-záéíóúñ0-9:.]+(?:\s+(?:y\s+)?(?:media|cuarto|treinta))?)\s*(?:a|al?|-|hasta)\s*(?:las\s+)?([a-záéíóúñ0-9:.]+(?:\s+(?:y\s+)?(?:media|cuarto|treinta))?)\s*(?:hs?|horas?|hrs?)?$/i;
+  const entreRegex = /^entre\s+(?:las\s+)?([a-záéíóúñ0-9:.]+(?:\s+(?:y\s+)?(?:media|cuarto|treinta))?)\s*y\s*(?:las\s+)?([a-záéíóúñ0-9:.]+(?:\s+(?:y\s+)?(?:media|cuarto|treinta))?)\s*(?:hs?|horas?|hrs?)?$/i;
 
   const rangeMatch = cleaned.match(rangeRegex) || cleaned.match(entreRegex);
   if (rangeMatch) {
@@ -577,8 +696,8 @@ export function parseDeterministicTimeInput(text: string): ParsedTimeInput {
     }
   }
 
-  // 3. Check Single Time expressions
-  const singleRegex = /^(?:a\s+las?\s+)?(\d{1,2}(?:[:.]\d{2})?)\s*(?:hs?|horas?|hrs?)?(?:\s+(de\s+la\s+noche|de\s+la\s+tarde|de\s+la\s+mañana|de\s+la\s+madrugada|am|pm))?$/i;
+  // 3. Check Single Time expressions (supports digits, Spanish words, optional modifiers)
+  const singleRegex = /^(?:a\s+las?\s+)?([a-záéíóúñ0-9:.]+(?:\s+(?:y\s+)?(?:media|cuarto|treinta|quince|cuarenta\s+y\s+cinco|veinte|diez|cinco))?)(?:\s+(?:hs?|horas?|hrs?))?(?:\s+(de\s+la\s+noche|de\s+la\s+tarde|de\s+la\s+mañana|de\s+la\s+madrugada|am|pm))?$/i;
 
   const singleMatch = cleaned.match(singleRegex);
   if (singleMatch) {
@@ -588,12 +707,267 @@ export function parseDeterministicTimeInput(text: string): ParsedTimeInput {
       return {
         kind: 'exact',
         time: `${pad(parsed.hour)}:${pad(parsed.minute)}`,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        sourceForm: parsed.sourceForm,
         dayOffset: parsed.dayOffset,
       };
     }
   }
 
   return { kind: 'invalid', raw: text };
+}
+
+export interface ContextualHourResolution {
+  resolvedHour: number | null; // null if requires confirmation
+  minute: number;
+  dayOffset: number;
+  requiresConfirmation: boolean;
+  questionText?: string;
+  options?: string[]; // e.g. ["11:00", "23:00"]
+}
+
+/**
+ * Resolves contextual AM/PM interpretation or detects semantic conflicts
+ * between parsed hour and activity context (Cena, Almuerzo, Desayuno, Merienda, etc.).
+ */
+export function resolveContextualHour(
+  parsedHour: number,
+  sourceForm: HourSourceForm,
+  draftContext?: { title?: string | null; description?: string | null },
+  minute: number = 0,
+  dayOffset: number = 0
+): ContextualHourResolution {
+  // 1. Rollover / midnight / 24:00
+  if (parsedHour === 24) {
+    return { resolvedHour: 0, minute: 0, dayOffset: 1, requiresConfirmation: false };
+  }
+  if (parsedHour === 0) {
+    return { resolvedHour: 0, minute, dayOffset: dayOffset || 0, requiresConfirmation: false };
+  }
+
+  // 2. Explicit AM/PM or contextual modifier (e.g. "11 pm", "11 de la noche")
+  if (sourceForm === 'am_pm_explicit' || sourceForm === 'contextual_explicit') {
+    return { resolvedHour: parsedHour, minute, dayOffset: 0, requiresConfirmation: false };
+  }
+
+  // 3. Hours > 12 are inherently 24h and unambiguous (e.g. 18, 20, 23)
+  if (parsedHour > 12) {
+    return { resolvedHour: parsedHour, minute, dayOffset: 0, requiresConfirmation: false };
+  }
+
+  // 4. Hours 1..12: Check semantic activity context
+  const activityText = `${draftContext?.title || ''} ${draftContext?.description || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const isCena = /\b(cena|cenar|cenita)\b/.test(activityText);
+  const isAlmuerzo = /\b(almuerzo|almorzar)\b/.test(activityText);
+  const isDesayuno = /\b(desayuno|desayunar)\b/.test(activityText);
+  const isMerienda = /\b(merienda|merendar)\b/.test(activityText);
+
+  // A. CENA
+  if (isCena) {
+    // Evening hours for dinner (7..11)
+    if (parsedHour >= 7 && parsedHour <= 11) {
+      if (sourceForm === 'explicit_24h') {
+        // Explicit daytime 24h contradicts dinner!
+        const amStr = `${pad(parsedHour)}:${pad(minute)}`;
+        const pmStr = `${pad(parsedHour + 12)}:${pad(minute)}`;
+        return {
+          resolvedHour: null,
+          minute,
+          dayOffset: 0,
+          requiresConfirmation: true,
+          questionText: `¿Querés decir ${amStr} o ${pmStr}? Como es una cena, interpretaría ${pmStr}.`,
+          options: [amStr, pmStr],
+        };
+      }
+      // Ambiguous word or number -> resolve to PM (e.g. "once" -> 23:00, "ocho" -> 20:00)
+      return {
+        resolvedHour: parsedHour + 12,
+        minute,
+        dayOffset: 0,
+        requiresConfirmation: false,
+      };
+    }
+  }
+
+  // B. ALMUERZO
+  if (isAlmuerzo) {
+    // Hours 1..3 for lunch (13:00..15:00)
+    if (parsedHour >= 1 && parsedHour <= 3) {
+      if (sourceForm === 'explicit_24h') {
+        const amStr = `${pad(parsedHour)}:${pad(minute)}`;
+        const pmStr = `${pad(parsedHour + 12)}:${pad(minute)}`;
+        return {
+          resolvedHour: null,
+          minute,
+          dayOffset: 0,
+          requiresConfirmation: true,
+          questionText: `¿Querés decir ${amStr} o ${pmStr}? Como es un almuerzo, interpretaría ${pmStr}.`,
+          options: [amStr, pmStr],
+        };
+      }
+      // "una" with Almuerzo -> 13:00
+      return {
+        resolvedHour: parsedHour + 12,
+        minute,
+        dayOffset: 0,
+        requiresConfirmation: false,
+      };
+    }
+    if (parsedHour === 12) {
+      return { resolvedHour: 12, minute, dayOffset: 0, requiresConfirmation: false };
+    }
+    if (parsedHour === 11) {
+      return { resolvedHour: 11, minute, dayOffset: 0, requiresConfirmation: false };
+    }
+  }
+
+  // C. DESAYUNO
+  if (isDesayuno) {
+    // Hours 6..11 for breakfast -> stay AM (e.g. "ocho" with Desayuno -> 08:00)
+    if (parsedHour >= 6 && parsedHour <= 11) {
+      return {
+        resolvedHour: parsedHour,
+        minute,
+        dayOffset: 0,
+        requiresConfirmation: false,
+      };
+    }
+  }
+
+  // D. MERIENDA
+  if (isMerienda) {
+    if (parsedHour >= 4 && parsedHour <= 7) {
+      return {
+        resolvedHour: parsedHour + 12,
+        minute,
+        dayOffset: 0,
+        requiresConfirmation: false,
+      };
+    }
+  }
+
+  // E. NEUTRAL / AMBIGUOUS (Reunión, Partido, Taller, Asado, or no context)
+  // If parsedHour is 1..11 and ambiguous, ask confirmation
+  if (parsedHour >= 1 && parsedHour <= 11) {
+    if (sourceForm === 'ambiguous_12h_word') {
+      const amStr = `${pad(parsedHour)}:${pad(minute)}`;
+      const pmStr = `${pad(parsedHour + 12)}:${pad(minute)}`;
+      return {
+        resolvedHour: null,
+        minute,
+        dayOffset: 0,
+        requiresConfirmation: true,
+        questionText: `¿${amStr} o ${pmStr}?`,
+        options: [amStr, pmStr],
+      };
+    }
+  }
+
+  // Default: respect parsedHour
+  return {
+    resolvedHour: parsedHour,
+    minute,
+    dayOffset: 0,
+    requiresConfirmation: false,
+  };
+}
+
+export interface CompositeEncounterResult {
+  title: string;
+  date: string; // ISO date or empty string
+  baseDate: string;
+  time: string | null; // "HH:MM" or null if requires confirmation
+  appliedDayRollover?: boolean;
+  requiresConfirmation: boolean;
+  questionText?: string;
+  quickOptions?: Array<{ label: string; value: string }>;
+}
+
+/**
+ * Deterministically parses full statements containing activity + date + time,
+ * such as "Cena mañana a las once", "Cena mañana a las 11 hs", "Cena mañana a las 11 pm".
+ */
+export function parseCompositeEncounterInput(text: string): CompositeEncounterResult | null {
+  const clean = text.trim();
+
+  // 1. Match activity at start
+  const activityMatch = clean.match(/^(?:un[a]?\s+)?(cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i);
+  if (!activityMatch) return null;
+
+  const title = activityMatch[1].charAt(0).toUpperCase() + activityMatch[1].slice(1).toLowerCase();
+
+  const rest = clean.slice(activityMatch[0].length).trim();
+
+  // 2. Match date keyword: "mañana", "hoy", "el 12"
+  let dateIso: string | null = null;
+  let restAfterDate = rest;
+
+  if (/\b(?:mañana|de\s+mañana)\b/i.test(rest)) {
+    const res = resolveDateIntent({ type: 'relative', value: 'tomorrow' });
+    if (res.resolved && res.date) dateIso = res.date;
+    restAfterDate = rest.replace(/\b(?:mañana|de\s+mañana)\b/i, '').trim();
+  } else if (/\bhoy\b/i.test(rest)) {
+    const res = resolveDateIntent({ type: 'relative', value: 'today' });
+    if (res.resolved && res.date) dateIso = res.date;
+    restAfterDate = rest.replace(/\bhoy\b/i, '').trim();
+  } else {
+    const dayMatch = rest.match(/\bel\s+(\d{1,2})\b/i);
+    if (dayMatch) {
+      const dayNum = Number(dayMatch[1]);
+      const res = resolveDateIntent({ type: 'absolute', day: dayNum });
+      if (res.resolved && res.date) {
+        dateIso = res.date;
+        restAfterDate = rest.replace(dayMatch[0], '').trim();
+      }
+    }
+  }
+
+  // 3. Match time expression in restAfterDate
+  const timeParsed = parseDeterministicTimeInput(restAfterDate);
+  if (timeParsed.kind !== 'exact') return null;
+
+  // 4. Contextual hour resolution with activity title
+  const contextualRes = resolveContextualHour(
+    timeParsed.hour,
+    timeParsed.sourceForm,
+    { title },
+    timeParsed.minute,
+    timeParsed.dayOffset || 0
+  );
+
+  let finalDate = dateIso || '';
+  let appliedRollover = false;
+  if (contextualRes.dayOffset && dateIso) {
+    finalDate = addDaysToIsoDate(dateIso, contextualRes.dayOffset);
+    appliedRollover = true;
+  }
+
+  if (contextualRes.requiresConfirmation) {
+    return {
+      title,
+      date: dateIso || '',
+      baseDate: dateIso || '',
+      time: null,
+      requiresConfirmation: true,
+      questionText: contextualRes.questionText,
+      quickOptions: contextualRes.options?.map((opt) => ({ label: opt, value: opt })),
+    };
+  }
+
+  const finalTime = `${pad(contextualRes.resolvedHour!)}:${pad(contextualRes.minute)}`;
+  return {
+    title,
+    date: finalDate,
+    baseDate: dateIso || '',
+    time: finalTime,
+    appliedDayRollover: appliedRollover,
+    requiresConfirmation: false,
+  };
 }
 
 /**

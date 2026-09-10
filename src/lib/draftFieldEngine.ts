@@ -1,6 +1,9 @@
 import type { EncounterDraft } from '@/lib/encounterDraft';
+import { hasMeaningfulDraftData } from '@/lib/encounterDraft';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { isValidVirtualLink } from '@/lib/draftMerger';
+
+export { hasMeaningfulDraftData };
 
 export interface FieldQuestion {
   field: 'title' | 'date' | 'time' | 'modality' | 'locationText' | 'virtualLink' | 'coordination_handoff' | 'theme' | 'template';

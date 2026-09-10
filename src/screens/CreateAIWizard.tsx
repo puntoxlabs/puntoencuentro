@@ -9,7 +9,12 @@ import { DraftSummary } from '@/components/ai/DraftSummary';
 import { useAiWizardStore } from '@/store/aiWizardStore';
 import { useWizardStore } from '@/store/wizardStore';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
-import { translateToCreateEncuentroDTO, draftToWizardState, draftToCoordinationDraft } from '@/lib/encounterDraft';
+import {
+  translateToCreateEncuentroDTO,
+  draftToWizardState,
+  draftToCoordinationDraft,
+  hasMeaningfulDraftData,
+} from '@/lib/encounterDraft';
 import { getPostEventMinutes } from '@/lib/preferencesStorage';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { encuentrosService } from '@/services/encuentrosService';
@@ -25,14 +30,37 @@ import './CreateWizard.css';
 
 export interface CreateAIWizardProps {
   stateOverride?: Partial<ReturnType<typeof useAiWizardStore.getState>>;
+  showExitConfirmOverride?: boolean;
+  onExitConfirmChange?: (showing: boolean) => void;
 }
 
-export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride }) => {
+export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
+  stateOverride,
+  showExitConfirmOverride,
+  onExitConfirmChange,
+}) => {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(showExitConfirmOverride ?? false);
+
+  const isNavigatingToManualRef = useRef(false);
+  const isCreatedRef = useRef(false);
+  const hasHistoryGuardRef = useRef(false);
+  const isDiscardingRef = useRef(false);
+
+  useEffect(() => {
+    if (showExitConfirmOverride !== undefined) {
+      setShowExitConfirm(showExitConfirmOverride);
+    }
+  }, [showExitConfirmOverride]);
+
+  const updateShowExitConfirm = (val: boolean) => {
+    setShowExitConfirm(val);
+    onExitConfirmChange?.(val);
+  };
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const latestAssistantMessageRef = useRef<HTMLDivElement>(null);
@@ -81,6 +109,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
     reset,
   } = activeState;
 
+  const hasMeaningfulDraft = hasMeaningfulDraftData(draft, config);
+
   const hasDraftData = Boolean(
     draft.title ||
     draft.date ||
@@ -89,6 +119,64 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
     draft.locationText ||
     draft.virtualLink
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (
+      hasMeaningfulDraft &&
+      !hasHistoryGuardRef.current &&
+      !isCreatedRef.current &&
+      !isNavigatingToManualRef.current &&
+      !isDiscardingRef.current
+    ) {
+      window.history.pushState({ ...window.history.state, aiWizardGuard: true }, '', window.location.href);
+      hasHistoryGuardRef.current = true;
+    }
+
+    const handlePopState = () => {
+      if (isNavigatingToManualRef.current || isCreatedRef.current || isDiscardingRef.current) {
+        return;
+      }
+      const currentDraft = useAiWizardStore.getState().draft;
+      const currentConfig = useAiWizardStore.getState().config;
+      if (hasMeaningfulDraftData(currentDraft, currentConfig)) {
+        window.history.pushState({ ...window.history.state, aiWizardGuard: true }, '', window.location.href);
+        hasHistoryGuardRef.current = true;
+        updateShowExitConfirm(true);
+      } else {
+        hasHistoryGuardRef.current = false;
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [hasMeaningfulDraft]);
+
+  const handleKeepEditing = () => {
+    updateShowExitConfirm(false);
+  };
+
+  const handleDiscardAndExit = () => {
+    isDiscardingRef.current = true;
+    hasHistoryGuardRef.current = false;
+    updateShowExitConfirm(false);
+    reset();
+    try {
+      sessionStorage.removeItem('cancel_reference');
+    } catch (e) {}
+    navigate('/', { replace: true });
+  };
+
+  const handleBack = () => {
+    if (hasMeaningfulDraft && !isCreatedRef.current) {
+      updateShowExitConfirm(true);
+    } else {
+      navigate('/');
+    }
+  };
 
   const activeThemeConfig = INVITATION_THEMES.find((t) => t.id === config.invitationTheme);
   const themeTemplates = getTemplateOptionsForTheme(config.invitationTheme);
@@ -277,6 +365,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
   };
 
   const handleFallbackManual = () => {
+    isNavigatingToManualRef.current = true;
     const wizardPartial = draftToWizardState(draft, config);
     const wizardStore = useWizardStore.getState();
 
@@ -359,6 +448,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
       });
 
       // Clear AI session upon success
+      isCreatedRef.current = true;
       reset();
 
       // Clean up replacement reference if any
@@ -411,15 +501,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
         title="Crear con IA"
         subtitle="Beta"
         showBack
-        onBack={() => {
-          if (messages.length > 0 && !isComplete) {
-            if (window.confirm('¿Querés salir? Tu borrador se conservará mientras no cierres la pestaña.')) {
-              navigate(-1);
-            }
-          } else {
-            navigate(-1);
-          }
-        }}
+        onBack={handleBack}
+
         rightAction={
           <button
             onClick={handleReset}
@@ -862,8 +945,105 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
           </button>
         </div>
       </div>
+
+      {/* Modal de confirmación de salida con borrador */}
+      {showExitConfirm && (
+        <div
+          data-testid="exit-confirm-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exit-confirm-title"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--color-surface, #ffffff)',
+              borderRadius: '24px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '400px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+            }}
+          >
+            <h3
+              id="exit-confirm-title"
+              data-testid="exit-confirm-title"
+              style={{
+                fontSize: '18px',
+                fontWeight: 700,
+                margin: '0 0 8px 0',
+                color: 'var(--color-on-surface, #0f172a)',
+              }}
+            >
+              ¿Salir de Crear con IA?
+            </h3>
+            <p
+              data-testid="exit-confirm-description"
+              style={{
+                margin: '0 0 24px 0',
+                color: 'var(--color-on-surface-variant, #64748b)',
+                fontSize: '14px',
+                lineHeight: 1.5,
+              }}
+            >
+              Vas a perder los datos cargados de este encuentro.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                data-testid="exit-confirm-keep-editing"
+                onClick={handleKeepEditing}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  background: 'var(--color-primary, #4f46e5)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Seguir editando
+              </button>
+              <button
+                type="button"
+                data-testid="exit-confirm-discard-and-exit"
+                onClick={handleDiscardAndExit}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  background: 'transparent',
+                  color: '#dc2626',
+                  border: '1px solid #fecaca',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Descartar y salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ScreenContainer>
   );
 };
 
 export default CreateAIWizard;
+
