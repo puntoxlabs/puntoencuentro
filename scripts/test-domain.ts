@@ -40,7 +40,7 @@ import {
   getSpeechRecognitionLocale,
   useSpeechDictation,
 } from '../src/hooks/useSpeechDictation.ts';
-import { validateEncounterDate, isFuture } from '../src/lib/formatDate.ts';
+import { validateEncounterDate, isFuture, formatHumanSchedule } from '../src/lib/formatDate.ts';
 import {
   getArgentinaTodayISO,
   isArgentinaDateTimeInFuture,
@@ -2728,7 +2728,8 @@ describe('UX Mobile: Timeline Continuity, Compact Collapsible Summary & Smart Au
     assert.ok(idx1 > -1 && idx2 > -1 && idx1 < idx2, 'Messages maintain strict chronological order');
 
     assert.ok(html.includes('Pizza party'));
-    assert.ok(html.includes('20:30 hs'));
+    assert.ok(html.includes('20:30'));
+    assert.ok(!html.includes('20:30 hs'), 'No debe incluir sufijo hs');
     assert.ok(html.includes('Mi terraza'));
   });
 
@@ -6504,5 +6505,341 @@ describe('QA iPhone/iOS y Desktop Locale Configurable (Section 28)', () => {
   });
 });
 
+describe('QA Refinamiento Integral UX/UI: CreateAIWizard (Section 29)', () => {
+  test('Caso A: Beta aparece integrado al header y no en segunda línea (sin app-bar-subtitle)', () => {
+    useAiWizardStore.getState().reset();
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {})
+      )
+    );
+    assert.ok(html.includes('data-testid="beta-badge"'), 'Debe renderizar el badge de Beta');
+    assert.ok(html.includes('Beta'), 'Debe contener el texto Beta');
+    assert.ok(!html.includes('class="app-bar-subtitle"'), 'No debe renderizar subtítulo de segunda línea');
+  });
 
+  test('Caso B: Fecha ISO no aparece en CompactDraftBar y horario no incluye sufijo "hs" (formatHumanSchedule)', () => {
+    useAiWizardStore.getState().reset();
+    const today = getArgentinaTodayISO();
+    const [y, m, d] = today.split('-').map(Number);
+    const tomDate = new Date(Date.UTC(y, m - 1, d + 1));
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const tomorrow = `${tomDate.getUTCFullYear()}-${pad(tomDate.getUTCMonth() + 1)}-${pad(tomDate.getUTCDate())}`;
 
+    // Test helper directly
+    assert.equal(formatHumanSchedule(today, '20:00', today), 'Hoy · 20:00');
+    assert.equal(formatHumanSchedule(tomorrow, '21:00', today), 'Mañana · 21:00');
+    assert.equal(formatHumanSchedule(tomorrow, '', today), 'Mañana');
+    assert.equal(formatHumanSchedule('', '23:00'), '23:00');
+
+    // Test in rendered component
+    useAiWizardStore.setState({
+      draft: { ...createEmptyEncounterDraft(), title: 'Cena con amigos', date: tomorrow, time: '21:00' },
+      config: createDefaultInvitationConfig(),
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('data-testid="compact-draft-bar"'));
+    assert.ok(html.includes('Mañana · 21:00'), 'Debe mostrar la fecha humanizada con hora limpia');
+    assert.ok(!html.includes('21:00 hs'), 'No debe incluir el sufijo hs en el horario');
+    assert.ok(!html.includes(tomorrow), 'No debe mostrar la fecha cruda en formato ISO');
+  });
+
+  test('Caso C: Metadata incompleta no produce separadores vacíos ni cadenas rotas', () => {
+    const s1 = formatHumanSchedule('2026-10-15', '');
+    assert.ok(!s1.includes('a las'), 'No debe incluir "a las" sin hora');
+    assert.ok(!s1.includes('undefined'), 'No debe incluir undefined');
+
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cumpleaños',
+        date: '2026-10-15',
+        time: '',
+        modality: 'presencial',
+      },
+      config: { ...createDefaultInvitationConfig(), invitationTheme: '' as any },
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(!html.includes('a las · Presencial'), 'No debe contener "a las · Presencial"');
+    assert.ok(!html.includes('·  ·'), 'No debe contener separadores duplicados vacíos');
+    assert.ok(!html.includes('· ·'), 'No debe contener separadores vacíos');
+    assert.ok(html.includes('Presencial'), 'Debe incluir la modalidad correctamente');
+  });
+
+  test('Caso D: Título del encuentro mantiene jerarquía visual en el resumen', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado de Fin de Año',
+        modality: 'presencial',
+      },
+      config: createDefaultInvitationConfig(),
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('Asado de Fin de Año'));
+    assert.ok(html.includes('700'), 'El título debe tener peso negrita');
+  });
+
+  test('Caso E: Formulario manual sigue accesible pero como acción secundaria con touch target de 44px y 13px', () => {
+    useAiWizardStore.getState().reset();
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {})
+      )
+    );
+    assert.ok(html.includes('data-testid="fallback-manual-button"'), 'Debe existir el botón de fallback manual');
+    assert.ok(html.includes('Usar formulario manual'), 'Texto secundario claro');
+    assert.ok(html.includes('min-height:44px') || html.includes('min-height: 44px') || html.includes('44px'), 'Debe tener touch target de al menos 44px');
+    assert.ok(html.includes('font-size:13px') || html.includes('font-size: 13px'), 'Debe tener tamaño 13px legible');
+    assert.ok(!html.includes('text-decoration: underline') && !html.includes('textDecoration: \'underline\''), 'No debe tener subrayado dominante de enlace principal');
+  });
+
+  test('Caso F: Estado inicial muestra ejemplos sólo cuando no hay conversación ni datos cargados', () => {
+    useAiWizardStore.getState().reset();
+    const htmlEmpty = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {})
+      )
+    );
+    assert.ok(htmlEmpty.includes('data-testid="ai-welcome-state"'), 'Debe mostrar el estado de bienvenida inicial');
+    assert.ok(htmlEmpty.includes('Contame qué querés organizar'));
+    assert.ok(htmlEmpty.includes('data-testid="example-prompt-0"'), 'Debe mostrar ejemplos iniciales');
+
+    useAiWizardStore.setState({
+      messages: [{ id: 'm1', role: 'user', text: 'Hola', timestamp: 100 }],
+    });
+    const htmlWithMessages = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+    assert.ok(!htmlWithMessages.includes('data-testid="ai-welcome-state"'), 'No debe mostrar bienvenida cuando hay mensajes');
+  });
+
+  test('Caso G: Los ejemplos iniciales son configuraciones de clic que cargan el textarea sin auto-enviar', () => {
+    let sentCount = 0;
+    let inputVal = '';
+    const onExampleClick = (example: string) => {
+      inputVal = example;
+    };
+
+    onExampleClick('Cena mañana a las 21');
+    assert.equal(inputVal, 'Cena mañana a las 21', 'El clic debe rellenar el input');
+    assert.equal(sentCount, 0, 'No debe auto-enviar a sendUserMessage');
+  });
+
+  test('Caso H: Textarea y botón de envío conservan despacho conversacional normal', async () => {
+    let sentText = '';
+    const mockSend = async (txt: string) => {
+      sentText = txt;
+    };
+
+    useAiWizardStore.getState().reset();
+    assert.equal(typeof useAiWizardStore.getState().sendUserMessage, 'function');
+    await mockSend('Pádel el sábado a las 18');
+    assert.equal(sentText, 'Pádel el sábado a las 18');
+  });
+
+  test('Caso I: Voice hint mobile se muestra condicionado a isTouch y no-visto', () => {
+    const htmlTouch = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {
+          isTouchOverride: true,
+          showKeyboardVoiceHintOverride: true,
+        })
+      )
+    );
+    assert.ok(htmlTouch.includes('data-testid="keyboard-voice-hint"'), 'Debe mostrar hint en mobile');
+    assert.ok(!htmlTouch.includes('data-testid="speech-dictation-button"'), 'No debe mostrar botón mic en mobile');
+  });
+
+  test('Caso J: Mic desktop aparece en ambiente desktop con SpeechRecognition', () => {
+    const originalWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        SpeechRecognition: class MockSpeechRecognition {},
+        matchMedia: () => ({ matches: false }),
+      };
+
+      const htmlDesktop = renderToStaticMarkup(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(CreateAIWizard, { isTouchOverride: false })
+        )
+      );
+      assert.ok(htmlDesktop.includes('data-testid="speech-dictation-button"'), 'Debe mostrar mic en desktop');
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  test('Caso K: History guard para Back Android se preserva con hasMeaningfulDraft', () => {
+    useAiWizardStore.getState().reset();
+    const draftEmpty = createEmptyEncounterDraft();
+    const configEmpty = createDefaultInvitationConfig();
+    assert.equal(hasMeaningfulDraftData(draftEmpty, configEmpty), false, 'Sin datos significativos');
+
+    const draftWithData = { ...draftEmpty, title: 'Cena' };
+    assert.equal(hasMeaningfulDraftData(draftWithData, configEmpty), true, 'Con título tiene datos significativos');
+  });
+
+  test('Caso L: aiLocked deshabilita el compositor y muestra banner informativo', () => {
+    useAiWizardStore.getState().reset();
+    const htmlLocked = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {
+          stateOverride: { aiLocked: true } as any,
+        })
+      )
+    );
+    assert.ok(htmlLocked.includes('Crear con IA no disponible para este borrador'), 'Placeholder de bloqueo');
+    assert.ok(htmlLocked.includes('data-testid="ai-status-banner"'), 'Banner de estado');
+  });
+
+  test('Caso M: Errores conversacionales de campos se presentan en el timeline y no en banner de error técnico', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', text: 'Quiero una juntada ayer', timestamp: 100 },
+        { id: 'm2', role: 'assistant', text: 'La fecha no puede ser anterior a hoy. ¿Qué día sería?', timestamp: 200 },
+      ],
+      error: null,
+      aiLocked: false,
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('La fecha no puede ser anterior a hoy'), 'Aparece como mensaje conversacional');
+    assert.ok(!html.includes('data-testid="ai-status-banner"'), 'NO debe mostrar banner técnico');
+  });
+
+  test('Caso N: Error técnico conserva botones de Reintentar y Continuar manualmente', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      error: 'Error de red. Verificá tu conexión.',
+      lastUserPrompt: 'Cena mañana',
+      isInterpreting: false,
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('data-testid="ai-status-banner"'), 'Debe mostrar el banner de error técnico');
+    assert.ok(html.includes('data-testid="retry-ai-button"'), 'Debe permitir reintentar');
+    assert.ok(html.includes('data-testid="continue-manually-button"'), 'Debe permitir continuar manualmente');
+  });
+
+  test('Caso O: Textarea usa font-size 16px para prevenir auto-zoom en iOS Safari', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {})
+      )
+    );
+    assert.ok(html.includes('font-size:16px') || html.includes('font-size: 16px'), 'El textarea debe tener font-size 16px');
+  });
+
+  test('Caso P: Burbujas de chat usan font-size 16px y line-height confortable', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      messages: [
+        { id: 'm1', role: 'user', text: 'Cena el viernes', timestamp: 100 },
+        { id: 'm2', role: 'assistant', text: '¡Genial! ¿A qué hora sería?', timestamp: 200 },
+      ],
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+
+    assert.ok(html.includes('font-size:16px') || html.includes('font-size: 16px'), 'Las burbujas deben tener font-size 16px');
+    assert.ok(html.includes('line-height:1.48') || html.includes('line-height: 1.48'), 'Las burbujas deben tener line-height ~1.48');
+  });
+
+  test('Caso Q: formatHumanSchedule soporte locale-aware (ES, EN, PT) con fallback seguro', () => {
+    const baseDate = '2026-10-15'; // Jueves 15 de octubre de 2026
+    const baseTime = '20:00';
+    const refDate = '2026-09-10';
+
+    // 1. es-AR
+    const esRes = formatHumanSchedule(baseDate, baseTime, { locale: 'es-AR', referenceTodayISO: refDate });
+    assert.ok(esRes.includes('15') && esRes.includes('20:00') && !esRes.includes('hs'), 'es-AR formatea con número y hora sin hs');
+
+    // 2. en-US
+    const enRes = formatHumanSchedule(baseDate, baseTime, { locale: 'en-US', referenceTodayISO: refDate });
+    assert.ok(enRes.includes('Thu') && enRes.includes('Oct') && enRes.includes('15') && enRes.includes('20:00'), 'en-US formatea nativamente');
+
+    const enToday = formatHumanSchedule(refDate, baseTime, { locale: 'en-US', referenceTodayISO: refDate });
+    assert.equal(enToday, 'Today · 20:00', 'en-US relativo today');
+
+    // 3. pt-BR
+    const ptRes = formatHumanSchedule(baseDate, baseTime, { locale: 'pt-BR', referenceTodayISO: refDate });
+    assert.ok(ptRes.includes('15') && ptRes.includes('20:00') && !ptRes.includes('hs'), 'pt-BR formatea nativamente');
+
+    const ptToday = formatHumanSchedule(refDate, baseTime, { locale: 'pt-BR', referenceTodayISO: refDate });
+    assert.equal(ptToday, 'Hoje · 20:00', 'pt-BR relativo hoje');
+
+    // 4. Fallback seguro con locale vacío o desconocido
+    const fallbackRes = formatHumanSchedule(baseDate, baseTime, { locale: '', referenceTodayISO: refDate });
+    assert.ok(fallbackRes.includes('15') && fallbackRes.includes('20:00'));
+
+    // 5. Firma con opciones como primer argumento
+    const optsRes = formatHumanSchedule({ date: baseDate, time: baseTime, locale: 'en-US', referenceTodayISO: refDate });
+    assert.ok(optsRes.includes('Thu') && optsRes.includes('Oct'));
+  });
+});

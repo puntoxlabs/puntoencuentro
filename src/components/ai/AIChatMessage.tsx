@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sparkles, User } from 'lucide-react';
 import type { ChatMessage } from '@/store/aiWizardStore';
 
 interface AIChatMessageProps {
@@ -15,51 +14,27 @@ export const AIChatMessage: React.FC<AIChatMessageProps> = ({ message }) => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
-        marginBottom: '12px',
+        marginBottom: '10px',
         width: '100%',
       }}
     >
       <div
         style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '8px',
-          maxWidth: '85%',
-          flexDirection: isUser ? 'row-reverse' : 'row',
+          maxWidth: isUser ? '85%' : '90%',
+          padding: '10px 15px',
+          borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          background: isUser
+            ? 'var(--color-primary, #4f46e5)'
+            : 'var(--color-surface-variant, #f8fafc)',
+          color: isUser ? '#ffffff' : 'var(--color-on-surface, #0f172a)',
+          border: isUser ? 'none' : '1px solid var(--color-outline-variant, #e2e8f0)',
+          fontSize: '16px',
+          lineHeight: 1.48,
+          boxShadow: isUser ? '0 1px 2px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.03)',
+          wordBreak: 'break-word',
         }}
       >
-        <div
-          style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            background: isUser ? 'var(--color-primary-container, #e0e7ff)' : 'var(--color-secondary-container, #f3e8ff)',
-            color: isUser ? 'var(--color-on-primary-container, #3730a3)' : 'var(--color-on-secondary-container, #6b21a8)',
-          }}
-        >
-          {isUser ? <User size={16} /> : <Sparkles size={16} />}
-        </div>
-
-        <div
-          style={{
-            padding: '10px 14px',
-            borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-            background: isUser
-              ? 'var(--color-primary, #4f46e5)'
-              : 'var(--color-surface-variant, #f1f5f9)',
-            color: isUser ? '#ffffff' : 'var(--color-on-surface, #1e293b)',
-            fontSize: '14px',
-            lineHeight: 1.45,
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            wordBreak: 'break-word',
-          }}
-        >
-          {message.text}
-        </div>
+        {message.text}
       </div>
     </div>
   );

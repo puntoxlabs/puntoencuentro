@@ -26,7 +26,7 @@ import {
   getDefaultInvitationTemplate,
 } from '@/lib/invitationThemes';
 import { useTranslation } from 'react-i18next';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatHumanSchedule } from '@/lib/formatDate';
 import { useSpeechDictation, isTouchDevice, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import './CreateWizard.css';
 
@@ -264,13 +264,10 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   const themeLabel = activeThemeConfig?.label || 'Clásico';
   const variantLabel = activeTemplate ? ` (${activeTemplate.name})` : '';
 
-  const dateText = draft.date
-    ? `${formatFriendlyDate(draft.date, draft.time || '').split('•')[0]}${draft.time ? ` · ${draft.time} hs` : ''}`
-    : draft.time
-    ? `${draft.time} hs`
-    : 'Cuándo a definir';
-
+  const scheduleText = formatHumanSchedule(draft.date, draft.time, { locale: appLanguage });
   const placeText = draft.locationText || (draft.modality === 'virtual' ? 'Virtual' : draft.modality === 'presencial' ? 'Presencial' : null);
+  const themeText = themeLabel ? `${themeLabel}${variantLabel}` : null;
+  const metadataText = [scheduleText, placeText, themeText].filter(Boolean).join(' · ');
 
   const lastAssistantIndex = messages.map((m) => m.role).lastIndexOf('assistant');
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
@@ -356,6 +353,11 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   }, [messages, isInterpreting, lastQuestion, isComplete]);
 
   const handleReset = () => {
+    if (hasMeaningfulDraft) {
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm('¿Reiniciar la conversación? Se perderán los datos del borrador actual.')) {
+        return;
+      }
+    }
     setIsSummaryExpanded(false);
     reset();
   };
@@ -582,22 +584,48 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     <ScreenContainer style={{ display: 'flex', flexDirection: 'column', height: '100dvh', padding: 0 }}>
       {/* AppBar */}
       <AppBar
-        title="Crear con IA"
-        subtitle="Beta"
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span>Crear con IA</span>
+            <span
+              data-testid="beta-badge"
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '2px 7px',
+                borderRadius: '9999px',
+                background: 'var(--color-surface-variant, #f1f5f9)',
+                color: 'var(--color-on-surface-variant, #64748b)',
+                border: '1px solid var(--color-outline-variant, #e2e8f0)',
+                lineHeight: 1.2,
+                letterSpacing: '0.02em',
+              }}
+            >
+              Beta
+            </span>
+          </span>
+        }
         showBack
         onBack={handleBack}
-
         rightAction={
           <button
+            type="button"
+            data-testid="ai-wizard-reset-button"
             onClick={handleReset}
+            aria-label="Reiniciar conversación"
+            title="Reiniciar conversación"
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--color-on-surface-variant, #64748b)',
               cursor: 'pointer',
-              padding: '6px',
+              padding: '8px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background-color 0.15s ease',
             }}
-            title="Reiniciar conversación"
           >
             <RefreshCw size={18} />
           </button>
@@ -618,7 +646,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             gap: '12px',
             flexShrink: 0,
             zIndex: 10,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
@@ -640,29 +668,55 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             <div style={{ minWidth: 0, flex: 1 }}>
               <div
                 style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: 'var(--color-on-surface, #0f172a)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                 }}
               >
-                {draft.title || 'Nuevo encuentro'}
+                <span
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    color: 'var(--color-on-surface, #0f172a)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {draft.title || 'Nuevo encuentro'}
+                </span>
+                {isComplete && (
+                  <span
+                    data-testid="draft-ready-badge"
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '1px 6px',
+                      borderRadius: '6px',
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Listo para crear
+                  </span>
+                )}
               </div>
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--color-on-surface-variant, #64748b)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {dateText}
-                {placeText ? ` · ${placeText}` : ''}
-                {` · ${themeLabel}${variantLabel}`}
-              </div>
+              {metadataText && (
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: 'var(--color-on-surface-variant, #64748b)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    marginTop: '1px',
+                  }}
+                >
+                  {metadataText}
+                </div>
+              )}
             </div>
           </div>
 
@@ -678,15 +732,15 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               }
             }}
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
               padding: '6px 10px',
               borderRadius: '8px',
-              border: '1px solid var(--color-outline, #cbd5e1)',
-              background: isSummaryExpanded ? 'var(--color-primary-container, #e0e7ff)' : '#ffffff',
-              color: isSummaryExpanded ? 'var(--color-primary, #4f46e5)' : 'var(--color-on-surface, #334155)',
-              fontSize: '12px',
+              border: '1px solid var(--color-outline-variant, #e2e8f0)',
+              background: isSummaryExpanded ? 'var(--color-surface-variant, #f1f5f9)' : 'transparent',
+              color: 'var(--color-primary, #4f46e5)',
+              fontSize: '13px',
               fontWeight: 600,
               cursor: 'pointer',
               flexShrink: 0,
@@ -705,7 +759,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               </>
             ) : (
               <>
-                <span>Ver resumen</span>
+                <span>Resumen</span>
                 <ChevronDown size={14} />
               </>
             )}
@@ -758,46 +812,76 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
       >
         {/* Welcome / Empty State */}
         {messages.length === 0 && !hasDraftData && (
-          <div style={{ textAlign: 'center', margin: 'auto 0', padding: '24px 16px' }}>
-            <div
+          <div
+            data-testid="ai-welcome-state"
+            style={{
+              textAlign: 'center',
+              margin: 'auto 0',
+              padding: '24px 16px',
+              maxWidth: '420px',
+              alignSelf: 'center',
+              width: '100%',
+            }}
+          >
+            <h2
               style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                background: 'var(--color-primary-container, #e0e7ff)',
-                color: 'var(--color-primary, #4f46e5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px auto',
+                fontSize: '18px',
+                fontWeight: 700,
+                margin: '0 0 6px 0',
+                color: 'var(--color-on-surface, #0f172a)',
+                letterSpacing: '-0.2px',
               }}
             >
-              ✨
-            </div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 8px 0', color: 'var(--color-on-surface, #0f172a)' }}>
               Contame qué querés organizar
             </h2>
-            <p style={{ fontSize: '14px', color: 'var(--color-on-surface-variant, #64748b)', margin: '0 0 24px 0', lineHeight: 1.5 }}>
-              PuntoEncuentro se ocupa de preparar los detalles de tu juntada.
+            <p
+              style={{
+                fontSize: '14px',
+                color: 'var(--color-on-surface-variant, #64748b)',
+                margin: '0 0 20px 0',
+                lineHeight: 1.5,
+              }}
+            >
+              Podés decirlo como te salga.
             </p>
 
             <div
               style={{
-                background: 'var(--color-surface-variant, #f8fafc)',
-                borderRadius: '12px',
-                padding: '14px',
-                textAlign: 'left',
-                border: '1px dashed var(--color-outline, #cbd5e1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                alignItems: 'center',
               }}
             >
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-primary, #4f46e5)', display: 'block', marginBottom: '6px' }}>
-                💡 Ejemplos de lo que podés escribir:
-              </span>
-              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: 'var(--color-on-surface, #334155)', lineHeight: 1.6 }}>
-                <li>"Cena con amigos el viernes a las 21 en casa"</li>
-                <li>"Reunión de equipo mañana a las 10 por Google Meet"</li>
-                <li>"Cumpleaños de Sofi el sábado que viene a las 20"</li>
-              </ul>
+              {[
+                'Cena mañana a las 21',
+                'Partido el sábado',
+                'Cumpleaños familiar',
+              ].map((example, idx) => (
+                <button
+                  key={example}
+                  type="button"
+                  data-testid={`example-prompt-${idx}`}
+                  onClick={() => {
+                    setInputText(example);
+                    inputRef.current?.focus();
+                  }}
+                  style={{
+                    background: 'var(--color-surface, #ffffff)',
+                    border: '1px solid var(--color-outline-variant, #e2e8f0)',
+                    borderRadius: '20px',
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    color: 'var(--color-on-surface, #334155)',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                  }}
+                >
+                  "{example}"
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -944,10 +1028,13 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         style={{
           borderTop: '1px solid var(--color-outline-variant, #e2e8f0)',
           background: 'var(--color-surface, #ffffff)',
-          padding: '12px 16px',
+          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) 16px',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
         }}
       >
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <textarea
             ref={inputRef}
             value={inputText}
@@ -956,6 +1043,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             placeholder={
               aiLocked
                 ? 'Crear con IA no disponible para este borrador'
+                : lastQuestion
+                ? 'Respondé acá...'
                 : messages.length === 0
                 ? 'Escribí qué querés organizar...'
                 : 'Respondé acá o agregá detalles...'
@@ -966,18 +1055,20 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             disabled={isInterpreting || isCreating || aiLocked}
             style={{
               flex: 1,
-              minHeight: '40px',
+              minHeight: '46px',
               maxHeight: '120px',
-              padding: '10px 14px',
-              borderRadius: '20px',
+              padding: '11px 16px',
+              borderRadius: '22px',
               border: '1px solid var(--color-outline, #cbd5e1)',
               background: aiLocked ? '#f1f5f9' : 'var(--color-surface-variant, #f8fafc)',
               color: aiLocked ? '#94a3b8' : 'var(--color-on-surface, #0f172a)',
-              fontSize: '14px',
+              fontSize: '16px',
+              lineHeight: 1.45,
               resize: 'none',
               fontFamily: 'inherit',
               outline: 'none',
               cursor: aiLocked ? 'not-allowed' : 'text',
+              boxSizing: 'border-box',
             }}
           />
 
@@ -1000,8 +1091,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               title={isListening ? 'Detener dictado por voz' : 'Iniciar dictado por voz'}
               aria-label={isListening ? 'Detener dictado por voz' : 'Iniciar dictado por voz'}
               style={{
-                width: '40px',
-                height: '40px',
+                width: '44px',
+                height: '44px',
                 borderRadius: '50%',
                 background: isListening
                   ? '#fee2e2'
@@ -1025,23 +1116,27 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
           )}
 
           <button
+            type="button"
             onClick={handleSend}
             disabled={!inputText.trim() || isInterpreting || isCreating || aiLocked || isListening}
             title="Enviar mensaje"
             aria-label="Enviar mensaje"
             style={{
-              width: '40px',
-              height: '40px',
+              width: '44px',
+              height: '44px',
               borderRadius: '50%',
               background:
                 inputText.trim() && !isInterpreting && !aiLocked && !isListening
                   ? 'var(--color-primary, #4f46e5)'
-                  : '#e2e8f0',
+                  : '#f1f5f9',
               color:
                 inputText.trim() && !isInterpreting && !aiLocked && !isListening
                   ? '#ffffff'
                   : '#94a3b8',
-              border: 'none',
+              border:
+                inputText.trim() && !isInterpreting && !aiLocked && !isListening
+                  ? 'none'
+                  : '1px solid var(--color-outline-variant, #e2e8f0)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1050,7 +1145,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
                   ? 'pointer'
                   : 'default',
               flexShrink: 0,
-              transition: 'background 0.2s',
+              transition: 'background 0.15s ease',
             }}
           >
             <Send size={18} />
@@ -1127,7 +1222,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
           <div
             data-testid="keyboard-voice-hint"
             style={{
-              fontSize: '11px',
+              fontSize: '12px',
               color: 'var(--color-on-surface-variant, #64748b)',
               marginTop: '6px',
               textAlign: 'center',
@@ -1137,7 +1232,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               gap: '4px',
             }}
           >
-            <Mic size={12} style={{ opacity: 0.7 }} />
+            <Mic size={13} style={{ opacity: 0.7 }} />
             <span>También podés dictar usando el micrófono del teclado.</span>
             <button
               type="button"
@@ -1159,19 +1254,28 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         )}
 
         {/* Fallback to manual link */}
-        <div style={{ textAlign: 'center', marginTop: '8px' }}>
+        <div style={{ textAlign: 'center', marginTop: '4px' }}>
           <button
+            type="button"
+            data-testid="fallback-manual-button"
             onClick={handleFallbackManual}
             style={{
               background: 'none',
               border: 'none',
-              fontSize: '12px',
+              fontSize: '13px',
+              fontWeight: 500,
               color: 'var(--color-on-surface-variant, #64748b)',
               cursor: 'pointer',
-              textDecoration: 'underline',
+              minHeight: '44px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'color 0.15s ease',
             }}
           >
-            Prefiero usar el formulario manual
+            Usar formulario manual
           </button>
         </div>
       </div>

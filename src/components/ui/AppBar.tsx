@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import './AppBar.css';
 
 interface AppBarProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   showBack?: boolean;
   onBack?: () => void;

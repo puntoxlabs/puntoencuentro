@@ -106,3 +106,124 @@ export function formatKidsBirthdayDateTime(date?: string, time?: string) {
     ? `${capitalize(dateWithoutComma)} · ${cleanTime}`
     : capitalize(dateWithoutComma);
 }
+
+export interface FormatHumanScheduleOptions {
+  date?: string | null;
+  time?: string | null;
+  locale?: string;
+  timeZone?: string;
+  referenceTodayISO?: string;
+  labels?: {
+    today?: string;
+    tomorrow?: string;
+  };
+}
+
+/**
+ * Formats date and time into a friendly, human-readable schedule string
+ * for UI presentation (e.g., "Hoy", "Mañana", "Mañana · 23:00", "Vie 11 sep · 20:30").
+ * Avoids raw ISO dates and broken compositions like "2026-09-11 a las · Presencial".
+ * Supports locale-aware Intl.DateTimeFormat (ES/EN/PT) and clean time without "hs".
+ */
+export function formatHumanSchedule(
+  dateOrOptions?: string | FormatHumanScheduleOptions | null,
+  maybeTime?: string | null,
+  maybeOptionsOrRef?: string | Partial<FormatHumanScheduleOptions> | null
+): string {
+  let date: string | null | undefined;
+  let time: string | null | undefined;
+  let locale: string | undefined;
+  let timeZone: string | undefined;
+  let referenceTodayISO: string | undefined;
+  let labels: { today?: string; tomorrow?: string } | undefined;
+
+  if (typeof dateOrOptions === 'object' && dateOrOptions !== null) {
+    date = dateOrOptions.date;
+    time = dateOrOptions.time;
+    locale = dateOrOptions.locale;
+    timeZone = dateOrOptions.timeZone;
+    referenceTodayISO = dateOrOptions.referenceTodayISO;
+    labels = dateOrOptions.labels;
+  } else {
+    date = dateOrOptions;
+    time = maybeTime;
+    if (typeof maybeOptionsOrRef === 'string') {
+      referenceTodayISO = maybeOptionsOrRef;
+    } else if (typeof maybeOptionsOrRef === 'object' && maybeOptionsOrRef !== null) {
+      locale = maybeOptionsOrRef.locale;
+      timeZone = maybeOptionsOrRef.timeZone;
+      referenceTodayISO = maybeOptionsOrRef.referenceTodayISO;
+      labels = maybeOptionsOrRef.labels;
+    }
+  }
+
+  const cleanTime = time ? time.trim().substring(0, 5) : '';
+  const cleanDate = date ? date.trim() : '';
+
+  if (!cleanDate && !cleanTime) return '';
+  if (!cleanDate && cleanTime) return cleanTime;
+
+  const effectiveTimeZone = timeZone || 'America/Argentina/Buenos_Aires';
+  const todayISO = referenceTodayISO || getArgentinaTodayISO();
+
+  // Compute tomorrow ISO based on todayISO
+  let tomorrowISO = '';
+  try {
+    const [ty, tm, td] = todayISO.split('-').map(Number);
+    const tomDate = new Date(Date.UTC(ty, tm - 1, td + 1));
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    tomorrowISO = `${tomDate.getUTCFullYear()}-${pad(tomDate.getUTCMonth() + 1)}-${pad(tomDate.getUTCDate())}`;
+  } catch {}
+
+  // Locale normalization (es-AR default, en-US, pt-BR)
+  let rawLocale = (locale || 'es-AR').trim();
+  if (rawLocale === 'es') rawLocale = 'es-AR';
+  if (rawLocale === 'en') rawLocale = 'en-US';
+  if (rawLocale === 'pt') rawLocale = 'pt-BR';
+
+  const langCode = rawLocale.split('-')[0].toLowerCase();
+  const defaultRelativeLabels: Record<string, { today: string; tomorrow: string }> = {
+    es: { today: 'Hoy', tomorrow: 'Mañana' },
+    en: { today: 'Today', tomorrow: 'Tomorrow' },
+    pt: { today: 'Hoje', tomorrow: 'Amanhã' },
+  };
+
+  const rel = labels || defaultRelativeLabels[langCode] || defaultRelativeLabels.es;
+
+  let dateLabel = '';
+  if (cleanDate === todayISO) {
+    dateLabel = rel.today || 'Hoy';
+  } else if (cleanDate === tomorrowISO) {
+    dateLabel = rel.tomorrow || 'Mañana';
+  } else {
+    // Format using Intl.DateTimeFormat
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const utcDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        try {
+          const formatter = new Intl.DateTimeFormat(rawLocale, {
+            timeZone: effectiveTimeZone,
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          });
+          const formatted = formatter.format(utcDate);
+          dateLabel = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        } catch {
+          dateLabel = cleanDate;
+        }
+      }
+    }
+    if (!dateLabel) {
+      dateLabel = cleanDate;
+    }
+  }
+
+  if (cleanTime) {
+    return `${dateLabel} · ${cleanTime}`;
+  }
+  return dateLabel;
+}
+
