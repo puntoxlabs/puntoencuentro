@@ -48,7 +48,8 @@ import {
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
 import { useAiWizardStore } from '@/store/aiWizardStore';
-import { aiService } from '@/services/aiService';
+import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
+import { supabase } from '@/lib/supabase';
 
 describe('Domain Logic Tests: Date & Time Resolution', () => {
   // Baseline date: Monday 2026-09-07
@@ -3532,6 +3533,393 @@ describe('QA Final Release Rule: virtualLink must be a valid navigable URL (Test
 
       const lastMsg = allAssistantMsgs[allAssistantMsgs.length - 1];
       assert.equal(lastMsg.text, '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+});
+
+describe('AI Interpretation Resilience: Timeout, AbortController, Error Classification & Retry (Scenarios A to H + Exact Reproduction)', () => {
+  test('Test A: request exitosa en 2s -> loading aparece y desaparece -> respuesta visible', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    let resolvePromise: (val: any) => void;
+    const delayedPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+
+    aiService.interpretMessage = async () => {
+      return (await delayedPromise) as any;
+    };
+
+    try {
+      const sendPromise = useAiWizardStore.getState().sendUserMessage('Cena de cumpleaños el viernes a las 21');
+      assert.equal(useAiWizardStore.getState().isInterpreting, true, 'isInterpreting must be true while waiting');
+
+      resolvePromise!({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena de cumpleaños', confidence: 'explicit' },
+          dateIntent: { value: { type: 'absolute', day: 15, month: 10, year: 2027 }, confidence: 'explicit' },
+          timeIntent: { value: { type: 'exact', hour: 21, minute: 0 }, confidence: 'explicit' },
+        },
+      });
+
+      await sendPromise;
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false, 'isInterpreting must be false after response');
+      assert.equal(state.draft.title, 'Cena de cumpleaños');
+      assert.equal(state.draft.time, '21:00');
+      assert.ok(state.messages.some((m) => m.role === 'assistant'), 'Assistant reply must be visible');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test B: request tarda > CLIENT_AI_TIMEOUT_MS -> abort -> isInterpreting=false -> input habilitado -> mensaje timeout visible', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    // 1. Verify aiService.interpretMessage aborts via AbortController and customTimeoutMs
+    Object.defineProperty(supabase, 'functions', {
+      value: {
+        invoke: async (_name: string, options: any) => {
+          return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              resolve({ data: { ok: true }, error: null });
+            }, 150);
+
+            if (options?.signal) {
+              options.signal.addEventListener('abort', () => {
+                clearTimeout(timer);
+                const abortErr = new Error('The operation was aborted');
+                abortErr.name = 'AbortError';
+                reject(abortErr);
+              });
+            }
+          });
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      assert.equal(CLIENT_AI_TIMEOUT_MS, 25000, 'Default CLIENT_AI_TIMEOUT_MS must be 25000');
+      const res = await aiService.interpretMessage('test message', undefined, undefined, 40);
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'timeout_client');
+      assert.ok(res.details?.includes('No pude procesar el mensaje a tiempo'));
+
+      // 2. Verify store handles timeout
+      useAiWizardStore.setState({
+        draft: createEmptyEncounterDraft(),
+        isInterpreting: false,
+        error: null,
+      });
+
+      aiService.interpretMessage = async () => ({
+        ok: false,
+        error: 'timeout_client',
+        details: 'No pude procesar el mensaje a tiempo. Podés intentar nuevamente o continuar manualmente.',
+      });
+
+      await useAiWizardStore.getState().sendUserMessage('Taller de cocina el 12 a las 16');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false, 'isInterpreting must be false after timeout');
+      assert.equal(state.aiLocked, false, 'aiLocked must NOT be set on timeout');
+      assert.equal(state.consecutiveOffTopicCount, 0, 'Off topic count must NOT increment on timeout');
+      assert.ok(state.error?.includes('No pude procesar el mensaje a tiempo'));
+      assert.equal(state.lastUserPrompt, 'Taller de cocina el 12 a las 16');
+    } finally {
+      delete (supabase as any).functions;
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test C: fetch lanza network error -> loading desaparece -> input habilitado', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    Object.defineProperty(supabase, 'functions', {
+      value: {
+        invoke: async () => {
+          const err = new TypeError('Failed to fetch');
+          return { data: null, error: err };
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const res = await aiService.interpretMessage('Cena mañana');
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'network_error');
+      assert.ok(res.details?.includes('No pudimos conectarnos con Crear con IA'));
+
+      // Verify store
+      aiService.interpretMessage = async () => res;
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false);
+      assert.equal(state.aiLocked, false);
+      assert.equal(state.error, 'No pudimos conectarnos con Crear con IA. Revisá tu conexión e intentá nuevamente.');
+    } finally {
+      delete (supabase as any).functions;
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test D: HTTP 429 -> loading desaparece -> mensaje específico y bloqueo si corresponde', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    Object.defineProperty(supabase, 'functions', {
+      value: {
+        invoke: async () => {
+          return {
+            data: null,
+            error: {
+              name: 'FunctionsHttpError',
+              context: {
+                status: 429,
+                json: async () => ({
+                  error: 'rate_limit_exceeded',
+                  message: 'Alcanzaste el límite de consultas permitidas. Podés continuar manualmente.',
+                }),
+              },
+            },
+          };
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const res = await aiService.interpretMessage('Consulta spam');
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'rate_limit_exceeded');
+
+      aiService.interpretMessage = async () => res;
+      await useAiWizardStore.getState().sendUserMessage('Consulta spam');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false);
+      assert.equal(state.aiLocked, true);
+      assert.equal(state.error, 'Alcanzaste el límite de consultas permitidas. Podés continuar manualmente.');
+      const lastMsg = state.messages[state.messages.length - 1];
+      assert.equal(lastMsg.role, 'assistant');
+      assert.ok(lastMsg.text.includes('límite'));
+    } finally {
+      delete (supabase as any).functions;
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test E: HTTP 503 -> loading desaparece -> mensaje específico y reintentable', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    Object.defineProperty(supabase, 'functions', {
+      value: {
+        invoke: async () => {
+          return {
+            data: null,
+            error: {
+              name: 'FunctionsHttpError',
+              context: {
+                status: 503,
+                json: async () => ({
+                  error: 'rate_limit_unavailable',
+                  message: 'El servicio de IA no está disponible temporalmente. Podés continuar manualmente.',
+                }),
+              },
+            },
+          };
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const res = await aiService.interpretMessage('Juntada el sábado');
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'rate_limit_unavailable');
+
+      aiService.interpretMessage = async () => res;
+      await useAiWizardStore.getState().sendUserMessage('Juntada el sábado');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false);
+      assert.equal(state.aiLocked, false, '503 must not permanently lock');
+      assert.equal(state.error, 'El servicio de IA no está disponible temporalmente. Podés continuar manualmente.');
+    } finally {
+      delete (supabase as any).functions;
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test F: respuesta JSON inválida -> loading desaparece -> error recuperable', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    Object.defineProperty(supabase, 'functions', {
+      value: {
+        invoke: async () => {
+          return {
+            data: { ok: true, not_a_patch: 123 }, // missing patch!
+            error: null,
+          };
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const res = await aiService.interpretMessage('Algo raro');
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'invalid_response');
+
+      aiService.interpretMessage = async () => res;
+      await useAiWizardStore.getState().sendUserMessage('Algo raro');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false);
+      assert.equal(state.aiLocked, false);
+      assert.ok(state.error?.includes('Respuesta inesperada del servicio de IA'));
+    } finally {
+      delete (supabase as any).functions;
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test G: retry manual -> no duplica mensaje usuario -> nueva request', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    let calls = 0;
+    aiService.interpretMessage = async () => {
+      calls++;
+      if (calls === 1) {
+        return {
+          ok: false,
+          error: 'timeout_client',
+          details: 'No pude procesar el mensaje a tiempo. Podés intentar nuevamente o continuar manualmente.',
+        };
+      }
+      return {
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Asado con amigos', confidence: 'explicit' },
+          dateIntent: { value: { type: 'absolute', day: 17, month: 10, year: 2027 }, confidence: 'explicit' },
+          timeIntent: { value: { type: 'exact', hour: 13, minute: 0 }, confidence: 'explicit' },
+        },
+      };
+    };
+
+    try {
+      // 1. Initial send fails with timeout
+      await useAiWizardStore.getState().sendUserMessage('Asado con amigos el domingo a las 13');
+      let state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false);
+      assert.equal(calls, 1);
+      const userMessagesBefore = state.messages.filter((m) => m.role === 'user');
+      assert.equal(userMessagesBefore.length, 1);
+      assert.equal(state.lastUserPrompt, 'Asado con amigos el domingo a las 13');
+      assert.ok(state.error?.includes('No pude procesar el mensaje a tiempo'));
+
+      // 2. User triggers retry
+      await useAiWizardStore.getState().retryLastMessage();
+      state = useAiWizardStore.getState();
+      assert.equal(calls, 2);
+      assert.equal(state.isInterpreting, false);
+      assert.equal(state.error, null);
+
+      // Verify no duplicate user message
+      const userMessagesAfter = state.messages.filter((m) => m.role === 'user');
+      assert.equal(userMessagesAfter.length, 1, 'Retry must NOT duplicate user message in timeline');
+      assert.equal(state.draft.title, 'Asado con amigos');
+      assert.equal(state.draft.time, '13:00');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test H: cualquier excepción -> finally deja isInterpreting=false', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => {
+      throw new Error('Unexpected crash in engine');
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Explosión controlada');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false, 'finally MUST set isInterpreting=false on unhandled exception');
+      assert.ok(state.error?.includes('error inesperado'));
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Exact Reproduction: "Taller de cocina el 12 a las 16" (Normal vs Provider Lento >25s)', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    try {
+      // Case 1: Normal interpretation of "Taller de cocina el 12 a las 16"
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Taller de cocina', confidence: 'explicit' },
+          dateIntent: { value: { type: 'absolute', day: 12, month: 10, year: 2027 }, confidence: 'explicit' },
+          timeIntent: { value: { type: 'exact', hour: 16, minute: 0 }, confidence: 'explicit' },
+        },
+      });
+
+      await useAiWizardStore.getState().sendUserMessage('Taller de cocina el 12 a las 16');
+
+      let state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false, 'Must not hang');
+      assert.equal(state.draft.title, 'Taller de cocina');
+      assert.equal(state.draft.time, '16:00');
+      assert.equal(state.draft.date, '2027-10-12');
+      assert.equal(state.lastQuestion?.field, 'modality', 'Only asks for missing field (modality)');
+      assert.equal(state.error, null);
+
+      // Case 2: Simulated provider slow >25s -> aborts and recovers UI
+      useAiWizardStore.getState().reset();
+      aiService.interpretMessage = async (_msg, _draft, _sid, timeoutMs = 40) => {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: false,
+              error: 'timeout_client',
+              details: 'No pude procesar el mensaje a tiempo. Podés intentar nuevamente o continuar manualmente.',
+            });
+          }, timeoutMs || 40);
+        });
+      };
+
+      await useAiWizardStore.getState().sendUserMessage('Taller de cocina el 12 a las 16');
+      state = useAiWizardStore.getState();
+      assert.equal(state.isInterpreting, false, 'Must not remain in isInterpreting=true');
+      assert.ok(state.error?.includes('No pude procesar el mensaje a tiempo'));
+      assert.equal(state.aiLocked, false);
+      assert.equal(state.lastUserPrompt, 'Taller de cocina el 12 a las 16');
     } finally {
       aiService.interpretMessage = originalInterpret;
     }

@@ -12,7 +12,7 @@ import {
   type InvitationTheme,
 } from '@/lib/invitationThemes';
 import { formatFriendlyDate } from '@/lib/formatDate';
-import { aiService } from '@/services/aiService';
+import { aiService, type AiInterpretationResponse } from '@/services/aiService';
 
 export interface ChatMessage {
   id: string;
@@ -47,10 +47,12 @@ interface AiWizardState {
   lastQuestion: FieldQuestion | null;
   coordinationDetected: boolean;
   isComplete: boolean;
+  lastUserPrompt: string | null;
 
   // Actions
   initSession: () => void;
   sendUserMessage: (text: string) => Promise<void>;
+  retryLastMessage: () => Promise<void>;
   updateDraftField: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K]) => void;
   applyQuickOption: (field: string, value: any, displayLabel?: string) => void;
   updateConfigField: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
@@ -68,6 +70,278 @@ function generateUuid(): string {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
+  });
+}
+
+function applyInterpretationResponse(
+  response: AiInterpretationResponse,
+  state: AiWizardState,
+  set: (partial: Partial<AiWizardState> | ((state: AiWizardState) => Partial<AiWizardState>)) => void,
+  get: () => AiWizardState
+): void {
+  if (!response.ok || !response.patch) {
+    const isAbuseOrLimit =
+      response.error === 'session_limit_reached' ||
+      response.error === 'rate_limit_exceeded' ||
+      response.error === 'session_locked_off_topic' ||
+      response.error === 'input_too_long';
+
+    const isTimeout = response.error === 'timeout_client';
+    const isNetwork = response.error === 'network_error';
+
+    let errorReply = response.details || 'No pudimos interpretar el mensaje. Intentá de nuevo o completá manualmente.';
+    if (isTimeout) {
+      errorReply = 'No pude procesar el mensaje a tiempo. Podés intentar nuevamente o continuar manualmente.';
+    } else if (isNetwork) {
+      errorReply = 'No pudimos conectarnos con Crear con IA. Revisá tu conexión e intentá nuevamente.';
+    }
+
+    const newMessages = isAbuseOrLimit
+      ? [
+          ...get().messages,
+          {
+            id: generateUuid(),
+            role: 'assistant' as const,
+            text: errorReply,
+            timestamp: Date.now() + 1,
+          },
+        ]
+      : get().messages;
+
+    set({
+      messages: newMessages,
+      aiLocked: isAbuseOrLimit || state.aiLocked,
+      error: errorReply,
+      fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
+      primaryProvider: response.primaryProvider || state.primaryProvider,
+      fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
+      primaryLatencyMs: state.primaryLatencyMs + (response.primaryLatencyMs || 0),
+      fallbackLatencyMs: state.fallbackLatencyMs + (response.fallbackLatencyMs || 0),
+      totalLatencyMs: state.totalLatencyMs + (response.totalLatencyMs || 0),
+      primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
+      fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
+    });
+    return;
+  }
+
+  // Accumulate tokens & latency
+  const totalIn = state.totalInputTokens + (response.usage?.inputTokens || 0);
+  const totalOut = state.totalOutputTokens + (response.usage?.outputTokens || 0);
+  const totalLat = state.totalLatencyMs + (response.totalLatencyMs || response.usage?.latencyMs || 0);
+  const primLat = state.primaryLatencyMs + (response.primaryLatencyMs || response.usage?.primaryLatencyMs || 0);
+  const fallLat = state.fallbackLatencyMs + (response.fallbackLatencyMs || response.usage?.fallbackLatencyMs || 0);
+
+  // 4. Handle OFF-TOPIC scope
+  if (response.scope === 'off_topic') {
+    const nextOffTopicCount = state.consecutiveOffTopicCount + 1;
+    const isPermanentlyLocked = nextOffTopicCount >= 2;
+    const replyText = isPermanentlyLocked
+      ? 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.'
+      : 'Este asistente solo puede ayudarte a crear o modificar un encuentro. Podés indicarme fecha, hora, lugar, modalidad, tema o cualquier cambio del encuentro.';
+
+    set({
+      messages: [
+        ...get().messages,
+        {
+          id: generateUuid(),
+          role: 'assistant',
+          text: replyText,
+          timestamp: Date.now() + 1,
+        },
+      ],
+      consecutiveOffTopicCount: nextOffTopicCount,
+      aiLocked: isPermanentlyLocked,
+      error: isPermanentlyLocked ? replyText : null,
+      totalInputTokens: totalIn,
+      totalOutputTokens: totalOut,
+      totalLatencyMs: totalLat,
+      primaryLatencyMs: primLat,
+      fallbackLatencyMs: fallLat,
+    });
+    return;
+  }
+
+  // 5. Handle UNCLEAR scope
+  if (response.scope === 'unclear') {
+    let unclearReply =
+      'No llegué a entender qué querés cambiar del encuentro. Podés indicarme, por ejemplo, fecha, hora, lugar, modalidad o diseño.';
+
+    if (state.lastQuestion?.question) {
+      unclearReply = `No llegué a entender esa indicación. ${state.lastQuestion.question}`;
+    }
+
+    set({
+      messages: [
+        ...get().messages,
+        {
+          id: generateUuid(),
+          role: 'assistant',
+          text: unclearReply,
+          timestamp: Date.now() + 1,
+        },
+      ],
+      totalInputTokens: totalIn,
+      totalOutputTokens: totalOut,
+      totalLatencyMs: totalLat,
+      primaryLatencyMs: primLat,
+      fallbackLatencyMs: fallLat,
+    });
+    return;
+  }
+
+  // Reset consecutive off-topic counter since input is in-domain
+  const consecutiveOffTopicCount = 0;
+
+  // Snapshot previous state before applying patch
+  const wasAlreadyComplete = state.isComplete;
+  const prevDraft = { ...state.draft };
+  const prevConfig = { ...state.config };
+
+  // Merge patch deterministically
+  const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
+
+  // Detect concrete modifications
+  const themeChanged = prevConfig.invitationTheme !== mergeResult.config.invitationTheme;
+  const templateChanged = prevConfig.invitationTemplate !== mergeResult.config.invitationTemplate;
+  const timeChanged = prevDraft.time !== mergeResult.draft.time;
+  const dateChanged = prevDraft.date !== mergeResult.draft.date;
+  const modalityChanged = prevDraft.modality !== mergeResult.draft.modality;
+  const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
+  const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
+  const titleChanged = prevDraft.title !== mergeResult.draft.title;
+  const hasAnyChange =
+    themeChanged ||
+    templateChanged ||
+    timeChanged ||
+    dateChanged ||
+    modalityChanged ||
+    locationChanged ||
+    virtualLinkChanged ||
+    titleChanged;
+
+  // Evaluate draft completeness and select next question
+  const evaluation = evaluateDraft(
+    mergeResult.draft,
+    mergeResult.coordinationDetected,
+    mergeResult.ambiguities[0]
+  );
+
+  // Defensive guard: if modality is virtual, next question must never revert to modality
+  if (mergeResult.draft.modality === 'virtual' && evaluation.nextQuestion?.field === 'modality') {
+    console.warn('[aiWizardStore] Defensive guard: modality was virtual but evaluateDraft requested modality again.');
+    evaluation.missingFields = evaluation.missingFields.filter((f) => f !== 'modality');
+    if (!evaluation.missingFields.includes('virtualLink')) {
+      evaluation.missingFields.push('virtualLink');
+    }
+    evaluation.nextQuestion = {
+      field: 'virtualLink',
+      question: '¿Cuál es el enlace de la videollamada?',
+      helperText: 'Pegá el link de Google Meet, Zoom, Teams, etc.',
+      type: 'text',
+    };
+  }
+
+  let assistantReply = '';
+  if (!hasAnyChange) {
+    if (
+      response.patch?.themeHint?.value &&
+      response.patch.themeHint.value === mergeResult.config.invitationTheme
+    ) {
+      const themeLabel =
+        INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+        mergeResult.config.invitationTheme;
+      assistantReply = `Ya está seleccionado el tema ${themeLabel}.`;
+    } else if (
+      response.patch?.modality?.value &&
+      response.patch.modality.value === mergeResult.draft.modality
+    ) {
+      assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
+    } else if (wasAlreadyComplete) {
+      assistantReply =
+        'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply = evaluation.nextQuestion.question;
+    }
+  } else if (wasAlreadyComplete && evaluation.isComplete) {
+    if (themeChanged) {
+      const themeLabel =
+        INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+        mergeResult.config.invitationTheme;
+      assistantReply = `Listo, cambié el tema a ${themeLabel}.`;
+
+      // Offer variants of the newly selected theme
+      const templateOptions = getTemplateOptionsForTheme(mergeResult.config.invitationTheme);
+      if (templateOptions.length > 1) {
+        evaluation.nextQuestion = {
+          field: 'template',
+          question: `Elegí una variante para ${themeLabel} (o dejá la opción por defecto):`,
+          quickOptions: templateOptions.map((opt) => ({
+            label: opt.id === mergeResult.config.invitationTemplate ? `${opt.name} (por defecto)` : opt.name,
+            value: opt.id,
+          })),
+          type: 'choice',
+        };
+      }
+    } else if (templateChanged) {
+      const templateName =
+        getTemplateOptionsForTheme(mergeResult.config.invitationTheme).find(
+          (t) => t.id === mergeResult.config.invitationTemplate
+        )?.name || 'elegido';
+      assistantReply = `Listo, cambié el diseño a ${templateName}.`;
+    } else if (timeChanged) {
+      assistantReply = `Listo, lo pasé a las ${mergeResult.draft.time} hs.`;
+    } else if (dateChanged) {
+      const dateStr = formatFriendlyDate(mergeResult.draft.date || '', '').split('•')[0].trim();
+      assistantReply = `Listo, cambié la fecha al ${dateStr}.`;
+    } else if (modalityChanged) {
+      assistantReply = `Listo, quedó como encuentro ${
+        mergeResult.draft.modality === 'virtual' ? 'virtual' : 'presencial'
+      }.`;
+    } else if (locationChanged) {
+      assistantReply = `Perfecto, ahora es en ${mergeResult.draft.locationText}.`;
+    } else if (virtualLinkChanged) {
+      assistantReply = `Listo, actualicé el enlace a ${mergeResult.draft.virtualLink}.`;
+    } else if (titleChanged) {
+      assistantReply = `Listo, cambié el título a ${mergeResult.draft.title}.`;
+    } else {
+      assistantReply = 'Listo, apliqué los cambios al encuentro.';
+    }
+  } else if (!wasAlreadyComplete && evaluation.isComplete) {
+    assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+  } else if (evaluation.nextQuestion) {
+    assistantReply = evaluation.nextQuestion.question;
+  }
+
+  const assistantMsg: ChatMessage | null = assistantReply
+    ? {
+        id: generateUuid(),
+        role: 'assistant',
+        text: assistantReply,
+        timestamp: Date.now() + 1,
+      }
+    : null;
+
+  set({
+    draft: mergeResult.draft,
+    config: mergeResult.config,
+    messages: assistantMsg ? [...get().messages, assistantMsg] : get().messages,
+    consecutiveOffTopicCount,
+    totalInputTokens: totalIn,
+    totalOutputTokens: totalOut,
+    totalLatencyMs: totalLat,
+    primaryLatencyMs: primLat,
+    fallbackLatencyMs: fallLat,
+    fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
+    primaryProvider: response.primaryProvider || state.primaryProvider,
+    fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
+    providerUsed: response.provider || state.providerUsed,
+    modelUsed: response.model || state.modelUsed,
+    primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
+    fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
+    lastQuestion: evaluation.nextQuestion,
+    coordinationDetected: mergeResult.coordinationDetected,
+    isComplete: evaluation.isComplete,
+    error: evaluation.validationError,
   });
 }
 
@@ -99,6 +373,7 @@ export const useAiWizardStore = create<AiWizardState>()(
       lastQuestion: null,
       coordinationDetected: false,
       isComplete: false,
+      lastUserPrompt: null,
 
       initSession: () => {
         const state = get();
@@ -117,6 +392,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             lastQuestion: null,
             coordinationDetected: false,
             isComplete: false,
+            lastUserPrompt: null,
             totalLatencyMs: 0,
             primaryLatencyMs: 0,
             fallbackLatencyMs: 0,
@@ -452,6 +728,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           isInterpreting: true,
           error: null,
           turns: newTurns,
+          lastUserPrompt: trimmed,
         });
 
         // First message of the session: register start telemetry
@@ -459,268 +736,40 @@ export const useAiWizardStore = create<AiWizardState>()(
           aiService.startSession(state.sessionId);
         }
 
-        const response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
-
-        if (!response.ok || !response.patch) {
-          const isAbuseOrLimit =
-            response.error === 'session_limit_reached' ||
-            response.error === 'rate_limit_exceeded' ||
-            response.error === 'rate_limit_unavailable' ||
-            response.error === 'session_locked_off_topic' ||
-            response.error === 'input_too_long';
-
-          const errorReply = response.details || 'No pudimos interpretar el mensaje. Intentá de nuevo o completá manualmente.';
-          const newMessages = isAbuseOrLimit
-            ? [
-                ...get().messages,
-                {
-                  id: generateUuid(),
-                  role: 'assistant' as const,
-                  text: errorReply,
-                  timestamp: Date.now() + 1,
-                },
-              ]
-            : get().messages;
-
+        try {
+          const response = await aiService.interpretMessage(trimmed, state.draft, state.sessionId);
+          applyInterpretationResponse(response, get(), set, get);
+        } catch (err: any) {
+          console.error('[aiWizardStore] Unhandled exception in sendUserMessage:', err);
           set({
-            messages: newMessages,
-            isInterpreting: false,
-            aiLocked: isAbuseOrLimit || state.aiLocked,
-            error: errorReply,
-            fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
-            primaryProvider: response.primaryProvider || state.primaryProvider,
-            fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
-            primaryLatencyMs: state.primaryLatencyMs + (response.primaryLatencyMs || 0),
-            fallbackLatencyMs: state.fallbackLatencyMs + (response.fallbackLatencyMs || 0),
-            totalLatencyMs: state.totalLatencyMs + (response.totalLatencyMs || 0),
-            primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
-            fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
+            error: 'Ocurrió un error inesperado al procesar el mensaje. Podés intentar nuevamente o continuar manualmente.',
           });
-          return;
+        } finally {
+          set({ isInterpreting: false });
         }
+      },
 
-        // Accumulate tokens & latency
-        const totalIn = state.totalInputTokens + (response.usage?.inputTokens || 0);
-        const totalOut = state.totalOutputTokens + (response.usage?.outputTokens || 0);
-        const totalLat = state.totalLatencyMs + (response.totalLatencyMs || response.usage?.latencyMs || 0);
-        const primLat = state.primaryLatencyMs + (response.primaryLatencyMs || response.usage?.primaryLatencyMs || 0);
-        const fallLat = state.fallbackLatencyMs + (response.fallbackLatencyMs || response.usage?.fallbackLatencyMs || 0);
-
-        // 4. Handle OFF-TOPIC scope
-        if (response.scope === 'off_topic') {
-          const nextOffTopicCount = state.consecutiveOffTopicCount + 1;
-          const isPermanentlyLocked = nextOffTopicCount >= 2;
-          const replyText = isPermanentlyLocked
-            ? 'Crear con IA está disponible solo para organizar encuentros. Para este encuentro podés continuar editando los datos manualmente.'
-            : 'Este asistente solo puede ayudarte a crear o modificar un encuentro. Podés indicarme fecha, hora, lugar, modalidad, tema o cualquier cambio del encuentro.';
-
-          set({
-            messages: [
-              ...get().messages,
-              {
-                id: generateUuid(),
-                role: 'assistant',
-                text: replyText,
-                timestamp: Date.now() + 1,
-              },
-            ],
-            isInterpreting: false,
-            consecutiveOffTopicCount: nextOffTopicCount,
-            aiLocked: isPermanentlyLocked,
-            error: isPermanentlyLocked ? replyText : null,
-            totalInputTokens: totalIn,
-            totalOutputTokens: totalOut,
-            totalLatencyMs: totalLat,
-            primaryLatencyMs: primLat,
-            fallbackLatencyMs: fallLat,
-          });
-          return;
-        }
-
-        // 5. Handle UNCLEAR scope
-        if (response.scope === 'unclear') {
-          let unclearReply =
-            'No llegué a entender qué querés cambiar del encuentro. Podés indicarme, por ejemplo, fecha, hora, lugar, modalidad o diseño.';
-
-          if (state.lastQuestion?.question) {
-            unclearReply = `No llegué a entender esa indicación. ${state.lastQuestion.question}`;
-          }
-
-          set({
-            messages: [
-              ...get().messages,
-              {
-                id: generateUuid(),
-                role: 'assistant',
-                text: unclearReply,
-                timestamp: Date.now() + 1,
-              },
-            ],
-            isInterpreting: false,
-            totalInputTokens: totalIn,
-            totalOutputTokens: totalOut,
-            totalLatencyMs: totalLat,
-            primaryLatencyMs: primLat,
-            fallbackLatencyMs: fallLat,
-          });
-          return;
-        }
-
-        // Reset consecutive off-topic counter since input is in-domain
-        const consecutiveOffTopicCount = 0;
-
-        // Snapshot previous state before applying patch
-        const wasAlreadyComplete = state.isComplete;
-        const prevDraft = { ...state.draft };
-        const prevConfig = { ...state.config };
-
-        // Merge patch deterministically
-        const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
-
-        // Detect concrete modifications
-        const themeChanged = prevConfig.invitationTheme !== mergeResult.config.invitationTheme;
-        const templateChanged = prevConfig.invitationTemplate !== mergeResult.config.invitationTemplate;
-        const timeChanged = prevDraft.time !== mergeResult.draft.time;
-        const dateChanged = prevDraft.date !== mergeResult.draft.date;
-        const modalityChanged = prevDraft.modality !== mergeResult.draft.modality;
-        const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
-        const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
-        const titleChanged = prevDraft.title !== mergeResult.draft.title;
-        const hasAnyChange =
-          themeChanged ||
-          templateChanged ||
-          timeChanged ||
-          dateChanged ||
-          modalityChanged ||
-          locationChanged ||
-          virtualLinkChanged ||
-          titleChanged;
-
-        // Evaluate draft completeness and select next question
-        const evaluation = evaluateDraft(
-          mergeResult.draft,
-          mergeResult.coordinationDetected,
-          mergeResult.ambiguities[0]
-        );
-
-        // Defensive guard: if modality is virtual, next question must never revert to modality
-        if (mergeResult.draft.modality === 'virtual' && evaluation.nextQuestion?.field === 'modality') {
-          console.warn('[aiWizardStore] Defensive guard: modality was virtual but evaluateDraft requested modality again.');
-          evaluation.missingFields = evaluation.missingFields.filter((f) => f !== 'modality');
-          if (!evaluation.missingFields.includes('virtualLink')) {
-            evaluation.missingFields.push('virtualLink');
-          }
-          evaluation.nextQuestion = {
-            field: 'virtualLink',
-            question: '¿Cuál es el enlace de la videollamada?',
-            helperText: 'Pegá el link de Google Meet, Zoom, Teams, etc.',
-            type: 'text',
-          };
-        }
-
-        let assistantReply = '';
-        if (!hasAnyChange) {
-          if (
-            response.patch?.themeHint?.value &&
-            response.patch.themeHint.value === mergeResult.config.invitationTheme
-          ) {
-            const themeLabel =
-              INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
-              mergeResult.config.invitationTheme;
-            assistantReply = `Ya está seleccionado el tema ${themeLabel}.`;
-          } else if (
-            response.patch?.modality?.value &&
-            response.patch.modality.value === mergeResult.draft.modality
-          ) {
-            assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
-          } else if (wasAlreadyComplete) {
-            assistantReply =
-              'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
-          } else if (evaluation.nextQuestion) {
-            assistantReply = evaluation.nextQuestion.question;
-          }
-        } else if (wasAlreadyComplete && evaluation.isComplete) {
-          if (themeChanged) {
-            const themeLabel =
-              INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
-              mergeResult.config.invitationTheme;
-            assistantReply = `Listo, cambié el tema a ${themeLabel}.`;
-
-            // Offer variants of the newly selected theme
-            const templateOptions = getTemplateOptionsForTheme(mergeResult.config.invitationTheme);
-            if (templateOptions.length > 1) {
-              evaluation.nextQuestion = {
-                field: 'template',
-                question: `Elegí una variante para ${themeLabel} (o dejá la opción por defecto):`,
-                quickOptions: templateOptions.map((opt) => ({
-                  label: opt.id === mergeResult.config.invitationTemplate ? `${opt.name} (por defecto)` : opt.name,
-                  value: opt.id,
-                })),
-                type: 'choice',
-              };
-            }
-          } else if (templateChanged) {
-            const templateName =
-              getTemplateOptionsForTheme(mergeResult.config.invitationTheme).find(
-                (t) => t.id === mergeResult.config.invitationTemplate
-              )?.name || 'elegido';
-            assistantReply = `Listo, cambié el diseño a ${templateName}.`;
-          } else if (timeChanged) {
-            assistantReply = `Listo, lo pasé a las ${mergeResult.draft.time} hs.`;
-          } else if (dateChanged) {
-            const dateStr = formatFriendlyDate(mergeResult.draft.date || '', '').split('•')[0].trim();
-            assistantReply = `Listo, cambié la fecha al ${dateStr}.`;
-          } else if (modalityChanged) {
-            assistantReply = `Listo, quedó como encuentro ${
-              mergeResult.draft.modality === 'virtual' ? 'virtual' : 'presencial'
-            }.`;
-          } else if (locationChanged) {
-            assistantReply = `Perfecto, ahora es en ${mergeResult.draft.locationText}.`;
-          } else if (virtualLinkChanged) {
-            assistantReply = `Listo, actualicé el enlace a ${mergeResult.draft.virtualLink}.`;
-          } else if (titleChanged) {
-            assistantReply = `Listo, cambié el título a ${mergeResult.draft.title}.`;
-          } else {
-            assistantReply = 'Listo, apliqué los cambios al encuentro.';
-          }
-        } else if (!wasAlreadyComplete && evaluation.isComplete) {
-          assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
-        } else if (evaluation.nextQuestion) {
-          assistantReply = evaluation.nextQuestion.question;
-        }
-
-        const assistantMsg: ChatMessage | null = assistantReply
-          ? {
-              id: generateUuid(),
-              role: 'assistant',
-              text: assistantReply,
-              timestamp: Date.now() + 1,
-            }
-          : null;
+      retryLastMessage: async () => {
+        const state = get();
+        if (!state.lastUserPrompt || state.isInterpreting || state.aiLocked) return;
+        const promptToRetry = state.lastUserPrompt;
 
         set({
-          draft: mergeResult.draft,
-          config: mergeResult.config,
-          messages: assistantMsg ? [...get().messages, assistantMsg] : get().messages,
-          isInterpreting: false,
-          consecutiveOffTopicCount,
-          totalInputTokens: totalIn,
-          totalOutputTokens: totalOut,
-          totalLatencyMs: totalLat,
-          primaryLatencyMs: primLat,
-          fallbackLatencyMs: fallLat,
-          fallbackUsed: state.fallbackUsed || (response.fallbackUsed ?? false),
-          primaryProvider: response.primaryProvider || state.primaryProvider,
-          fallbackProvider: response.fallbackProvider ?? state.fallbackProvider,
-          providerUsed: response.provider || state.providerUsed,
-          modelUsed: response.model || state.modelUsed,
-          primaryFailureType: response.primaryFailureType ?? state.primaryFailureType,
-          fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
-          lastQuestion: evaluation.nextQuestion,
-          coordinationDetected: mergeResult.coordinationDetected,
-          isComplete: evaluation.isComplete,
-          error: evaluation.validationError,
+          isInterpreting: true,
+          error: null,
         });
+
+        try {
+          const response = await aiService.interpretMessage(promptToRetry, state.draft, state.sessionId);
+          applyInterpretationResponse(response, get(), set, get);
+        } catch (err: any) {
+          console.error('[aiWizardStore] Unhandled exception in retryLastMessage:', err);
+          set({
+            error: 'Ocurrió un error inesperado al reintentar. Podés intentar nuevamente o continuar manualmente.',
+          });
+        } finally {
+          set({ isInterpreting: false });
+        }
       },
 
       updateDraftField: (field, value) => {
@@ -1058,6 +1107,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           lastQuestion: null,
           coordinationDetected: false,
           isComplete: false,
+          lastUserPrompt: null,
         });
       },
     }),

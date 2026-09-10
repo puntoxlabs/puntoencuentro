@@ -69,8 +69,10 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
     error: aiError,
     lastQuestion,
     isComplete,
+    lastUserPrompt,
     initSession,
     sendUserMessage,
+    retryLastMessage,
     updateDraftField,
     applyQuickOption,
     updateConfigField,
@@ -114,6 +116,23 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
   useEffect(() => {
     initSession();
   }, [initSession]);
+
+  const [isSlowResponse, setIsSlowResponse] = useState(false);
+
+  useEffect(() => {
+    let timer: any = null;
+    if (isInterpreting) {
+      setIsSlowResponse(false);
+      timer = setTimeout(() => {
+        setIsSlowResponse(true);
+      }, 10000);
+    } else {
+      setIsSlowResponse(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isInterpreting]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -640,9 +659,12 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
 
         {/* Loading Bubble */}
         {isInterpreting && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', margin: '8px 0' }}>
+          <div
+            data-testid="interpreting-indicator"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', margin: '8px 0' }}
+          >
             <span className="spinner" style={{ width: '16px', height: '16px', border: '2px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span>Interpretando...</span>
+            <span>{isSlowResponse ? 'Está tardando un poco más de lo habitual...' : 'Interpretando...'}</span>
           </div>
         )}
 
@@ -702,27 +724,50 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({ stateOverride })
                   : aiError || creationError}
               </div>
             </div>
-            {(aiError || aiLocked) && (
-              <button
-                type="button"
-                data-testid="continue-manually-button"
-                onClick={handleFallbackManual}
-                style={{
-                  alignSelf: 'flex-start',
-                  background: '#ffffff',
-                  border: '1px solid #fca5a5',
-                  borderRadius: '6px',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#991b1b',
-                  cursor: 'pointer',
-                  marginTop: '4px',
-                }}
-              >
-                Continuar manualmente →
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+              {!aiLocked && lastUserPrompt && !isInterpreting && (
+                <button
+                  type="button"
+                  data-testid="retry-ai-button"
+                  onClick={() => retryLastMessage()}
+                  style={{
+                    background: 'var(--color-primary, #4f46e5)',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  Reintentar
+                </button>
+              )}
+              {(aiError || aiLocked) && (
+                <button
+                  type="button"
+                  data-testid="continue-manually-button"
+                  onClick={handleFallbackManual}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#991b1b',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Continuar manualmente →
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
