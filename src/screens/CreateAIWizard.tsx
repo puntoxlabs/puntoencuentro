@@ -277,6 +277,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   let scheduleText = formatHumanSchedule(draft.date, draft.time, { locale: appLanguage });
   if (draft.dateMode === 'coordination' && draft.dateOptions && draft.dateOptions.length > 0) {
     scheduleText = `${draft.dateOptions.length} opciones`;
+  } else if (draft.pendingTemporalAlternatives && draft.pendingTemporalAlternatives.length > 0) {
+    scheduleText = `${draft.pendingTemporalAlternatives.length} opciones`;
   } else if (draft.pendingTimeOptions && draft.pendingTimeOptions.length > 0 && !draft.dateOptions) {
     scheduleText = `${draft.pendingTimeOptions.length} horarios`;
   }

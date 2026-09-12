@@ -8,6 +8,7 @@ import {
   parseDeterministicTimeInput,
   looksLikeOtherFieldIntent,
   resolveContextualHour,
+  resolveDateIntent,
   parseCompositeEncounterInput,
   parseDeterministicDateIntent,
   parseDeterministicDateExpression,
@@ -18,6 +19,7 @@ import {
 } from '@/lib/dateResolver';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
 import { evaluateDraft, type FieldQuestion } from '@/lib/draftFieldEngine';
+import { getArgentinaTodayISO } from '@/lib/argentinaDateTime';
 import {
   INVITATION_THEMES,
   getTemplateOptionsForTheme,
@@ -456,12 +458,9 @@ function applyInterpretationResponse(
     assistantReply = evaluation.nextQuestion.question;
   }
 
-  // If nextQuestion is coordination_card or coordination_confirm,
+  // If nextQuestion is rendered by an interactive card,
   // suppress assistant bubble to prevent duplicate prompt card + bubble
-  if (
-    evaluation.nextQuestion?.type === 'coordination_card' ||
-    evaluation.nextQuestion?.field === 'coordination_confirm'
-  ) {
+  if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
     assistantReply = '';
   }
 
@@ -503,6 +502,191 @@ function applyInterpretationResponse(
     lastEscalationReason: null,
     error: null,
   });
+}
+
+/**
+ * Centrally determines whether an assistant chat bubble should be suppressed
+ * for a question that is already fully rendered by its own interactive card.
+ */
+export function shouldSuppressAssistantBubbleForQuestion(
+  question: FieldQuestion | null | undefined
+): boolean {
+  if (!question) return false;
+  return (
+    question.type === 'coordination_card' ||
+    question.type === 'handoff' ||
+    question.field === 'coordination_confirm' ||
+    question.field === 'coordination_handoff'
+  );
+}
+
+interface ResolvePendingTemporalResult {
+  handled: boolean;
+  newDraft?: EncounterDraft;
+  nextQuestion?: FieldQuestion | null;
+  assistantReply?: string;
+  coordinationPendingConfirm?: boolean;
+  error?: string | null;
+}
+
+function resolvePendingTemporalAlternativeHelper(
+  state: AiWizardState,
+  field: 'date' | 'time',
+  value: string
+): ResolvePendingTemporalResult {
+  if (!state.draft.pendingTemporalAlternatives || state.draft.pendingTemporalAlternatives.length < 2) {
+    return { handled: false };
+  }
+
+  // Explicitly identify which alternative in pendingTemporalAlternatives is being resolved
+  const explicitIdx = state.lastQuestion?.alternativeIndex;
+  const targetIndex =
+    typeof explicitIdx === 'number' && explicitIdx >= 0 && explicitIdx < state.draft.pendingTemporalAlternatives.length
+      ? explicitIdx
+      : state.draft.pendingTemporalAlternatives.findIndex(
+          (alt) => Boolean(alt.ambiguity || !alt.time || !alt.date)
+        );
+
+  if (targetIndex === -1) {
+    return { handled: false };
+  }
+
+  const targetAlt = state.draft.pendingTemporalAlternatives[targetIndex];
+  const updatedAlts = [...state.draft.pendingTemporalAlternatives];
+
+  if (field === 'time') {
+    const targetDate = targetAlt.date || state.draft.date || null;
+    if (targetDate) {
+      const isInFuture = validateResolvedDateTimeInFuture(targetDate, value);
+      if (!isInFuture) {
+        const isToday = targetDate === getArgentinaTodayISO();
+        const dateLabel = isToday ? 'hoy' : targetDate;
+        const reply = `Las ${value} de ${dateLabel} ya pasaron. Por favor elegí una hora futura para esta opción.`;
+
+        const remainingOptions = (targetAlt.ambiguity?.options || []).filter((opt) =>
+          validateResolvedDateTimeInFuture(targetDate, opt)
+        );
+
+        updatedAlts[targetIndex] = {
+          ...targetAlt,
+          ambiguity: {
+            field: 'time',
+            reason: reply,
+            options: remainingOptions.length > 0 ? remainingOptions : ['20:00', '21:00', '22:00'],
+          },
+        };
+
+        const updatedDraft: EncounterDraft = {
+          ...state.draft,
+          pendingTemporalAlternatives: updatedAlts,
+          date: null,
+          time: null,
+        };
+
+        const evaluation = evaluateDraft(updatedDraft, true);
+
+        return {
+          handled: true,
+          newDraft: updatedDraft,
+          nextQuestion: evaluation.nextQuestion,
+          assistantReply: reply,
+          coordinationPendingConfirm: false,
+          error: null,
+        };
+      }
+    }
+
+    updatedAlts[targetIndex] = {
+      ...targetAlt,
+      time: value,
+      ambiguity: null,
+    };
+  } else if (field === 'date') {
+    let resolvedDate = value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const intent = parseDeterministicDateIntent(value);
+      if (intent) {
+        const res = resolveDateIntent(intent);
+        if (res.resolved && res.date) {
+          resolvedDate = res.date;
+        }
+      }
+    }
+    updatedAlts[targetIndex] = {
+      ...targetAlt,
+      date: resolvedDate,
+      ambiguity: null,
+    };
+  }
+
+  // Check if any other alternative remains unresolved
+  const nextUnresolvedIndex = updatedAlts.findIndex(
+    (alt) => Boolean(alt.ambiguity || !alt.time || !alt.date)
+  );
+
+  if (nextUnresolvedIndex !== -1) {
+    const updatedDraft: EncounterDraft = {
+      ...state.draft,
+      pendingTemporalAlternatives: updatedAlts,
+      date: null,
+      time: null,
+    };
+    const evaluation = evaluateDraft(updatedDraft, true);
+    const assistantReply = shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)
+      ? ''
+      : evaluation.nextQuestion?.question || '';
+
+    return {
+      handled: true,
+      newDraft: updatedDraft,
+      nextQuestion: evaluation.nextQuestion,
+      assistantReply,
+      coordinationPendingConfirm: false,
+      error: null,
+    };
+  }
+
+  // All alternatives are now resolved: materialize dateOptions!
+  const rawOptions = updatedAlts
+    .filter((alt): alt is { date: string; time: string } => Boolean(alt.date && alt.time))
+    .map((alt) => ({ date: alt.date, time: alt.time }));
+
+  const seen = new Set<string>();
+  const validFutureOptions: Array<{ date: string; time: string }> = [];
+  for (const opt of rawOptions) {
+    const key = `${opt.date}_${opt.time}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      if (validateResolvedDateTimeInFuture(opt.date, opt.time)) {
+        validFutureOptions.push(opt);
+      }
+    }
+  }
+
+  const finalizedDraft: EncounterDraft = {
+    ...state.draft,
+    dateOptions: validFutureOptions,
+    pendingTemporalAlternatives: null,
+    pendingTimeOptions: null,
+    dateMode: 'coordination',
+    coordinationPendingConfirm: true,
+    date: null,
+    time: null,
+  };
+
+  const evaluation = evaluateDraft(finalizedDraft, true, undefined, true);
+  const assistantReply = shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)
+    ? ''
+    : evaluation.nextQuestion?.question || '';
+
+  return {
+    handled: true,
+    newDraft: finalizedDraft,
+    nextQuestion: evaluation.nextQuestion,
+    assistantReply,
+    coordinationPendingConfirm: true,
+    error: null,
+  };
 }
 
 export const useAiWizardStore = create<AiWizardState>()(
@@ -583,7 +767,8 @@ export const useAiWizardStore = create<AiWizardState>()(
           state.draft.locationText ||
           state.draft.virtualLink ||
           (state.draft.dateOptions && state.draft.dateOptions.length > 0) ||
-          (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length > 0)
+          (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length > 0) ||
+          (state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length > 0)
         );
 
         if (hasDraftData && !state.lastQuestion && !state.isComplete) {
@@ -1127,22 +1312,27 @@ export const useAiWizardStore = create<AiWizardState>()(
             // Successfully resolved activity, date and time
             const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
             let assistantReply = '';
-            if (evaluation.isComplete) {
+            if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+              assistantReply = '';
+            } else if (evaluation.isComplete) {
               assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
             } else if (evaluation.nextQuestion) {
               assistantReply = evaluation.nextQuestion.question;
             }
 
-            const assistantMsg: ChatMessage = {
-              id: generateUuid(),
-              role: 'assistant',
-              text: assistantReply,
-              timestamp: Date.now() + 1,
-            };
+            const newMessages = [...state.messages, userMsg];
+            if (assistantReply) {
+              newMessages.push({
+                id: generateUuid(),
+                role: 'assistant',
+                text: assistantReply,
+                timestamp: Date.now() + 1,
+              });
+            }
 
             set({
               draft: newDraft,
-              messages: [...state.messages, userMsg, assistantMsg],
+              messages: newMessages,
               lastQuestion: evaluation.nextQuestion,
               isComplete: evaluation.isComplete,
               error: null,
@@ -1256,6 +1446,36 @@ export const useAiWizardStore = create<AiWizardState>()(
 
             // D. Valid single/exact time: "10", "18", "10:30", "a las 18", "10 hs", "24", "medianoche", "once"
             if (parsed.kind === 'exact') {
+              if (state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length >= 2) {
+                const timeVal = `${pad(parsed.hour)}:${pad(parsed.minute)}`;
+                const res = resolvePendingTemporalAlternativeHelper(state, 'time', timeVal);
+                if (res.handled) {
+                  const newMessages = [...state.messages, userMsg];
+                  if (res.assistantReply) {
+                    newMessages.push({
+                      id: generateUuid(),
+                      role: 'assistant',
+                      text: res.assistantReply,
+                      timestamp: Date.now() + 1,
+                    });
+                  }
+                  set({
+                    draft: res.newDraft!,
+                    messages: newMessages,
+                    lastQuestion: res.nextQuestion || null,
+                    coordinationDetected: true,
+                    coordinationPendingConfirm: res.coordinationPendingConfirm ?? state.coordinationPendingConfirm,
+                    isComplete: false,
+                    lastResolutionSource: 'clarification',
+                    lastEscalationReason: null,
+                    error: res.error || null,
+                    isInterpreting: false,
+                    lastUserPrompt: trimmed,
+                  });
+                  return;
+                }
+              }
+
               const isAnsweringHourClarification = /¿(?:Querés decir )?\d{1,2}:\d{2} o \d{1,2}:\d{2}\?/i.test(
                 state.lastQuestion?.question || ''
               );
@@ -1337,22 +1557,27 @@ export const useAiWizardStore = create<AiWizardState>()(
               const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
               let assistantReply = '';
-              if (evaluation.isComplete) {
+              if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+                assistantReply = '';
+              } else if (evaluation.isComplete) {
                 assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
               } else if (evaluation.nextQuestion) {
                 assistantReply = evaluation.nextQuestion.question;
               }
 
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: assistantReply,
-                timestamp: Date.now() + 1,
-              };
+              const newMessages = [...state.messages, userMsg];
+              if (assistantReply) {
+                newMessages.push({
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: assistantReply,
+                  timestamp: Date.now() + 1,
+                });
+              }
 
               set({
                 draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
+                messages: newMessages,
                 lastQuestion: evaluation.nextQuestion,
                 isComplete: evaluation.isComplete,
                 error: null,
@@ -1388,6 +1613,38 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         // 4c. Deterministic response when active question is date (Bypass Determinístico)
         if (state.lastQuestion?.field === 'date') {
+          if (state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length >= 2) {
+            const dateResolved = parseDeterministicDateExpression(trimmed);
+            if (dateResolved?.resolved && dateResolved.date) {
+              const res = resolvePendingTemporalAlternativeHelper(state, 'date', dateResolved.date);
+              if (res.handled) {
+                const newMessages = [...state.messages, userMsg];
+                if (res.assistantReply) {
+                  newMessages.push({
+                    id: generateUuid(),
+                    role: 'assistant',
+                    text: res.assistantReply,
+                    timestamp: Date.now() + 1,
+                  });
+                }
+                set({
+                  draft: res.newDraft!,
+                  messages: newMessages,
+                  lastQuestion: res.nextQuestion || null,
+                  coordinationDetected: true,
+                  coordinationPendingConfirm: res.coordinationPendingConfirm ?? state.coordinationPendingConfirm,
+                  isComplete: false,
+                  lastResolutionSource: 'clarification',
+                  lastEscalationReason: null,
+                  error: res.error || null,
+                  isInterpreting: false,
+                  lastUserPrompt: trimmed,
+                });
+                return;
+              }
+            }
+          }
+
           const dateResolved = parseDeterministicDateExpression(trimmed);
           if (dateResolved) {
             if (dateResolved.resolved && dateResolved.date) {
@@ -1476,22 +1733,27 @@ export const useAiWizardStore = create<AiWizardState>()(
 
               const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
               let assistantReply = '';
-              if (evaluation.isComplete) {
+              if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+                assistantReply = '';
+              } else if (evaluation.isComplete) {
                 assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
               } else if (evaluation.nextQuestion) {
                 assistantReply = evaluation.nextQuestion.question;
               }
 
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: assistantReply,
-                timestamp: Date.now() + 1,
-              };
+              const newMessages = [...state.messages, userMsg];
+              if (assistantReply) {
+                newMessages.push({
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: assistantReply,
+                  timestamp: Date.now() + 1,
+                });
+              }
 
               set({
                 draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
+                messages: newMessages,
                 lastQuestion: evaluation.nextQuestion,
                 isComplete: evaluation.isComplete,
                 error: null,
@@ -1906,20 +2168,25 @@ export const useAiWizardStore = create<AiWizardState>()(
           };
           const evaluation = evaluateDraft(newDraft, true, undefined, false);
           let assistantReply = '';
-          if (evaluation.isComplete) {
+          if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+            assistantReply = '';
+          } else if (evaluation.isComplete) {
             assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
           } else if (evaluation.nextQuestion) {
             assistantReply = evaluation.nextQuestion.question;
           }
-          const assistantMsg: ChatMessage = {
-            id: generateUuid(),
-            role: 'assistant',
-            text: assistantReply,
-            timestamp: Date.now() + 1,
-          };
+          const newMessages = [...state.messages, userMsg];
+          if (assistantReply) {
+            newMessages.push({
+              id: generateUuid(),
+              role: 'assistant',
+              text: assistantReply,
+              timestamp: Date.now() + 1,
+            });
+          }
           set({
             draft: newDraft,
-            messages: [...state.messages, userMsg, assistantMsg],
+            messages: newMessages,
             lastQuestion: evaluation.nextQuestion,
             coordinationDetected: true,
             coordinationPendingConfirm: false,
@@ -2055,6 +2322,37 @@ export const useAiWizardStore = create<AiWizardState>()(
           return;
         }
 
+        if ((field === 'time' || field === 'date') && typeof value === 'string') {
+          if (state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length >= 2) {
+            const res = resolvePendingTemporalAlternativeHelper(state, field, value);
+            if (res.handled) {
+              const newMessages = [...state.messages, userMsg];
+              if (res.assistantReply) {
+                newMessages.push({
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: res.assistantReply,
+                  timestamp: Date.now() + 1,
+                });
+              }
+              set({
+                draft: res.newDraft!,
+                messages: newMessages,
+                lastQuestion: res.nextQuestion || null,
+                coordinationDetected: true,
+                coordinationPendingConfirm: res.coordinationPendingConfirm ?? state.coordinationPendingConfirm,
+                isComplete: false,
+                lastResolutionSource: 'clarification',
+                lastEscalationReason: null,
+                error: res.error || null,
+                isInterpreting: false,
+                lastUserPrompt: userText,
+              });
+              return;
+            }
+          }
+        }
+
         let resolvedValue = value;
         let pendingRollover = state.draft.pendingDayRollover;
         let appliedRollover = state.draft.appliedDayRollover;
@@ -2121,10 +2419,16 @@ export const useAiWizardStore = create<AiWizardState>()(
           pendingRollover = false;
         }
 
+        // Guard: while coordination alternatives are pending, never assign scalar date or time to draft
+        const hasPendingCoordAlts = Boolean(
+          state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length > 0
+        );
+
         const newDraft: EncounterDraft = {
           ...state.draft,
           [field]: resolvedValue,
-          date: finalDate,
+          date: hasPendingCoordAlts ? null : finalDate,
+          time: hasPendingCoordAlts ? null : (field === 'time' ? (resolvedValue as string) : state.draft.time),
           baseDate,
           appliedDayRollover: appliedRollover,
           pendingDayRollover: pendingRollover,
@@ -2140,7 +2444,9 @@ export const useAiWizardStore = create<AiWizardState>()(
         const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
 
         let assistantReply = '';
-        if (evaluation.nextQuestion) {
+        if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+          assistantReply = '';
+        } else if (evaluation.nextQuestion) {
           assistantReply = evaluation.nextQuestion.question;
         } else if (evaluation.isComplete) {
           assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';

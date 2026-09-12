@@ -24,7 +24,7 @@ import {
   parseNaturalLanguageDateOptions,
   parseCoordinationTransition,
 } from '../src/lib/dateResolver.ts';
-import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
+import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink, resolveTemporalAlternatives } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
 import {
   hasDateEvidence,
@@ -74,7 +74,7 @@ import {
   resetLimiterStateForTesting,
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
-import { useAiWizardStore, resolveMinimalInputFallback } from '@/store/aiWizardStore';
+import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantBubbleForQuestion } from '@/store/aiWizardStore';
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
 import { ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect.ts';
@@ -8071,6 +8071,315 @@ describe('Pipeline Evolution: Intelligent LLM Fallback (Casos A a M)', () => {
     assert.equal(evalRes.validationError, 'maximum_three_options');
     assert.equal(evalRes.nextQuestion?.field, 'coordination_options');
     assert.equal(evalRes.nextQuestion?.question, 'Por ahora podés incluir hasta 3 opciones para coordinar. ¿Cuáles 3 preferís dejar?');
+  });
+});
+
+describe('QA Hotfix: Preservación de Alternativas Temporales y Clarificación Secuencial', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+
+  test('Caso 1 (E2E Chips & Call Count Multi-Turn): Caso real QA con selección de chips (22:00 -> 23:00 -> coordinación)', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return {
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          locationText: { value: 'casa', confidence: 'explicit' as const },
+          modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+          temporalAlternatives: {
+            value: [
+              { dateRef: 'hoy', timeRef: 'a las 10' },
+              { dateRef: 'mañana', timeRef: 'a las 11' },
+            ],
+            confidence: 'explicit' as const,
+          },
+        },
+      };
+    };
+
+    try {
+      // Step 0: Initial prompt -> exactly 1 LLM call
+      await useAiWizardStore.getState().sendUserMessage(
+        'Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana'
+      );
+      const s0 = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'Debe invocar a la IA exactamente 1 vez en el mensaje inicial');
+      assert.equal(s0.draft.pendingTemporalAlternatives?.length, 2, 'Debe almacenar las 2 alternativas temporales');
+      assert.equal(s0.draft.pendingTemporalAlternatives?.[0].date, todayISO);
+      assert.equal(s0.draft.pendingTemporalAlternatives?.[0].time, null);
+      assert.equal(s0.draft.time, null, 'draft.time escalar debe ser null');
+      assert.equal(s0.draft.date, null, 'draft.date escalar debe ser null');
+      assert.ok(s0.draft.pendingTemporalAlternatives?.[0].ambiguity?.options.includes('22:00'));
+      assert.equal(s0.draft.pendingTemporalAlternatives?.[1].date, tomorrowISO);
+      assert.equal(s0.draft.pendingTemporalAlternatives?.[1].time, null);
+      assert.equal(s0.lastQuestion?.field, 'time');
+      assert.equal(s0.lastQuestion?.alternativeIndex, 0, 'La pregunta inicial debe apuntar al índice 0');
+      assert.ok(s0.lastQuestion?.quickOptions?.some((o) => o.value === '22:00'));
+
+      // Step 1: User clicks chip '22:00' -> 0 new LLM calls
+      useAiWizardStore.getState().applyQuickOption('time', '22:00');
+      const s1 = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'NO debe llamar a la IA al responder la aclaración de horario (llamadas totales = 1)');
+      assert.equal(s1.lastResolutionSource, 'clarification');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.length, 2, 'Debe preservar la alternativa 2 intacta');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[0].time, '22:00');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[0].ambiguity, null);
+      assert.equal(s1.draft.time, null, 'NUNCA escribir draft.time = 22:00 durante coordinación parcial');
+      assert.equal(s1.draft.date, null, 'draft.date escalar debe permanecer null');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[1].date, tomorrowISO);
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[1].time, null);
+      assert.equal(s1.lastQuestion?.field, 'time');
+      assert.equal(s1.lastQuestion?.alternativeIndex, 1, 'La siguiente pregunta debe tener alternativeIndex = 1');
+      assert.ok(
+        s1.lastQuestion?.question.includes('mañana'),
+        'La segunda pregunta debe preguntar contextualizando para el día de mañana'
+      );
+      assert.ok(s1.lastQuestion?.quickOptions?.some((o) => o.value === '23:00'));
+
+      // Step 2: User clicks chip '23:00' -> 0 new LLM calls
+      useAiWizardStore.getState().applyQuickOption('time', '23:00');
+      const s2 = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'NO debe llamar a la IA para la segunda aclaración (llamadas totales = 1)');
+      assert.equal(s2.lastResolutionSource, 'clarification');
+      assert.equal(s2.draft.pendingTemporalAlternatives, null, 'Debe limpiar pendingTemporalAlternatives al resolver todas');
+      assert.equal(s2.draft.dateOptions?.length, 2, 'Debe materializar las 2 opciones en dateOptions');
+      assert.equal(s2.draft.dateOptions?.[0].date, todayISO);
+      assert.equal(s2.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(s2.draft.dateOptions?.[1].date, tomorrowISO);
+      assert.equal(s2.draft.dateOptions?.[1].time, '23:00');
+      assert.equal(s2.draft.time, null, 'draft.time permanece null en modo coordinación');
+      assert.equal(s2.draft.date, null, 'draft.date permanece null en modo coordinación');
+      assert.equal(s2.draft.dateMode, 'coordination');
+      assert.equal(s2.coordinationPendingConfirm, true);
+      assert.equal(s2.lastQuestion?.field, 'coordination_confirm');
+      assert.equal(s2.lastQuestion?.type, 'coordination_card');
+
+      // Check bubble suppression: assistant bubble must not duplicate coordination card question
+      const lastMsg = s2.messages[s2.messages.length - 1];
+      assert.notEqual(lastMsg?.role, 'assistant', 'La burbuja del asistente no debe duplicar la tarjeta');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso 2 (E2E Text): Caso real QA con texto escrito ("22:00" -> "23:00" -> coordinación)', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return {
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          locationText: { value: 'casa', confidence: 'explicit' as const },
+          modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+          temporalAlternatives: {
+            value: [
+              { dateRef: 'hoy', timeRef: 'a las 10' },
+              { dateRef: 'mañana', timeRef: 'a las 11' },
+            ],
+            confidence: 'explicit' as const,
+          },
+        },
+      };
+    };
+
+    try {
+      // Step 0: Initial prompt
+      await useAiWizardStore.getState().sendUserMessage(
+        'Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana'
+      );
+      assert.equal(providerCalls, 1);
+
+      // Step 1: User types "22:00"
+      await useAiWizardStore.getState().sendUserMessage('22:00');
+      const s1 = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'NO debe llamar a la IA al responder por texto');
+      assert.equal(s1.lastResolutionSource, 'clarification');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.length, 2);
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[0].time, '22:00');
+      assert.equal(s1.draft.time, null, 'draft.time escalar debe ser null al escribir texto');
+      assert.equal(s1.draft.date, null, 'draft.date escalar debe ser null al escribir texto');
+      assert.equal(s1.draft.pendingTemporalAlternatives?.[1].time, null);
+      assert.equal(s1.lastQuestion?.field, 'time');
+      assert.equal(s1.lastQuestion?.alternativeIndex, 1);
+      assert.ok(s1.lastQuestion?.question.includes('mañana'));
+
+      // Step 2: User types "23:00"
+      await useAiWizardStore.getState().sendUserMessage('23:00');
+      const s2 = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'NO debe llamar a la IA al responder la 2da aclaración por texto');
+      assert.equal(s2.lastResolutionSource, 'clarification');
+      assert.equal(s2.draft.pendingTemporalAlternatives, null);
+      assert.equal(s2.draft.dateOptions?.length, 2);
+      assert.equal(s2.draft.dateOptions?.[0].date, todayISO);
+      assert.equal(s2.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(s2.draft.dateOptions?.[1].date, tomorrowISO);
+      assert.equal(s2.draft.dateOptions?.[1].time, '23:00');
+      assert.equal(s2.draft.time, null);
+      assert.equal(s2.draft.date, null);
+      assert.equal(s2.lastQuestion?.field, 'coordination_confirm');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso 3 (Preservación de alternativas): resolveTemporalAlternatives preserva ambas alternativas ante ambigüedad', () => {
+    const patch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      temporalAlternatives: {
+        value: [
+          { dateRef: 'hoy', timeRef: 'a las 10' },
+          { dateRef: 'mañana', timeRef: 'a las 11' },
+        ],
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const res = mergeDraftPatch(createEmptyEncounterDraft(), createDefaultInvitationConfig(), patch);
+    assert.ok(res.draft.pendingTemporalAlternatives);
+    assert.equal(res.draft.pendingTemporalAlternatives.length, 2);
+    assert.equal(res.draft.pendingTemporalAlternatives[0].rawDateRef, 'hoy');
+    assert.equal(res.draft.pendingTemporalAlternatives[0].rawTimeRef, 'a las 10');
+    assert.equal(res.draft.pendingTemporalAlternatives[1].rawDateRef, 'mañana');
+    assert.equal(res.draft.pendingTemporalAlternatives[1].rawTimeRef, 'a las 11');
+  });
+
+  test('Caso 4 (Hora pasada): Si la hora elegida ya pasó, rechaza amistosamente y preserva alternativa 2', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        locationText: 'casa',
+        modality: 'presencial',
+        pendingTemporalAlternatives: [
+          {
+            date: todayISO,
+            time: null,
+            rawDateRef: 'hoy',
+            rawTimeRef: 'a las 10',
+            ambiguity: {
+              field: 'time',
+              reason: '¿Querés decir 10:00 o 22:00? Como es una cena, interpretaría 22:00.',
+              options: ['10:00', '22:00'],
+            },
+          },
+          {
+            date: tomorrowISO,
+            time: null,
+            rawDateRef: 'mañana',
+            rawTimeRef: 'a las 11',
+            ambiguity: {
+              field: 'time',
+              reason: 'Para el día de mañana, ¿Querés decir 11:00 o 23:00?',
+              options: ['11:00', '23:00'],
+            },
+          },
+        ],
+      },
+      lastQuestion: {
+        field: 'time',
+        question: '¿Querés decir 10:00 o 22:00? Como es una cena, interpretaría 22:00.',
+        type: 'choice',
+        quickOptions: [
+          { label: '10:00', value: '10:00' },
+          { label: '22:00', value: '22:00' },
+        ],
+        alternativeIndex: 0,
+      },
+    });
+
+    // Selecting 01:00 (definitely in the past for today)
+    await useAiWizardStore.getState().sendUserMessage('01:00');
+    const s = useAiWizardStore.getState();
+    assert.equal(s.draft.pendingTemporalAlternatives?.length, 2, 'Debe preservar las 2 alternativas');
+    assert.equal(s.draft.pendingTemporalAlternatives?.[1].date, tomorrowISO, 'Alternativa 2 intacta');
+    assert.equal(s.draft.time, null, 'draft.time debe ser null');
+    assert.ok(
+      s.messages[s.messages.length - 1].text.includes('ya pasaron') ||
+      s.lastQuestion?.question.includes('ya pasaron'),
+      'Debe advertir que la hora ya pasó'
+    );
+  });
+
+  test('Caso 5 (F5 y Android Back Guard): hasMeaningfulDraftData e initSession protegen pendingTemporalAlternatives', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      pendingTemporalAlternatives: [
+        { date: todayISO, time: '22:00' },
+        { date: tomorrowISO, time: null, ambiguity: { field: 'time' as const, reason: 'Hora mañana', options: ['11:00', '23:00'] } },
+      ],
+    };
+
+    // Android back guard
+    assert.equal(hasMeaningfulDraftData(draft), true, 'hasMeaningfulDraftData debe ser true');
+
+    // F5 rehydration simulation
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft,
+      lastQuestion: null,
+      isComplete: false,
+    });
+
+    useAiWizardStore.getState().initSession();
+    const s = useAiWizardStore.getState();
+    assert.equal(s.lastQuestion?.field, 'time', 'initSession debe reconstruir la pregunta activa');
+    assert.equal(s.lastQuestion?.question, 'Hora mañana');
+    assert.equal(s.lastQuestion?.alternativeIndex, 1, 'alternativeIndex reconstruido debe ser 1');
+    assert.equal(s.draft.time, null, 'draft.time debe mantenerse null tras recarga');
+  });
+
+  test('Caso 6 (Supresión de burbujas en tarjetas): shouldSuppressAssistantBubbleForQuestion cubre todos los casos', () => {
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'coordination_confirm', type: 'coordination_card', question: 'Q' }), true);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'coordination_handoff', type: 'handoff', question: 'Q' }), true);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'anything', type: 'coordination_card', question: 'Q' }), true);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'anything', type: 'handoff', question: 'Q' }), true);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'date', type: 'date', question: '¿Qué día?' }), false);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion({ field: 'time', type: 'time', question: '¿A qué hora?' }), false);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion(null), false);
+    assert.equal(shouldSuppressAssistantBubbleForQuestion(undefined), false);
+  });
+
+  test('Caso 7 (DraftSummary con alternativas parciales): Renderiza Hoy 22:00 y Mañana horario pendiente', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena en casa',
+      pendingTemporalAlternatives: [
+        { date: todayISO, time: '22:00', rawDateRef: 'hoy' },
+        { date: tomorrowISO, time: null, rawDateRef: 'mañana' },
+      ],
+      locationText: 'casa',
+      modality: 'presencial' as const,
+    };
+    const config = createDefaultInvitationConfig();
+
+    const html = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft,
+        config,
+        isLoading: false,
+        onConfirmCreate: () => {},
+        onModify: () => {},
+        onFallbackManual: () => {},
+        onChangeConfig: () => {},
+      })
+    );
+
+    assert.ok(html.includes('22:00'), 'Debe mostrar 22:00 para la alternativa resuelta');
+    assert.ok(html.includes('horario pendiente'), 'Debe mostrar horario pendiente para la alternativa sin resolver');
+    assert.ok(html.includes('Opciones de fecha'), 'El encabezado debe decir Opciones de fecha');
   });
 });
 

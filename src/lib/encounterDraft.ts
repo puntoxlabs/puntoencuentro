@@ -9,6 +9,18 @@ export interface DateOption {
   time: string; // HH:MM
 }
 
+export interface PendingTemporalAlternative {
+  date: string | null; // YYYY-MM-DD
+  time: string | null; // HH:MM
+  rawDateRef?: string | null;
+  rawTimeRef?: string | null;
+  ambiguity?: {
+    field: 'date' | 'time';
+    reason: string;
+    options: string[];
+  } | null;
+}
+
 /**
  * EncounterDraft represents the validated business data of an encounter.
  * Decoupled from visual themes, host session metadata, or UI wizard step indicators.
@@ -30,6 +42,7 @@ export interface EncounterDraft {
   appliedDayRollover?: boolean; // True if date was bumped +1 day due to 24:00 (or midnight rollover)
   pendingDayRollover?: boolean; // Indicates a +1 day rollover is pending when date arrives
   pendingTimeOptions?: string[] | null; // Multi-hour alternatives pending common date (e.g. ['10:00', '11:00'])
+  pendingTemporalAlternatives?: PendingTemporalAlternative[] | null; // Multi-alternative temporal candidates pending ambiguity clarification
 
   // Coordination mode fields (retained for architectural compatibility with Stage 1.0 Entrega B)
   dateOptions: DateOption[] | null;
@@ -78,6 +91,7 @@ export function createEmptyEncounterDraft(): EncounterDraft {
     appliedDayRollover: false,
     pendingDayRollover: false,
     pendingTimeOptions: null,
+    pendingTemporalAlternatives: null,
     dateOptions: null,
     responseDeadline: null,
     durationMinutes: null,
@@ -119,6 +133,7 @@ export function hasMeaningfulDraftData(
     if (typeof draft.virtualLink === 'string' && draft.virtualLink.trim().length > 0) return true;
     if (Array.isArray(draft.dateOptions) && draft.dateOptions.length > 0) return true;
     if (Array.isArray(draft.pendingTimeOptions) && draft.pendingTimeOptions.length > 0) return true;
+    if (Array.isArray(draft.pendingTemporalAlternatives) && draft.pendingTemporalAlternatives.length > 0) return true;
     if (typeof draft.responseDeadline === 'string' && draft.responseDeadline.trim().length > 0) return true;
     if (typeof draft.durationMinutes === 'number' && draft.durationMinutes > 0) return true;
     if (typeof draft.baseDate === 'string' && draft.baseDate.trim().length > 0) return true;

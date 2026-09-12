@@ -89,7 +89,7 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>
-              {draft.dateMode === 'coordination' ? 'Opciones de fecha' : 'Cuándo'}
+              {(draft.dateMode === 'coordination' || (draft.pendingTemporalAlternatives && draft.pendingTemporalAlternatives.length > 0)) ? 'Opciones de fecha' : 'Cuándo'}
             </span>
             {draft.dateMode === 'coordination' && draft.dateOptions && draft.dateOptions.length > 0 ? (
               <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -107,6 +107,28 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
                     Duración: {draft.durationMinutes >= 60 ? `${Math.floor(draft.durationMinutes / 60)} h${draft.durationMinutes % 60 !== 0 ? ` ${draft.durationMinutes % 60} min` : ''}` : `${draft.durationMinutes} min`}
                   </div>
                 )}
+              </div>
+            ) : draft.pendingTemporalAlternatives && draft.pendingTemporalAlternatives.length > 0 ? (
+              <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {draft.pendingTemporalAlternatives.map((alt, idx) => {
+                  let dateLabel = 'Fecha pendiente';
+                  if (alt.date) {
+                    dateLabel = formatFriendlyDate(alt.date, '').split('•')[0].trim();
+                  } else if (alt.rawDateRef) {
+                    const cleanRef = alt.rawDateRef.trim().toLowerCase();
+                    dateLabel = cleanRef === 'hoy' ? 'Hoy' : cleanRef === 'mañana' ? 'Mañana' : alt.rawDateRef.trim();
+                  }
+                  const timeLabel = alt.time ? alt.time : 'horario pendiente';
+                  return (
+                    <div
+                      key={`pending_alt_${idx}`}
+                      style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Calendar size={14} color="#0284c7" />
+                      <span>{dateLabel} · {timeLabel}</span>
+                    </div>
+                  );
+                })}
               </div>
             ) : draft.pendingTimeOptions && draft.pendingTimeOptions.length > 0 ? (
               <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>

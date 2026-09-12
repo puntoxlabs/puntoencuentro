@@ -24,6 +24,7 @@ export interface FieldQuestion {
   quickOptions?: { label: string; value: string }[];
   type: 'text' | 'choice' | 'date' | 'time' | 'handoff' | 'coordination_card';
   dateOptions?: Array<{ date: string; time: string }>;
+  alternativeIndex?: number;
 }
 
 export interface DraftEvaluation {
@@ -124,6 +125,98 @@ export function evaluateDraft(
         },
         validationError: null,
       };
+    }
+  }
+
+  // 0a3. Pending temporal alternatives with ambiguities (e.g. "Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana")
+  if (
+    draft.pendingTemporalAlternatives &&
+    draft.pendingTemporalAlternatives.length >= 2 &&
+    (!draft.dateOptions || draft.dateOptions.length < 2)
+  ) {
+    if (draft.pendingTemporalAlternatives.length > 3 || draft.temporalAlternativesOverflow) {
+      return {
+        isComplete: false,
+        missingFields: ['dateOptions'],
+        nextQuestion: {
+          field: 'coordination_options',
+          question: 'Por ahora podés incluir hasta 3 opciones para coordinar. ¿Cuáles 3 preferís dejar?',
+          type: 'text',
+        },
+        validationError: 'maximum_three_options',
+      };
+    }
+
+    if (!draft.title || !draft.title.trim()) {
+      return {
+        isComplete: false,
+        missingFields: ['title'],
+        nextQuestion: {
+          field: 'title',
+          question: '¿Cómo se llama el encuentro?',
+          helperText: 'Ej: Cena con amigos, Cumpleaños de Sofi',
+          type: 'text',
+        },
+        validationError: null,
+      };
+    }
+
+    const firstUnresolvedIdx = draft.pendingTemporalAlternatives.findIndex(
+      (alt) => Boolean(alt.ambiguity || !alt.time || !alt.date)
+    );
+
+    if (firstUnresolvedIdx !== -1) {
+      const firstUnresolved = draft.pendingTemporalAlternatives[firstUnresolvedIdx];
+      if (firstUnresolved.ambiguity) {
+        return {
+          isComplete: false,
+          missingFields: [firstUnresolved.ambiguity.field],
+          nextQuestion: {
+            field: firstUnresolved.ambiguity.field,
+            question: firstUnresolved.ambiguity.reason,
+            type: firstUnresolved.ambiguity.options && firstUnresolved.ambiguity.options.length > 0 ? 'choice' : 'time',
+            quickOptions: firstUnresolved.ambiguity.options?.map((opt) => ({ label: opt, value: opt })),
+            alternativeIndex: firstUnresolvedIdx,
+          },
+          validationError: null,
+        };
+      }
+      if (!firstUnresolved.date) {
+        return {
+          isComplete: false,
+          missingFields: ['date'],
+          nextQuestion: {
+            field: 'date',
+            question: '¿Qué día sería?',
+            type: 'date',
+            quickOptions: [
+              { label: 'Hoy', value: 'hoy' },
+              { label: 'Mañana', value: 'mañana' },
+              { label: 'Este finde', value: 'este fin de semana' },
+            ],
+            alternativeIndex: firstUnresolvedIdx,
+          },
+          validationError: null,
+        };
+      }
+      if (!firstUnresolved.time) {
+        return {
+          isComplete: false,
+          missingFields: ['time'],
+          nextQuestion: {
+            field: 'time',
+            question: '¿A qué hora?',
+            type: 'time',
+            quickOptions: [
+              { label: '20:00', value: '20:00' },
+              { label: '21:00', value: '21:00' },
+              { label: '22:00', value: '22:00' },
+            ],
+            alternativeIndex: firstUnresolvedIdx,
+          },
+          validationError: null,
+        };
+      }
     }
   }
 

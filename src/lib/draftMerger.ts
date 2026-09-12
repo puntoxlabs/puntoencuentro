@@ -1,4 +1,4 @@
-import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
+import type { EncounterDraft, InvitationConfig, PendingTemporalAlternative } from '@/lib/encounterDraft';
 import type { EncounterDraftPatch, TemporalAlternative } from '@/lib/encounterDraftPatch';
 import {
   resolveDateIntent,
@@ -139,6 +139,7 @@ export function isValidVirtualLink(input: string): boolean {
 export interface ResolveAlternativesResult {
   dateOptions: Array<{ date: string; time: string }>;
   pendingTimeOptions: string[] | null;
+  pendingTemporalAlternatives: PendingTemporalAlternative[] | null;
   ambiguities: MergeResult['ambiguities'];
   coordinationDetected: boolean;
   coordinationPendingConfirm: boolean;
@@ -161,14 +162,19 @@ export function resolveTemporalAlternatives(
   const parsedItems: Array<{
     date: string | null;
     time: string | null;
+    rawDateRef?: string | null;
+    rawTimeRef?: string | null;
+    ambiguity: { field: 'date' | 'time'; reason: string; options: string[] } | null;
   }> = [];
 
   let globalDate: string | null = null;
   let globalTime: string | null = null;
 
-  for (const alt of alternatives) {
+  for (let idx = 0; idx < alternatives.length; idx++) {
+    const alt = alternatives[idx];
     let optDate: string | null = null;
     let optTime: string | null = null;
+    let altAmbiguity: { field: 'date' | 'time'; reason: string; options: string[] } | null = null;
 
     // 1. Resolve dateRef if present
     if (alt.dateRef && alt.dateRef.trim()) {
@@ -182,11 +188,12 @@ export function resolveTemporalAlternatives(
           if (res.resolved && res.date) {
             optDate = res.date;
           } else if (res.ambiguityReason) {
-            ambiguities.push({
+            altAmbiguity = {
               field: 'date',
               reason: res.ambiguityReason,
-              options: res.ambiguousOptions,
-            });
+              options: res.ambiguousOptions || [],
+            };
+            ambiguities.push(altAmbiguity);
           }
         }
       }
@@ -217,13 +224,25 @@ export function resolveTemporalAlternatives(
             optDate = addDaysToIsoDate(optDate, contextual.dayOffset);
           }
         } else if (contextual.requiresConfirmation) {
-          // Keep literal time and record ambiguity question
-          optTime = `${pad(timeParsed.hour)}:${pad(timeParsed.minute)}`;
-          ambiguities.push({
+          // Keep literal time null and record ambiguity question with contextual prefix if applicable
+          let qText = contextual.questionText || '¿A qué hora te referís?';
+          if (alt.dateRef && idx > 0) {
+            const rawRef = alt.dateRef.trim().toLowerCase();
+            const datePrefix = rawRef.includes('mañana')
+              ? 'Para el día de mañana, '
+              : rawRef === 'hoy'
+              ? 'Para el día de hoy, '
+              : `Para ${alt.dateRef.trim()}, `;
+            if (!qText.toLowerCase().startsWith('para')) {
+              qText = `${datePrefix}${qText}`;
+            }
+          }
+          altAmbiguity = {
             field: 'time',
-            reason: contextual.questionText || '¿A qué hora te referís?',
-            options: contextual.options,
-          });
+            reason: qText,
+            options: contextual.options || [],
+          };
+          ambiguities.push(altAmbiguity);
         } else {
           optTime = timeParsed.time;
         }
@@ -233,7 +252,13 @@ export function resolveTemporalAlternatives(
       }
     }
 
-    parsedItems.push({ date: optDate, time: optTime });
+    parsedItems.push({
+      date: optDate,
+      time: optTime,
+      rawDateRef: alt.dateRef,
+      rawTimeRef: alt.timeRef,
+      ambiguity: altAmbiguity,
+    });
   }
 
   // Propagation of shared date / time across candidates:
@@ -245,9 +270,32 @@ export function resolveTemporalAlternatives(
     if (!item.date && effectiveDate && distinctDates.size <= 1 && item.time) {
       item.date = effectiveDate;
     }
-    if (!item.time && globalTime && distinctTimes.size <= 1 && item.date) {
+    if (!item.time && globalTime && distinctTimes.size <= 1 && item.date && !item.ambiguity) {
       item.time = globalTime;
     }
+  }
+
+  // Case 0: If any alternative has an unresolved ambiguity
+  const hasAmbiguity = parsedItems.some((p) => p.ambiguity !== null);
+  if (hasAmbiguity) {
+    const pendingTemporalAlternatives: PendingTemporalAlternative[] = parsedItems.map((p) => ({
+      date: p.date,
+      time: p.time,
+      rawDateRef: p.rawDateRef,
+      rawTimeRef: p.rawTimeRef,
+      ambiguity: p.ambiguity,
+    }));
+    const hasOverflow = Boolean(overflowFlag || alternatives.length > 3);
+    return {
+      dateOptions: [],
+      pendingTimeOptions: null,
+      pendingTemporalAlternatives,
+      ambiguities,
+      coordinationDetected: true,
+      coordinationPendingConfirm: false,
+      temporalAlternativesOverflow: hasOverflow,
+      hasPastOptions: false,
+    };
   }
 
   // Case A: Options with both Date and Time
@@ -275,6 +323,7 @@ export function resolveTemporalAlternatives(
     return {
       dateOptions: validFutureOptions,
       pendingTimeOptions: null,
+      pendingTemporalAlternatives: null,
       ambiguities,
       coordinationDetected: true,
       coordinationPendingConfirm: validFutureOptions.length >= 2,
@@ -298,6 +347,7 @@ export function resolveTemporalAlternatives(
     return {
       dateOptions: [],
       pendingTimeOptions: validTimes,
+      pendingTemporalAlternatives: null,
       ambiguities,
       coordinationDetected: true,
       coordinationPendingConfirm: false,
@@ -310,6 +360,7 @@ export function resolveTemporalAlternatives(
   return {
     dateOptions: [],
     pendingTimeOptions: null,
+    pendingTemporalAlternatives: null,
     ambiguities,
     coordinationDetected: true,
     coordinationPendingConfirm: false,
@@ -477,6 +528,7 @@ export function mergeDraftPatch(
       draft.date = null;
       draft.time = null;
       draft.pendingTimeOptions = null;
+      draft.pendingTemporalAlternatives = null;
       coordinationPendingConfirm = altsRes.coordinationPendingConfirm;
       hasResolvedAlternatives = true;
     } else if (altsRes.pendingTimeOptions && altsRes.pendingTimeOptions.length >= 2) {
@@ -484,6 +536,14 @@ export function mergeDraftPatch(
       draft.dateOptions = null;
       draft.date = null;
       draft.time = null;
+      draft.pendingTemporalAlternatives = null;
+      hasResolvedAlternatives = true;
+    } else if (altsRes.pendingTemporalAlternatives && altsRes.pendingTemporalAlternatives.length >= 2) {
+      draft.pendingTemporalAlternatives = altsRes.pendingTemporalAlternatives;
+      draft.dateOptions = null;
+      draft.date = null;
+      draft.time = null;
+      draft.pendingTimeOptions = null;
       hasResolvedAlternatives = true;
     }
   }
