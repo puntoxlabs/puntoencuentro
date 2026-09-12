@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 
-const ALLOWED_POST_AUTH_ROUTES = new Set([
+export const ALLOWED_POST_AUTH_ROUTES = new Set([
   '/create',
   '/create/coordination',
+  '/create/ai',
 ]);
 
 export function usePostAuthRedirect() {

@@ -56,6 +56,9 @@ export interface EncounterDraftPatch {
   dateIntent?: InterpretedField<DateIntent>;
   timeIntent?: InterpretedField<TimeIntent>;
   dateModeSignal?: InterpretedField<'fixed' | 'coordination'>;
+  dateOptions?: InterpretedField<Array<{ date: string; time: string }>>;
+  durationMinutesHint?: InterpretedField<number>;
+  responseDeadlineHint?: InterpretedField<string>;
   modality?: InterpretedField<'presencial' | 'virtual'>;
   locationText?: InterpretedField<string>;
   virtualLink?: InterpretedField<string>;

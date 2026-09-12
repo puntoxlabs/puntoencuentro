@@ -1488,3 +1488,407 @@ export function looksLikeOtherFieldIntent(text: string): boolean {
 
   return false;
 }
+
+export interface ParsedDateOption {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  rawText?: string;
+  appliedDayRollover?: boolean;
+}
+
+export interface ParsedCoordinationResult {
+  isCoordinationCandidate: boolean;
+  hasExplicitCoordinationIntent: boolean;
+  options: ParsedDateOption[];
+  invalidPastOptions: Array<{ raw: string; reason: string }>;
+  extractedTitle?: string;
+  extractedLocation?: string;
+  extractedModality?: 'presencial' | 'virtual';
+  extractedDurationMinutes?: number;
+  extractedDeadline?: string;
+  totalAlternativesFound: number;
+}
+
+function normalizeCoordText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
+ * Deterministically parses natural language input with multiple date alternatives
+ * for simple coordination (2-3 options, common title/place, shared or individual times).
+ */
+export function parseNaturalLanguageDateOptions(
+  text: string,
+  baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts()
+): ParsedCoordinationResult {
+  const result: ParsedCoordinationResult = {
+    isCoordinationCandidate: false,
+    hasExplicitCoordinationIntent: false,
+    options: [],
+    invalidPastOptions: [],
+    totalAlternativesFound: 0,
+  };
+
+  if (!text || typeof text !== 'string') return result;
+  const clean = text.trim();
+
+  // 1. Check explicit coordination intent keywords
+  const explicitRegex =
+    /\b(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|(?:elegir|elijan|votar|voten)\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|a\s+votaci[oó]n|opciones\s+para\s+votar|para\s+coordinar)\b/i;
+  result.hasExplicitCoordinationIntent = explicitRegex.test(clean);
+
+  // 2. Check duration
+  const durationMatch = clean.match(
+    /\b(?:durante|por|de)\s+(\d+|una|un|dos|tres|cuatro|cinco)\s*(h|hs|hora|horas|min|minutos)\b/i
+  );
+  if (durationMatch) {
+    const rawVal = durationMatch[1].toLowerCase();
+    const unit = durationMatch[2].toLowerCase();
+    let num = 0;
+    if (rawVal === 'un' || rawVal === 'una') num = 1;
+    else if (rawVal === 'dos') num = 2;
+    else if (rawVal === 'tres') num = 3;
+    else if (rawVal === 'cuatro') num = 4;
+    else if (rawVal === 'cinco') num = 5;
+    else num = parseInt(rawVal, 10);
+
+    if (unit.startsWith('h')) {
+      result.extractedDurationMinutes = num * 60;
+    } else {
+      result.extractedDurationMinutes = num;
+    }
+  }
+
+  // 3. Extract activity/title if present at start or after organize verbs
+  const activityMatch = clean.match(
+    /^(?:un[a]?\s+)?(cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
+  );
+  if (activityMatch) {
+    result.extractedTitle =
+      activityMatch[1].charAt(0).toUpperCase() + activityMatch[1].slice(1).toLowerCase();
+  }
+
+  if (!result.extractedTitle) {
+    const wantOrganizeMatch = clean.match(
+      /\b(?:organizar|hacer|armar)\s+(?:un[a]?\s+)?(cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
+    );
+    if (wantOrganizeMatch) {
+      result.extractedTitle =
+        wantOrganizeMatch[1].charAt(0).toUpperCase() + wantOrganizeMatch[1].slice(1).toLowerCase();
+    }
+  }
+
+  // 4. Extract common location
+  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s+(?:o|u|durante|por|con|\.|$))/i);
+  if (locMatch) {
+    const locCandidate = locMatch[1].trim();
+    if (!/^(?:el|la|los|las|un|una|este|esta|otro|otra)$/i.test(locCandidate)) {
+      result.extractedLocation = locCandidate;
+      result.extractedModality = 'presencial';
+    }
+  }
+
+  // 5. Splitting alternatives
+  let workText = clean;
+  workText = workText.replace(
+    /^(?:quiero\s+organizar\s+(?:un[a]?\s+)?[a-z]+\s+y\s+)?(?:que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)\s+(?:entre\s+)?|coordinemos\s+(?:entre\s+)?|podemos\s+juntarnos\s+)/i,
+    ''
+  );
+
+  if (result.extractedTitle) {
+    workText = workText.replace(new RegExp(`^${result.extractedTitle}\\b`, 'i'), '').trim();
+  }
+
+  if (durationMatch) {
+    workText = workText.replace(durationMatch[0], '').trim();
+  }
+
+  let rawSegments: string[] = [];
+
+  const entreMatch = workText.match(/\bentre\s+(.+?)\s+y\s+(.+)$/i);
+  if (entreMatch) {
+    rawSegments = [entreMatch[1].trim(), entreMatch[2].trim()];
+  } else if (/\s+(?:o|u|o\s+bien)\s+/i.test(workText)) {
+    const parts = workText.split(/\s+(?:o|u|o\s+bien)\s+/i);
+    for (let i = 0; i < parts.length; i++) {
+      const sub = parts[i].split(/\s*,\s*(?=(?:el\s+\d|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo))/i);
+      rawSegments.push(...sub.map((s) => s.trim()).filter(Boolean));
+    }
+  } else {
+    return result;
+  }
+
+  result.totalAlternativesFound = rawSegments.length;
+  if (rawSegments.length < 2) return result;
+
+  // 6. Parse each raw segment into a date and time
+  const parsedCandidates: Array<{
+    date: string | null;
+    time: string | null;
+    raw: string;
+    isPast?: boolean;
+    appliedDayRollover?: boolean;
+  }> = [];
+
+  let globalTime: string | null = null;
+
+  for (const seg of rawSegments) {
+    let cleanSeg = seg.trim();
+
+    cleanSeg = cleanSeg.replace(/\ben\s+[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+$/i, '').trim();
+
+    let segTime: string | null = null;
+    let timeDayOffset = 0;
+
+    const timeMatch = cleanSeg.match(
+      /\b(?:a\s+las?|tipo|alrededor\s+de\s+las?)\s+([^\s,]+(?:\s+(?:de\s+la\s+(?:noche|tarde|mañana)|am|pm|hs|horas))?)/i
+    ) || cleanSeg.match(/\b(\d{1,2}(?::\d{2})?)\s*(?:hs|horas)\b/i)
+      || cleanSeg.match(/\b(\d{1,2}:\d{2})\b/);
+
+    if (timeMatch) {
+      const parsedTime = parseDeterministicTimeInput(timeMatch[0]);
+      if (parsedTime.kind === 'exact') {
+        segTime = parsedTime.time;
+        timeDayOffset = parsedTime.dayOffset ?? 0;
+      }
+      cleanSeg = cleanSeg.replace(timeMatch[0], '').trim();
+    } else {
+      const trailingHourMatch = cleanSeg.match(/\b(?:el\s+)?([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s+(\d{1,2})\b$/i);
+      if (trailingHourMatch) {
+        const word = trailingHourMatch[1].toLowerCase();
+        const num = parseInt(trailingHourMatch[2], 10);
+        const isWk = normalizeToCanonicalWeekday(word);
+        if (isWk && num >= 1 && num <= 24) {
+          const hour24 = num >= 1 && num <= 7 ? num + 12 : num === 24 ? 0 : num;
+          segTime = `${String(hour24).padStart(2, '0')}:00`;
+          if (num === 24) timeDayOffset = 1;
+          cleanSeg = trailingHourMatch[1];
+        }
+      }
+    }
+
+    if (segTime) {
+      globalTime = segTime;
+    }
+
+    cleanSeg = cleanSeg.replace(/\b(?:horas|hs|de\s+la\s+noche|de\s+la\s+tarde|de\s+la\s+mañana)\b/gi, '').trim();
+
+    let segDate: string | null = null;
+    let isPast = false;
+
+    if (/^ayer$/i.test(cleanSeg) || /^el\s+dia\s+de\s+ayer$/i.test(cleanSeg)) {
+      isPast = true;
+      segDate = addDaysToIsoDate(toIsoDate(baseDateParts.year, baseDateParts.month, baseDateParts.day), -1);
+    } else {
+      const dateRes = parseDeterministicDateIntent(cleanSeg);
+      if (dateRes) {
+        const resolved = resolveDateIntent(dateRes, baseDateParts);
+        if (resolved.resolved && resolved.date) {
+          segDate = resolved.date;
+        }
+        if (resolved.isPast) {
+          isPast = true;
+        }
+      }
+    }
+
+    parsedCandidates.push({
+      date: segDate,
+      time: segTime,
+      raw: seg.trim(),
+      isPast,
+      appliedDayRollover: timeDayOffset === 1,
+    });
+  }
+
+  for (const c of parsedCandidates) {
+    if (!c.time && globalTime) {
+      c.time = globalTime;
+    }
+  }
+
+  const uniqueKeys = new Set<string>();
+
+  for (const c of parsedCandidates) {
+    if (!c.date) continue;
+    const finalTime = c.time || '20:00';
+    let finalDate = c.date;
+
+    if (c.appliedDayRollover) {
+      finalDate = addDaysToIsoDate(finalDate, 1);
+    }
+
+    const isInFuture = !c.isPast && validateResolvedDateTimeInFuture(finalDate, finalTime);
+
+    if (!isInFuture || c.isPast) {
+      result.invalidPastOptions.push({
+        raw: c.raw,
+        reason: `La opción '${c.raw}' ya pasó.`,
+      });
+    } else {
+      const key = `${finalDate}_${finalTime}`;
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        result.options.push({
+          date: finalDate,
+          time: finalTime,
+          rawText: c.raw,
+          appliedDayRollover: c.appliedDayRollover,
+        });
+      }
+    }
+  }
+
+  result.options.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+
+  if (result.options.length >= 2 || (result.options.length === 1 && result.invalidPastOptions.length > 0)) {
+    result.isCoordinationCandidate = true;
+  }
+
+  return result;
+}
+
+/**
+ * Parses user modifications, additions, deletions or switch-to-fixed requests
+ * for an ongoing coordination encounter.
+ */
+export function parseCoordinationTransition(
+  text: string,
+  currentDraft?: {
+    dateMode?: 'fixed' | 'coordination' | null;
+    date?: string | null;
+    time?: string | null;
+    dateOptions?: Array<{ date: string; time: string }> | null;
+  } | null,
+  baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts()
+): {
+  type: 'add' | 'remove' | 'modify' | 'switch_to_fixed' | 'none';
+  addedOption?: { date: string; time: string };
+  removedOptionDate?: string;
+  modifiedOption?: { date: string; time: string };
+  selectedFixedOption?: { date: string; time: string };
+} {
+  const clean = text.trim();
+  const safeDraft = currentDraft || { dateMode: null, date: null, time: null, dateOptions: null };
+
+  // A. Switch to fixed: "mejor sólo viernes", "dejemos sólo el viernes", "quedémonos con el sábado", "solo viernes", "el viernes"
+  const switchMatch = clean.match(
+    /^(?:mejor\s+)?(?:s[oó]lo|dejemos\s+s[oó]lo|qued[eé]monos\s+con|elijamos\s+el|prefiero\s+el|me\s+quedo\s+con)\s+(?:el\s+)?([a-zA-ZáéíóúÁÉÍÓÚñÑ]+|\d{1,2}(?:\s+de\s+[a-zA-Z]+)?)(?:\s+a\s+las?\s+(\d{1,2}(?::\d{2})?))?/i
+  );
+  if (switchMatch) {
+    const target = normalizeCoordText(switchMatch[1]);
+    const explicitTime = switchMatch[2] ? parseDeterministicTimeInput(switchMatch[2]) : null;
+    const dateRes = parseDeterministicDateIntent(switchMatch[1]);
+    let targetIso: string | null = null;
+    if (dateRes) {
+      const r = resolveDateIntent(dateRes, baseDateParts);
+      if (r.resolved && r.date) targetIso = r.date;
+    }
+
+    if (safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
+      const matched = safeDraft.dateOptions.find((opt) => {
+        if (targetIso && opt.date === targetIso) return true;
+        const optDateObj = new Date(opt.date + 'T12:00:00Z');
+        const dayIdx = optDateObj.getUTCDay();
+        const wkInfo = Object.values(WEEKDAY_MAPPING).find((w) => w.dayIndex === dayIdx);
+        if (wkInfo && normalizeCoordText(wkInfo.nameEs) === target) return true;
+        return false;
+      });
+
+      if (matched) {
+        return {
+          type: 'switch_to_fixed',
+          selectedFixedOption: {
+            date: matched.date,
+            time: explicitTime?.kind === 'exact' ? explicitTime.time : matched.time,
+          },
+        };
+      }
+    }
+
+    if (targetIso) {
+      return {
+        type: 'switch_to_fixed',
+        selectedFixedOption: {
+          date: targetIso,
+          time: explicitTime?.kind === 'exact' ? explicitTime.time : '20:00',
+        },
+      };
+    }
+  }
+
+  // B. Remove option: "sacá la opción del viernes", "sacá la del viernes", "eliminá el viernes", "borrá el sábado"
+  const removeMatch = clean.match(
+    /^(?:sac[aá]|elimin[aá]|borr[aá]|quit[aá])(?:\s+(?:la\s+opci[oó]n|la|el|del?|de\s+la))*\s+([a-zA-ZáéíóúÁÉÍÓÚñÑ]+|\d{1,2}(?:\s+de\s+[a-zA-Z]+)?)\b/i
+  );
+  if (removeMatch) {
+    const target = normalizeCoordText(removeMatch[1]);
+    const dateRes = parseDeterministicDateIntent(removeMatch[1]);
+    let targetIso: string | null = null;
+    if (dateRes) {
+      const r = resolveDateIntent(dateRes, baseDateParts);
+      if (r.resolved && r.date) targetIso = r.date;
+    }
+
+    if (safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
+      const matched = safeDraft.dateOptions.find((opt) => {
+        if (targetIso && opt.date === targetIso) return true;
+        const optDateObj = new Date(opt.date + 'T12:00:00Z');
+        const dayIdx = optDateObj.getUTCDay();
+        const wkInfo = Object.values(WEEKDAY_MAPPING).find((w) => w.dayIndex === dayIdx);
+        if (wkInfo && normalizeCoordText(wkInfo.nameEs) === target) return true;
+        return false;
+      });
+
+      if (matched) {
+        return { type: 'remove', removedOptionDate: matched.date };
+      }
+    }
+
+    if (targetIso) {
+      return { type: 'remove', removedOptionDate: targetIso };
+    }
+  }
+
+  // C. Modify option: "cambiá sábado a las 22", "cambiá el viernes a las 20"
+  const modifyMatch = clean.match(
+    /^(?:cambi[aá]|pas[aá])(?:\s+la\s+opci[oó]n)?(?:\s+del?|\s+el)?\s+([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s+(?:a\s+las?|para\s+las?)\s+(.+)$/i
+  );
+  if (modifyMatch && safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
+    const targetDay = normalizeCoordText(modifyMatch[1]);
+    const timeParsed = parseDeterministicTimeInput(modifyMatch[2]);
+    if (timeParsed.kind === 'exact') {
+      const matched = safeDraft.dateOptions.find((opt) => {
+        const optDateObj = new Date(opt.date + 'T12:00:00Z');
+        const dayIdx = optDateObj.getUTCDay();
+        const wkInfo = Object.values(WEEKDAY_MAPPING).find((w) => w.dayIndex === dayIdx);
+        if (wkInfo && normalizeCoordText(wkInfo.nameEs) === targetDay) return true;
+        return false;
+      });
+      if (matched) {
+        return {
+          type: 'modify',
+          modifiedOption: { date: matched.date, time: timeParsed.time },
+        };
+      }
+    }
+  }
+
+  // D. Add option: "agregá también sábado a las 20 como alternativa", "también podría ser el sábado a las 21", "sumá sábado 20"
+  const addMatch = clean.match(
+    /^(?:agreg[aá]|sum[aá]|pon[eé]|tambi[eé]n(?:\s+podr[ií]a\s+ser)?)(?:\s+tambi[eé]n)?(?:\s+como\s+alternativa)?\s+(.+)$/i
+  );
+  if (addMatch) {
+    let segText = addMatch[1].replace(/\b(?:como\s+alternativa|de\s+alternativa)\b/gi, '').trim();
+    const singleParse = parseNaturalLanguageDateOptions(segText + ' o ' + segText, baseDateParts);
+    if (singleParse.options.length > 0) {
+      return { type: 'add', addedOption: singleParse.options[0] };
+    }
+  }
+
+  return { type: 'none' };
+}

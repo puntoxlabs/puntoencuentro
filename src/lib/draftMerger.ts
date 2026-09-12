@@ -160,9 +160,33 @@ export function mergeDraftPatch(
   // 1. Coordination signal check
   if (
     patch.dateModeSignal?.value === 'coordination' ||
-    patch.dateIntent?.value.type === 'range'
+    patch.dateIntent?.value.type === 'range' ||
+    (patch.dateOptions?.value && patch.dateOptions.value.length > 0)
   ) {
     coordinationDetected = true;
+  }
+
+  if (patch.dateOptions?.value && patch.dateOptions.value.length > 0) {
+    const resolvedOpts: Array<{ date: string; time: string }> = [];
+    for (const opt of patch.dateOptions.value) {
+      if (opt.date && opt.time) {
+        resolvedOpts.push({ date: opt.date, time: opt.time });
+      }
+    }
+    if (resolvedOpts.length >= 2) {
+      draft.dateOptions = resolvedOpts;
+      draft.dateMode = 'coordination';
+      draft.date = null;
+      draft.time = null;
+    }
+  }
+
+  if (patch.durationMinutesHint?.value) {
+    draft.durationMinutes = patch.durationMinutesHint.value;
+  }
+
+  if (patch.responseDeadlineHint?.value) {
+    draft.responseDeadline = patch.responseDeadlineHint.value;
   }
 
   // 2. Title

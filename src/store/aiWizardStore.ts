@@ -11,6 +11,8 @@ import {
   parseCompositeEncounterInput,
   parseDeterministicDateIntent,
   parseDeterministicDateExpression,
+  parseNaturalLanguageDateOptions,
+  parseCoordinationTransition,
   pad,
 } from '@/lib/dateResolver';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
@@ -21,7 +23,7 @@ import {
   getDefaultInvitationTemplate,
   type InvitationTheme,
 } from '@/lib/invitationThemes';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFriendlyDate, formatHumanSchedule } from '@/lib/formatDate';
 import { aiService, type AiInterpretationResponse } from '@/services/aiService';
 
 export interface ChatMessage {
@@ -56,6 +58,7 @@ interface AiWizardState {
   error: string | null;
   lastQuestion: FieldQuestion | null;
   coordinationDetected: boolean;
+  coordinationPendingConfirm: boolean;
   isComplete: boolean;
   lastUserPrompt: string | null;
 
@@ -66,6 +69,8 @@ interface AiWizardState {
   updateDraftField: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K]) => void;
   applyQuickOption: (field: string, value: any, displayLabel?: string) => void;
   updateConfigField: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
+  confirmCoordination: () => void;
+  switchToFixed: (selectedOption?: { date: string; time: string }) => void;
   dismissCoordinationHandoff: () => void;
   markFallbackManual: () => void;
   startNewAiCreation: () => void;
@@ -353,7 +358,8 @@ function applyInterpretationResponse(
   const evaluation = evaluateDraft(
     mergeResult.draft,
     mergeResult.coordinationDetected,
-    mergeResult.ambiguities[0]
+    mergeResult.ambiguities[0],
+    get().coordinationPendingConfirm
   );
 
   // Defensive guard: if modality is virtual, next question must never revert to modality
@@ -502,6 +508,7 @@ export const useAiWizardStore = create<AiWizardState>()(
       error: null,
       lastQuestion: null,
       coordinationDetected: false,
+      coordinationPendingConfirm: false,
       isComplete: false,
       lastUserPrompt: null,
 
@@ -521,6 +528,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             error: null,
             lastQuestion: null,
             coordinationDetected: false,
+            coordinationPendingConfirm: false,
             isComplete: false,
             lastUserPrompt: null,
             totalLatencyMs: 0,
@@ -547,11 +555,17 @@ export const useAiWizardStore = create<AiWizardState>()(
           state.draft.time ||
           state.draft.modality ||
           state.draft.locationText ||
-          state.draft.virtualLink
+          state.draft.virtualLink ||
+          (state.draft.dateOptions && state.draft.dateOptions.length > 0)
         );
 
         if (hasDraftData && !state.lastQuestion && !state.isComplete) {
-          const evaluation = evaluateDraft(state.draft, state.coordinationDetected);
+          const evaluation = evaluateDraft(
+            state.draft,
+            state.coordinationDetected,
+            undefined,
+            state.coordinationPendingConfirm
+          );
           set({
             lastQuestion: evaluation.nextQuestion,
             isComplete: evaluation.isComplete,
@@ -677,6 +691,335 @@ export const useAiWizardStore = create<AiWizardState>()(
               },
             });
             return;
+          }
+        }
+
+        // 3a1. Deterministic Coordination Transition (Add, Remove, Modify, Switch to Fixed)
+        const transition = parseCoordinationTransition(trimmed, state.draft);
+        if (transition.type !== 'none') {
+          if (transition.type === 'switch_to_fixed' && transition.selectedFixedOption) {
+            const opt = transition.selectedFixedOption;
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              dateMode: 'fixed',
+              date: opt.date,
+              time: opt.time,
+              dateOptions: null,
+            };
+            const evaluation = evaluateDraft(newDraft, false, undefined, false);
+            const friendly = formatHumanSchedule(opt.date, opt.time);
+            let reply = `Perfecto, dejamos la fecha fija para el ${friendly}.`;
+            if (evaluation.isComplete) {
+              reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+            } else if (evaluation.nextQuestion) {
+              reply += ` ${evaluation.nextQuestion.question}`;
+            }
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              coordinationDetected: false,
+              coordinationPendingConfirm: false,
+              isComplete: evaluation.isComplete,
+              isInterpreting: false,
+              error: null,
+              lastUserPrompt: trimmed,
+            });
+            return;
+          }
+
+          if (transition.type === 'remove' && transition.removedOptionDate && state.draft.dateOptions) {
+            const remaining = state.draft.dateOptions.filter((o) => o.date !== transition.removedOptionDate);
+            if (remaining.length >= 2) {
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                dateOptions: remaining,
+              };
+              const evaluation = evaluateDraft(newDraft, true, undefined, false);
+              let reply = 'Eliminé esa opción.';
+              if (evaluation.isComplete) {
+                reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                reply += ` ${evaluation.nextQuestion.question}`;
+              }
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: reply,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                isComplete: evaluation.isComplete,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            } else if (remaining.length === 1) {
+              const opt = remaining[0];
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                dateMode: 'fixed',
+                date: opt.date,
+                time: opt.time,
+                dateOptions: null,
+              };
+              const evaluation = evaluateDraft(newDraft, false, undefined, false);
+              const friendly = formatHumanSchedule(opt.date, opt.time);
+              let reply = `Como quedó una sola opción, lo pasé a fecha fija para el ${friendly}.`;
+              if (evaluation.isComplete) {
+                reply += ' ¡Listo! Revisá los datos antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                reply += ` ${evaluation.nextQuestion.question}`;
+              }
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: reply,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                coordinationDetected: false,
+                coordinationPendingConfirm: false,
+                isComplete: evaluation.isComplete,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
+          }
+
+          if (transition.type === 'modify' && transition.modifiedOption && state.draft.dateOptions) {
+            const modOpt = transition.modifiedOption;
+            const updatedOpts = state.draft.dateOptions.map((o) =>
+              o.date === modOpt.date ? { ...o, time: modOpt.time } : o
+            );
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              dateOptions: updatedOpts,
+            };
+            const evaluation = evaluateDraft(newDraft, true, undefined, false);
+            let reply = `Cambié el horario de esa opción a las ${modOpt.time}.`;
+            if (evaluation.isComplete) {
+              reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+            } else if (evaluation.nextQuestion) {
+              reply += ` ${evaluation.nextQuestion.question}`;
+            }
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              isComplete: evaluation.isComplete,
+              isInterpreting: false,
+              error: null,
+              lastUserPrompt: trimmed,
+            });
+            return;
+          }
+
+          if (transition.type === 'add' && transition.addedOption) {
+            const addOpt = transition.addedOption;
+            if (state.draft.dateMode === 'fixed' && state.draft.date && state.draft.time) {
+              const currentOpt = { date: state.draft.date, time: state.draft.time };
+              const uniqueMap = new Map<string, { date: string; time: string }>();
+              uniqueMap.set(`${currentOpt.date}_${currentOpt.time}`, currentOpt);
+              uniqueMap.set(`${addOpt.date}_${addOpt.time}`, addOpt);
+              const opts = Array.from(uniqueMap.values()).sort((a, b) =>
+                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+              );
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                dateMode: 'coordination',
+                date: null,
+                time: null,
+                dateOptions: opts,
+              };
+              const evaluation = evaluateDraft(newDraft, true, undefined, false);
+              let reply = `Agregué la nueva opción como alternativa. Quedan ${opts.length} opciones para que voten los invitados.`;
+              if (evaluation.isComplete) {
+                reply += ' ¡Listo! Revisá el resumen antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                reply += ` ${evaluation.nextQuestion.question}`;
+              }
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: reply,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                coordinationDetected: true,
+                coordinationPendingConfirm: false,
+                isComplete: evaluation.isComplete,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            } else if (state.draft.dateOptions) {
+              if (state.draft.dateOptions.length >= 3) {
+                const assistantMsg: ChatMessage = {
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: 'Por ahora podés incluir hasta 3 opciones para coordinar. Podés cambiar o eliminar una de las opciones existentes.',
+                  timestamp: Date.now() + 1,
+                };
+                set({
+                  messages: [...state.messages, userMsg, assistantMsg],
+                  isInterpreting: false,
+                  error: null,
+                  lastUserPrompt: trimmed,
+                });
+                return;
+              }
+              const uniqueMap = new Map<string, { date: string; time: string }>();
+              for (const o of state.draft.dateOptions) {
+                uniqueMap.set(`${o.date}_${o.time}`, o);
+              }
+              uniqueMap.set(`${addOpt.date}_${addOpt.time}`, addOpt);
+              const opts = Array.from(uniqueMap.values()).sort((a, b) =>
+                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+              );
+              const newDraft: EncounterDraft = {
+                ...state.draft,
+                dateOptions: opts,
+              };
+              const evaluation = evaluateDraft(newDraft, true, undefined, false);
+              let reply = `Agregué la nueva opción como alternativa. Quedan ${opts.length} opciones.`;
+              if (evaluation.isComplete) {
+                reply += ' ¡Listo! Revisá el resumen antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                reply += ` ${evaluation.nextQuestion.question}`;
+              }
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: reply,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                isComplete: evaluation.isComplete,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
+          }
+        }
+
+        // 3a2. Deterministic Coordination Input (Multi-date candidates e.g. "Cena hoy a las 20 horas en casa o mañana a las 20 horas en casa")
+        const nlCoord = parseNaturalLanguageDateOptions(trimmed);
+        if (nlCoord.isCoordinationCandidate) {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            title: nlCoord.extractedTitle || state.draft.title,
+            locationText: nlCoord.extractedLocation || state.draft.locationText,
+            modality: nlCoord.extractedModality || state.draft.modality,
+            durationMinutes: nlCoord.extractedDurationMinutes || state.draft.durationMinutes,
+            date: null,
+            time: null,
+            dateOptions: nlCoord.options,
+          };
+
+          // One past option + one future option
+          if (nlCoord.invalidPastOptions.length > 0 && nlCoord.options.length === 1) {
+            const pastReason = nlCoord.invalidPastOptions[0].reason;
+            const validDesc = nlCoord.options[0].rawText || 'la otra fecha';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: `${pastReason} La de ${validDesc} sí es válida. ¿Querés agregar otra fecha?`,
+              timestamp: Date.now() + 1,
+            };
+            newDraft.dateMode = 'coordination';
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: {
+                field: 'coordination_options',
+                question: '¿Querés agregar otra fecha como alternativa?',
+                type: 'text',
+              },
+              coordinationDetected: true,
+              coordinationPendingConfirm: false,
+              isInterpreting: false,
+              error: null,
+              lastUserPrompt: trimmed,
+            });
+            return;
+          }
+
+          if (nlCoord.options.length >= 2) {
+            if (nlCoord.hasExplicitCoordinationIntent) {
+              // Explicit coordination: set mode immediately, no confirmation card
+              newDraft.dateMode = 'coordination';
+              const evaluation = evaluateDraft(newDraft, true, undefined, false);
+              let reply = '';
+              if (evaluation.isComplete) {
+                reply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+              } else if (evaluation.nextQuestion) {
+                reply = evaluation.nextQuestion.question;
+              }
+              const assistantMsg: ChatMessage = {
+                id: generateUuid(),
+                role: 'assistant',
+                text: reply,
+                timestamp: Date.now() + 1,
+              };
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg, assistantMsg],
+                lastQuestion: evaluation.nextQuestion,
+                coordinationDetected: true,
+                coordinationPendingConfirm: false,
+                isComplete: evaluation.isComplete,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            } else {
+              // Implicit coordination: present confirmation card without duplicate assistant bubble
+              const evaluation = evaluateDraft(newDraft, true, undefined, true);
+              set({
+                draft: newDraft,
+                messages: [...state.messages, userMsg],
+                lastQuestion: evaluation.nextQuestion,
+                coordinationDetected: true,
+                coordinationPendingConfirm: true,
+                isComplete: false,
+                isInterpreting: false,
+                error: null,
+                lastUserPrompt: trimmed,
+              });
+              return;
+            }
           }
         }
 
@@ -1383,6 +1726,101 @@ export const useAiWizardStore = create<AiWizardState>()(
           timestamp: Date.now(),
         };
 
+        // Coordination Quick Options
+        if (value === 'confirm_coordination') {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            dateMode: 'coordination',
+            date: null,
+            time: null,
+          };
+          const evaluation = evaluateDraft(newDraft, true, undefined, false);
+          let assistantReply = '';
+          if (evaluation.isComplete) {
+            assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+          } else if (evaluation.nextQuestion) {
+            assistantReply = evaluation.nextQuestion.question;
+          }
+          const assistantMsg: ChatMessage = {
+            id: generateUuid(),
+            role: 'assistant',
+            text: assistantReply,
+            timestamp: Date.now() + 1,
+          };
+          set({
+            draft: newDraft,
+            messages: [...state.messages, userMsg, assistantMsg],
+            lastQuestion: evaluation.nextQuestion,
+            coordinationDetected: true,
+            coordinationPendingConfirm: false,
+            isComplete: evaluation.isComplete,
+          });
+          return;
+        }
+
+        if (value === 'keep_fixed') {
+          if (state.draft.dateOptions && state.draft.dateOptions.length > 0) {
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: '¿Cuál de las opciones preferís usar para la fecha fija?',
+              timestamp: Date.now() + 1,
+            };
+            set({
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: {
+                field: 'date',
+                question: '¿Cuál de las opciones preferís usar?',
+                type: 'choice',
+                quickOptions: state.draft.dateOptions.map((opt) => ({
+                  label: formatHumanSchedule(opt.date, opt.time),
+                  value: `fixed_opt_${opt.date}_${opt.time}`,
+                })),
+              },
+              coordinationPendingConfirm: false,
+            });
+            return;
+          }
+          state.dismissCoordinationHandoff();
+          return;
+        }
+
+        if (typeof value === 'string' && value.startsWith('fixed_opt_')) {
+          const parts = value.replace('fixed_opt_', '').split('_');
+          const optDate = parts[0];
+          const optTime = parts[1];
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            dateMode: 'fixed',
+            date: optDate,
+            time: optTime,
+            dateOptions: null,
+          };
+          const evaluation = evaluateDraft(newDraft, false, undefined, false);
+          const friendly = formatHumanSchedule(optDate, optTime);
+          let reply = `Listo, dejamos fecha fija para el ${friendly}.`;
+          if (evaluation.isComplete) {
+            reply += ' ¡Listo! Revisá el resumen antes de crear.';
+          } else if (evaluation.nextQuestion) {
+            reply += ` ${evaluation.nextQuestion.question}`;
+          }
+          const assistantMsg: ChatMessage = {
+            id: generateUuid(),
+            role: 'assistant',
+            text: reply,
+            timestamp: Date.now() + 1,
+          };
+          set({
+            draft: newDraft,
+            messages: [...state.messages, userMsg, assistantMsg],
+            lastQuestion: evaluation.nextQuestion,
+            coordinationDetected: false,
+            coordinationPendingConfirm: false,
+            isComplete: evaluation.isComplete,
+          });
+          return;
+        }
+
         // Deterministic template variant selection
         if (field === 'template') {
           const templateName =
@@ -1526,10 +1964,63 @@ export const useAiWizardStore = create<AiWizardState>()(
         });
       },
 
+      confirmCoordination: () => {
+        const state = get();
+        const newDraft: EncounterDraft = {
+          ...state.draft,
+          dateMode: 'coordination',
+          date: null,
+          time: null,
+        };
+        const evaluation = evaluateDraft(newDraft, true, undefined, false);
+        set({
+          draft: newDraft,
+          lastQuestion: evaluation.nextQuestion,
+          coordinationDetected: true,
+          coordinationPendingConfirm: false,
+          isComplete: evaluation.isComplete,
+        });
+      },
+
+      switchToFixed: (selectedOption?: { date: string; time: string } | string, explicitTime?: string) => {
+        const state = get();
+        let opt: { date: string; time: string } | undefined;
+        if (typeof selectedOption === 'string') {
+          opt = { date: selectedOption, time: explicitTime || '20:00' };
+        } else if (selectedOption && typeof selectedOption === 'object') {
+          opt = selectedOption;
+        } else if (state.draft.dateOptions && state.draft.dateOptions.length > 0) {
+          opt = state.draft.dateOptions[0];
+        }
+        if (!opt) {
+          state.dismissCoordinationHandoff();
+          return;
+        }
+        const newDraft: EncounterDraft = {
+          ...state.draft,
+          dateMode: 'fixed',
+          date: opt.date,
+          time: opt.time,
+          dateOptions: null,
+        };
+        const evaluation = evaluateDraft(newDraft, false, undefined, false);
+        set({
+          draft: newDraft,
+          lastQuestion: evaluation.nextQuestion,
+          coordinationDetected: false,
+          coordinationPendingConfirm: false,
+          isComplete: evaluation.isComplete,
+        });
+      },
+
       dismissCoordinationHandoff: () => {
         const state = get();
-        const newDraft = { ...state.draft, dateMode: 'fixed' as const };
-        const evaluation = evaluateDraft(newDraft, false);
+        const newDraft: EncounterDraft = {
+          ...state.draft,
+          dateMode: 'fixed' as const,
+          dateOptions: null,
+        };
+        const evaluation = evaluateDraft(newDraft, false, undefined, false);
 
         const userMsg: ChatMessage = {
           id: generateUuid(),
@@ -1559,6 +2050,7 @@ export const useAiWizardStore = create<AiWizardState>()(
         set({
           draft: newDraft,
           coordinationDetected: false,
+          coordinationPendingConfirm: false,
           messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
@@ -1624,6 +2116,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           error: null,
           lastQuestion: null,
           coordinationDetected: false,
+          coordinationPendingConfirm: false,
           isComplete: false,
           lastUserPrompt: null,
         });
@@ -1636,15 +2129,18 @@ export const useAiWizardStore = create<AiWizardState>()(
           ? sessionStorage
           : ({ getItem: () => null, setItem: () => {}, removeItem: () => {} } as any)
       ),
-      // Preserve only structured draft, config and session anti-abuse flags; do not persist full textual conversation across browser sessions
+      // Preserve structured draft, config, coordination flags, conversation messages and session anti-abuse flags
       partialize: (state) => ({
         sessionId: state.sessionId,
         draft: state.draft,
         config: state.config,
+        messages: state.messages,
         turns: state.turns,
         consecutiveOffTopicCount: state.consecutiveOffTopicCount,
         aiLocked: state.aiLocked,
         startedAt: state.startedAt,
+        coordinationDetected: state.coordinationDetected,
+        coordinationPendingConfirm: state.coordinationPendingConfirm,
         isComplete: state.isComplete,
       }),
     }

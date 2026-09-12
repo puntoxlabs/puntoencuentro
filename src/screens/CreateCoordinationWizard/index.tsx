@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { DATE_COORDINATION_ENABLED } from '@/config/features';
 import { AppBar } from '@/components/ui/AppBar';
@@ -22,6 +22,7 @@ const steps = [
 
 const CreateCoordinationWizard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const resetDraft = useCoordinationWizardStore((state) => state.resetDraft);
@@ -31,9 +32,13 @@ const CreateCoordinationWizard: React.FC = () => {
   const { signInWithGoogleForCoordination } = useAuth();
 
   useEffect(() => {
+    // Si viene sembrado desde Crear con IA (handoff), no reiniciar el borrador
+    if ((location.state as { seeded?: boolean } | null)?.seeded) {
+      return;
+    }
     // Siempre reiniciar el borrador al entrar a la ruta base para crear un nuevo encuentro
     resetDraft();
-  }, [resetDraft]);
+  }, [resetDraft, location.state]);
 
   useEffect(() => {
     if (authLoading) return;

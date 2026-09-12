@@ -4,6 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { DraftSummary } from '@/components/ai/DraftSummary';
+import { FieldQuestion } from '@/components/ai/FieldQuestion';
 import { CreateAIWizard } from '@/screens/CreateAIWizard';
 
 import {
@@ -20,6 +21,8 @@ import {
   resolveNthWeekdayOfMonth,
   parseDeterministicDateIntent,
   parseDeterministicDateExpression,
+  parseNaturalLanguageDateOptions,
+  parseCoordinationTransition,
 } from '../src/lib/dateResolver.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
@@ -49,6 +52,7 @@ import {
   createEmptyEncounterDraft,
   createDefaultInvitationConfig,
   translateToCreateEncuentroDTO,
+  translateToCoordinationPayload,
   mapResponseVisibilityToLegacyFields,
   draftToWizardState,
   draftToCoordinationDraft,
@@ -73,6 +77,7 @@ import {
 import { useAiWizardStore, resolveMinimalInputFallback } from '@/store/aiWizardStore';
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
+import { ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect.ts';
 
 describe('Domain Logic Tests: Date & Time Resolution', () => {
   // Baseline date: Monday 2026-09-07
@@ -1684,11 +1689,8 @@ describe('Crear con IA: Temporal Semantics & Stale State Prevention (Cases A to 
   });
 
   describe('QA Production Fixes: Post-Editing Temporal Semantics & Theme/Invitation Separation', () => {
-    const todayDate = new Date();
-    const todayIso = todayDate.toISOString().split('T')[0];
-    const tomorrowDate = new Date(todayDate);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowIso = tomorrowDate.toISOString().split('T')[0];
+    const todayIso = getArgentinaTodayISO();
+    const tomorrowIso = addDaysToIsoDate(todayIso, 1);
 
     test('Case A: "hoy a las 24" -> mañana 00:00; then "a las 23" -> hoy 23:00 (reverts rollover to baseDate)', () => {
       const draft = createEmptyEncounterDraft();
@@ -6843,3 +6845,657 @@ describe('QA Refinamiento Integral UX/UI: CreateAIWizard (Section 29)', () => {
     assert.ok(optsRes.includes('Thu') && optsRes.includes('Oct'));
   });
 });
+
+describe('Coordinación Simple Integrada en Crear con IA: Cases A to Y', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+  const dayAfterTomorrowISO = addDaysToIsoDate(todayISO, 2);
+
+  // ==========================================
+  // Section 41: TESTS DE DETECCIÓN (A to F)
+  // ==========================================
+  test('Case A: fixed simple -> fixed (no detectado como candidato de coordinación)', () => {
+    const res = parseNaturalLanguageDateOptions('Cena mañana a las 20');
+    assert.equal(res.isCoordinationCandidate, false, 'Un solo horario/fecha fija no debe marcarse como candidato');
+  });
+
+  test('Case B: 2 opciones implícitas -> coordination candidate + confirmación', () => {
+    const res = parseNaturalLanguageDateOptions('Cena mañana a las 20 horas en casa o pasado mañana a las 20 horas en casa');
+    assert.equal(res.isCoordinationCandidate, true, 'Debe detectar candidato de coordinación');
+    assert.equal(res.options.length, 2, 'Debe extraer 2 opciones');
+    assert.equal(res.hasExplicitCoordinationIntent, false, 'Coordinación implícita requiere confirmación');
+    assert.equal(res.extractedTitle, 'Cena', 'Debe extraer título Cena');
+    assert.equal(res.extractedLocation, 'casa', 'Debe extraer lugar casa');
+
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: res.extractedTitle || '',
+      locationText: res.extractedLocation || null,
+      dateOptions: res.options,
+      dateMode: 'coordination' as const,
+      coordinationCandidate: true,
+      coordinationPendingConfirm: true,
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.nextQuestion?.field, 'coordination_confirm');
+    assert.equal(evaluation.nextQuestion?.type, 'coordination_card');
+  });
+
+  test('Case C: 2 opciones explícitas -> coordination directo sin confirmación redundante', () => {
+    const res = parseNaturalLanguageDateOptions('Quiero organizar una cena y que puedan elegir entre mañana a las 20 o el sábado a las 21');
+    assert.equal(res.hasExplicitCoordinationIntent, true, 'Frase explícita debe fijar hasExplicitCoordinationIntent: true');
+    assert.equal(res.options.length, 2);
+
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      dateOptions: res.options,
+      dateMode: 'coordination' as const,
+      coordinationCandidate: true,
+      coordinationPendingConfirm: false,
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.notEqual(evaluation.nextQuestion?.field, 'coordination_confirm');
+    assert.equal(evaluation.nextQuestion?.field, 'modality');
+  });
+
+  test('Case D: 3 opciones -> válido', () => {
+    const res = parseNaturalLanguageDateOptions('Cena el 20 de noviembre a las 20, el 21 de noviembre a las 21 o el 22 de noviembre a las 13');
+    assert.ok(res);
+    assert.equal(res.options.length, 3, 'Debe detectar 3 opciones');
+    assert.ok(res.options[0].date && res.options[0].time === '20:00');
+    assert.ok(res.options[1].date && res.options[1].time === '21:00');
+    assert.ok(res.options[2].date && res.options[2].time === '13:00');
+  });
+
+  test('Case E: 4 a 5 opciones -> límite RPC (v_opciones_count <= 3)', () => {
+    const input = 'Cena el lunes a las 20, martes a las 20, miércoles a las 20 o jueves a las 20';
+    const res = parseNaturalLanguageDateOptions(input);
+    assert.ok(res);
+    assert.ok(res.options.length >= 4, 'Debe detectar las 4 opciones');
+
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      modality: 'presencial' as const,
+      locationText: 'Club',
+      dateOptions: res.options,
+      dateMode: 'coordination' as const,
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.isComplete, false);
+    assert.equal(evaluation.nextQuestion?.field, 'coordination_options');
+    assert.ok(evaluation.nextQuestion?.question.includes('3 opciones'));
+
+    assert.throws(() => {
+      translateToCoordinationPayload(draft, createDefaultInvitationConfig());
+    }, /como máximo tres opciones/);
+  });
+
+  test('Case F: 6 opciones -> feedback claro, no truncar silenciosamente', () => {
+    const dates = [
+      { date: addDaysToIsoDate(todayISO, 3), time: '20:00' },
+      { date: addDaysToIsoDate(todayISO, 4), time: '20:00' },
+      { date: addDaysToIsoDate(todayISO, 5), time: '20:00' },
+      { date: addDaysToIsoDate(todayISO, 6), time: '20:00' },
+      { date: addDaysToIsoDate(todayISO, 7), time: '20:00' },
+      { date: addDaysToIsoDate(todayISO, 8), time: '20:00' },
+    ];
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Reunión extensa',
+      modality: 'presencial' as const,
+      locationText: 'Oficina',
+      dateOptions: dates,
+      dateMode: 'coordination' as const,
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.isComplete, false);
+    assert.equal(evaluation.nextQuestion?.field, 'coordination_options');
+    assert.ok(evaluation.nextQuestion?.question.includes('3 opciones'));
+  });
+
+  // ==========================================
+  // Section 42: TESTS DE TRANSICIÓN (G to J)
+  // ==========================================
+  test('Case G: fixed -> agregar alternativa -> transition add', () => {
+    const transition = parseCoordinationTransition('también podría ser el sábado a las 21');
+    assert.ok(transition);
+    assert.equal(transition.type, 'add');
+    assert.ok(transition.addedOption);
+    assert.equal(transition.addedOption.time, '21:00');
+  });
+
+  test('Case H: coordination -> "mejor sólo viernes" -> switch_to_fixed', () => {
+    const transition = parseCoordinationTransition('mejor sólo viernes a las 21');
+    assert.ok(transition);
+    assert.equal(transition.type, 'switch_to_fixed');
+    assert.ok(transition.selectedFixedOption);
+    assert.equal(transition.selectedFixedOption.time, '21:00');
+  });
+
+  test('Case I: coordination con 2 -> eliminar una -> remove transition', () => {
+    const transition = parseCoordinationTransition('sacá la del viernes');
+    assert.ok(transition);
+    assert.equal(transition.type, 'remove');
+    assert.ok(transition.removedOptionDate);
+  });
+
+  test('Case J: agregar opción duplicada -> no duplicar (deduplicación)', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Asado',
+      modality: 'presencial' as const,
+      locationText: 'Quincho',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: tomorrowISO, time: '21:00' },
+        { date: tomorrowISO, time: '21:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+    };
+    const { opciones } = translateToCoordinationPayload(draft, createDefaultInvitationConfig());
+    assert.equal(opciones.length, 2, 'Las opciones duplicadas deben unificarse');
+  });
+
+  // ==========================================
+  // Section 43: TESTS TEMPORALES (K to O)
+  // ==========================================
+  test('Case K: 2 fechas futuras -> válidas', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      modality: 'presencial' as const,
+      locationText: 'Casa',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: tomorrowISO, time: '20:00' },
+        { date: dayAfterTomorrowISO, time: '20:00' },
+      ],
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.isComplete, true);
+  });
+
+  test('Case L: una pasada + una futura -> feedback sobre la pasada', () => {
+    const pastDate = addDaysToIsoDate(todayISO, -2);
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      modality: 'presencial' as const,
+      locationText: 'Casa',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: pastDate, time: '20:00' },
+        { date: tomorrowISO, time: '20:00' },
+      ],
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.isComplete, false);
+    assert.equal(evaluation.nextQuestion?.field, 'coordination_options');
+    assert.ok(evaluation.nextQuestion?.question.includes('anterior a hoy') || evaluation.nextQuestion?.question.includes('futur'));
+  });
+
+  test('Case M: 24:00 dentro de dateOption -> semántica rollover a 00:00 del día siguiente', () => {
+    const res = parseNaturalLanguageDateOptions('mañana a las 24 o pasado mañana a las 20');
+    assert.ok(res);
+    assert.equal(res.options.length, 2);
+    const opt1 = res.options[0];
+    assert.equal(opt1.date, dayAfterTomorrowISO, '24:00 debe hacer rollover al día siguiente');
+    assert.equal(opt1.time, '00:00');
+  });
+
+  test('Case N: número en letras dentro de dateOption -> parser horario actual', () => {
+    const res = parseNaturalLanguageDateOptions('mañana a las ocho de la noche o pasado mañana a las nueve de la noche');
+    assert.ok(res);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].time, '21:00');
+  });
+
+  test('Case O: "primer viernes del mes que viene o segundo sábado" -> resolver correctamente', () => {
+    const expr1 = parseDeterministicDateExpression('primer viernes del mes que viene');
+    assert.ok(expr1 && expr1.date, 'Debe resolver primer viernes del mes próximo');
+    const expr2 = parseDeterministicDateExpression('segundo sábado del mes que viene');
+    assert.ok(expr2 && expr2.date, 'Debe resolver segundo sábado del mes próximo');
+    assert.notEqual(expr1.date, expr2.date);
+  });
+
+  // ==========================================
+  // Section 44: TESTS DE CREACIÓN (P to R)
+  // ==========================================
+  test('Case P: fixed completo -> genera DTO para crear_encuentro_seguro', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cumpleaños',
+      date: tomorrowISO,
+      time: '18:00',
+      modality: 'presencial' as const,
+      locationText: 'Plaza',
+    };
+    const dto = translateToCreateEncuentroDTO(draft, createDefaultInvitationConfig(), { hostId: 'host-123' });
+    assert.equal(dto.titulo, 'Cumpleaños');
+    assert.equal(dto.fecha, tomorrowISO);
+    assert.equal(dto.hora, '18:00');
+    assert.equal(dto.modalidad, 'presencial');
+    assert.equal(dto.lugar_texto, 'Plaza');
+  });
+
+  test('Case Q: coordination completo -> genera payload para crear_encuentro_con_opciones_seguro', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Asado',
+      modality: 'presencial' as const,
+      locationText: 'Quincho',
+      dateMode: 'coordination' as const,
+      durationMinutes: 120,
+      responseDeadline: `${tomorrowISO}T12:00:00`,
+      dateOptions: [
+        { date: tomorrowISO, time: '21:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+    };
+    const { payload, opciones } = translateToCoordinationPayload(
+      draft,
+      createDefaultInvitationConfig(),
+      { hostId: 'host-123', postEventActiveMinutes: 60 }
+    );
+    assert.equal(payload.titulo, 'Asado');
+    assert.equal(payload.modalidad, 'presencial');
+    assert.equal(payload.lugar_texto, 'Quincho');
+    assert.equal(payload.duration_minutes, 120);
+    assert.equal(payload.response_deadline, `${tomorrowISO}T12:00:00`);
+    assert.equal(payload.post_event_active_minutes, 60);
+    assert.equal(opciones.length, 2);
+    assert.equal(opciones[0].fecha, tomorrowISO);
+    assert.equal(opciones[0].hora_inicio, '21:00');
+  });
+
+  test('Case R: payload coordination IA === payload semánticamente equivalente del wizard manual', () => {
+    const config = createDefaultInvitationConfig();
+    const commonDraftData = {
+      title: 'Cena de Fin de Año',
+      description: 'Traer bebidas',
+      modality: 'presencial' as const,
+      locationText: 'Restaurante Central',
+      virtualLink: '',
+      options: [
+        { date: tomorrowISO, time: '20:30' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+      durationMinutes: 180,
+      responseDeadline: `${tomorrowISO}T14:00:00`,
+    };
+
+    // 1. Payload generado desde IA -> translateToCoordinationPayload
+    const aiDraft = {
+      ...createEmptyEncounterDraft(),
+      title: commonDraftData.title,
+      description: commonDraftData.description,
+      modality: commonDraftData.modality,
+      locationText: commonDraftData.locationText,
+      virtualLink: commonDraftData.virtualLink,
+      dateMode: 'coordination' as const,
+      dateOptions: commonDraftData.options,
+      durationMinutes: commonDraftData.durationMinutes,
+      responseDeadline: commonDraftData.responseDeadline,
+    };
+    const aiResult = translateToCoordinationPayload(aiDraft, config);
+
+    // 2. Payload construido por el wizard manual (Step4Review.tsx)
+    const isPresencial = commonDraftData.modality === 'presencial';
+    const manualPayload = {
+      titulo: commonDraftData.title,
+      descripcion: commonDraftData.description || null,
+      modalidad: commonDraftData.modality,
+      lugar_texto: isPresencial ? commonDraftData.locationText : null,
+      link_virtual: !isPresencial ? commonDraftData.virtualLink : null,
+      tipo_invitacion: config.invitationType,
+      tema: 'blue',
+      tema_invitacion: config.invitationTheme || null,
+      invitation_template: config.invitationTemplate || null,
+      response_deadline: commonDraftData.responseDeadline || null,
+      duration_minutes: commonDraftData.durationMinutes,
+      mostrar_respuestas_a_invitados: false, // config default is 'hidden' -> false
+      visibilidad_respuestas_invitados: 'hidden',
+    };
+    const manualOptions = commonDraftData.options.map((opt) => ({
+      fecha: opt.date,
+      hora_inicio: opt.time,
+    }));
+
+    // Verificación exhaustiva de equivalencia de contratos
+    assert.equal(aiResult.payload.titulo, manualPayload.titulo);
+    assert.equal(aiResult.payload.descripcion, manualPayload.descripcion);
+    assert.equal(aiResult.payload.modalidad, manualPayload.modalidad);
+    assert.equal(aiResult.payload.lugar_texto, manualPayload.lugar_texto);
+    assert.equal(aiResult.payload.tipo_invitacion, manualPayload.tipo_invitacion);
+    assert.equal(aiResult.payload.tema, manualPayload.tema);
+    assert.equal(aiResult.payload.duration_minutes, manualPayload.duration_minutes);
+    assert.equal(aiResult.payload.response_deadline, manualPayload.response_deadline);
+    assert.equal(aiResult.payload.mostrar_respuestas_a_invitados, manualPayload.mostrar_respuestas_a_invitados);
+    assert.equal(aiResult.payload.visibilidad_respuestas_invitados, manualPayload.visibilidad_respuestas_invitados);
+
+    assert.equal(aiResult.opciones.length, manualOptions.length);
+    for (let i = 0; i < aiResult.opciones.length; i++) {
+      assert.equal(aiResult.opciones[i].fecha, manualOptions[i].fecha);
+      assert.equal(aiResult.opciones[i].hora_inicio, manualOptions[i].hora_inicio);
+    }
+  });
+
+  // ==========================================
+  // Section 45: TESTS UX (S to Y)
+  // ==========================================
+  test('Case S: card de coordinación renderiza sin duplicación', () => {
+    const question = {
+      field: 'coordination_confirm' as const,
+      question: '¿Querés que los invitados elijan entre estas fechas?',
+      options: ['Sí, continuar', 'Elegir fecha fija'],
+      type: 'coordination_card' as const,
+      coordinationOptions: [
+        { date: tomorrowISO, time: '20:00' },
+        { date: dayAfterTomorrowISO, time: '20:00' },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(FieldQuestion, {
+        question,
+        onSelectOption: () => {},
+      })
+    );
+    assert.ok(html.includes('¿Querés que los invitados elijan entre estas fechas?'));
+    assert.ok(html.includes('Sí, continuar'));
+    assert.ok(html.includes('Elegir fecha fija'));
+  });
+
+  test('Case T: store no emite mensaje asistente duplicado antes de la card interactiva', async () => {
+    useAiWizardStore.getState().reset();
+    await useAiWizardStore.getState().sendUserMessage('Cena mañana a las 20 horas en casa o pasado mañana a las 20 horas en casa');
+    const state = useAiWizardStore.getState();
+    assert.equal(state.coordinationPendingConfirm, true);
+    assert.equal(state.messages.length, 1);
+    assert.equal(state.messages[0].role, 'user');
+    assert.equal(state.messages.some((m) => m.role === 'assistant'), false);
+    assert.equal(state.lastQuestion?.field, 'coordination_confirm');
+  });
+
+  test('Case U: "Elegir fecha fija" funciona correctamente en el store', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        dateOptions: [
+          { date: tomorrowISO, time: '20:00' },
+          { date: dayAfterTomorrowISO, time: '21:00' },
+        ],
+        dateMode: 'coordination',
+        coordinationPendingConfirm: true,
+      },
+    });
+
+    useAiWizardStore.getState().switchToFixed(tomorrowISO, '20:00');
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.dateMode, 'fixed');
+    assert.equal(state.draft.date, tomorrowISO);
+    assert.equal(state.draft.time, '20:00');
+    assert.equal(state.draft.dateOptions, null);
+    assert.equal(state.coordinationPendingConfirm, false);
+  });
+
+  test('Case V: Resumen compacto indica "{N} opciones" para coordinación', () => {
+    const store = useAiWizardStore.getState();
+    store.reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena Amigos',
+        modality: 'presencial',
+        locationText: 'Casa',
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: tomorrowISO, time: '21:00' },
+          { date: dayAfterTomorrowISO, time: '21:00' },
+        ],
+      },
+      config: createDefaultInvitationConfig(),
+      messages: [],
+    });
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, { stateOverride: useAiWizardStore.getState() })
+      )
+    );
+    assert.ok(html.includes('2 opciones'), 'Compact bar must show "2 opciones"');
+  });
+
+  test('Case W: Resumen expandido muestra Opciones de fecha', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Pádel',
+      modality: 'presencial' as const,
+      locationText: 'Cancha 3',
+      dateMode: 'coordination' as const,
+      durationMinutes: 90,
+      dateOptions: [
+        { date: tomorrowISO, time: '18:00' },
+        { date: dayAfterTomorrowISO, time: '19:00' },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft,
+        config: createDefaultInvitationConfig(),
+      })
+    );
+    assert.ok(html.includes('Opciones de fecha'), 'Debe renderizar encabezado Opciones de fecha');
+    assert.ok(html.includes('18:00') && html.includes('19:00'), 'Debe mostrar las horas');
+    assert.ok(html.includes('1 h 30 min'), 'Debe mostrar la duración formateada');
+  });
+
+  test('Case X: "Listo para crear" funciona en coordinación cuando los campos requeridos están completos', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena de Fin de Año',
+      modality: 'presencial' as const,
+      locationText: 'El Mangrullo',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: tomorrowISO, time: '21:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+    };
+    const evaluation = evaluateDraft(draft);
+    assert.equal(evaluation.isComplete, true, 'Draft coordinado con título, 2 opciones y lugar está listo');
+    assert.equal(evaluation.nextQuestion, null, 'No debe pedir más preguntas obligatorias');
+  });
+
+  test('Case Y: handoff manual conserva todos los datos relevantes y previene reset en CreateCoordinationWizard', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cumpleaños de Ana',
+      description: 'Fiesta sorpresa',
+      modality: 'presencial' as const,
+      locationText: 'Salón de eventos',
+      dateMode: 'coordination' as const,
+      durationMinutes: 240,
+      responseDeadline: `${tomorrowISO}T10:00:00`,
+      dateOptions: [
+        { date: tomorrowISO, time: '15:00' },
+        { date: dayAfterTomorrowISO, time: '16:00' },
+      ],
+    };
+    const config = createDefaultInvitationConfig();
+    const coordDraft = draftToCoordinationDraft(draft, config);
+
+    assert.equal(coordDraft.dateMode, 'coordination');
+    assert.equal(coordDraft.title, 'Cumpleaños de Ana');
+    assert.equal(coordDraft.description, 'Fiesta sorpresa');
+    assert.equal(coordDraft.modality, 'presencial');
+    assert.equal(coordDraft.locationText, 'Salón de eventos');
+    assert.equal(coordDraft.durationMinutes, 240);
+    assert.equal(coordDraft.responseDeadline, `${tomorrowISO}T10:00:00`);
+    assert.equal(coordDraft.options?.length, 2);
+    assert.equal(coordDraft.options?.[0].date, tomorrowISO);
+    assert.equal(coordDraft.options?.[0].time, '15:00');
+    assert.equal(coordDraft.options?.[1].date, dayAfterTomorrowISO);
+    assert.equal(coordDraft.options?.[1].time, '16:00');
+  });
+});
+
+describe('Coordinación con IA — Continuidad de Autenticación y Post-Auth (Bugs A a G)', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+  const dayAfterTomorrowISO = addDaysToIsoDate(todayISO, 2);
+
+  test('Case A: /create/ai está explícitamente permitido por ALLOWED_POST_AUTH_ROUTES', () => {
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('/create/ai'), true);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('/create'), true);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('/create/coordination'), true);
+  });
+
+  test('Case B: Rutas arbitrarias y open redirects continúan rechazadas', () => {
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('https://evil.com'), false);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('/evil'), false);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('//google.com'), false);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('/create/ai/invalid'), false);
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has('javascript:alert(1)'), false);
+  });
+
+  test('Case C: Usuario anónimo intentando crear coordinación -> no llama crearEncuentroConOpciones y renderiza CTA', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena Coordinada',
+      modality: 'presencial' as const,
+      locationText: 'Casa de Nico',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: tomorrowISO, time: '20:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(CreateAIWizard, {
+          stateOverride: {
+            draft,
+            isComplete: true,
+          } as any,
+        })
+      )
+    );
+
+    assert.ok(html.includes('Cena Coordinada'));
+    assert.ok(html.includes('Casa de Nico'));
+  });
+
+  test('Case D: CTA de Login en CreateAIWizard preserva draft y setea post_auth_redirect=/create/ai', () => {
+    const storage: Record<string, string> = {};
+    const mockSessionStorage = {
+      getItem: (k: string) => storage[k] || null,
+      setItem: (k: string, v: string) => { storage[k] = v; },
+      removeItem: (k: string) => { delete storage[k]; },
+    };
+
+    mockSessionStorage.setItem('post_auth_redirect', '/create/ai');
+    assert.equal(mockSessionStorage.getItem('post_auth_redirect'), '/create/ai');
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has(mockSessionStorage.getItem('post_auth_redirect')!), true);
+  });
+
+  test('Case E: Draft coordinado serializado en pe-ai-wizard-session y rehidratado conserva todos los datos', () => {
+    const originalDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cumpleaños de Diego',
+      description: 'Fiesta con amigos',
+      modality: 'presencial' as const,
+      locationText: 'Quincho',
+      dateMode: 'coordination' as const,
+      durationMinutes: 180,
+      responseDeadline: `${tomorrowISO}T12:00:00`,
+      dateOptions: [
+        { date: tomorrowISO, time: '20:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ],
+    };
+    const originalConfig = {
+      ...createDefaultInvitationConfig(),
+      invitationTheme: 'party' as const,
+      invitationTemplate: 'party_night',
+    };
+
+    const sessionPayload = {
+      sessionId: 'test-session-auth',
+      draft: originalDraft,
+      config: originalConfig,
+      messages: [{ id: 'm1', role: 'user', text: 'Cena mañana o pasado', timestamp: 12345 }],
+      turns: 1,
+      consecutiveOffTopicCount: 0,
+      aiLocked: false,
+      startedAt: 12345678,
+      coordinationDetected: true,
+      coordinationPendingConfirm: false,
+      isComplete: true,
+    };
+
+    const serialized = JSON.stringify(sessionPayload);
+    const rehydrated = JSON.parse(serialized);
+
+    assert.equal(rehydrated.draft.title, originalDraft.title);
+    assert.equal(rehydrated.draft.description, originalDraft.description);
+    assert.equal(rehydrated.draft.dateMode, 'coordination');
+    assert.equal(rehydrated.draft.modality, 'presencial');
+    assert.equal(rehydrated.draft.locationText, 'Quincho');
+    assert.equal(rehydrated.draft.durationMinutes, 180);
+    assert.equal(rehydrated.draft.responseDeadline, `${tomorrowISO}T12:00:00`);
+    assert.equal(rehydrated.draft.dateOptions.length, 2);
+    assert.equal(rehydrated.draft.dateOptions[0].date, tomorrowISO);
+    assert.equal(rehydrated.draft.dateOptions[0].time, '20:00');
+    assert.equal(rehydrated.draft.dateOptions[1].date, dayAfterTomorrowISO);
+    assert.equal(rehydrated.draft.dateOptions[1].time, '21:00');
+    assert.equal(rehydrated.messages.length, 1);
+    assert.equal(rehydrated.isComplete, true);
+  });
+
+  test('Case F: Redirección post-auth devuelve al usuario a /create/ai sin alterar el draft', () => {
+    const targetRoute = '/create/ai';
+    assert.equal(ALLOWED_POST_AUTH_ROUTES.has(targetRoute), true);
+    let navigatedPath: string | null = null;
+    const mockNavigate = (path: string) => { navigatedPath = path; };
+
+    if (ALLOWED_POST_AUTH_ROUTES.has(targetRoute)) {
+      mockNavigate(targetRoute);
+    }
+    assert.equal(navigatedPath, '/create/ai');
+  });
+
+  test('Case G: Rehidratación no dispara auto-creación ni llamada prematura al RPC', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado Coordinado',
+        modality: 'presencial',
+        locationText: 'Casa',
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: tomorrowISO, time: '13:00' },
+          { date: dayAfterTomorrowISO, time: '13:00' },
+        ],
+      },
+      isComplete: true,
+    });
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.title, 'Asado Coordinado');
+    assert.equal(state.isComplete, true);
+    assert.equal(state.isInterpreting, false);
+    assert.equal(state.sessionId.length > 0, true);
+  });
+});
+

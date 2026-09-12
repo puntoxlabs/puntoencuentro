@@ -10,7 +10,9 @@ import { useAiWizardStore } from '@/store/aiWizardStore';
 import { useWizardStore } from '@/store/wizardStore';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import {
+  type EncounterDraft,
   translateToCreateEncuentroDTO,
+  translateToCoordinationPayload,
   draftToWizardState,
   draftToCoordinationDraft,
   hasMeaningfulDraftData,
@@ -20,6 +22,7 @@ import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { encuentrosService } from '@/services/encuentrosService';
 import { ensureHostSession } from '@/lib/ensureHostSession';
 import { aiService } from '@/services/aiService';
+import { supabase } from '@/lib/supabase';
 import {
   INVITATION_THEMES,
   getTemplateOptionsForTheme,
@@ -28,6 +31,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { formatHumanSchedule } from '@/lib/formatDate';
 import { useSpeechDictation, isTouchDevice, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
+import { useAuth } from '@/contexts/AuthContext';
+import { getFriendlyAuthError } from '@/hooks/useStartCoordinationEncounter';
 import './CreateWizard.css';
 
 export interface CreateAIWizardProps {
@@ -48,16 +53,21 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   speechLangOverride,
 }) => {
   const navigate = useNavigate();
+  const { signInWithGoogleForCoordination } = useAuth();
   const [inputText, setInputText] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(showExitConfirmOverride ?? false);
+  const [needsCoordinationAuth, setNeedsCoordinationAuth] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const isNavigatingToManualRef = useRef(false);
   const isCreatedRef = useRef(false);
   const hasHistoryGuardRef = useRef(false);
   const isDiscardingRef = useRef(false);
+  const coordinationAuthCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showExitConfirmOverride !== undefined) {
@@ -264,7 +274,10 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   const themeLabel = activeThemeConfig?.label || 'Clásico';
   const variantLabel = activeTemplate ? ` (${activeTemplate.name})` : '';
 
-  const scheduleText = formatHumanSchedule(draft.date, draft.time, { locale: appLanguage });
+  let scheduleText = formatHumanSchedule(draft.date, draft.time, { locale: appLanguage });
+  if (draft.dateMode === 'coordination' && draft.dateOptions && draft.dateOptions.length > 0) {
+    scheduleText = `${draft.dateOptions.length} opciones`;
+  }
   const placeText = draft.locationText || (draft.modality === 'virtual' ? 'Virtual' : draft.modality === 'presencial' ? 'Presencial' : null);
   const themeText = themeLabel ? `${themeLabel}${variantLabel}` : null;
   const metadataText = [scheduleText, placeText, themeText].filter(Boolean).join(' · ');
@@ -444,7 +457,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         fallbackFailureType: fallbackFailureType || undefined,
       },
     });
-    navigate('/create/coordination');
+    navigate('/create/coordination', { state: { seeded: true } });
   };
 
   const handleFallbackManual = () => {
@@ -464,10 +477,33 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     navigate('/create');
   };
 
+  const handleGoogleSignIn = async () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    setAuthError(null);
+
+    try {
+      sessionStorage.setItem('post_auth_redirect', '/create/ai');
+      const result = await signInWithGoogleForCoordination();
+
+      if (result && result.ok === false) {
+        sessionStorage.removeItem('post_auth_redirect');
+        setAuthError(getFriendlyAuthError(result.error));
+      }
+    } catch (error) {
+      sessionStorage.removeItem('post_auth_redirect');
+      console.error('[CreateAI] Google sign-in failed', error);
+      setAuthError(getFriendlyAuthError());
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleConfirmCreate = async () => {
     if (isCreating) return;
     setIsCreating(true);
     setCreationError(null);
+    setNeedsCoordinationAuth(false);
 
     try {
       // 1. Ensure authenticated host session (anonymous or permanent)
@@ -486,12 +522,68 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         console.warn('Error reading cancel_reference:', e);
       }
 
-      // 3. Assemble DTO deterministically
+      // 3. Assemble metadata
       const creationMeta = {
         hostId,
         replacesEncounterId,
         postEventActiveMinutes: getPostEventMinutes(),
       };
+
+      // 4. Branch by dateMode: coordination vs fixed
+      if (draft.dateMode === 'coordination') {
+        const { data: authData } = await supabase.auth.getUser();
+        const isPermanent = authData?.user && !authData.user.is_anonymous;
+        if (!isPermanent) {
+          setNeedsCoordinationAuth(true);
+          setIsCreating(false);
+          setTimeout(() => {
+            coordinationAuthCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 50);
+          return;
+        }
+
+        const { payload, opciones } = translateToCoordinationPayload(draft, config, creationMeta);
+        const result = await encuentrosService.crearEncuentroConOpciones(payload, opciones);
+
+        if (!result.ok) {
+          throw new Error(result.error || 'Error al guardar el encuentro coordinado');
+        }
+
+        const encounterId = result.encuentro.id;
+        rememberEncuentroHost(encounterId, hostId);
+
+        aiService.finishSession({
+          sessionId,
+          status: 'completed',
+          encounterId,
+          turns,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          latencyMs: totalLatencyMs,
+          elapsedMs: Date.now() - startedAt,
+          provider: providerUsed || primaryProvider,
+          model: modelUsed || undefined,
+          metadata: {
+            fallbackUsed,
+            primaryProvider,
+            fallbackProvider: fallbackProvider || undefined,
+            providerUsed: providerUsed || undefined,
+            modelUsed: modelUsed || undefined,
+            primaryLatencyMs,
+            fallbackLatencyMs,
+            totalLatencyMs,
+            primaryFailureType: primaryFailureType || undefined,
+            fallbackFailureType: fallbackFailureType || undefined,
+          },
+        });
+
+        isCreatedRef.current = true;
+        reset();
+        sessionStorage.removeItem('cancel_reference');
+
+        navigate(`/coordination/${encounterId}`, { replace: true });
+        return;
+      }
 
       const dto = translateToCreateEncuentroDTO(draft, config, creationMeta);
 
@@ -788,9 +880,15 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             isLoading={isCreating}
             onConfirmCreate={handleConfirmCreate}
             onModify={(field) => {
-              const val = prompt(`Modificar ${field}:`, (draft as any)[field] || '');
+              if (field === 'coordination_options') {
+                inputRef.current?.focus();
+                return;
+              }
+              const draftKey = field as keyof EncounterDraft;
+              const currentVal = draft[draftKey];
+              const val = prompt(`Modificar ${field}:`, typeof currentVal === 'string' ? currentVal : '');
               if (val !== null) {
-                updateDraftField(field, val);
+                updateDraftField(draftKey, val);
               }
             }}
             onFallbackManual={handleFallbackManual}
@@ -855,7 +953,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             >
               {[
                 'Cena mañana a las 21',
-                'Partido el sábado',
+                'Cena viernes o sábado a las 21',
                 'Cumpleaños familiar',
               ].map((example, idx) => (
                 <button
@@ -939,14 +1037,95 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               isLoading={isCreating}
               onConfirmCreate={handleConfirmCreate}
               onModify={(field) => {
-                const val = prompt(`Modificar ${field}:`, (draft as any)[field] || '');
+                if (field === 'coordination_options') {
+                  inputRef.current?.focus();
+                  return;
+                }
+                const draftKey = field as keyof EncounterDraft;
+                const currentVal = draft[draftKey];
+                const val = prompt(`Modificar ${field}:`, typeof currentVal === 'string' ? currentVal : '');
                 if (val !== null) {
-                  updateDraftField(field, val);
+                  updateDraftField(draftKey, val);
                 }
               }}
               onFallbackManual={handleFallbackManual}
               onChangeConfig={updateConfigField}
             />
+          </div>
+        )}
+
+        {/* Coordination Auth Required Card */}
+        {needsCoordinationAuth && (
+          <div
+            ref={coordinationAuthCardRef}
+            data-testid="coordination-auth-card"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              padding: '16px',
+              borderRadius: '16px',
+              background: 'var(--color-surface, #ffffff)',
+              border: '1px solid var(--color-outline-variant, #e2e8f0)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+              margin: '12px 0',
+              textAlign: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-on-surface, #0f172a)' }}>
+                Para crear una coordinación necesitás iniciar sesión
+              </span>
+              <span style={{ fontSize: '13px', color: 'var(--color-on-surface-variant, #64748b)' }}>
+                Guardamos las respuestas de tus invitados vinculadas a tu cuenta.
+              </span>
+            </div>
+
+            {authError && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '8px 12px', borderRadius: '8px', width: '100%' }}>
+                <p style={{ color: '#dc2626', margin: 0, fontSize: '13px' }}>{authError}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              data-testid="google-signin-coordination-button"
+              disabled={googleLoading}
+              onClick={handleGoogleSignIn}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                width: '100%',
+                maxWidth: '280px',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#1e293b',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: googleLoading ? 'wait' : 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                transition: 'background-color 0.15s ease',
+              }}
+            >
+              {googleLoading ? (
+                'Conectando...'
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  </svg>
+                  <span>Iniciar sesión con Google</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 

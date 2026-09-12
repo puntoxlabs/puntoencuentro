@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, MapPin, Video, Sparkles, Edit3, ArrowRight, Share2, Users, Check, X } from 'lucide-react';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
-import { formatFriendlyDate } from '@/lib/formatDate';
+import { formatFriendlyDate, formatHumanSchedule } from '@/lib/formatDate';
 import {
   INVITATION_THEMES,
   AI_SUPPORTED_THEMES,
@@ -14,7 +14,7 @@ interface DraftSummaryProps {
   config: InvitationConfig;
   isLoading: boolean;
   onConfirmCreate: () => void;
-  onModify: (field: keyof EncounterDraft) => void;
+  onModify: (field: string) => void;
   onFallbackManual: () => void;
   onChangeConfig: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
 }
@@ -89,17 +89,36 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 600 }}>
-              Cuándo
+              {draft.dateMode === 'coordination' ? 'Opciones de fecha' : 'Cuándo'}
             </span>
-            <div style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Calendar size={15} color="#0284c7" />
-              <span>{formatFriendlyDate(draft.date || '', draft.time || '').split('•')[0]}</span>
-              <Clock size={15} color="#0284c7" style={{ marginLeft: '6px' }} />
-              <span>{draft.time} hs</span>
-            </div>
+            {draft.dateMode === 'coordination' && draft.dateOptions && draft.dateOptions.length > 0 ? (
+              <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {draft.dateOptions.map((opt, idx) => (
+                  <div
+                    key={`${opt.date}_${opt.time}_${idx}`}
+                    style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Calendar size={14} color="#0284c7" />
+                    <span>{formatHumanSchedule(opt.date, opt.time)}</span>
+                  </div>
+                ))}
+                {draft.durationMinutes && (
+                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                    Duración: {draft.durationMinutes >= 60 ? `${Math.floor(draft.durationMinutes / 60)} h${draft.durationMinutes % 60 !== 0 ? ` ${draft.durationMinutes % 60} min` : ''}` : `${draft.durationMinutes} min`}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Calendar size={15} color="#0284c7" />
+                <span>{formatFriendlyDate(draft.date || '', draft.time || '').split('•')[0]}</span>
+                <Clock size={15} color="#0284c7" style={{ marginLeft: '6px' }} />
+                <span>{draft.time}</span>
+              </div>
+            )}
           </div>
           <button
-            onClick={() => onModify('date')}
+            onClick={() => onModify(draft.dateMode === 'coordination' ? 'coordination_options' : 'date')}
             style={{ background: 'none', border: 'none', color: 'var(--color-primary, #4f46e5)', cursor: 'pointer', padding: '4px' }}
             title="Modificar fecha u hora"
           >

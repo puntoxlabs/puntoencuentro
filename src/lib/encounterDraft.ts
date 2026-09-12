@@ -1,4 +1,4 @@
-import type { CreateEncuentroDTO, VisibilidadRespuestas } from '@/services/encuentrosService';
+import type { CreateEncuentroDTO, VisibilidadRespuestas, CoordinationCreatePayload, CoordinationOptionPayload } from '@/services/encuentrosService';
 import type { InvitationTheme } from '@/lib/invitationThemes';
 import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import type { WizardState } from '@/store/wizardStore';
@@ -34,6 +34,8 @@ export interface EncounterDraft {
   dateOptions: DateOption[] | null;
   responseDeadline: string | null;
   durationMinutes: number | null;
+  coordinationCandidate?: boolean;
+  coordinationPendingConfirm?: boolean;
 
   // Dónde / Cómo
   modality: 'presencial' | 'virtual' | null;
@@ -242,15 +244,101 @@ export function draftToCoordinationDraft(
   const visibilityMapping = mapResponseVisibilityToLegacyFields(config.responseVisibility);
 
   return {
+    dateMode: 'coordination',
     title: draft.title || '',
     description: draft.description || '',
     modality: draft.modality || 'presencial',
     locationText: draft.locationText || '',
     virtualLink: draft.virtualLink || '',
+    options: (draft.dateOptions || []).map((opt, idx) => ({
+      localId: `opt-${Date.now()}-${idx}`,
+      date: opt.date,
+      time: opt.time,
+    })),
+    responseDeadline: draft.responseDeadline || null,
+    durationMinutes: draft.durationMinutes || null,
     invitationType: config.invitationType,
     invitationTheme: config.invitationTheme,
     invitationTemplate: resolvedTemplate,
     mostrarRespuestasAInvitados: visibilityMapping.mostrar_respuestas_a_invitados,
     visibilidadRespuestas: visibilityMapping.visibilidad_respuestas_invitados,
   };
+}
+
+/**
+ * Translates an EncounterDraft + InvitationConfig + CreationMetadata into the canonical
+ * payload and options expected by `encuentrosService.crearEncuentroConOpciones` (RPC `crear_encuentro_con_opciones_seguro`).
+ */
+export function translateToCoordinationPayload(
+  draft: EncounterDraft,
+  config: InvitationConfig,
+  meta?: CreationMetadata
+): {
+  payload: CoordinationCreatePayload;
+  opciones: CoordinationOptionPayload[];
+} {
+  if (!draft.title || !draft.title.trim()) {
+    throw new Error('El título del encuentro es obligatorio');
+  }
+  if (!draft.dateOptions || draft.dateOptions.length < 2) {
+    throw new Error('El encuentro de coordinación requiere al menos dos opciones de fecha');
+  }
+  if (draft.dateOptions.length > 3) {
+    throw new Error('El encuentro de coordinación permite como máximo tres opciones de fecha');
+  }
+  if (!draft.modality) {
+    throw new Error('La modalidad (presencial o virtual) es obligatoria');
+  }
+  if (draft.modality === 'presencial' && (!draft.locationText || !draft.locationText.trim())) {
+    throw new Error('El lugar del encuentro es obligatorio para encuentros presenciales');
+  }
+  if (draft.modality === 'virtual' && (!draft.virtualLink || !draft.virtualLink.trim())) {
+    throw new Error('El enlace de la videollamada es obligatorio para encuentros virtuales');
+  }
+
+  const resolvedTemplate = resolveInvitationTemplateForTheme(
+    config.invitationTheme,
+    config.invitationTemplate
+  );
+
+  const visibilityMapping = mapResponseVisibilityToLegacyFields(config.responseVisibility);
+
+  // Deduplicate and sort options chronologically
+  const uniqueMap = new Map<string, DateOption>();
+  for (const opt of draft.dateOptions) {
+    const key = `${opt.date}_${opt.time}`;
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, opt);
+    }
+  }
+
+  const sortedOptions = Array.from(uniqueMap.values()).sort((a, b) =>
+    `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+  );
+
+  const opciones: CoordinationOptionPayload[] = sortedOptions.map((opt) => ({
+    fecha: opt.date,
+    hora_inicio: opt.time,
+  }));
+
+  const payload: CoordinationCreatePayload = {
+    titulo: draft.title.trim(),
+    descripcion: draft.description ? draft.description.trim() : undefined,
+    modalidad: draft.modality,
+    lugar_texto:
+      draft.modality === 'presencial' && draft.locationText ? draft.locationText.trim() : undefined,
+    link_virtual:
+      draft.modality === 'virtual' && draft.virtualLink ? draft.virtualLink.trim() : undefined,
+    tipo_invitacion: config.invitationType,
+    tema: 'blue',
+    tema_invitacion: config.invitationTheme,
+    invitation_template: resolvedTemplate || undefined,
+    response_deadline: draft.responseDeadline || null,
+    duration_minutes: draft.durationMinutes || null,
+    mostrar_respuestas_a_invitados: visibilityMapping.mostrar_respuestas_a_invitados,
+    visibilidad_respuestas_invitados: visibilityMapping.visibilidad_respuestas_invitados,
+    post_event_active_minutes: meta?.postEventActiveMinutes ?? 45,
+  };
+
+  return { payload, opciones };
 }
