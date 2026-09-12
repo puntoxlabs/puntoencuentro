@@ -520,6 +520,23 @@ export function shouldSuppressAssistantBubbleForQuestion(
   );
 }
 
+/**
+ * Detects internal wizard action tokens that should NEVER be rendered as user chat messages
+ * or sent to conversational LLM processing.
+ */
+export function isInternalWizardAction(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return (
+    trimmed === 'confirm_coordination' ||
+    trimmed === 'keep_fixed' ||
+    trimmed === 'handoff_coordination' ||
+    trimmed === 'choose_fixed_date' ||
+    trimmed === 'reset' ||
+    trimmed.startsWith('fixed_opt_')
+  );
+}
+
 interface ResolvePendingTemporalResult {
   handled: boolean;
   newDraft?: EncounterDraft;
@@ -808,6 +825,27 @@ export const useAiWizardStore = create<AiWizardState>()(
       sendUserMessage: async (text: string) => {
         const trimmed = text.trim();
         if (!trimmed) return;
+
+        // Defense-in-depth: Intercept internal wizard action tokens immediately
+        if (isInternalWizardAction(trimmed)) {
+          if (trimmed === 'confirm_coordination') {
+            get().confirmCoordination();
+            return;
+          }
+          if (trimmed === 'keep_fixed') {
+            get().applyQuickOption('coordination_confirm', 'keep_fixed');
+            return;
+          }
+          if (trimmed.startsWith('fixed_opt_')) {
+            get().applyQuickOption('date', trimmed);
+            return;
+          }
+          if (trimmed === 'handoff_coordination') {
+            get().markFallbackManual();
+            return;
+          }
+          return;
+        }
 
         const state = get();
         set({ lastResolutionSource: 'deterministic', lastEscalationReason: null });
@@ -2151,47 +2189,9 @@ export const useAiWizardStore = create<AiWizardState>()(
         const state = get();
         const userText = displayLabel || (typeof value === 'string' ? value : String(value));
 
-        const userMsg: ChatMessage = {
-          id: generateUuid(),
-          role: 'user',
-          text: userText,
-          timestamp: Date.now(),
-        };
-
         // Coordination Quick Options
         if (value === 'confirm_coordination') {
-          const newDraft: EncounterDraft = {
-            ...state.draft,
-            dateMode: 'coordination',
-            date: null,
-            time: null,
-          };
-          const evaluation = evaluateDraft(newDraft, true, undefined, false);
-          let assistantReply = '';
-          if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
-            assistantReply = '';
-          } else if (evaluation.isComplete) {
-            assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
-          } else if (evaluation.nextQuestion) {
-            assistantReply = evaluation.nextQuestion.question;
-          }
-          const newMessages = [...state.messages, userMsg];
-          if (assistantReply) {
-            newMessages.push({
-              id: generateUuid(),
-              role: 'assistant',
-              text: assistantReply,
-              timestamp: Date.now() + 1,
-            });
-          }
-          set({
-            draft: newDraft,
-            messages: newMessages,
-            lastQuestion: evaluation.nextQuestion,
-            coordinationDetected: true,
-            coordinationPendingConfirm: false,
-            isComplete: evaluation.isComplete,
-          });
+          state.confirmCoordination();
           return;
         }
 
@@ -2204,7 +2204,7 @@ export const useAiWizardStore = create<AiWizardState>()(
               timestamp: Date.now() + 1,
             };
             set({
-              messages: [...state.messages, userMsg, assistantMsg],
+              messages: [...state.messages, assistantMsg],
               lastQuestion: {
                 field: 'date',
                 question: '¿Cuál de las opciones preferís usar?',
@@ -2229,6 +2229,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           const newDraft: EncounterDraft = {
             ...state.draft,
             dateMode: 'fixed',
+            coordinationPendingConfirm: false,
             date: optDate,
             time: optTime,
             dateOptions: null,
@@ -2249,7 +2250,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           };
           set({
             draft: newDraft,
-            messages: [...state.messages, userMsg, assistantMsg],
+            messages: [...state.messages, assistantMsg],
             lastQuestion: evaluation.nextQuestion,
             coordinationDetected: false,
             coordinationPendingConfirm: false,
@@ -2257,6 +2258,32 @@ export const useAiWizardStore = create<AiWizardState>()(
           });
           return;
         }
+
+        if (value === 'handoff_coordination') {
+          state.markFallbackManual();
+          return;
+        }
+
+        if (value === 'choose_fixed_date') {
+          state.switchToFixed();
+          return;
+        }
+
+        if (value === 'reset') {
+          state.reset();
+          return;
+        }
+
+        if (isInternalWizardAction(value)) {
+          return;
+        }
+
+        const userMsg: ChatMessage = {
+          id: generateUuid(),
+          role: 'user',
+          text: userText,
+          timestamp: Date.now(),
+        };
 
         // Deterministic template variant selection
         if (field === 'template') {
@@ -2486,12 +2513,31 @@ export const useAiWizardStore = create<AiWizardState>()(
         const newDraft: EncounterDraft = {
           ...state.draft,
           dateMode: 'coordination',
+          coordinationPendingConfirm: false,
           date: null,
           time: null,
         };
         const evaluation = evaluateDraft(newDraft, true, undefined, false);
+        let assistantReply = '';
+        if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+          assistantReply = '';
+        } else if (evaluation.isComplete) {
+          assistantReply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+        } else if (evaluation.nextQuestion) {
+          assistantReply = evaluation.nextQuestion.question;
+        }
+        const newMessages = [...state.messages];
+        if (assistantReply) {
+          newMessages.push({
+            id: generateUuid(),
+            role: 'assistant',
+            text: assistantReply,
+            timestamp: Date.now() + 1,
+          });
+        }
         set({
           draft: newDraft,
+          messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           coordinationDetected: true,
           coordinationPendingConfirm: false,
@@ -2516,6 +2562,7 @@ export const useAiWizardStore = create<AiWizardState>()(
         const newDraft: EncounterDraft = {
           ...state.draft,
           dateMode: 'fixed',
+          coordinationPendingConfirm: false,
           date: opt.date,
           time: opt.time,
           dateOptions: null,
@@ -2536,6 +2583,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           ...state.draft,
           dateMode: 'fixed' as const,
           dateOptions: null,
+          coordinationPendingConfirm: false,
         };
         const evaluation = evaluateDraft(newDraft, false, undefined, false);
 
@@ -2566,12 +2614,11 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         set({
           draft: newDraft,
+          messages: newMessages,
           coordinationDetected: false,
           coordinationPendingConfirm: false,
-          messages: newMessages,
           lastQuestion: evaluation.nextQuestion,
           isComplete: evaluation.isComplete,
-          error: null,
         });
       },
 

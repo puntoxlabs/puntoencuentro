@@ -6,7 +6,7 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AIChatMessage } from '@/components/ai/AIChatMessage';
 import { FieldQuestion } from '@/components/ai/FieldQuestion';
 import { DraftSummary } from '@/components/ai/DraftSummary';
-import { useAiWizardStore } from '@/store/aiWizardStore';
+import { useAiWizardStore, isInternalWizardAction } from '@/store/aiWizardStore';
 import { useWizardStore } from '@/store/wizardStore';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import {
@@ -123,6 +123,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     applyQuickOption,
     updateConfigField,
     dismissCoordinationHandoff,
+    confirmCoordination,
     markFallbackManual,
     reset,
   } = activeState;
@@ -400,9 +401,35 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   };
 
   const handleQuickOptionSelect = async (value: string) => {
+    if (
+      value === 'confirm_coordination' ||
+      (lastQuestion?.field === 'coordination_confirm' && value === 'confirm_coordination')
+    ) {
+      confirmCoordination();
+      return;
+    }
+
     if (value === 'keep_fixed') {
-      dismissCoordinationHandoff();
+      if (
+        lastQuestion?.field === 'coordination_confirm' ||
+        lastQuestion?.type === 'coordination_card' ||
+        (draft.dateOptions && draft.dateOptions.length > 0)
+      ) {
+        applyQuickOption('coordination_confirm', 'keep_fixed');
+      } else {
+        dismissCoordinationHandoff();
+      }
       setTimeout(() => inputRef.current?.focus(), 100);
+      return;
+    }
+
+    if (typeof value === 'string' && value.startsWith('fixed_opt_')) {
+      applyQuickOption('date', value);
+      setTimeout(() => inputRef.current?.focus(), 100);
+      return;
+    }
+
+    if (isInternalWizardAction(value)) {
       return;
     }
 
@@ -410,6 +437,17 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
       const option = lastQuestion.quickOptions?.find((opt) => opt.value === value);
       const rawLabel = option?.label || value;
       const displayLabel = rawLabel.replace(/^[^\p{L}\p{N}]+\s*/u, '').trim() || value;
+
+      if (lastQuestion.field === 'coordination_confirm') {
+        if (value === 'confirm_coordination') {
+          confirmCoordination();
+          return;
+        }
+        if (value === 'keep_fixed') {
+          applyQuickOption('coordination_confirm', 'keep_fixed');
+          return;
+        }
+      }
 
       if (lastQuestion.field === 'modality') {
         applyQuickOption('modality', value as 'presencial' | 'virtual', displayLabel);

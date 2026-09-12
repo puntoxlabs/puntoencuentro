@@ -74,7 +74,7 @@ import {
   resetLimiterStateForTesting,
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
-import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantBubbleForQuestion } from '@/store/aiWizardStore';
+import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantBubbleForQuestion, isInternalWizardAction } from '@/store/aiWizardStore';
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
 import { ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect.ts';
@@ -8382,5 +8382,313 @@ describe('QA Hotfix: Preservación de Alternativas Temporales y Clarificación S
     assert.ok(html.includes('Opciones de fecha'), 'El encabezado debe decir Opciones de fecha');
   });
 });
+
+describe('QA Hotfix: Coordination Confirmation Action & Internal Action Tokens', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+
+  test('Test Principal (confirm_coordination action from coordination_confirm card)', () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      throw new Error('LLM should never be called for internal actions');
+    };
+
+    try {
+      // Reproducir estado previo
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          locationText: 'casa',
+          modality: 'presencial',
+          dateMode: 'coordination',
+          coordinationPendingConfirm: true,
+          date: null,
+          time: null,
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+        },
+        lastQuestion: {
+          type: 'coordination_card',
+          field: 'coordination_confirm',
+          question: '¿Querés que los invitados elijan entre estas fechas?',
+          quickOptions: [
+            { label: 'Sí, continuar', value: 'confirm_coordination' },
+            { label: 'Elegir fecha fija', value: 'keep_fixed' },
+          ],
+        },
+        coordinationDetected: true,
+        coordinationPendingConfirm: true,
+        isComplete: false,
+        messages: [],
+      });
+
+      // Ejecutar acción del botón "Sí, continuar"
+      useAiWizardStore.getState().applyQuickOption('coordination_confirm', 'confirm_coordination');
+      const s = useAiWizardStore.getState();
+
+      // Assert:
+      // - no se agrega mensaje de usuario "confirm_coordination"
+      const hasUserConfirmMsg = s.messages.some((m) => m.role === 'user' && m.text.includes('confirm_coordination'));
+      assert.equal(hasUserConfirmMsg, false, 'No se debe agregar mensaje de usuario confirm_coordination');
+      assert.equal(s.messages.filter((m) => m.role === 'user').length, 0, 'No debe haber mensajes role: user');
+
+      // - providerCalls no aumenta
+      assert.equal(providerCalls, 0, 'providerCalls no debe aumentar');
+
+      // - coordinationPendingConfirm = false
+      assert.equal(s.coordinationPendingConfirm, false, 'coordinationPendingConfirm en store debe ser false');
+      assert.equal(s.draft.coordinationPendingConfirm, false, 'coordinationPendingConfirm en draft debe ser false');
+
+      // - dateMode = 'coordination'
+      assert.equal(s.draft.dateMode, 'coordination');
+      assert.equal(s.coordinationDetected, true);
+
+      // - dateOptions quedan intactas
+      assert.equal(s.draft.dateOptions?.length, 2);
+      assert.equal(s.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(s.draft.dateOptions?.[1].time, '23:00');
+
+      // - lastQuestion cambia al siguiente estado válido (null porque el draft está completo)
+      assert.notEqual(s.lastQuestion?.field, 'coordination_confirm', 'lastQuestion ya no debe ser coordination_confirm');
+      assert.equal(s.isComplete, true, 'El draft debe estar completo y listo para crear');
+
+      // - no queda trabado
+      assert.ok(s.messages.some((m) => m.role === 'assistant' && m.text.includes('¡Listo!')));
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test E2E caso real (Input complejo -> 22:00 -> 23:00 -> card -> Sí, continuar: total 1 LLM call)', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return {
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          locationText: { value: 'casa', confidence: 'explicit' as const },
+          modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+          temporalAlternatives: {
+            value: [
+              { dateRef: 'hoy', timeRef: 'a las 10' },
+              { dateRef: 'mañana', timeRef: 'a las 11' },
+            ],
+            confidence: 'explicit' as const,
+          },
+        },
+      };
+    };
+
+    try {
+      // 1. Input complejo -> 1 LLM call
+      await useAiWizardStore.getState().sendUserMessage(
+        'Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana'
+      );
+      assert.equal(providerCalls, 1, 'Paso 1: Mensaje inicial invoca LLM (1 llamada)');
+
+      // 2. Elegir 22:00 -> 0 LLM calls
+      useAiWizardStore.getState().applyQuickOption('time', '22:00');
+      assert.equal(providerCalls, 1, 'Paso 2: Elegir 22:00 no invoca LLM');
+
+      // 3. Elegir 23:00 -> 0 LLM calls
+      useAiWizardStore.getState().applyQuickOption('time', '23:00');
+      assert.equal(providerCalls, 1, 'Paso 3: Elegir 23:00 no invoca LLM');
+      assert.equal(useAiWizardStore.getState().coordinationPendingConfirm, true);
+      assert.equal(useAiWizardStore.getState().lastQuestion?.field, 'coordination_confirm');
+
+      // 4. Card coordinación -> Tocar "Sí, continuar" (confirm_coordination)
+      useAiWizardStore.getState().confirmCoordination();
+      const finalState = useAiWizardStore.getState();
+
+      // Assert:
+      // - nunca aparece confirm_coordination en messages
+      assert.equal(
+        finalState.messages.some((m) => m.text.includes('confirm_coordination')),
+        false,
+        'Nunca debe aparecer confirm_coordination en messages'
+      );
+
+      // - no hay nueva llamada LLM (Total = 1)
+      assert.equal(providerCalls, 1, 'Total de llamadas LLM en todo el flujo debe ser exactamente 1');
+
+      // - no se pierde ninguna opción
+      assert.equal(finalState.draft.dateOptions?.length, 2, 'Se deben conservar las 2 opciones de fecha');
+      assert.equal(finalState.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(finalState.draft.dateOptions?.[1].time, '23:00');
+
+      // - se avanza correctamente
+      assert.equal(finalState.coordinationPendingConfirm, false);
+      assert.equal(finalState.draft.dateMode, 'coordination');
+      assert.equal(finalState.isComplete, true);
+      assert.equal(finalState.lastQuestion, null);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Test botón "Elegir fecha fija" (keep_fixed no filtra token interno, no confirma coordinación y permite elegir fecha fija)', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        locationText: 'casa',
+        modality: 'presencial',
+        dateMode: 'coordination',
+        coordinationPendingConfirm: true,
+        dateOptions: [
+          { date: todayISO, time: '22:00' },
+          { date: tomorrowISO, time: '23:00' },
+        ],
+      },
+      lastQuestion: {
+        type: 'coordination_card',
+        field: 'coordination_confirm',
+        question: '¿Querés que los invitados elijan entre estas fechas?',
+        quickOptions: [
+          { label: 'Sí, continuar', value: 'confirm_coordination' },
+          { label: 'Elegir fecha fija', value: 'keep_fixed' },
+        ],
+      },
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+      isComplete: false,
+      messages: [],
+    });
+
+    // 1. Tocar "Elegir fecha fija"
+    useAiWizardStore.getState().applyQuickOption('coordination_confirm', 'keep_fixed');
+    const s1 = useAiWizardStore.getState();
+
+    // Assert:
+    // - no aparece token interno en messages
+    assert.equal(
+      s1.messages.some((m) => m.text.includes('keep_fixed')),
+      false,
+      'No debe aparecer keep_fixed en messages'
+    );
+    assert.equal(s1.messages.filter((m) => m.role === 'user').length, 0, 'No debe haber mensaje role: user');
+
+    // - coordinación no se confirma
+    assert.equal(s1.coordinationPendingConfirm, false);
+
+    // - dateOptions no se corrompen durante la transición
+    assert.equal(s1.draft.dateOptions?.length, 2, 'dateOptions no se deben perder durante la transición');
+
+    // - entra al flujo fixed correspondiente preguntando cuál de las opciones usar
+    assert.equal(s1.lastQuestion?.field, 'date');
+    assert.equal(s1.lastQuestion?.quickOptions?.length, 2);
+    assert.ok(s1.lastQuestion?.quickOptions?.[0].value.startsWith('fixed_opt_'));
+
+    // 2. Elegir la opción fija #1 (fixed_opt_...)
+    const fixedOptValue = s1.lastQuestion!.quickOptions![0].value;
+    useAiWizardStore.getState().applyQuickOption('date', fixedOptValue);
+    const s2 = useAiWizardStore.getState();
+
+    // Assert:
+    // - no aparece el token técnico fixed_opt_ en messages
+    assert.equal(
+      s2.messages.some((m) => m.text.includes('fixed_opt_')),
+      false,
+      'No debe aparecer fixed_opt_ en messages'
+    );
+
+    // - quedó en fecha fija correctamente
+    assert.equal(s2.draft.dateMode, 'fixed');
+    assert.equal(s2.draft.date, todayISO);
+    assert.equal(s2.draft.time, '22:00');
+    assert.equal(s2.draft.dateOptions, null);
+    assert.equal(s2.coordinationDetected, false);
+    assert.equal(s2.isComplete, true);
+  });
+
+  test('Test de regresión de tokens internos (isInternalWizardAction y ningún token renderizado como role: "user")', async () => {
+    const internalTokens = [
+      'confirm_coordination',
+      'keep_fixed',
+      'handoff_coordination',
+      'choose_fixed_date',
+      'reset',
+      'fixed_opt_2026-09-12_22:00',
+    ];
+
+    // 1. Validar la función centralizada isInternalWizardAction
+    for (const token of internalTokens) {
+      assert.equal(isInternalWizardAction(token), true, `isInternalWizardAction("${token}") debe ser true`);
+    }
+    assert.equal(isInternalWizardAction('22:00'), false);
+    assert.equal(isInternalWizardAction('presencial'), false);
+    assert.equal(isInternalWizardAction('Cena en casa'), false);
+    assert.equal(isInternalWizardAction(''), false);
+    assert.equal(isInternalWizardAction(null), false);
+    assert.equal(isInternalWizardAction(undefined), false);
+
+    // 2. Enviar cada token interno a través de sendUserMessage y verificar que NINGUNO crea mensaje role: 'user'
+    for (const token of internalTokens) {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        messages: [],
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+          coordinationPendingConfirm: true,
+        },
+      });
+
+      await useAiWizardStore.getState().sendUserMessage(token);
+      const s = useAiWizardStore.getState();
+
+      const userMsgs = s.messages.filter((m) => m.role === 'user');
+      assert.equal(
+        userMsgs.length,
+        0,
+        `Token interno "${token}" enviado a sendUserMessage nunca debe crear un mensaje role: "user"`
+      );
+    }
+
+    // 3. Enviar a través de applyQuickOption y verificar que tampoco crea mensaje role: 'user'
+    for (const token of internalTokens) {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        messages: [],
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+          coordinationPendingConfirm: true,
+        },
+      });
+
+      useAiWizardStore.getState().applyQuickOption('coordination_confirm', token);
+      const s = useAiWizardStore.getState();
+
+      const userMsgs = s.messages.filter((m) => m.role === 'user');
+      assert.equal(
+        userMsgs.length,
+        0,
+        `Token interno "${token}" en applyQuickOption nunca debe crear un mensaje role: "user"`
+      );
+    }
+  });
+});
+
 
 
