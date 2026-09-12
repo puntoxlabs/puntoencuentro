@@ -97,7 +97,7 @@ export const FieldQuestion: React.FC<FieldQuestionProps> = ({
               cursor: 'pointer',
             }}
           >
-            Elegir fecha fija
+            {question.quickOptions?.[1]?.label || 'Elegir fecha fija'}
           </button>
         </div>
       </div>

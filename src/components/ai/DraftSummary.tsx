@@ -108,6 +108,16 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
                   </div>
                 )}
               </div>
+            ) : draft.pendingTimeOptions && draft.pendingTimeOptions.length > 0 ? (
+              <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={15} color="#0284c7" />
+                  <span>Horarios: {draft.pendingTimeOptions.join(', ')}</span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                  Fecha: Pendiente
+                </div>
+              </div>
             ) : (
               <div style={{ fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Calendar size={15} color="#0284c7" />

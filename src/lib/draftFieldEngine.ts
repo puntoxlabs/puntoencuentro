@@ -59,21 +59,72 @@ export function evaluateDraft(
 ): DraftEvaluation {
   // 0a. If there is a pending coordination confirmation card for candidate options:
   if ((coordinationPendingConfirm || draft.coordinationPendingConfirm) && draft.dateOptions && draft.dateOptions.length >= 2) {
+    const allSameDate = draft.dateOptions.every((opt) => opt.date === draft.dateOptions![0].date);
     return {
       isComplete: false,
       missingFields: ['coordination_confirm'],
       nextQuestion: {
         field: 'coordination_confirm',
-        question: '¿Querés que los invitados elijan entre estas fechas?',
+        question: allSameDate
+          ? '¿Querés que los invitados elijan entre estos horarios?'
+          : '¿Querés que los invitados elijan entre estas fechas?',
         type: 'coordination_card',
         dateOptions: draft.dateOptions,
         quickOptions: [
           { label: 'Sí, continuar', value: 'confirm_coordination' },
-          { label: 'Elegir fecha fija', value: 'keep_fixed' },
+          { label: allSameDate ? 'Elegir un horario fijo' : 'Elegir fecha fija', value: 'keep_fixed' },
         ],
       },
       validationError: null,
     };
+  }
+
+  // 0a2. Pending time alternatives without a date (e.g. "Desayuno a las 10 o a las 11:00 en casa")
+  if (draft.pendingTimeOptions && draft.pendingTimeOptions.length >= 2 && (!draft.dateOptions || draft.dateOptions.length < 2)) {
+    if (draft.pendingTimeOptions.length > 3) {
+      return {
+        isComplete: false,
+        missingFields: ['pendingTimeOptions'],
+        nextQuestion: {
+          field: 'coordination_options',
+          question: 'Por ahora podés incluir hasta 3 opciones para coordinar. ¿Cuáles 3 preferís dejar?',
+          type: 'text',
+        },
+        validationError: 'maximum_three_options',
+      };
+    }
+
+    if (!draft.title || !draft.title.trim()) {
+      return {
+        isComplete: false,
+        missingFields: ['title'],
+        nextQuestion: {
+          field: 'title',
+          question: '¿Cómo se llama el encuentro?',
+          helperText: 'Ej: Desayuno, Almuerzo de trabajo, Cumpleaños',
+          type: 'text',
+        },
+        validationError: null,
+      };
+    }
+
+    if (!draft.date) {
+      return {
+        isComplete: false,
+        missingFields: ['date'],
+        nextQuestion: {
+          field: 'date',
+          question: '¿Qué día sería?',
+          type: 'date',
+          quickOptions: [
+            { label: 'Hoy', value: 'hoy' },
+            { label: 'Mañana', value: 'mañana' },
+            { label: 'Este finde', value: 'este fin de semana' },
+          ],
+        },
+        validationError: null,
+      };
+    }
   }
 
   // 0b. Coordination without specific date options (e.g. "cuando podamos") -> handoff prompt

@@ -1507,6 +1507,8 @@ export interface ParsedCoordinationResult {
   extractedDurationMinutes?: number;
   extractedDeadline?: string;
   totalAlternativesFound: number;
+  pendingTimeOptions?: string[];
+  timeAmbiguity?: { questionText: string; options?: string[] };
 }
 
 function normalizeCoordText(text: string): string {
@@ -1523,7 +1525,8 @@ function normalizeCoordText(text: string): string {
  */
 export function parseNaturalLanguageDateOptions(
   text: string,
-  baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts()
+  baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts(),
+  fallbackDate?: string | null
 ): ParsedCoordinationResult {
   const result: ParsedCoordinationResult = {
     isCoordinationCandidate: false,
@@ -1563,27 +1566,22 @@ export function parseNaturalLanguageDateOptions(
     }
   }
 
-  // 3. Extract activity/title if present at start or after organize verbs
+  // 3. Extract activity/title if present at start or after organize verbs or within explicit coordination
   const activityMatch = clean.match(
-    /^(?:un[a]?\s+)?(cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
+    /\b(?:un[a]?\s+)?(cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
   );
   if (activityMatch) {
-    result.extractedTitle =
-      activityMatch[1].charAt(0).toUpperCase() + activityMatch[1].slice(1).toLowerCase();
-  }
-
-  if (!result.extractedTitle) {
-    const wantOrganizeMatch = clean.match(
-      /\b(?:organizar|hacer|armar)\s+(?:un[a]?\s+)?(cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
-    );
-    if (wantOrganizeMatch) {
-      result.extractedTitle =
-        wantOrganizeMatch[1].charAt(0).toUpperCase() + wantOrganizeMatch[1].slice(1).toLowerCase();
-    }
+    const rawWord = activityMatch[1].toLowerCase();
+    if (/^cen/i.test(rawWord)) result.extractedTitle = 'Cena';
+    else if (/^almorz|^almuer/i.test(rawWord)) result.extractedTitle = 'Almuerzo';
+    else if (/^desayun/i.test(rawWord)) result.extractedTitle = 'Desayuno';
+    else if (/^merend|^merien/i.test(rawWord)) result.extractedTitle = 'Merienda';
+    else if (/^reuni/i.test(rawWord)) result.extractedTitle = 'Reunión';
+    else result.extractedTitle = rawWord.charAt(0).toUpperCase() + rawWord.slice(1);
   }
 
   // 4. Extract common location
-  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s+(?:o|u|durante|por|con|\.|$))/i);
+  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s+(?:o|u|durante|por|con|\.)|\s*$)/i);
   if (locMatch) {
     const locCandidate = locMatch[1].trim();
     if (!/^(?:el|la|los|las|un|una|este|esta|otro|otra)$/i.test(locCandidate)) {
@@ -1595,12 +1593,19 @@ export function parseNaturalLanguageDateOptions(
   // 5. Splitting alternatives
   let workText = clean;
   workText = workText.replace(
-    /^(?:quiero\s+organizar\s+(?:un[a]?\s+)?[a-z]+\s+y\s+)?(?:que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)\s+(?:entre\s+)?|coordinemos\s+(?:entre\s+)?|podemos\s+juntarnos\s+)/i,
+    /^(?:quiero\s+organizar\s+(?:un[a]?\s+)?[a-z]+\s+y\s+)?(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|elegir\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|podemos\s+juntarnos)\s*(?:si\s+)?(?:entre\s+)?/i,
     ''
   );
 
   if (result.extractedTitle) {
-    workText = workText.replace(new RegExp(`^${result.extractedTitle}\\b`, 'i'), '').trim();
+    workText = workText.replace(
+      /\b(?:para\s+)?(?:organizar|hacer|armar|tener)?\s*(?:un[a]?\s+)?(?:cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i,
+      ''
+    ).trim();
+  }
+
+  if (result.extractedLocation) {
+    workText = workText.replace(new RegExp('\\ben\\s+' + result.extractedLocation + '\\b', 'i'), '').trim();
   }
 
   if (durationMatch) {
@@ -1615,7 +1620,7 @@ export function parseNaturalLanguageDateOptions(
   } else if (/\s+(?:o|u|o\s+bien)\s+/i.test(workText)) {
     const parts = workText.split(/\s+(?:o|u|o\s+bien)\s+/i);
     for (let i = 0; i < parts.length; i++) {
-      const sub = parts[i].split(/\s*,\s*(?=(?:el\s+\d|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo))/i);
+      const sub = parts[i].split(/\s*,\s*(?=(?:el\s+\d|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}(?::\d{2})?|a\s+las?\s+\d|tipo\s+\d))/i);
       rawSegments.push(...sub.map((s) => s.trim()).filter(Boolean));
     }
   } else {
@@ -1635,6 +1640,7 @@ export function parseNaturalLanguageDateOptions(
   }> = [];
 
   let globalTime: string | null = null;
+  let globalDate: string | null = null;
 
   for (const seg of rawSegments) {
     let cleanSeg = seg.trim();
@@ -1652,21 +1658,78 @@ export function parseNaturalLanguageDateOptions(
     if (timeMatch) {
       const parsedTime = parseDeterministicTimeInput(timeMatch[0]);
       if (parsedTime.kind === 'exact') {
-        segTime = parsedTime.time;
-        timeDayOffset = parsedTime.dayOffset ?? 0;
+        if (result.extractedTitle) {
+          const contextual = resolveContextualHour(
+            parsedTime.hour,
+            parsedTime.sourceForm,
+            { title: result.extractedTitle },
+            parsedTime.minute,
+            parsedTime.dayOffset || 0
+          );
+          if (contextual.resolvedHour !== null) {
+            segTime = `${pad(contextual.resolvedHour)}:${pad(contextual.minute)}`;
+            timeDayOffset = contextual.dayOffset || 0;
+          } else if (contextual.requiresConfirmation) {
+            segTime = `${pad(parsedTime.hour)}:${pad(parsedTime.minute)}`;
+            if (!result.timeAmbiguity) {
+              result.timeAmbiguity = {
+                questionText: contextual.questionText || '',
+                options: contextual.options,
+              };
+            }
+          } else {
+            segTime = parsedTime.time;
+            timeDayOffset = parsedTime.dayOffset ?? 0;
+          }
+        } else {
+          segTime = parsedTime.time;
+          timeDayOffset = parsedTime.dayOffset ?? 0;
+        }
       }
       cleanSeg = cleanSeg.replace(timeMatch[0], '').trim();
     } else {
-      const trailingHourMatch = cleanSeg.match(/\b(?:el\s+)?([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s+(\d{1,2})\b$/i);
-      if (trailingHourMatch) {
-        const word = trailingHourMatch[1].toLowerCase();
-        const num = parseInt(trailingHourMatch[2], 10);
-        const isWk = normalizeToCanonicalWeekday(word);
-        if (isWk && num >= 1 && num <= 24) {
-          const hour24 = num >= 1 && num <= 7 ? num + 12 : num === 24 ? 0 : num;
-          segTime = `${String(hour24).padStart(2, '0')}:00`;
-          if (num === 24) timeDayOffset = 1;
-          cleanSeg = trailingHourMatch[1];
+      const directTime = parseDeterministicTimeInput(cleanSeg);
+      if (directTime.kind === 'exact') {
+        if (result.extractedTitle) {
+          const contextual = resolveContextualHour(
+            directTime.hour,
+            directTime.sourceForm,
+            { title: result.extractedTitle },
+            directTime.minute,
+            directTime.dayOffset || 0
+          );
+          if (contextual.resolvedHour !== null) {
+            segTime = `${pad(contextual.resolvedHour)}:${pad(contextual.minute)}`;
+            timeDayOffset = contextual.dayOffset || 0;
+          } else if (contextual.requiresConfirmation) {
+            segTime = `${pad(directTime.hour)}:${pad(directTime.minute)}`;
+            if (!result.timeAmbiguity) {
+              result.timeAmbiguity = {
+                questionText: contextual.questionText || '',
+                options: contextual.options,
+              };
+            }
+          } else {
+            segTime = directTime.time;
+            timeDayOffset = directTime.dayOffset ?? 0;
+          }
+        } else {
+          segTime = directTime.time;
+          timeDayOffset = directTime.dayOffset ?? 0;
+        }
+        cleanSeg = '';
+      } else {
+        const trailingHourMatch = cleanSeg.match(/\b(?:el\s+)?([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s+(\d{1,2})\b$/i);
+        if (trailingHourMatch) {
+          const word = trailingHourMatch[1].toLowerCase();
+          const num = parseInt(trailingHourMatch[2], 10);
+          const isWk = normalizeToCanonicalWeekday(word);
+          if (isWk && num >= 1 && num <= 24) {
+            const hour24 = num >= 1 && num <= 7 ? num + 12 : num === 24 ? 0 : num;
+            segTime = `${String(hour24).padStart(2, '0')}:00`;
+            if (num === 24) timeDayOffset = 1;
+            cleanSeg = trailingHourMatch[1];
+          }
         }
       }
     }
@@ -1683,7 +1746,7 @@ export function parseNaturalLanguageDateOptions(
     if (/^ayer$/i.test(cleanSeg) || /^el\s+dia\s+de\s+ayer$/i.test(cleanSeg)) {
       isPast = true;
       segDate = addDaysToIsoDate(toIsoDate(baseDateParts.year, baseDateParts.month, baseDateParts.day), -1);
-    } else {
+    } else if (cleanSeg) {
       const dateRes = parseDeterministicDateIntent(cleanSeg);
       if (dateRes) {
         const resolved = resolveDateIntent(dateRes, baseDateParts);
@@ -1696,6 +1759,10 @@ export function parseNaturalLanguageDateOptions(
       }
     }
 
+    if (segDate && !globalDate) {
+      globalDate = segDate;
+    }
+
     parsedCandidates.push({
       date: segDate,
       time: segTime,
@@ -1705,6 +1772,17 @@ export function parseNaturalLanguageDateOptions(
     });
   }
 
+  // Propagate date across segments if one segment had a date or fallbackDate was provided
+  const effectiveDate = globalDate || fallbackDate || null;
+  if (effectiveDate) {
+    for (const c of parsedCandidates) {
+      if (!c.date) {
+        c.date = effectiveDate;
+      }
+    }
+  }
+
+  // Propagate shared time across candidates if some had none
   for (const c of parsedCandidates) {
     if (!c.time && globalTime) {
       c.time = globalTime;
@@ -1747,6 +1825,22 @@ export function parseNaturalLanguageDateOptions(
 
   if (result.options.length >= 2 || (result.options.length === 1 && result.invalidPastOptions.length > 0)) {
     result.isCoordinationCandidate = true;
+  }
+
+  // If no date was resolved anywhere, evaluate pending time alternatives
+  if (!effectiveDate && result.options.length === 0) {
+    const uniqueTimes: string[] = [];
+    for (const c of parsedCandidates) {
+      if (c.time && !uniqueTimes.includes(c.time)) {
+        uniqueTimes.push(c.time);
+      }
+    }
+    uniqueTimes.sort((a, b) => a.localeCompare(b));
+
+    if (uniqueTimes.length >= 2) {
+      result.pendingTimeOptions = uniqueTimes;
+      result.isCoordinationCandidate = true;
+    }
   }
 
   return result;

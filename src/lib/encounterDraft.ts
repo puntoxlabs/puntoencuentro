@@ -29,6 +29,7 @@ export interface EncounterDraft {
   baseDate?: string | null; // Semantic anchor date before day-rollover (e.g. 'hoy' = 2026-09-09)
   appliedDayRollover?: boolean; // True if date was bumped +1 day due to 24:00 (or midnight rollover)
   pendingDayRollover?: boolean; // Indicates a +1 day rollover is pending when date arrives
+  pendingTimeOptions?: string[] | null; // Multi-hour alternatives pending common date (e.g. ['10:00', '11:00'])
 
   // Coordination mode fields (retained for architectural compatibility with Stage 1.0 Entrega B)
   dateOptions: DateOption[] | null;
@@ -75,6 +76,7 @@ export function createEmptyEncounterDraft(): EncounterDraft {
     baseDate: null,
     appliedDayRollover: false,
     pendingDayRollover: false,
+    pendingTimeOptions: null,
     dateOptions: null,
     responseDeadline: null,
     durationMinutes: null,
@@ -115,6 +117,7 @@ export function hasMeaningfulDraftData(
     if (typeof draft.locationText === 'string' && draft.locationText.trim().length > 0) return true;
     if (typeof draft.virtualLink === 'string' && draft.virtualLink.trim().length > 0) return true;
     if (Array.isArray(draft.dateOptions) && draft.dateOptions.length > 0) return true;
+    if (Array.isArray(draft.pendingTimeOptions) && draft.pendingTimeOptions.length > 0) return true;
     if (typeof draft.responseDeadline === 'string' && draft.responseDeadline.trim().length > 0) return true;
     if (typeof draft.durationMinutes === 'number' && draft.durationMinutes > 0) return true;
     if (typeof draft.baseDate === 'string' && draft.baseDate.trim().length > 0) return true;

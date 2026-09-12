@@ -13,6 +13,7 @@ import {
   parseDeterministicDateExpression,
   parseNaturalLanguageDateOptions,
   parseCoordinationTransition,
+  validateResolvedDateTimeInFuture,
   pad,
 } from '@/lib/dateResolver';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
@@ -556,7 +557,8 @@ export const useAiWizardStore = create<AiWizardState>()(
           state.draft.modality ||
           state.draft.locationText ||
           state.draft.virtualLink ||
-          (state.draft.dateOptions && state.draft.dateOptions.length > 0)
+          (state.draft.dateOptions && state.draft.dateOptions.length > 0) ||
+          (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length > 0)
         );
 
         if (hasDraftData && !state.lastQuestion && !state.isComplete) {
@@ -934,8 +936,44 @@ export const useAiWizardStore = create<AiWizardState>()(
         }
 
         // 3a2. Deterministic Coordination Input (Multi-date candidates e.g. "Cena hoy a las 20 horas en casa o mañana a las 20 horas en casa")
-        const nlCoord = parseNaturalLanguageDateOptions(trimmed);
+        const nlCoord = parseNaturalLanguageDateOptions(trimmed, undefined, state.draft.date || state.draft.baseDate);
         if (nlCoord.isCoordinationCandidate) {
+          // A. Multi-hour alternatives pending common date (e.g. "Desayuno a las 10 o a las 11:00 en casa")
+          if (nlCoord.pendingTimeOptions && nlCoord.pendingTimeOptions.length >= 2 && nlCoord.options.length === 0) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              title: nlCoord.extractedTitle || state.draft.title,
+              locationText: nlCoord.extractedLocation || state.draft.locationText,
+              modality: nlCoord.extractedModality || state.draft.modality,
+              durationMinutes: nlCoord.extractedDurationMinutes || state.draft.durationMinutes,
+              date: null,
+              time: null,
+              dateOptions: null,
+              pendingTimeOptions: nlCoord.pendingTimeOptions,
+            };
+
+            const evaluation = evaluateDraft(newDraft, true, undefined, false);
+            const reply = evaluation.nextQuestion?.question || '¿Qué día sería?';
+            const assistantMsg: ChatMessage = {
+              id: generateUuid(),
+              role: 'assistant',
+              text: reply,
+              timestamp: Date.now() + 1,
+            };
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg, assistantMsg],
+              lastQuestion: evaluation.nextQuestion,
+              coordinationDetected: true,
+              coordinationPendingConfirm: false,
+              isComplete: false,
+              isInterpreting: false,
+              error: null,
+              lastUserPrompt: trimmed,
+            });
+            return;
+          }
+
           const newDraft: EncounterDraft = {
             ...state.draft,
             title: nlCoord.extractedTitle || state.draft.title,
@@ -945,6 +983,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             date: null,
             time: null,
             dateOptions: nlCoord.options,
+            pendingTimeOptions: null,
           };
 
           // One past option + one future option
@@ -1337,6 +1376,70 @@ export const useAiWizardStore = create<AiWizardState>()(
                 pendingRollover = false;
               }
 
+              // If multi-hour alternatives were pending a common date, materialize into dateOptions
+              if (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length >= 2) {
+                const validOptions: Array<{ date: string; time: string; appliedDayRollover?: boolean }> = [];
+                const invalidPast: string[] = [];
+
+                for (const t of state.draft.pendingTimeOptions) {
+                  let optDate = baseAnchor;
+                  let optRollover = false;
+                  if (t === '00:00' && (state.draft.pendingDayRollover || state.draft.appliedDayRollover)) {
+                    optDate = addDaysToIsoDate(baseAnchor, 1);
+                    optRollover = true;
+                  }
+                  if (validateResolvedDateTimeInFuture(optDate, t)) {
+                    validOptions.push({ date: optDate, time: t, appliedDayRollover: optRollover });
+                  } else {
+                    invalidPast.push(t);
+                  }
+                }
+
+                if (validOptions.length < 2 && invalidPast.length > 0) {
+                  const assistantMsg: ChatMessage = {
+                    id: generateUuid(),
+                    role: 'assistant',
+                    text: `El horario ${invalidPast.join(', ')} ya pasó para esa fecha. ¿Querés indicar otra fecha u otro horario?`,
+                    timestamp: Date.now() + 1,
+                  };
+                  set({
+                    messages: [...state.messages, userMsg, assistantMsg],
+                    lastQuestion: {
+                      field: 'date',
+                      question: '¿Qué fecha u horario preferís?',
+                      type: 'text',
+                    },
+                    isInterpreting: false,
+                    error: null,
+                    lastUserPrompt: trimmed,
+                  });
+                  return;
+                }
+
+                const newDraft: EncounterDraft = {
+                  ...state.draft,
+                  dateOptions: validOptions,
+                  pendingTimeOptions: null,
+                  date: null,
+                  time: null,
+                  baseDate: baseAnchor,
+                };
+
+                const evaluation = evaluateDraft(newDraft, true, undefined, true);
+                set({
+                  draft: newDraft,
+                  messages: [...state.messages, userMsg],
+                  lastQuestion: evaluation.nextQuestion,
+                  coordinationDetected: true,
+                  coordinationPendingConfirm: true,
+                  isComplete: false,
+                  isInterpreting: false,
+                  error: null,
+                  lastUserPrompt: trimmed,
+                });
+                return;
+              }
+
               const newDraft: EncounterDraft = {
                 ...state.draft,
                 date: finalDate,
@@ -1634,22 +1737,62 @@ export const useAiWizardStore = create<AiWizardState>()(
 
       updateDraftField: (field, value) => {
         const state = get();
-        let resolvedValue = value;
+        let resolvedValue: any = value;
         let pendingRollover = state.draft.pendingDayRollover;
         let appliedRollover = state.draft.appliedDayRollover;
         let baseDate = state.draft.baseDate;
         let finalDate = state.draft.date;
 
         if (field === 'date' && typeof value === 'string' && value) {
-          baseDate = value;
+          let resolvedDate: string = value;
+          const parsed = parseDeterministicDateExpression(value);
+          if (parsed?.resolved && parsed.date) {
+            resolvedDate = parsed.date;
+          }
+          baseDate = resolvedDate;
           if (pendingRollover || appliedRollover) {
-            resolvedValue = addDaysToIsoDate(value, 1) as any;
+            resolvedValue = addDaysToIsoDate(resolvedDate, 1) as any;
             finalDate = resolvedValue as any;
             appliedRollover = true;
             pendingRollover = false;
           } else {
-            finalDate = value;
+            finalDate = resolvedDate;
             appliedRollover = false;
+          }
+
+          if (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length >= 2) {
+            const validOptions: Array<{ date: string; time: string; appliedDayRollover?: boolean }> = [];
+            for (const t of state.draft.pendingTimeOptions) {
+              let optDate = baseDate;
+              let optRollover = false;
+              if (t === '00:00' && (state.draft.pendingDayRollover || state.draft.appliedDayRollover)) {
+                optDate = addDaysToIsoDate(baseDate, 1);
+                optRollover = true;
+              }
+              if (validateResolvedDateTimeInFuture(optDate, t)) {
+                validOptions.push({ date: optDate, time: t, appliedDayRollover: optRollover });
+              }
+            }
+
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              dateOptions: validOptions,
+              pendingTimeOptions: null,
+              date: null,
+              time: null,
+              baseDate,
+            };
+
+            const evaluation = evaluateDraft(newDraft, true, undefined, true);
+            set({
+              draft: newDraft,
+              lastQuestion: evaluation.nextQuestion,
+              coordinationDetected: true,
+              coordinationPendingConfirm: true,
+              isComplete: false,
+              error: null,
+            });
+            return;
           }
         } else if (field === 'time') {
           if (baseDate && appliedRollover) {
@@ -1892,15 +2035,56 @@ export const useAiWizardStore = create<AiWizardState>()(
         let finalDate = state.draft.date;
 
         if (field === 'date' && typeof value === 'string' && value) {
-          baseDate = value;
+          let resolvedDate = value;
+          const parsed = parseDeterministicDateExpression(value);
+          if (parsed?.resolved && parsed.date) {
+            resolvedDate = parsed.date;
+          }
+          baseDate = resolvedDate;
           if (pendingRollover || appliedRollover) {
-            resolvedValue = addDaysToIsoDate(value, 1) as any;
+            resolvedValue = addDaysToIsoDate(resolvedDate, 1) as any;
             finalDate = resolvedValue as any;
             appliedRollover = true;
             pendingRollover = false;
           } else {
-            finalDate = value;
+            finalDate = resolvedDate;
             appliedRollover = false;
+          }
+
+          if (state.draft.pendingTimeOptions && state.draft.pendingTimeOptions.length >= 2) {
+            const validOptions: Array<{ date: string; time: string; appliedDayRollover?: boolean }> = [];
+            for (const t of state.draft.pendingTimeOptions) {
+              let optDate = baseDate;
+              let optRollover = false;
+              if (t === '00:00' && (state.draft.pendingDayRollover || state.draft.appliedDayRollover)) {
+                optDate = addDaysToIsoDate(baseDate, 1);
+                optRollover = true;
+              }
+              if (validateResolvedDateTimeInFuture(optDate, t)) {
+                validOptions.push({ date: optDate, time: t, appliedDayRollover: optRollover });
+              }
+            }
+
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              dateOptions: validOptions,
+              pendingTimeOptions: null,
+              date: null,
+              time: null,
+              baseDate,
+            };
+
+            const evaluation = evaluateDraft(newDraft, true, undefined, true);
+            set({
+              draft: newDraft,
+              messages: [...state.messages, userMsg],
+              lastQuestion: evaluation.nextQuestion,
+              coordinationDetected: true,
+              coordinationPendingConfirm: true,
+              isComplete: false,
+              error: null,
+            });
+            return;
           }
         } else if (field === 'time') {
           if (baseDate && appliedRollover) {

@@ -7499,3 +7499,226 @@ describe('Coordinación con IA — Continuidad de Autenticación y Post-Auth (Bu
   });
 });
 
+describe('QA Post-Deploy Fix: Alternativas de Horario sin Fecha Definida (Casos A a O)', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+  const dayAfterTomorrowISO = addDaysToIsoDate(todayISO, 2);
+
+  test('Caso A & D: Caso Real QA "Desayuno a las 10 o a las 11:00 en casa" sin fecha previa', () => {
+    const res = parseNaturalLanguageDateOptions('Desayuno a las 10 o a las 11:00 en casa');
+    assert.equal(res.extractedTitle, 'Desayuno');
+    assert.equal(res.extractedLocation, 'casa');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 0); // No options yet because date is missing
+    assert.deepEqual(res.pendingTimeOptions, ['10:00', '11:00']);
+
+    // Evaluate draft with pendingTimeOptions
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: res.extractedTitle || null,
+      locationText: res.extractedLocation || null,
+      modality: res.extractedModality || null,
+      pendingTimeOptions: res.pendingTimeOptions,
+    };
+
+    const evaluation = evaluateDraft(draft, true, undefined, false);
+    assert.equal(evaluation.isComplete, false);
+    assert.deepEqual(evaluation.missingFields, ['date']);
+    assert.equal(evaluation.nextQuestion?.field, 'date');
+    assert.equal(evaluation.nextQuestion?.question, '¿Qué día sería?');
+    // Ensure no generic time chips
+    assert.notEqual(evaluation.nextQuestion?.field, 'time');
+  });
+
+  test('Caso B: Fecha agregada en Turno 2 ("mañana") materializa dateOptions y card de confirmación adaptada', async () => {
+    useAiWizardStore.getState().reset();
+    const store = useAiWizardStore.getState();
+
+    // Turn 1
+    await store.sendUserMessage('Desayuno a las 10 o a las 11:00 en casa');
+    const state1 = useAiWizardStore.getState();
+    assert.equal(state1.draft.title, 'Desayuno');
+    assert.equal(state1.draft.locationText, 'casa');
+    assert.deepEqual(state1.draft.pendingTimeOptions, ['10:00', '11:00']);
+    assert.equal(state1.lastQuestion?.field, 'date');
+    assert.equal(state1.lastQuestion?.question, '¿Qué día sería?');
+
+    // Turn 2
+    await store.sendUserMessage('mañana');
+    const state2 = useAiWizardStore.getState();
+    assert.equal(state2.draft.pendingTimeOptions, null);
+    assert.equal(state2.draft.dateOptions?.length, 2);
+    assert.equal(state2.draft.dateOptions?.[0].date, tomorrowISO);
+    assert.equal(state2.draft.dateOptions?.[0].time, '10:00');
+    assert.equal(state2.draft.dateOptions?.[1].date, tomorrowISO);
+    assert.equal(state2.draft.dateOptions?.[1].time, '11:00');
+    assert.equal(state2.coordinationDetected, true);
+    assert.equal(state2.coordinationPendingConfirm, true);
+    assert.equal(state2.lastQuestion?.field, 'coordination_confirm');
+    assert.equal(state2.lastQuestion?.question, '¿Querés que los invitados elijan entre estos horarios?');
+    assert.equal(state2.lastQuestion?.quickOptions?.[1]?.label, 'Elegir un horario fijo');
+  });
+
+  test('Caso C: Turno inverso: Fecha primero ("Desayuno mañana en casa"), horas después ("A las 10 o a las 11")', async () => {
+    useAiWizardStore.getState().reset();
+    const store = useAiWizardStore.getState();
+
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        title: { value: 'Desayuno', confidence: 'explicit' as const },
+        dateIntent: { value: { type: 'relative' as const, value: 'tomorrow' as const }, confidence: 'explicit' as const },
+        locationText: { value: 'casa', confidence: 'explicit' as const },
+        modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+      },
+    });
+
+    try {
+      // Turn 1
+      await store.sendUserMessage('Desayuno mañana en casa');
+      const state1 = useAiWizardStore.getState();
+      assert.equal(state1.draft.title, 'Desayuno');
+      assert.equal(state1.draft.locationText, 'casa');
+      assert.equal(state1.draft.date, tomorrowISO);
+      assert.equal(state1.lastQuestion?.field, 'time');
+
+      // Turn 2
+      await store.sendUserMessage('A las 10 o a las 11');
+      const state2 = useAiWizardStore.getState();
+      assert.equal(state2.draft.dateOptions?.length, 2);
+      assert.equal(state2.draft.dateOptions?.[0].date, tomorrowISO);
+      assert.equal(state2.draft.dateOptions?.[0].time, '10:00');
+      assert.equal(state2.draft.dateOptions?.[1].date, tomorrowISO);
+      assert.equal(state2.draft.dateOptions?.[1].time, '11:00');
+      assert.equal(state2.coordinationDetected, true);
+      assert.equal(state2.coordinationPendingConfirm, true);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso D: Semántica contextual de actividad (Desayuno vs Cena)', () => {
+    // Desayuno -> 10 and 11 stay AM
+    const resDesayuno = parseNaturalLanguageDateOptions('Desayuno a las 10 o a las 11');
+    assert.deepEqual(resDesayuno.pendingTimeOptions, ['10:00', '11:00']);
+
+    // Cena con palabras -> 22:00 y 23:00 (PM)
+    const resCena = parseNaturalLanguageDateOptions('Cena a las diez o a las once');
+    assert.deepEqual(resCena.pendingTimeOptions, ['22:00', '23:00']);
+  });
+
+  test('Caso E: Números en letras ("Desayuno a las diez o a las once")', () => {
+    const res = parseNaturalLanguageDateOptions('Desayuno a las diez o a las once');
+    assert.equal(res.extractedTitle, 'Desayuno');
+    assert.deepEqual(res.pendingTimeOptions, ['10:00', '11:00']);
+  });
+
+  test('Caso F: AM explícito ("mañana a las 10 am o a las 11 am")', () => {
+    const res = parseNaturalLanguageDateOptions('mañana a las 10 am o a las 11 am');
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].time, '10:00');
+    assert.equal(res.options[1].time, '11:00');
+  });
+
+  test('Caso G: PM explícito ("mañana a las 8 pm o a las 9 pm")', () => {
+    const res = parseNaturalLanguageDateOptions('mañana a las 8 pm o a las 9 pm');
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].time, '21:00');
+  });
+
+  test('Caso H: Rollover 24:00 ("mañana a las 23 o a las 24")', () => {
+    const res = parseNaturalLanguageDateOptions('mañana a las 23 o a las 24');
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].date, tomorrowISO);
+    assert.equal(res.options[0].time, '23:00');
+    assert.equal(res.options[1].date, dayAfterTomorrowISO);
+    assert.equal(res.options[1].time, '00:00');
+    assert.equal(res.options[1].appliedDayRollover, true);
+  });
+
+  test('Caso I: Deduplicación ("a las 10 o a las 10:00" -> fixed single, NO coordination)', () => {
+    const res = parseNaturalLanguageDateOptions('a las 10 o a las 10:00');
+    assert.equal(res.isCoordinationCandidate, false);
+    assert.equal(res.options.length, 0);
+    assert.equal(res.pendingTimeOptions, undefined);
+  });
+
+  test('Caso J: Límite de 3 opciones ("a las 9, 10, 11 o 12")', () => {
+    const res = parseNaturalLanguageDateOptions('a las 9, 10, 11 o 12');
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.totalAlternativesFound, 4);
+    assert.equal(res.pendingTimeOptions?.length, 4);
+
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      pendingTimeOptions: res.pendingTimeOptions,
+    };
+    const evaluation = evaluateDraft(draft, true, undefined, false);
+    assert.equal(evaluation.isComplete, false);
+    assert.equal(evaluation.validationError, 'maximum_three_options');
+    assert.ok(evaluation.nextQuestion?.question.includes('hasta 3 opciones'));
+  });
+
+  test('Caso K: Hora única no regresión ("Desayuno mañana a las 10")', () => {
+    const res = parseNaturalLanguageDateOptions('Desayuno mañana a las 10');
+    assert.equal(res.isCoordinationCandidate, false);
+    assert.equal(res.options.length, 0);
+  });
+
+  test('Caso L: Coordinación explícita ("Que elijan si desayunamos mañana a las 10 o a las 11")', () => {
+    const res = parseNaturalLanguageDateOptions('Que elijan si desayunamos mañana a las 10 o a las 11');
+    assert.equal(res.hasExplicitCoordinationIntent, true);
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].time, '10:00');
+    assert.equal(res.options[1].time, '11:00');
+  });
+
+  test('Caso M: Persistencia F5 de pendingTimeOptions en pe-ai-wizard-session', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Desayuno',
+        locationText: 'casa',
+        modality: 'presencial',
+        pendingTimeOptions: ['10:00', '11:00'],
+      },
+    });
+
+    const state = useAiWizardStore.getState();
+    assert.deepEqual(state.draft.pendingTimeOptions, ['10:00', '11:00']);
+
+    // Simulate reload initSession
+    useAiWizardStore.setState({ lastQuestion: null, isComplete: false });
+    state.initSession();
+    const stateAfterReload = useAiWizardStore.getState();
+    assert.equal(stateAfterReload.lastQuestion?.field, 'date');
+    assert.equal(stateAfterReload.lastQuestion?.question, '¿Qué día sería?');
+  });
+
+  test('Caso N: Back Android & hasMeaningfulDraftData con pendingTimeOptions', () => {
+    const draft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Desayuno',
+      pendingTimeOptions: ['10:00', '11:00'],
+    };
+    assert.equal(hasMeaningfulDraftData(draft), true, 'Draft with pendingTimeOptions must be meaningful');
+  });
+
+  test('Caso O: Regresión de coordinación multi-fecha existente ("Cena mañana a las 20 o pasado mañana a las 21 en casa")', () => {
+    const res = parseNaturalLanguageDateOptions('Cena mañana a las 20 o pasado mañana a las 21 en casa');
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].date, tomorrowISO);
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].date, dayAfterTomorrowISO);
+    assert.equal(res.options[1].time, '21:00');
+  });
+});
+
+
