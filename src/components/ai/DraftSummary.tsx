@@ -8,6 +8,7 @@ import {
   getTemplateOptionsForTheme,
   getDefaultInvitationTemplate,
 } from '@/lib/invitationThemes';
+import { type WizardAction, getTemporalEditableField } from '@/lib/wizardActions';
 
 interface DraftSummaryProps {
   draft: EncounterDraft;
@@ -15,6 +16,7 @@ interface DraftSummaryProps {
   isLoading: boolean;
   onConfirmCreate: () => void;
   onModify: (field: string) => void;
+  onAction?: (action: WizardAction) => void;
   onFallbackManual: () => void;
   onChangeConfig: <K extends keyof InvitationConfig>(field: K, value: InvitationConfig[K]) => void;
 }
@@ -25,6 +27,7 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
   isLoading,
   onConfirmCreate,
   onModify,
+  onAction,
   onFallbackManual,
   onChangeConfig,
 }) => {
@@ -77,11 +80,24 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{draft.title}</div>
           </div>
           <button
-            onClick={() => onModify('title')}
-            style={{ background: 'none', border: 'none', color: 'var(--color-primary, #4f46e5)', cursor: 'pointer', padding: '4px' }}
-            title="Modificar título"
+            type="button"
+            onClick={() => (onAction ? onAction({ type: 'edit_field', field: 'title' }) : onModify('title'))}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary, #4f46e5)',
+              cursor: 'pointer',
+              padding: '10px',
+              minWidth: '44px',
+              minHeight: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            aria-label="Editar título"
+            title="Editar título"
           >
-            <Edit3 size={15} />
+            <Edit3 size={16} />
           </button>
         </div>
 
@@ -150,11 +166,31 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
             )}
           </div>
           <button
-            onClick={() => onModify(draft.dateMode === 'coordination' ? 'coordination_options' : 'date')}
-            style={{ background: 'none', border: 'none', color: 'var(--color-primary, #4f46e5)', cursor: 'pointer', padding: '4px' }}
-            title="Modificar fecha u hora"
+            type="button"
+            onClick={() => {
+              const temporalField = getTemporalEditableField(draft);
+              if (onAction) {
+                onAction({ type: 'edit_field', field: temporalField });
+              } else {
+                onModify(draft.dateMode === 'coordination' ? 'coordination_options' : 'date');
+              }
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary, #4f46e5)',
+              cursor: 'pointer',
+              padding: '10px',
+              minWidth: '44px',
+              minHeight: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            aria-label={draft.dateMode === 'coordination' ? 'Editar opciones de fecha' : 'Editar fecha y hora'}
+            title={draft.dateMode === 'coordination' ? 'Editar opciones de fecha' : 'Editar fecha y hora'}
           >
-            <Edit3 size={15} />
+            <Edit3 size={16} />
           </button>
         </div>
 
@@ -179,11 +215,30 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
             </div>
           </div>
           <button
-            onClick={() => onModify(draft.modality === 'virtual' ? 'virtualLink' : 'locationText')}
-            style={{ background: 'none', border: 'none', color: 'var(--color-primary, #4f46e5)', cursor: 'pointer', padding: '4px' }}
-            title="Modificar lugar o link"
+            type="button"
+            onClick={() => {
+              if (onAction) {
+                onAction({ type: 'edit_field', field: 'location' });
+              } else {
+                onModify(draft.modality === 'virtual' ? 'virtualLink' : 'locationText');
+              }
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary, #4f46e5)',
+              cursor: 'pointer',
+              padding: '10px',
+              minWidth: '44px',
+              minHeight: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            aria-label={draft.modality === 'virtual' ? 'Editar videollamada' : 'Editar lugar'}
+            title={draft.modality === 'virtual' ? 'Editar videollamada' : 'Editar lugar'}
           >
-            <Edit3 size={15} />
+            <Edit3 size={16} />
           </button>
         </div>
 
@@ -226,7 +281,14 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
           <button
             type="button"
             data-testid="change-theme-button"
-            onClick={() => setShowThemeSelector(!showThemeSelector)}
+            aria-label="Cambiar tema"
+            onClick={() => {
+              if (onAction) {
+                onAction({ type: 'edit_field', field: 'theme' });
+              } else {
+                setShowThemeSelector(!showThemeSelector);
+              }
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -234,7 +296,10 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
               fontSize: '13px',
               cursor: 'pointer',
               fontWeight: 600,
-              padding: '6px 8px',
+              padding: '10px 12px',
+              minHeight: '44px',
+              display: 'flex',
+              alignItems: 'center',
               flexShrink: 0,
             }}
           >

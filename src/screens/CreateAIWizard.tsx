@@ -6,11 +6,13 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AIChatMessage } from '@/components/ai/AIChatMessage';
 import { FieldQuestion } from '@/components/ai/FieldQuestion';
 import { DraftSummary } from '@/components/ai/DraftSummary';
+import { FieldEditSheet } from '@/components/ai/FieldEditSheet';
 import { useAiWizardStore, isInternalWizardAction } from '@/store/aiWizardStore';
+import { type WizardAction, type EditableField, type DateOptionValue } from '@/lib/wizardActions';
+import type { InvitationTheme } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import {
-  type EncounterDraft,
   translateToCreateEncuentroDTO,
   translateToCoordinationPayload,
   draftToWizardState,
@@ -59,6 +61,11 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   const [creationError, setCreationError] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(showExitConfirmOverride ?? false);
+  const [activeEditField, setActiveEditField] = useState<EditableField | null>(null);
+  const activeEditFieldRef = useRef<EditableField | null>(null);
+  activeEditFieldRef.current = activeEditField;
+  
+  const [sheetDiscardRequested, setSheetDiscardRequested] = useState(false);
   const [needsCoordinationAuth, setNeedsCoordinationAuth] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -124,7 +131,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     updateConfigField,
     dismissCoordinationHandoff,
     confirmCoordination,
+    switchToFixed,
     markFallbackManual,
+    applyDraftOperation,
     reset,
   } = activeState;
 
@@ -218,6 +227,11 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
 
     const handlePopState = () => {
       if (isNavigatingToManualRef.current || isCreatedRef.current || isDiscardingRef.current) {
+        return;
+      }
+      if (activeEditFieldRef.current) {
+        window.history.pushState({ ...window.history.state, aiWizardGuard: true }, '', window.location.href);
+        setSheetDiscardRequested(true);
         return;
       }
       const currentDraft = useAiWizardStore.getState().draft;
@@ -517,6 +531,96 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
 
     markFallbackManual();
     navigate('/create');
+  };
+
+  const dispatchWizardAction = (action: WizardAction) => {
+    switch (action.type) {
+      case 'edit_field':
+        setActiveEditField(action.field);
+        break;
+      case 'confirm_coordination':
+        confirmCoordination();
+        break;
+      case 'keep_fixed':
+        applyQuickOption('coordination_confirm', 'keep_fixed');
+        break;
+      case 'choose_fixed_option':
+        if (applyDraftOperation) {
+          applyDraftOperation({
+            type: 'convert_to_fixed',
+            option: { date: action.date, time: action.time },
+          });
+        } else {
+          switchToFixed({ date: action.date, time: action.time });
+        }
+        break;
+      case 'open_manual_form':
+        handleFallbackManual();
+        break;
+      case 'reset':
+        reset();
+        break;
+    }
+  };
+
+  const handleSaveDateOptions = (options: DateOptionValue[]) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_date_options', options });
+    } else {
+      updateDraftField('dateOptions', options);
+      updateDraftField('dateMode', 'coordination');
+    }
+  };
+
+  const handleConvertToFixedFromOption = (option: DateOptionValue) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'convert_to_fixed', option });
+    } else {
+      switchToFixed(option);
+    }
+  };
+
+  const handleSaveFixedDateTime = (date: string, time: string) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_fixed_datetime', date, time });
+    } else {
+      updateDraftField('date', date);
+      updateDraftField('time', time);
+      updateDraftField('dateMode', 'fixed');
+      updateDraftField('dateOptions', null);
+    }
+  };
+
+  const handleSaveTitle = (title: string) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_title', title });
+    } else {
+      updateDraftField('title', title);
+    }
+  };
+
+  const handleSaveLocation = (modality: 'presencial' | 'virtual', value: string) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_location', modality, value });
+    } else {
+      updateDraftField('modality', modality);
+      if (modality === 'virtual') {
+        updateDraftField('virtualLink', value);
+      } else {
+        updateDraftField('locationText', value);
+      }
+    }
+  };
+
+  const handleSaveTheme = (theme: InvitationTheme, templateId?: string) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_theme', theme, templateId });
+    } else {
+      updateConfigField('invitationTheme', theme);
+      if (templateId) {
+        updateConfigField('invitationTemplate', templateId);
+      }
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -921,16 +1025,18 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
             config={config}
             isLoading={isCreating}
             onConfirmCreate={handleConfirmCreate}
+            onAction={dispatchWizardAction}
             onModify={(field) => {
-              if (field === 'coordination_options') {
-                inputRef.current?.focus();
-                return;
-              }
-              const draftKey = field as keyof EncounterDraft;
-              const currentVal = draft[draftKey];
-              const val = prompt(`Modificar ${field}:`, typeof currentVal === 'string' ? currentVal : '');
-              if (val !== null) {
-                updateDraftField(draftKey, val);
+              if (field === 'coordination_options' || field === 'date_options') {
+                dispatchWizardAction({ type: 'edit_field', field: 'date_options' });
+              } else if (field === 'date' || field === 'fixed_datetime') {
+                dispatchWizardAction({ type: 'edit_field', field: 'fixed_datetime' });
+              } else if (field === 'title') {
+                dispatchWizardAction({ type: 'edit_field', field: 'title' });
+              } else if (field === 'locationText' || field === 'virtualLink' || field === 'location') {
+                dispatchWizardAction({ type: 'edit_field', field: 'location' });
+              } else if (field === 'theme') {
+                dispatchWizardAction({ type: 'edit_field', field: 'theme' });
               }
             }}
             onFallbackManual={handleFallbackManual}
@@ -1078,16 +1184,18 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
               config={config}
               isLoading={isCreating}
               onConfirmCreate={handleConfirmCreate}
+              onAction={dispatchWizardAction}
               onModify={(field) => {
-                if (field === 'coordination_options') {
-                  inputRef.current?.focus();
-                  return;
-                }
-                const draftKey = field as keyof EncounterDraft;
-                const currentVal = draft[draftKey];
-                const val = prompt(`Modificar ${field}:`, typeof currentVal === 'string' ? currentVal : '');
-                if (val !== null) {
-                  updateDraftField(draftKey, val);
+                if (field === 'coordination_options' || field === 'date_options') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'date_options' });
+                } else if (field === 'date' || field === 'fixed_datetime') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'fixed_datetime' });
+                } else if (field === 'title') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'title' });
+                } else if (field === 'locationText' || field === 'virtualLink' || field === 'location') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'location' });
+                } else if (field === 'theme') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'theme' });
                 }
               }}
               onFallbackManual={handleFallbackManual}
@@ -1596,6 +1704,23 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Structured Field Edit Bottom Sheet */}
+      <FieldEditSheet
+        field={activeEditField}
+        draft={draft}
+        config={config}
+        isOpen={activeEditField !== null}
+        onClose={() => setActiveEditField(null)}
+        externalDiscardRequest={sheetDiscardRequested}
+        onExternalDiscardHandled={() => setSheetDiscardRequested(false)}
+        onSaveDateOptions={handleSaveDateOptions}
+        onConvertToFixedFromOption={handleConvertToFixedFromOption}
+        onSaveFixedDateTime={handleSaveFixedDateTime}
+        onSaveTitle={handleSaveTitle}
+        onSaveLocation={handleSaveLocation}
+        onSaveTheme={handleSaveTheme}
+      />
     </ScreenContainer>
   );
 };

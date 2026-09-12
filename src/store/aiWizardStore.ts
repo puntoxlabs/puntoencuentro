@@ -28,6 +28,8 @@ import {
 } from '@/lib/invitationThemes';
 import { formatFriendlyDate, formatHumanSchedule } from '@/lib/formatDate';
 import { aiService, type AiInterpretationResponse } from '@/services/aiService';
+import { isInternalWizardAction, type DraftOperation } from '@/lib/wizardActions';
+export { isInternalWizardAction, type DraftOperation };
 
 export interface ChatMessage {
   id: string;
@@ -79,6 +81,7 @@ interface AiWizardState {
   dismissCoordinationHandoff: () => void;
   markFallbackManual: () => void;
   startNewAiCreation: () => void;
+  applyDraftOperation: (op: DraftOperation) => void;
   reset: () => void;
 }
 
@@ -520,22 +523,6 @@ export function shouldSuppressAssistantBubbleForQuestion(
   );
 }
 
-/**
- * Detects internal wizard action tokens that should NEVER be rendered as user chat messages
- * or sent to conversational LLM processing.
- */
-export function isInternalWizardAction(value: unknown): boolean {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  return (
-    trimmed === 'confirm_coordination' ||
-    trimmed === 'keep_fixed' ||
-    trimmed === 'handoff_coordination' ||
-    trimmed === 'choose_fixed_date' ||
-    trimmed === 'reset' ||
-    trimmed.startsWith('fixed_opt_')
-  );
-}
 
 interface ResolvePendingTemporalResult {
   handled: boolean;
@@ -2652,6 +2639,99 @@ export const useAiWizardStore = create<AiWizardState>()(
 
       startNewAiCreation: () => {
         get().reset();
+      },
+
+      applyDraftOperation: (op: DraftOperation) => {
+        const state = get();
+        if (op.type === 'set_title') {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            title: op.title,
+          };
+          const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+          set({
+            draft: newDraft,
+            isComplete: evaluation.isComplete,
+            lastQuestion: evaluation.nextQuestion,
+            error: null,
+          });
+          return;
+        }
+
+        if (op.type === 'set_location') {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            modality: op.modality,
+            locationText: op.modality === 'presencial' ? op.value : null,
+            virtualLink: op.modality === 'virtual' ? op.value : null,
+          };
+          const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+          set({
+            draft: newDraft,
+            isComplete: evaluation.isComplete,
+            lastQuestion: evaluation.nextQuestion,
+            error: null,
+          });
+          return;
+        }
+
+        if (op.type === 'set_fixed_datetime') {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            dateMode: 'fixed',
+            date: op.date,
+            time: op.time,
+            dateOptions: null,
+            coordinationPendingConfirm: false,
+          };
+          const evaluation = evaluateDraft(newDraft, false, undefined, false);
+          set({
+            draft: newDraft,
+            coordinationDetected: false,
+            coordinationPendingConfirm: false,
+            isComplete: evaluation.isComplete,
+            lastQuestion: evaluation.nextQuestion,
+            error: null,
+          });
+          return;
+        }
+
+        if (op.type === 'set_date_options') {
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            dateMode: 'coordination',
+            date: null,
+            time: null,
+            dateOptions: op.options,
+            coordinationPendingConfirm: false,
+          };
+          const evaluation = evaluateDraft(newDraft, true, undefined, false);
+          set({
+            draft: newDraft,
+            coordinationDetected: true,
+            coordinationPendingConfirm: false,
+            isComplete: evaluation.isComplete,
+            lastQuestion: evaluation.nextQuestion,
+            error: null,
+          });
+          return;
+        }
+
+        if (op.type === 'convert_to_fixed') {
+          state.switchToFixed(op.option);
+          return;
+        }
+
+        if (op.type === 'set_theme') {
+          set({
+            config: {
+              ...state.config,
+              invitationTheme: op.theme,
+              invitationTemplate: op.templateId || state.config.invitationTemplate,
+            },
+          });
+          return;
+        }
       },
 
       reset: () => {

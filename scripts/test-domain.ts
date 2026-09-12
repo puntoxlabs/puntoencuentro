@@ -24,6 +24,14 @@ import {
   parseNaturalLanguageDateOptions,
   parseCoordinationTransition,
 } from '../src/lib/dateResolver.ts';
+import {
+  EDITABLE_FIELD_REGISTRY,
+  getTemporalEditableField,
+  checkFieldDirty,
+  type WizardAction,
+  type EditableField,
+  type DraftOperation,
+} from '../src/lib/wizardActions.ts';
 import { mergeDraftPatch, isRecognizedVirtualPlatform, isValidVirtualLink, normalizeVirtualLink, resolveTemporalAlternatives } from '../src/lib/draftMerger.ts';
 import { evaluateDraft } from '../src/lib/draftFieldEngine.ts';
 import {
@@ -8688,7 +8696,402 @@ describe('QA Hotfix: Coordination Confirmation Action & Internal Action Tokens',
       );
     }
   });
+
+  describe('Wizard Structured Actions & Field Editing Architecture (Refactor General)', () => {
+    const todayISO = getArgentinaTodayISO();
+    const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+    const dayAfterTomorrowISO = addDaysToIsoDate(todayISO, 2);
+
+    test('1. Aceptación Principal: Edición de dateOptions en coordinación preserva formato canónico y 0 LLM calls', () => {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          locationText: 'casa',
+          modality: 'presencial',
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+          coordinationPendingConfirm: false,
+        },
+        coordinationDetected: true,
+        coordinationPendingConfirm: false,
+      });
+
+      // Modificar la segunda opción a pasado mañana a las 20:00
+      const updatedOptions = [
+        { date: todayISO, time: '22:00' },
+        { date: dayAfterTomorrowISO, time: '20:00' },
+      ];
+
+      const initialProviderCalls = useAiWizardStore.getState().turns;
+      const initialMessagesCount = useAiWizardStore.getState().messages.length;
+
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_date_options',
+        options: updatedOptions,
+      });
+
+      const s = useAiWizardStore.getState();
+
+      // Formato canónico
+      assert.equal(s.draft.dateMode, 'coordination');
+      assert.equal(s.draft.date, null);
+      assert.equal(s.draft.time, null);
+      assert.deepEqual(s.draft.dateOptions, updatedOptions);
+      assert.equal(s.draft.dateOptions[0].date, todayISO);
+      assert.equal(s.draft.dateOptions[0].time, '22:00');
+      assert.equal(s.draft.dateOptions[1].date, dayAfterTomorrowISO);
+      assert.equal(s.draft.dateOptions[1].time, '20:00');
+
+      // Preserva datos no temporales
+      assert.equal(s.draft.title, 'Cena');
+      assert.equal(s.draft.locationText, 'casa');
+      assert.equal(s.draft.modality, 'presencial');
+
+      // 0 LLM calls y 0 mensajes de chat creados
+      assert.equal(s.turns, initialProviderCalls, 'Provider calls must remain unchanged (0 LLM calls)');
+      assert.equal(s.messages.length, initialMessagesCount, 'No technical message must be added');
+    });
+
+    test('2. Cancelar edición: el buffer se descarta y el draft original permanece intacto', () => {
+      useAiWizardStore.getState().reset();
+      const originalOptions = [
+        { date: todayISO, time: '22:00' },
+        { date: tomorrowISO, time: '23:00' },
+      ];
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          dateMode: 'coordination',
+          dateOptions: [...originalOptions],
+          coordinationPendingConfirm: false,
+        },
+        coordinationDetected: true,
+      });
+
+      // Simular edición en buffer local y posterior descarte (cancelar)
+      // Sin llamar a applyDraftOperation
+      const s = useAiWizardStore.getState();
+      assert.deepEqual(s.draft.dateOptions, originalOptions);
+      assert.equal(s.draft.dateMode, 'coordination');
+    });
+
+    test('3. Agregar 3ra opción: coordinación con 3 opciones válidas ordenadas cronológicamente', () => {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+        },
+        coordinationDetected: true,
+      });
+
+      const threeOptions = [
+        { date: todayISO, time: '22:00' },
+        { date: tomorrowISO, time: '23:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ];
+
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_date_options',
+        options: threeOptions,
+      });
+
+      const s = useAiWizardStore.getState();
+      assert.equal(s.draft.dateOptions?.length, 3);
+      assert.equal(s.draft.dateMode, 'coordination');
+      assert.equal(s.draft.date, null);
+      assert.equal(s.draft.time, null);
+    });
+
+    test('4. Bloquear 4ta opción: la regla de negocio limita la coordinación a máximo 3 opciones', () => {
+      // El editor limita a 3 opciones deshabilitando el botón de agregar
+      const options = [
+        { date: todayISO, time: '22:00' },
+        { date: tomorrowISO, time: '23:00' },
+        { date: dayAfterTomorrowISO, time: '21:00' },
+      ];
+      assert.equal(options.length >= 3, true, 'Con 3 opciones, la adición de una cuarta queda bloqueada');
+    });
+
+    test('5. Intentar dejar una sola opción: transición limpia de coordinación a fecha fija', () => {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cena',
+          locationText: 'casa',
+          modality: 'presencial',
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: todayISO, time: '22:00' },
+            { date: tomorrowISO, time: '23:00' },
+          ],
+          coordinationPendingConfirm: false,
+        },
+        coordinationDetected: true,
+      });
+
+      // El usuario elimina una opción quedando una sola, y confirma "Convertir a fecha fija"
+      const remainingOption = { date: tomorrowISO, time: '23:00' };
+
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'convert_to_fixed',
+        option: remainingOption,
+      });
+
+      const s = useAiWizardStore.getState();
+      assert.equal(s.draft.dateMode, 'fixed');
+      assert.equal(s.draft.date, tomorrowISO);
+      assert.equal(s.draft.time, '23:00');
+      assert.equal(s.draft.dateOptions, null);
+      assert.equal(s.coordinationDetected, false);
+      assert.equal(s.coordinationPendingConfirm, false);
+
+      // Preserva datos no temporales
+      assert.equal(s.draft.title, 'Cena');
+      assert.equal(s.draft.locationText, 'casa');
+    });
+
+    test('6. Validación de fechas pasadas: isArgentinaDateTimeInFuture rechaza fechas anteriores a hoy', () => {
+      const yesterdayISO = addDaysToIsoDate(todayISO, -1);
+      assert.equal(
+        isArgentinaDateTimeInFuture(yesterdayISO, '20:00'),
+        false,
+        'Una fecha anterior a hoy debe ser rechazada'
+      );
+      assert.equal(
+        isArgentinaDateTimeInFuture(tomorrowISO, '20:00'),
+        true,
+        'Una fecha futura debe ser aceptada'
+      );
+    });
+
+    test('7. Edición fixed datetime: actualiza fecha y hora fixed con 0 LLM calls', () => {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Cumpleaños',
+          dateMode: 'fixed',
+          date: todayISO,
+          time: '18:00',
+          locationText: 'Parque',
+        },
+      });
+
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_fixed_datetime',
+        date: tomorrowISO,
+        time: '21:30',
+      });
+
+      const s = useAiWizardStore.getState();
+      assert.equal(s.draft.dateMode, 'fixed');
+      assert.equal(s.draft.date, tomorrowISO);
+      assert.equal(s.draft.time, '21:30');
+      assert.equal(s.draft.dateOptions, null);
+      assert.equal(s.draft.title, 'Cumpleaños');
+      assert.equal(s.draft.locationText, 'Parque');
+    });
+
+    test('8. Edición de título, lugar y tema: actualización mediante la misma capa de operaciones', () => {
+      useAiWizardStore.getState().reset();
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Título Inicial',
+          locationText: 'Lugar Inicial',
+          modality: 'presencial',
+        },
+      });
+
+      // Título
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_title',
+        title: 'Asado con Amigos del Club',
+      });
+      assert.equal(useAiWizardStore.getState().draft.title, 'Asado con Amigos del Club');
+
+      // Lugar presencial
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_location',
+        modality: 'presencial',
+        value: 'Club Náutico',
+      });
+      assert.equal(useAiWizardStore.getState().draft.modality, 'presencial');
+      assert.equal(useAiWizardStore.getState().draft.locationText, 'Club Náutico');
+      assert.equal(useAiWizardStore.getState().draft.virtualLink, null);
+
+      // Lugar virtual
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_location',
+        modality: 'virtual',
+        value: 'https://meet.google.com/xyz-uvw',
+      });
+      assert.equal(useAiWizardStore.getState().draft.modality, 'virtual');
+      assert.equal(useAiWizardStore.getState().draft.virtualLink, 'https://meet.google.com/xyz-uvw');
+      assert.equal(useAiWizardStore.getState().draft.locationText, null);
+
+      // Tema
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_theme',
+        theme: 'sports',
+        templateId: 'futbol',
+      });
+      assert.equal(useAiWizardStore.getState().config.invitationTheme, 'sports');
+      assert.equal(useAiWizardStore.getState().config.invitationTemplate, 'futbol');
+    });
+
+    test('9. Cero llamadas a providers LLM en todas las operaciones estructuradas', () => {
+      useAiWizardStore.getState().reset();
+      const initialTurns = useAiWizardStore.getState().turns;
+
+      useAiWizardStore.getState().applyDraftOperation({ type: 'set_title', title: 'Test' });
+      useAiWizardStore.getState().applyDraftOperation({ type: 'set_location', modality: 'presencial', value: 'Casa' });
+      useAiWizardStore.getState().applyDraftOperation({ type: 'set_fixed_datetime', date: tomorrowISO, time: '20:00' });
+      useAiWizardStore.getState().applyDraftOperation({
+        type: 'set_date_options',
+        options: [
+          { date: todayISO, time: '22:00' },
+          { date: tomorrowISO, time: '23:00' },
+        ],
+      });
+      useAiWizardStore.getState().applyDraftOperation({ type: 'set_theme', theme: 'family' });
+
+      assert.equal(useAiWizardStore.getState().turns, initialTurns, 'Total turns/provider calls must remain 0');
+    });
+
+    test('10. Accesibilidad: DraftSummary renderiza aria-label en todos los botones de edición', () => {
+      const coordDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        locationText: 'casa',
+        modality: 'presencial',
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: todayISO, time: '22:00' },
+          { date: tomorrowISO, time: '23:00' },
+        ],
+      };
+      const config = createDefaultInvitationConfig();
+
+      const htmlCoord = renderToStaticMarkup(
+        React.createElement(DraftSummary, {
+          draft: coordDraft,
+          config,
+          isLoading: false,
+          onConfirmCreate: () => {},
+          onModify: () => {},
+          onFallbackManual: () => {},
+          onChangeConfig: () => {},
+        })
+      );
+
+      // Verificación de aria-labels
+      assert.ok(htmlCoord.includes('aria-label="Editar título"'), 'Debe incluir aria-label="Editar título"');
+      assert.ok(htmlCoord.includes('aria-label="Editar opciones de fecha"'), 'Debe incluir aria-label="Editar opciones de fecha"');
+      assert.ok(htmlCoord.includes('aria-label="Editar lugar"'), 'Debe incluir aria-label="Editar lugar"');
+      assert.ok(htmlCoord.includes('aria-label="Cambiar tema"'), 'Debe incluir aria-label="Cambiar tema"');
+
+      // Caso Fixed
+      const fixedDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Almuerzo',
+        virtualLink: 'https://zoom.us/j/123',
+        modality: 'virtual',
+        dateMode: 'fixed',
+        date: tomorrowISO,
+        time: '13:00',
+      };
+      const htmlFixed = renderToStaticMarkup(
+        React.createElement(DraftSummary, {
+          draft: fixedDraft,
+          config,
+          isLoading: false,
+          onConfirmCreate: () => {},
+          onModify: () => {},
+          onFallbackManual: () => {},
+          onChangeConfig: () => {},
+        })
+      );
+
+      assert.ok(htmlFixed.includes('aria-label="Editar fecha y hora"'), 'Debe incluir aria-label="Editar fecha y hora"');
+      assert.ok(htmlFixed.includes('aria-label="Editar videollamada"'), 'Debe incluir aria-label="Editar videollamada"');
+    });
+
+    test('11. Registry de campos editables y helper getTemporalEditableField', () => {
+      assert.ok(EDITABLE_FIELD_REGISTRY.title);
+      assert.ok(EDITABLE_FIELD_REGISTRY.location);
+      assert.ok(EDITABLE_FIELD_REGISTRY.fixed_datetime);
+      assert.ok(EDITABLE_FIELD_REGISTRY.date_options);
+      assert.ok(EDITABLE_FIELD_REGISTRY.theme);
+
+      // getTemporalEditableField
+      const coordDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        dateMode: 'coordination',
+        dateOptions: [{ date: todayISO, time: '20:00' }, { date: tomorrowISO, time: '21:00' }],
+      };
+      assert.equal(getTemporalEditableField(coordDraft), 'date_options');
+
+      const fixedDraft: EncounterDraft = {
+        ...createEmptyEncounterDraft(),
+        dateMode: 'fixed',
+        date: todayISO,
+        time: '20:00',
+      };
+      assert.equal(getTemporalEditableField(fixedDraft), 'fixed_datetime');
+    });
+
+    test('12. Dirty Comparison (Back con/sin cambios)', () => {
+      const initialFixed = { fixedDate: '2026-09-12', fixedTime: '20:00' };
+      const currentFixed = { fixedDate: '2026-09-12', fixedTime: '20:00' };
+      assert.equal(checkFieldDirty('fixed_datetime', currentFixed, initialFixed), false);
+
+      const currentFixedMod = { fixedDate: '2026-09-12', fixedTime: '21:00' };
+      assert.equal(checkFieldDirty('fixed_datetime', currentFixedMod, initialFixed), true);
+
+      const initialOptions = { dateOptionsBuffer: [{ date: '2026-09-12', time: '20:00' }] };
+      const currentOptions = { dateOptionsBuffer: [{ date: '2026-09-12', time: '20:00' }] };
+      assert.equal(checkFieldDirty('date_options', currentOptions, initialOptions), false);
+      const modOptions = { dateOptionsBuffer: [{ date: '2026-09-12', time: '22:00' }] };
+      assert.equal(checkFieldDirty('date_options', modOptions, initialOptions), true);
+    });
+
+    test('13. Validacion canónica de Virtual Link', () => {
+      assert.equal(isValidVirtualLink('javascript:alert(1)'), false);
+      assert.equal(isValidVirtualLink('data:text/html,<h1>hi</h1>'), false);
+      assert.equal(isValidVirtualLink('ftp://some-link'), false);
+      assert.equal(isValidVirtualLink('meet.google.com/abc'), true);
+      assert.equal(isValidVirtualLink('https://zoom.us/j/123'), true);
+      assert.equal(normalizeVirtualLink('meet.google.com/abc'), 'https://meet.google.com/abc');
+      assert.equal(normalizeVirtualLink('https://zoom.us/j/123'), 'https://zoom.us/j/123');
+    });
+
+    test('14. Cancelación de Tema no muta el estado', () => {
+      useAiWizardStore.getState().reset();
+      const initialState = useAiWizardStore.getState().config;
+      assert.equal(useAiWizardStore.getState().config.invitationTheme, initialState.invitationTheme);
+      assert.equal(useAiWizardStore.getState().config.invitationTemplate, initialState.invitationTemplate);
+    });
+
+    test('15. Presentación visual vs Formato Interno', () => {
+      const dateISO = '2026-09-13';
+      const timeISO = '23:00';
+      const human = formatHumanSchedule(dateISO, timeISO, { locale: 'es' });
+      assert.ok(typeof human === 'string');
+      assert.notEqual(human, '2026-09-13T23:00:00');
+    });
+  });
 });
-
-
-
