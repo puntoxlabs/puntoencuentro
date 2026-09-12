@@ -133,6 +133,34 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       },
       required: ["value", "confidence"],
       additionalProperties: false
+    },
+    temporalAlternatives: {
+      type: "object",
+      properties: {
+        value: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              dateRef: { type: "string" },
+              timeRef: { type: "string" }
+            },
+            additionalProperties: false
+          }
+        },
+        confidence: { type: "string", enum: ["explicit", "inferred_high", "inferred_low", "ambiguous"] }
+      },
+      required: ["value", "confidence"],
+      additionalProperties: false
+    },
+    temporalAlternativesOverflow: {
+      type: "object",
+      properties: {
+        value: { type: "boolean" },
+        confidence: { type: "string", enum: ["explicit", "inferred_high", "inferred_low", "ambiguous"] }
+      },
+      required: ["value", "confidence"],
+      additionalProperties: false
     }
   },
   additionalProperties: false
@@ -158,7 +186,9 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
     'locationText',
     'virtualLink',
     'themeHint',
-    'templateHint'
+    'templateHint',
+    'temporalAlternatives',
+    'temporalAlternativesOverflow'
   ]);
 
   for (const key of Object.keys(record)) {

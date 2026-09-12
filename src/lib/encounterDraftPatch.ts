@@ -49,6 +49,11 @@ export type TimeIntent =
   | { type: 'range'; startHour: number; startMinute: number; endHour: number; endMinute: number; description?: string }
   | { type: 'vague'; description: string };
 
+export interface TemporalAlternative {
+  dateRef?: string;
+  timeRef?: string;
+}
+
 export interface EncounterDraftPatch {
   scope?: 'encounter' | 'off_topic' | 'unclear';
   title?: InterpretedField<string>;
@@ -64,4 +69,6 @@ export interface EncounterDraftPatch {
   virtualLink?: InterpretedField<string>;
   themeHint?: InterpretedField<string>;
   templateHint?: InterpretedField<string>;
+  temporalAlternatives?: InterpretedField<TemporalAlternative[]>;
+  temporalAlternativesOverflow?: InterpretedField<boolean>;
 }

@@ -37,6 +37,7 @@ export interface EncounterDraft {
   durationMinutes: number | null;
   coordinationCandidate?: boolean;
   coordinationPendingConfirm?: boolean;
+  temporalAlternativesOverflow?: boolean;
 
   // Dónde / Cómo
   modality: 'presencial' | 'virtual' | null;

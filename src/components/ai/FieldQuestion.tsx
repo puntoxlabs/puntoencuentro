@@ -104,6 +104,9 @@ export const FieldQuestion: React.FC<FieldQuestionProps> = ({
     );
   }
   if (question.field === 'coordination_handoff') {
+    const keepFixedOpt = question.quickOptions?.find((o) => o.value === 'keep_fixed');
+    const handoffOpt = question.quickOptions?.find((o) => o.value === 'handoff_coordination');
+
     return (
       <div
         style={{
@@ -124,21 +127,6 @@ export const FieldQuestion: React.FC<FieldQuestionProps> = ({
         )}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
-            onClick={onHandoffCoordination}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '20px',
-              background: 'var(--color-primary, #4f46e5)',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Ir a Coordinar fecha →
-          </button>
-          <button
             onClick={() => onSelectOption('keep_fixed')}
             style={{
               padding: '8px 16px',
@@ -147,10 +135,26 @@ export const FieldQuestion: React.FC<FieldQuestionProps> = ({
               color: 'var(--color-on-surface, #334155)',
               border: '1px solid var(--color-outline, #cbd5e1)',
               fontSize: '13px',
+              fontWeight: 500,
               cursor: 'pointer',
             }}
           >
-            Elegir fecha fija acá
+            {keepFixedOpt?.label || 'Elegir fecha fija'}
+          </button>
+          <button
+            onClick={onHandoffCoordination}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '20px',
+              background: 'transparent',
+              color: 'var(--color-primary, #4f46e5)',
+              border: '1px solid var(--color-primary, #6366f1)',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            {handoffOpt?.label || 'Usar formulario manual'} →
           </button>
         </div>
       </div>

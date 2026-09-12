@@ -62,6 +62,8 @@ interface AiWizardState {
   coordinationPendingConfirm: boolean;
   isComplete: boolean;
   lastUserPrompt: string | null;
+  lastResolutionSource: 'deterministic' | 'llm' | 'clarification' | 'manual' | null;
+  lastEscalationReason: string | null;
 
   // Actions
   initSession: () => void;
@@ -355,12 +357,17 @@ function applyInterpretationResponse(
     virtualLinkChanged ||
     titleChanged;
 
+  const isCoordPending =
+    mergeResult.coordinationPendingConfirm !== undefined
+      ? mergeResult.coordinationPendingConfirm
+      : get().coordinationPendingConfirm;
+
   // Evaluate draft completeness and select next question
   const evaluation = evaluateDraft(
     mergeResult.draft,
     mergeResult.coordinationDetected,
     mergeResult.ambiguities[0],
-    get().coordinationPendingConfirm
+    isCoordPending
   );
 
   // Defensive guard: if modality is virtual, next question must never revert to modality
@@ -449,6 +456,15 @@ function applyInterpretationResponse(
     assistantReply = evaluation.nextQuestion.question;
   }
 
+  // If nextQuestion is coordination_card or coordination_confirm,
+  // suppress assistant bubble to prevent duplicate prompt card + bubble
+  if (
+    evaluation.nextQuestion?.type === 'coordination_card' ||
+    evaluation.nextQuestion?.field === 'coordination_confirm'
+  ) {
+    assistantReply = '';
+  }
+
   const assistantMsg: ChatMessage | null = assistantReply
     ? {
         id: generateUuid(),
@@ -477,7 +493,14 @@ function applyInterpretationResponse(
     fallbackFailureType: response.fallbackFailureType ?? state.fallbackFailureType,
     lastQuestion: evaluation.nextQuestion,
     coordinationDetected: mergeResult.coordinationDetected,
+    coordinationPendingConfirm: isCoordPending,
     isComplete: evaluation.isComplete,
+    lastResolutionSource:
+      mergeResult.ambiguities.length > 0 ||
+      evaluation.nextQuestion?.field === 'coordination_handoff'
+        ? 'clarification'
+        : 'llm',
+    lastEscalationReason: null,
     error: null,
   });
 }
@@ -512,6 +535,8 @@ export const useAiWizardStore = create<AiWizardState>()(
       coordinationPendingConfirm: false,
       isComplete: false,
       lastUserPrompt: null,
+      lastResolutionSource: null,
+      lastEscalationReason: null,
 
       initSession: () => {
         const state = get();
@@ -600,6 +625,7 @@ export const useAiWizardStore = create<AiWizardState>()(
         if (!trimmed) return;
 
         const state = get();
+        set({ lastResolutionSource: 'deterministic', lastEscalationReason: null });
         const userMsg: ChatMessage = {
           id: generateUuid(),
           role: 'user',
@@ -1654,6 +1680,7 @@ export const useAiWizardStore = create<AiWizardState>()(
           error: null,
           turns: newTurns,
           lastUserPrompt: trimmed,
+          lastEscalationReason: 'deterministic_parse_unresolved',
         });
 
         // First message of the session: register start telemetry
@@ -2267,6 +2294,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             fallbackFailureType: state.fallbackFailureType || undefined,
           },
         });
+        set({ lastResolutionSource: 'manual' });
       },
 
       startNewAiCreation: () => {
@@ -2303,6 +2331,8 @@ export const useAiWizardStore = create<AiWizardState>()(
           coordinationPendingConfirm: false,
           isComplete: false,
           lastUserPrompt: null,
+          lastResolutionSource: null,
+          lastEscalationReason: null,
         });
       },
     }),

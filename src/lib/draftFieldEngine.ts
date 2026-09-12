@@ -81,7 +81,7 @@ export function evaluateDraft(
 
   // 0a2. Pending time alternatives without a date (e.g. "Desayuno a las 10 o a las 11:00 en casa")
   if (draft.pendingTimeOptions && draft.pendingTimeOptions.length >= 2 && (!draft.dateOptions || draft.dateOptions.length < 2)) {
-    if (draft.pendingTimeOptions.length > 3) {
+    if (draft.pendingTimeOptions.length > 3 || draft.temporalAlternativesOverflow) {
       return {
         isComplete: false,
         missingFields: ['pendingTimeOptions'],
@@ -127,19 +127,59 @@ export function evaluateDraft(
     }
   }
 
-  // 0b. Coordination without specific date options (e.g. "cuando podamos") -> handoff prompt
+  // If there is an unresolved ambiguity (e.g. from date/time resolution), prioritize asking it
+  if (pendingAmbiguity) {
+    if (pendingAmbiguity.field === 'date') {
+      return {
+        isComplete: false,
+        missingFields: ['date'],
+        nextQuestion: {
+          field: 'date',
+          question: pendingAmbiguity.reason,
+          type: pendingAmbiguity.options ? 'choice' : 'date',
+          quickOptions: pendingAmbiguity.options?.map((opt) => ({
+            label: opt,
+            value: opt,
+          })),
+        },
+        validationError: null,
+      };
+    }
+    if (pendingAmbiguity.field === 'time') {
+      return {
+        isComplete: false,
+        missingFields: ['time'],
+        nextQuestion: {
+          field: 'time',
+          question: pendingAmbiguity.reason,
+          type: pendingAmbiguity.options && pendingAmbiguity.options.length > 0 ? 'choice' : 'time',
+          quickOptions:
+            pendingAmbiguity.options && pendingAmbiguity.options.length > 0
+              ? pendingAmbiguity.options.map((opt) => ({ label: opt, value: opt }))
+              : [
+                  { label: '20:00', value: '20:00' },
+                  { label: '21:00', value: '21:00' },
+                  { label: '22:00', value: '22:00' },
+                ],
+        },
+        validationError: null,
+      };
+    }
+  }
+
+  // 0b. Coordination without specific date options (e.g. "cuando podamos") -> clarification prompt
   if (coordinationDetected && draft.dateMode !== 'coordination' && (!draft.dateOptions || draft.dateOptions.length < 2)) {
     return {
       isComplete: false,
-      missingFields: ['dateMode'],
+      missingFields: ['dateOptions'],
       nextQuestion: {
         field: 'coordination_handoff',
-        question: 'Parece que querés coordinar fechas con tus invitados. ¿Preferís continuar en la herramienta de coordinación de fechas?',
-        helperText: 'Crear con IA permite coordinar hasta 3 fechas o elegir una fecha fija.',
+        question: '¿Qué opciones querés proponer?',
+        helperText: 'Por ejemplo: viernes a las 20 o sábado a las 21.',
         type: 'handoff',
         quickOptions: [
-          { label: 'Ir a Coordinar fecha', value: 'handoff_coordination' },
-          { label: 'Elegir una fecha fija acá', value: 'keep_fixed' },
+          { label: 'Elegir fecha fija', value: 'keep_fixed' },
+          { label: 'Usar formulario manual', value: 'handoff_coordination' },
         ],
       },
       validationError: null,
@@ -182,7 +222,7 @@ export function evaluateDraft(
       };
     }
 
-    if (draft.dateOptions.length > 3) {
+    if (draft.dateOptions.length > 3 || draft.temporalAlternativesOverflow) {
       missingFields.push('dateOptions');
       return {
         isComplete: false,
@@ -301,42 +341,7 @@ export function evaluateDraft(
     };
   }
 
-  // If there is an unresolved ambiguity (e.g. from date/time resolution), prioritize asking it
-  if (pendingAmbiguity) {
-    if (pendingAmbiguity.field === 'date') {
-      return {
-        isComplete: false,
-        missingFields: ['date'],
-        nextQuestion: {
-          field: 'date',
-          question: pendingAmbiguity.reason,
-          type: pendingAmbiguity.options ? 'choice' : 'date',
-          quickOptions: pendingAmbiguity.options?.map((opt) => ({
-            label: opt,
-            value: opt,
-          })),
-        },
-        validationError: null,
-      };
-    }
-    if (pendingAmbiguity.field === 'time') {
-      return {
-        isComplete: false,
-        missingFields: ['time'],
-        nextQuestion: {
-          field: 'time',
-          question: pendingAmbiguity.reason,
-          type: 'time',
-          quickOptions: [
-            { label: '20:00', value: '20:00' },
-            { label: '21:00', value: '21:00' },
-            { label: '22:00', value: '22:00' },
-          ],
-        },
-        validationError: null,
-      };
-    }
-  }
+
 
   const missingFields: string[] = [];
 

@@ -1,6 +1,15 @@
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
-import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
-import { resolveDateIntent, resolveTimeIntent, addDaysToIsoDate } from '@/lib/dateResolver';
+import type { EncounterDraftPatch, TemporalAlternative } from '@/lib/encounterDraftPatch';
+import {
+  resolveDateIntent,
+  resolveTimeIntent,
+  addDaysToIsoDate,
+  parseDeterministicDateIntent,
+  parseDeterministicTimeInput,
+  resolveContextualHour,
+  validateResolvedDateTimeInFuture,
+  pad,
+} from '@/lib/dateResolver';
 import {
   isInvitationTheme,
   getDefaultInvitationTemplate,
@@ -18,6 +27,8 @@ export interface MergeResult {
   }[];
   coordinationDetected: boolean;
   pastDateDetected: boolean;
+  coordinationPendingConfirm?: boolean;
+  temporalAlternativesOverflow?: boolean;
 }
 
 /**
@@ -125,6 +136,188 @@ export function isValidVirtualLink(input: string): boolean {
   }
 }
 
+export interface ResolveAlternativesResult {
+  dateOptions: Array<{ date: string; time: string }>;
+  pendingTimeOptions: string[] | null;
+  ambiguities: MergeResult['ambiguities'];
+  coordinationDetected: boolean;
+  coordinationPendingConfirm: boolean;
+  temporalAlternativesOverflow: boolean;
+  hasPastOptions: boolean;
+}
+
+/**
+ * Resolves an array of TemporalAlternative objects (extracted by the LLM) into canonical
+ * date options or pending time options using deterministic date/time resolvers.
+ */
+export function resolveTemporalAlternatives(
+  alternatives: TemporalAlternative[],
+  draftContext: { title?: string | null; description?: string | null },
+  baseDateParts?: { year: number; month: number; day: number },
+  overflowFlag?: boolean,
+  currentDraftDate?: string | null
+): ResolveAlternativesResult {
+  const ambiguities: MergeResult['ambiguities'] = [];
+  const parsedItems: Array<{
+    date: string | null;
+    time: string | null;
+  }> = [];
+
+  let globalDate: string | null = null;
+  let globalTime: string | null = null;
+
+  for (const alt of alternatives) {
+    let optDate: string | null = null;
+    let optTime: string | null = null;
+
+    // 1. Resolve dateRef if present
+    if (alt.dateRef && alt.dateRef.trim()) {
+      const rawDate = alt.dateRef.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        optDate = rawDate;
+      } else {
+        const intent = parseDeterministicDateIntent(rawDate);
+        if (intent) {
+          const res = resolveDateIntent(intent, baseDateParts);
+          if (res.resolved && res.date) {
+            optDate = res.date;
+          } else if (res.ambiguityReason) {
+            ambiguities.push({
+              field: 'date',
+              reason: res.ambiguityReason,
+              options: res.ambiguousOptions,
+            });
+          }
+        }
+      }
+      if (optDate && !globalDate) {
+        globalDate = optDate;
+      }
+    }
+
+    // 2. Resolve timeRef if present
+    if (alt.timeRef && alt.timeRef.trim()) {
+      let cleanTime = alt.timeRef.trim();
+      // Strip leading approximations like "tipo", "alrededor de", "cerca de"
+      cleanTime = cleanTime.replace(/^(?:tipo|alrededor\s+de(?:\s+las?)?|cerca\s+de(?:\s+las?)?)\s+/i, '').trim();
+
+      const timeParsed = parseDeterministicTimeInput(cleanTime);
+      if (timeParsed.kind === 'exact') {
+        const contextual = resolveContextualHour(
+          timeParsed.hour,
+          timeParsed.sourceForm,
+          draftContext,
+          timeParsed.minute,
+          timeParsed.dayOffset || 0
+        );
+
+        if (contextual.resolvedHour !== null) {
+          optTime = `${pad(contextual.resolvedHour)}:${pad(contextual.minute)}`;
+          if (contextual.dayOffset && optDate) {
+            optDate = addDaysToIsoDate(optDate, contextual.dayOffset);
+          }
+        } else if (contextual.requiresConfirmation) {
+          // Keep literal time and record ambiguity question
+          optTime = `${pad(timeParsed.hour)}:${pad(timeParsed.minute)}`;
+          ambiguities.push({
+            field: 'time',
+            reason: contextual.questionText || '¿A qué hora te referís?',
+            options: contextual.options,
+          });
+        } else {
+          optTime = timeParsed.time;
+        }
+      }
+      if (optTime && !globalTime) {
+        globalTime = optTime;
+      }
+    }
+
+    parsedItems.push({ date: optDate, time: optTime });
+  }
+
+  // Propagation of shared date / time across candidates:
+  const effectiveDate = globalDate || currentDraftDate || null;
+  const distinctDates = new Set(parsedItems.map((p) => p.date).filter(Boolean));
+  const distinctTimes = new Set(parsedItems.map((p) => p.time).filter(Boolean));
+
+  for (const item of parsedItems) {
+    if (!item.date && effectiveDate && distinctDates.size <= 1 && item.time) {
+      item.date = effectiveDate;
+    }
+    if (!item.time && globalTime && distinctTimes.size <= 1 && item.date) {
+      item.time = globalTime;
+    }
+  }
+
+  // Case A: Options with both Date and Time
+  const itemsWithDateTime = parsedItems.filter((p) => p.date && p.time);
+  if (itemsWithDateTime.length >= 2) {
+    const validFutureOptions: Array<{ date: string; time: string }> = [];
+    const seen = new Set<string>();
+    let hasPast = false;
+
+    for (const item of itemsWithDateTime) {
+      const key = `${item.date}_${item.time}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const isInFuture = validateResolvedDateTimeInFuture(item.date!, item.time!);
+      if (isInFuture) {
+        validFutureOptions.push({ date: item.date!, time: item.time! });
+      } else {
+        hasPast = true;
+      }
+    }
+
+    const hasOverflow = Boolean(overflowFlag || alternatives.length > 3 || validFutureOptions.length > 3);
+
+    return {
+      dateOptions: validFutureOptions,
+      pendingTimeOptions: null,
+      ambiguities,
+      coordinationDetected: true,
+      coordinationPendingConfirm: validFutureOptions.length >= 2,
+      temporalAlternativesOverflow: hasOverflow,
+      hasPastOptions: hasPast,
+    };
+  }
+
+  // Case B: Options with Time only, no Date (e.g. "a las 10 o a las 11")
+  const itemsWithTimeOnly = parsedItems.filter((p) => p.time && !p.date);
+  if (itemsWithTimeOnly.length >= 2) {
+    const seenTimes = new Set<string>();
+    const validTimes: string[] = [];
+    for (const item of itemsWithTimeOnly) {
+      if (!seenTimes.has(item.time!)) {
+        seenTimes.add(item.time!);
+        validTimes.push(item.time!);
+      }
+    }
+    const hasOverflow = Boolean(overflowFlag || alternatives.length > 3 || validTimes.length > 3);
+    return {
+      dateOptions: [],
+      pendingTimeOptions: validTimes,
+      ambiguities,
+      coordinationDetected: true,
+      coordinationPendingConfirm: false,
+      temporalAlternativesOverflow: hasOverflow,
+      hasPastOptions: false,
+    };
+  }
+
+  // Case C: Date only, or partially resolved
+  return {
+    dateOptions: [],
+    pendingTimeOptions: null,
+    ambiguities,
+    coordinationDetected: true,
+    coordinationPendingConfirm: false,
+    temporalAlternativesOverflow: Boolean(overflowFlag || alternatives.length > 3),
+    hasPastOptions: false,
+  };
+}
+
 /**
  * Merges an EncounterDraftPatch into the current EncounterDraft deterministically.
  *
@@ -161,7 +354,8 @@ export function mergeDraftPatch(
   if (
     patch.dateModeSignal?.value === 'coordination' ||
     patch.dateIntent?.value.type === 'range' ||
-    (patch.dateOptions?.value && patch.dateOptions.value.length > 0)
+    (patch.dateOptions?.value && patch.dateOptions.value.length > 0) ||
+    (patch.temporalAlternatives?.value && patch.temporalAlternatives.value.length > 0)
   ) {
     coordinationDetected = true;
   }
@@ -253,8 +447,49 @@ export function mergeDraftPatch(
     }
   }
 
+  let coordinationPendingConfirm: boolean | undefined = undefined;
+  let hasResolvedAlternatives = false;
+
+  // 4b. Temporal Alternatives Resolution (LLM Fallback coordination)
+  if (patch.temporalAlternatives?.value && patch.temporalAlternatives.value.length > 0) {
+    coordinationDetected = true;
+    const altsRes = resolveTemporalAlternatives(
+      patch.temporalAlternatives.value,
+      { title: draft.title, description: draft.description },
+      undefined,
+      patch.temporalAlternativesOverflow?.value,
+      draft.date
+    );
+
+    if (altsRes.ambiguities.length > 0) {
+      ambiguities.push(...altsRes.ambiguities);
+    }
+    if (altsRes.hasPastOptions) {
+      pastDateDetected = true;
+    }
+    if (altsRes.temporalAlternativesOverflow) {
+      draft.temporalAlternativesOverflow = true;
+    }
+
+    if (altsRes.dateOptions && altsRes.dateOptions.length >= 2) {
+      draft.dateOptions = altsRes.dateOptions;
+      draft.dateMode = 'coordination';
+      draft.date = null;
+      draft.time = null;
+      draft.pendingTimeOptions = null;
+      coordinationPendingConfirm = altsRes.coordinationPendingConfirm;
+      hasResolvedAlternatives = true;
+    } else if (altsRes.pendingTimeOptions && altsRes.pendingTimeOptions.length >= 2) {
+      draft.pendingTimeOptions = altsRes.pendingTimeOptions;
+      draft.dateOptions = null;
+      draft.date = null;
+      draft.time = null;
+      hasResolvedAlternatives = true;
+    }
+  }
+
   // 5. Date Intent Resolution
-  if (patch.dateIntent?.value) {
+  if (!hasResolvedAlternatives && patch.dateIntent?.value) {
     const dateRes = resolveDateIntent(patch.dateIntent.value);
     if (dateRes.resolved && dateRes.date) {
       draft.baseDate = dateRes.date;
@@ -291,7 +526,7 @@ export function mergeDraftPatch(
   }
 
   // 6. Time Intent Resolution
-  if (patch.timeIntent?.value) {
+  if (!hasResolvedAlternatives && patch.timeIntent?.value) {
     if (patch.timeIntent.confidence === 'ambiguous') {
       const desc =
         patch.timeIntent.value.type === 'vague' && patch.timeIntent.value.description
@@ -364,5 +599,7 @@ export function mergeDraftPatch(
     ambiguities,
     coordinationDetected,
     pastDateDetected,
+    coordinationPendingConfirm,
+    temporalAlternativesOverflow: draft.temporalAlternativesOverflow,
   };
 }

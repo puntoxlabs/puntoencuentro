@@ -5751,8 +5751,8 @@ describe('QA Producción: Paridad de contrato nth_weekday_of_month (TypeScript, 
     assert.ok(openAiSchema.properties.dateIntent.properties.value.required.includes('ordinal'), 'All properties must be in required for OpenAI strict mode');
   });
 
-  test('Paridad 3: SYSTEM_PROMPT version 1.5.0 documenta explícitamente nth_weekday_of_month con ejemplos', () => {
-    assert.equal(PROMPT_VERSION, '1.5.0');
+  test('Paridad 3: SYSTEM_PROMPT version 1.6.0 documenta explícitamente nth_weekday_of_month con ejemplos', () => {
+    assert.equal(PROMPT_VERSION, '1.6.0');
     assert.ok(SYSTEM_PROMPT.includes('nth_weekday_of_month'), 'SYSTEM_PROMPT must reference nth_weekday_of_month');
     assert.ok(SYSTEM_PROMPT.includes('primer viernes del mes que viene'), 'SYSTEM_PROMPT must include primer viernes example');
     assert.ok(SYSTEM_PROMPT.includes('último sábado de octubre'), 'SYSTEM_PROMPT must include último sábado example');
@@ -7718,6 +7718,359 @@ describe('QA Post-Deploy Fix: Alternativas de Horario sin Fecha Definida (Casos 
     assert.equal(res.options[0].time, '20:00');
     assert.equal(res.options[1].date, dayAfterTomorrowISO);
     assert.equal(res.options[1].time, '21:00');
+  });
+});
+
+describe('Pipeline Evolution: Intelligent LLM Fallback (Casos A a M)', () => {
+  const todayISO = getArgentinaTodayISO();
+  const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+  const dayAfterTomorrowISO = addDaysToIsoDate(todayISO, 2);
+
+  test('Caso A: Determinístico sin LLM ("Cena mañana a las 20")', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (...args) => {
+      providerCalls++;
+      return originalInterpret.apply(aiService, args);
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena mañana a las 20');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'No debe invocar LLM para casos determinísticos resueltos');
+      assert.equal(state.lastResolutionSource, 'deterministic');
+      assert.equal(state.draft.title, 'Cena');
+      assert.equal(state.draft.date, tomorrowISO);
+      assert.equal(state.draft.time, '20:00');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso B: Determinístico pendingTimeOptions ("Desayuno a las 10 o a las 11:00 en casa")', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (...args) => {
+      providerCalls++;
+      return originalInterpret.apply(aiService, args);
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Desayuno a las 10 o a las 11:00 en casa');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'No debe invocar LLM para alternativas de horario locales');
+      assert.equal(state.lastResolutionSource, 'deterministic');
+      assert.equal(state.draft.title, 'Desayuno');
+      assert.deepEqual(state.draft.pendingTimeOptions, ['10:00', '11:00']);
+      assert.equal(state.lastQuestion?.field, 'date');
+      assert.equal(state.lastQuestion?.question, '¿Qué día sería?');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso C: Determinístico respuesta a campo ("mañana" como respuesta a fecha)', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async (...args) => {
+      providerCalls++;
+      return originalInterpret.apply(aiService, args);
+    };
+
+    try {
+      useAiWizardStore.setState({
+        draft: {
+          ...createEmptyEncounterDraft(),
+          title: 'Desayuno',
+          locationText: 'casa',
+          modality: 'presencial',
+          pendingTimeOptions: ['10:00', '11:00'],
+        },
+        lastQuestion: { field: 'date', question: '¿Qué día sería?', type: 'date' },
+      });
+
+      await useAiWizardStore.getState().sendUserMessage('mañana');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 0, 'No debe invocar LLM al responder un campo con valor determinístico');
+      assert.equal(state.lastResolutionSource, 'deterministic');
+      assert.equal(state.draft.dateOptions?.length, 2);
+      assert.equal(state.draft.dateOptions?.[0].date, tomorrowISO);
+      assert.equal(state.draft.dateOptions?.[0].time, '10:00');
+      assert.equal(state.draft.dateOptions?.[1].date, tomorrowISO);
+      assert.equal(state.draft.dateOptions?.[1].time, '11:00');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso D: LLM alternativas temporales pareadas ("Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana")', async () => {
+    useAiWizardStore.getState().reset();
+    let providerCalls = 0;
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => {
+      providerCalls++;
+      return {
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          locationText: { value: 'casa', confidence: 'explicit' as const },
+          modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+          dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          temporalAlternatives: {
+            value: [
+              { dateRef: 'hoy', timeRef: '22:00' },
+              { dateRef: 'mañana', timeRef: '23:00' },
+            ],
+            confidence: 'explicit' as const,
+          },
+        },
+      };
+    };
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena hoy en casa podría ser a las 10 el día de hoy o a las 11 del día de mañana');
+      const state = useAiWizardStore.getState();
+      assert.equal(providerCalls, 1, 'Debe invocar LLM exactamente 1 vez para fallback inteligente');
+      assert.equal(state.lastResolutionSource, 'llm');
+      assert.equal(state.draft.title, 'Cena');
+      assert.equal(state.draft.locationText, 'casa');
+      assert.equal(state.draft.modality, 'presencial');
+      assert.equal(state.draft.dateOptions?.length, 2);
+      assert.equal(state.draft.dateOptions?.[0].date, todayISO);
+      assert.equal(state.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(state.draft.dateOptions?.[1].date, tomorrowISO);
+      assert.equal(state.draft.dateOptions?.[1].time, '23:00');
+      assert.equal(state.coordinationDetected, true);
+      assert.equal(state.coordinationPendingConfirm, true);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso E: LLM alternativas sin fecha (temporalAlternatives con sólo timeRef)', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        title: { value: 'Desayuno', confidence: 'explicit' as const },
+        temporalAlternatives: {
+          value: [
+            { timeRef: '10' },
+            { timeRef: '11:00' },
+          ],
+          confidence: 'explicit' as const,
+        },
+      },
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Desayuno a las diez o a las once');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Desayuno');
+      assert.deepEqual(state.draft.pendingTimeOptions, ['10:00', '11:00']);
+      assert.equal(state.lastQuestion?.field, 'date');
+      assert.equal(state.lastQuestion?.question, '¿Qué día sería?');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso F: LLM alternativas con ambigüedad contextual (Cena a las 11)', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        title: { value: 'Cena', confidence: 'explicit' as const },
+        temporalAlternatives: {
+          value: [
+            { dateRef: 'hoy', timeRef: '11' },
+          ],
+          confidence: 'explicit' as const,
+        },
+      },
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Podría ser cena hoy en casa a las 11');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.lastResolutionSource, 'clarification');
+      assert.equal(state.lastQuestion?.field, 'time');
+      assert.ok(state.lastQuestion?.question.includes('¿Querés decir 11:00 o 23:00?'));
+      assert.deepEqual(state.lastQuestion?.quickOptions?.map((o) => o.value), ['11:00', '23:00']);
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso G: Unsupported / Clarificación previa a fallback manual', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    // Model detects coordination intent but no specific alternatives
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        title: { value: 'Reunión', confidence: 'explicit' as const },
+        dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+      },
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Hagamos una reunión cuando podamos');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.lastResolutionSource, 'clarification');
+      assert.equal(state.lastQuestion?.field, 'coordination_handoff');
+      assert.equal(state.lastQuestion?.question, '¿Qué opciones querés proponer?');
+      assert.equal(state.lastQuestion?.helperText, 'Por ejemplo: viernes a las 20 o sábado a las 21.');
+      assert.equal(state.lastQuestion?.quickOptions?.[0].value, 'keep_fixed');
+      assert.equal(state.lastQuestion?.quickOptions?.[0].label, 'Elegir fecha fija');
+      assert.equal(state.lastQuestion?.quickOptions?.[1].value, 'handoff_coordination');
+      assert.equal(state.lastQuestion?.quickOptions?.[1].label, 'Usar formulario manual');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso H: Fallo en ambos providers -> draft intacto y error controlado', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Asado inicial',
+      },
+    });
+
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: false,
+      error: 'service_error',
+      details: 'Error en servicio de IA',
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('alguna instrucción compleja');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Asado inicial', 'El borrador debe permanecer intacto ante error del proveedor');
+      assert.ok(state.error?.includes('Error en servicio de IA') || state.error?.includes('No pudimos'));
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso I: No duplicación de burbuja + card interactiva', async () => {
+    useAiWizardStore.getState().reset();
+    const originalInterpret = aiService.interpretMessage;
+
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        title: { value: 'Cena', confidence: 'explicit' as const },
+        temporalAlternatives: {
+          value: [
+            { dateRef: 'hoy', timeRef: '22:00' },
+            { dateRef: 'mañana', timeRef: '23:00' },
+          ],
+          confidence: 'explicit' as const,
+        },
+      },
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cena hoy a las 22 o mañana a las 23');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.lastQuestion?.field, 'coordination_confirm');
+
+      // Check messages: only the user's message should be present, NOT a duplicate assistant bubble with the card question!
+      const assistantMsgs = state.messages.filter((m) => m.role === 'assistant');
+      assert.equal(assistantMsgs.length, 0, 'No debe emitir burbuja del asistente cuando se presenta la tarjeta de confirmación');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('Caso J: Regresión fixed sin alteración ("Cena mañana a las 20 en casa")', () => {
+    const patch = {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'relative' as const, value: 'tomorrow' as const }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 20, minute: 0 }, confidence: 'explicit' as const },
+      locationText: { value: 'casa', confidence: 'explicit' as const },
+      modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+    };
+    const res = mergeDraftPatch(createEmptyEncounterDraft(), createDefaultInvitationConfig(), patch);
+    assert.equal(res.draft.dateMode, 'fixed');
+    assert.equal(res.draft.date, tomorrowISO);
+    assert.equal(res.draft.time, '20:00');
+    assert.equal(res.draft.dateOptions, null);
+    assert.equal(res.coordinationDetected, false);
+  });
+
+  test('Caso K: Regresión coordinación existente ("viernes a las 20 o sábado a las 21")', () => {
+    const res = parseNaturalLanguageDateOptions('viernes a las 20 o sábado a las 21');
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.ok(res.options.some((o) => o.time === '20:00'));
+    assert.ok(res.options.some((o) => o.time === '21:00'));
+  });
+
+  test('Caso L: Regresión pendingTimeOptions turn 2 (fecha posterior materializa opciones)', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: {
+        ...createEmptyEncounterDraft(),
+        title: 'Desayuno',
+        locationText: 'casa',
+        modality: 'presencial',
+        pendingTimeOptions: ['10:00', '11:00'],
+      },
+      lastQuestion: { field: 'date', question: '¿Qué día sería?', type: 'date' },
+    });
+
+    await useAiWizardStore.getState().sendUserMessage('mañana');
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.dateOptions?.length, 2);
+    assert.equal(state.draft.pendingTimeOptions, null);
+    assert.equal(state.draft.dateOptions?.[0].date, tomorrowISO);
+    assert.equal(state.draft.dateOptions?.[0].time, '10:00');
+    assert.equal(state.draft.dateOptions?.[1].date, tomorrowISO);
+    assert.equal(state.draft.dateOptions?.[1].time, '11:00');
+  });
+
+  test('Caso M: Overflow de alternativas temporales (> 3 opciones) solicita reducción', () => {
+    const patch = {
+      title: { value: 'Cumpleaños', confidence: 'explicit' as const },
+      temporalAlternatives: {
+        value: [
+          { dateRef: 'hoy', timeRef: '18:00' },
+          { dateRef: 'mañana', timeRef: '19:00' },
+          { dateRef: 'pasado mañana', timeRef: '20:00' },
+          { dateRef: 'este fin de semana', timeRef: '21:00' },
+        ],
+        confidence: 'explicit' as const,
+      },
+      temporalAlternativesOverflow: { value: true, confidence: 'explicit' as const },
+    };
+
+    const mergeRes = mergeDraftPatch(createEmptyEncounterDraft(), createDefaultInvitationConfig(), patch);
+    assert.equal(mergeRes.temporalAlternativesOverflow, true);
+    assert.equal(mergeRes.draft.temporalAlternativesOverflow, true);
+
+    const evalRes = evaluateDraft(mergeRes.draft, mergeRes.coordinationDetected);
+    assert.equal(evalRes.validationError, 'maximum_three_options');
+    assert.equal(evalRes.nextQuestion?.field, 'coordination_options');
+    assert.equal(evalRes.nextQuestion?.question, 'Por ahora podés incluir hasta 3 opciones para coordinar. ¿Cuáles 3 preferís dejar?');
   });
 });
 
