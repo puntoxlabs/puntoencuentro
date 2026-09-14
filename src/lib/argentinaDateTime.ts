@@ -15,7 +15,8 @@ const argentinaFormatter = new Intl.DateTimeFormat('en-CA', {
  * Returns current Argentina time parts [year, month, day, hour, minute]
  */
 export function getArgentinaDateTimeParts(): { year: number; month: number; day: number; hour: number; minute: number } {
-  const parts = argentinaFormatter.formatToParts(new Date());
+  const now = typeof process !== 'undefined' && process.env.MOCK_SYSTEM_TIME ? new Date(process.env.MOCK_SYSTEM_TIME) : new Date();
+  const parts = argentinaFormatter.formatToParts(now);
   const map: Record<string, string> = {};
   for (const part of parts) {
     if (part.type !== 'literal') {

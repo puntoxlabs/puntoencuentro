@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+process.env.MOCK_SYSTEM_TIME = '2026-09-13T15:00:00.000Z'; // 12:00 mediodía en Argentina
+
+
+
 import { test, describe } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
