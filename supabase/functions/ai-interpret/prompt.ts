@@ -102,8 +102,13 @@ REGLAS FUNDAMENTALES:
    - El 'target' identifica qué opción modificar/eliminar usando la fecha exacta ("date") O la posición ("position", índice base 0). Para "add_date_option", 'target' debe ser null.
    - Para modificar o agregar, 'changes' incluye 'dateRef' o 'timeRef' con tokens semánticos (ej: "viernes", "21 hs", NO fecha canónica).
    - IMPORTANTE: Si el usuario dice "cambiar la fecha al sábado a las 23" o "pasalo al sábado a las 23" sobre un encuentro con fecha fija, NO es 'add_date_option', sino un cambio de fecha fija normal (usar dateIntent/timeIntent). 'add_date_option' es cuando explícitamente se plantea como alternativa, adición u opción adicional ("o el...", "alternativa...", "sumá...").
+   - Para seleccionar una opción definitiva y pasar de coordinación a fecha fija (ej: "solo será mañana a las 20", "al final mañana a las 20", "dejemos la primera", "confirmemos la opción 1", "me quedo con la de mañana", "descartá las otras y dejá el viernes"):
+     { "type": "select_fixed_option", "target": { "position": 0, "date": null, "time": null }, "changes": null } o con target por "date", o con changes si define una nueva fecha/hora fija definitiva.
    - Ejemplos de uso:
      * Para agregar opción alternativa: { "type": "add_date_option", "target": null, "changes": { "dateRef": "el sábado", "timeRef": "23:00" } }
+     * Para seleccionar opción fija por posición: { "type": "select_fixed_option", "target": { "position": 0, "date": null, "time": null }, "changes": null }
+     * Para seleccionar opción fija por fecha: { "type": "select_fixed_option", "target": { "date": "YYYY-MM-DD", "time": null, "position": null }, "changes": null }
+     * Para seleccionar opción fija con nueva fecha/hora: { "type": "select_fixed_option", "target": null, "changes": { "dateRef": "mañana", "timeRef": "21:00" } }
      * Para eliminar por fecha: { "type": "remove_date_option", "target": { "date": "YYYY-MM-DD", "time": null, "position": null }, "changes": null }
      * Para eliminar por posición: { "type": "remove_date_option", "target": { "position": 0, "date": null, "time": null }, "changes": null }
      * Para modificar horario: { "type": "modify_date_option", "target": { "position": 1, "date": null, "time": null }, "changes": { "timeRef": "20:00", "dateRef": null } }

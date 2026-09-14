@@ -28,6 +28,7 @@ export type MergeOperationType =
   | 'FIELD_MODIFICATION'
   | 'CHANGE_FIXED'
   | 'CONVERT_FIXED_TO_COORD'
+  | 'CONVERT_COORD_TO_FIXED'
   | 'ADD_OPTION'
   | 'MODIFY_OPTION'
   | 'REMOVE_OPTION'
@@ -41,6 +42,7 @@ export interface MergeOperationMetadata {
   addedOption?: { date: string; time: string };
   removedOptionDate?: string;
   modifiedOption?: { date: string; time: string };
+  selectedOption?: { date: string; time: string };
   optionsCount?: number;
   fixedSchedule?: { date: string; time: string };
   previousFixedSchedule?: { date: string; time: string };
@@ -745,9 +747,135 @@ export function mergeDraftPatch(
   let addedOptionMeta: { date: string; time: string } | undefined = undefined;
   let removedOptionDateMeta: string | undefined = undefined;
   let modifiedOptionMeta: { date: string; time: string } | undefined = undefined;
+  let selectedOptionMeta: { date: string; time: string } | undefined = undefined;
   let isDuplicateOptionMeta = false;
 
   if (patch.actions && patch.actions.length > 0) {
+    // Step -1: Apply select_fixed_option (convert coordination to fixed)
+    for (const action of patch.actions) {
+      if (action.type === 'select_fixed_option') {
+        let selectedDate: string | null = null;
+        let selectedTime: string | null = null;
+        let isAmbiguous = false;
+        let ambiguityReason = '';
+
+        const originalSnapshot = draft.dateOptions ? [...draft.dateOptions] : [];
+
+        // 1. Target resolution
+        if (action.target) {
+          if ('position' in action.target && typeof action.target.position === 'number') {
+            const pos = action.target.position;
+            if (pos >= 0 && pos < originalSnapshot.length) {
+              selectedDate = originalSnapshot[pos].date;
+              selectedTime = originalSnapshot[pos].time;
+            }
+          } else if ('date' in action.target && typeof action.target.date === 'string') {
+            const tDate = action.target.date;
+            const tTime = 'time' in action.target ? action.target.time : undefined;
+            const matches = originalSnapshot.filter(
+              (opt) => opt.date === tDate && (!tTime || opt.time === tTime)
+            );
+            if (matches.length === 1) {
+              selectedDate = matches[0].date;
+              selectedTime = matches[0].time;
+            } else if (matches.length > 1) {
+              isAmbiguous = true;
+              ambiguityReason = 'Hay más de una opción en esa fecha. Se necesita especificar la hora.';
+            }
+          }
+        }
+
+        // 2. Changes resolution (new schedule or override)
+        if (!selectedDate || !selectedTime || action.changes) {
+          if (action.changes) {
+            if (action.changes.dateRef) {
+              const raw = action.changes.dateRef.trim();
+              if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                selectedDate = raw;
+              } else {
+                const intent = parseDeterministicDateIntent(raw);
+                if (intent) {
+                  const resolved = resolveDateIntent(intent, undefined);
+                  if (resolved.date) selectedDate = resolved.date;
+                }
+              }
+            }
+            if (action.changes.timeRef) {
+              const raw = action.changes.timeRef.trim();
+              if (/^\d{2}:\d{2}$/.test(raw)) {
+                selectedTime = raw;
+              } else {
+                const intent = parseDeterministicTimeInput(raw);
+                if (intent && intent.kind === 'exact') {
+                  if (intent.sourceForm === 'ambiguous_12h_word') {
+                    const res = resolveContextualHour(
+                      intent.hour,
+                      intent.sourceForm,
+                      { title: draft.title, description: draft.description },
+                      intent.minute,
+                      intent.dayOffset || 0
+                    );
+                    if (res.resolvedHour !== null) {
+                      selectedTime = `${pad(res.resolvedHour)}:${pad(res.minute)}`;
+                    }
+                  } else {
+                    selectedTime = intent.time;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback to scalar draft date/time if available
+        if (!selectedDate && draft.date) selectedDate = draft.date;
+        if (!selectedTime && draft.time) selectedTime = draft.time;
+
+        if (isAmbiguous) {
+          actionResults.push({ status: 'needs_clarification', action, reason: ambiguityReason });
+          ambiguities.push({
+            field: 'schedule',
+            reason: ambiguityReason,
+            options: [],
+          });
+          continue;
+        }
+
+        if (!selectedDate || !selectedTime) {
+          actionResults.push({
+            status: 'rejected',
+            action,
+            reason: 'No se pudo determinar la fecha y hora seleccionada.',
+          });
+          continue;
+        }
+
+        const isInFuture = validateResolvedDateTimeInFuture(selectedDate, selectedTime);
+        if (!isInFuture) {
+          actionResults.push({
+            status: 'rejected',
+            action,
+            reason: 'La fecha y hora deben ser futuras.',
+          });
+          continue;
+        }
+
+        // Apply transition coordination -> fixed
+        draft.dateMode = 'fixed';
+        draft.date = selectedDate;
+        draft.time = selectedTime;
+        draft.baseDate = selectedDate;
+        draft.dateOptions = null;
+        draft.pendingTimeOptions = null;
+        draft.pendingTemporalAlternatives = null;
+        coordinationDetected = false;
+        coordinationPendingConfirm = false;
+        explicitActionOpType = 'CONVERT_COORD_TO_FIXED';
+        selectedOptionMeta = { date: selectedDate, time: selectedTime };
+        actionResults.push({ status: 'applied', action });
+      }
+    }
+
     // Step 0: Apply additions (add_date_option)
     for (const action of patch.actions) {
       if (action.type === 'add_date_option') {
@@ -1040,6 +1168,28 @@ export function mergeDraftPatch(
     }
   }
 
+  // Fallback for coordination -> fixed without explicit actions (e.g. LLM set dateIntent + timeIntent or dateModeSignal='fixed')
+  if (
+    currentDraft.dateMode === 'coordination' &&
+    draft.date &&
+    draft.time &&
+    !hasResolvedAlternatives &&
+    (!patch.temporalAlternatives || !patch.temporalAlternatives.value || patch.temporalAlternatives.value.length === 0)
+  ) {
+    draft.dateMode = 'fixed';
+    draft.dateOptions = null;
+    draft.pendingTimeOptions = null;
+    draft.pendingTemporalAlternatives = null;
+    coordinationDetected = false;
+    coordinationPendingConfirm = false;
+    if (!explicitActionOpType) {
+      explicitActionOpType = 'CONVERT_COORD_TO_FIXED';
+    }
+    if (!selectedOptionMeta) {
+      selectedOptionMeta = { date: draft.date, time: draft.time };
+    }
+  }
+
   // 11. Operation Classification
   const prevHadData = hasMeaningfulDraftData(currentDraft, currentConfig);
   const nowHasData = hasMeaningfulDraftData(draft, config);
@@ -1055,6 +1205,7 @@ export function mergeDraftPatch(
       operationType = explicitActionOpType;
       if (
         operationType === 'CONVERT_FIXED_TO_COORD' ||
+        operationType === 'CONVERT_COORD_TO_FIXED' ||
         operationType === 'ADD_OPTION' ||
         operationType === 'REMOVE_OPTION' ||
         operationType === 'MODIFY_OPTION'
@@ -1063,6 +1214,15 @@ export function mergeDraftPatch(
       } else if (operationType === 'CHANGE_FIXED') {
         primaryField = 'schedule';
       }
+    } else if (
+      currentDraft.dateMode === 'coordination' &&
+      draft.dateMode === 'fixed' &&
+      draft.date &&
+      draft.time
+    ) {
+      operationType = 'CONVERT_COORD_TO_FIXED';
+      primaryField = 'options';
+      selectedOptionMeta = { date: draft.date, time: draft.time };
     } else if (
       currentDraft.dateMode === 'fixed' &&
       draft.dateMode === 'coordination' &&
@@ -1158,6 +1318,7 @@ export function mergeDraftPatch(
     addedOption: addedOptionMeta,
     removedOptionDate: removedOptionDateMeta,
     modifiedOption: modifiedOptionMeta,
+    selectedOption: selectedOptionMeta,
     optionsCount: draft.dateOptions?.length,
     fixedSchedule: draft.date && draft.time ? { date: draft.date, time: draft.time } : undefined,
     previousFixedSchedule:

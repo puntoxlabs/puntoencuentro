@@ -97,6 +97,18 @@ export type EncounterDraftAction =
       /** Identifies which existing option to remove (resolved against original snapshot). */
       target: DateOptionTarget;
       changes?: null;
+    }
+  | {
+      type: 'select_fixed_option';
+      /** Identifies which existing option to make definitive (by position or date/time). */
+      target?: DateOptionTarget | null;
+      /**
+       * Optional new dateRef or timeRef if setting a new fixed schedule or disambiguating.
+       */
+      changes?: {
+        dateRef?: string;
+        timeRef?: string;
+      } | null;
     };
 
 /**

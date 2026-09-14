@@ -228,6 +228,7 @@ export function buildAssistantReplyFromMergeResult(
   const optionsRemoved = appliedActions.some((a) => a.action.type === 'remove_date_option');
   const optionsModified = appliedActions.some((a) => a.action.type === 'modify_date_option');
   const optionsAdded = appliedActions.some((a) => a.action.type === 'add_date_option');
+  const optionSelected = appliedActions.some((a) => a.action.type === 'select_fixed_option');
 
   const actionErrors: string[] = [];
   if (mergeResult.actionResults) {
@@ -251,6 +252,7 @@ export function buildAssistantReplyFromMergeResult(
 
   if (appliedActions.length > 1) {
     const parts: string[] = [];
+    if (optionSelected) parts.push('fijé la fecha seleccionada');
     if (optionsModified) parts.push('actualicé el horario de la opción');
     if (optionsRemoved) parts.push('quité la opción indicada');
     if (optionsAdded) parts.push('agregué la opción');
@@ -331,6 +333,14 @@ export function buildAssistantReplyFromMergeResult(
     } else {
       assistantReply = `Anoté el dato.`;
     }
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'CONVERT_COORD_TO_FIXED') {
+    const sched = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
+    assistantReply = `Listo, dejé el encuentro para ${sched}.`;
     if (evaluation.isComplete) {
       assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
     } else if (evaluation.nextQuestion) {
@@ -1120,6 +1130,24 @@ export const useAiWizardStore = create<AiWizardState>()(
 
         // 3a1. Deterministic Coordination Transition (Add, Remove, Modify, Switch to Fixed, Change Fixed)
         const transition = parseCoordinationTransition(trimmed, state.draft);
+        if (transition.type === 'ambiguous_switch') {
+          const reason = transition.clarificationReason || 'Hay más de una opción que coincide. ¿Cuál preferís?';
+          const assistantMsg: ChatMessage = {
+            id: generateUuid(),
+            role: 'assistant',
+            text: reason,
+            timestamp: Date.now() + 1,
+          };
+          set({
+            messages: [...state.messages, userMsg, assistantMsg],
+            isInterpreting: false,
+            lastResolutionSource: 'deterministic',
+            error: null,
+            lastUserPrompt: trimmed,
+          });
+          return;
+        }
+
         if (transition.type !== 'none') {
           let patch: EncounterDraftPatch | null = null;
           if (transition.type === 'add' && transition.addedOption) {
@@ -1166,6 +1194,19 @@ export const useAiWizardStore = create<AiWizardState>()(
               dateModeSignal: { value: 'fixed', confidence: 'explicit' },
               dateIntent: { value: { type: 'absolute', day: d, month: m, year: y }, confidence: 'explicit' },
               timeIntent: { value: { type: 'exact', hour: hh, minute: mm }, confidence: 'explicit' },
+              actions: [
+                {
+                  type: 'select_fixed_option',
+                  target:
+                    typeof transition.position === 'number'
+                      ? { position: transition.position }
+                      : {
+                          date: transition.selectedFixedOption.date,
+                          time: transition.selectedFixedOption.time,
+                        },
+                  changes: null,
+                },
+              ],
             };
           } else if (transition.type === 'change_fixed' && transition.changedFixedOption) {
             const [y, m, d] = transition.changedFixedOption.date.split('-').map(Number);

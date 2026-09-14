@@ -88,7 +88,7 @@ import {
   resetLimiterStateForTesting,
   AtomicRateLimitBucket,
 } from '../supabase/functions/ai-interpret/limiter.ts';
-import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantBubbleForQuestion, isInternalWizardAction } from '@/store/aiWizardStore';
+import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantBubbleForQuestion, isInternalWizardAction, buildAssistantReplyFromMergeResult } from '@/store/aiWizardStore';
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
 import { ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect.ts';
@@ -10267,3 +10267,484 @@ export function assertOpenAIStrictSchemaCompatible(schema: unknown, path = 'root
   check(schema, path);
   return issues;
 }
+
+describe('QA Suite: Coordination -> Fixed Semantic Intent (Incident & Generalization)', () => {
+  const baseDate = { year: 2026, month: 9, day: 14 }; // Monday 2026-09-14
+
+  test('Req 12 Essential Test: "Solo será mañana a las 20" converts coordination to fixed cleanly with natural response', () => {
+    // Initial draft from QA incident
+    const initialDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      locationText: 'casa',
+      modality: 'presencial' as const,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-15', time: '20:00' }, // Mañana 20:00
+        { date: '2026-09-18', time: '23:00' }, // Viernes 23:00
+      ],
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+    };
+    const initialConfig = createDefaultInvitationConfig();
+
+    // 1. Layer 1: Deterministic Transition Detection
+    const transition = parseCoordinationTransition('Solo será mañana a las 20', initialDraft, baseDate);
+    assert.equal(transition.type, 'switch_to_fixed');
+    assert.equal(transition.position, 0);
+    assert.deepEqual(transition.selectedFixedOption, { date: '2026-09-15', time: '20:00' });
+
+    // 2. Layer 2: SSOT Draft Merger with select_fixed_option action
+    const patch = {
+      scope: 'encounter' as const,
+      dateModeSignal: { value: 'fixed' as const, confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'absolute' as const, day: 15, month: 9, year: 2026 }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 20, minute: 0 }, confidence: 'explicit' as const },
+      actions: [
+        {
+          type: 'select_fixed_option' as const,
+          target: {
+            position: 0,
+            date: '2026-09-15',
+            time: '20:00',
+          },
+          changes: null,
+        },
+      ],
+    };
+
+    const mergeResult = mergeDraftPatch(initialDraft, initialConfig, patch);
+
+    // Assert Clean State
+    assert.equal(mergeResult.draft.dateMode, 'fixed');
+    assert.equal(mergeResult.draft.date, '2026-09-15');
+    assert.equal(mergeResult.draft.time, '20:00');
+    assert.equal(mergeResult.draft.dateOptions, null);
+    assert.equal(mergeResult.draft.pendingTimeOptions, null);
+    assert.equal(mergeResult.draft.pendingTemporalAlternatives, null);
+    assert.equal(mergeResult.coordinationDetected, false);
+    assert.equal(mergeResult.coordinationPendingConfirm, false);
+
+    // Assert Preserved fields
+    assert.equal(mergeResult.draft.title, 'Cena');
+    assert.equal(mergeResult.draft.locationText, 'casa');
+    assert.equal(mergeResult.draft.modality, 'presencial');
+
+    // Assert Operation Classification
+    assert.equal(mergeResult.operationMetadata.operationType, 'CONVERT_COORD_TO_FIXED');
+    assert.deepEqual(mergeResult.operationMetadata.selectedOption, { date: '2026-09-15', time: '20:00' });
+
+    // Assert Assistant Reply
+    const evaluation = evaluateDraft(mergeResult.draft, false, undefined, false);
+    assert.equal(evaluation.isComplete, true);
+
+    const reply = buildAssistantReplyFromMergeResult(
+      mergeResult,
+      initialDraft,
+      initialConfig,
+      false,
+      evaluation,
+      patch
+    );
+
+    assert.ok(!reply.includes('No encontré un cambio nuevo'), 'Must not say no change found');
+    assert.ok(reply.includes('Listo, dejé el encuentro para'), 'Must use positive natural confirmation');
+    assert.ok(reply.includes('20:00'), 'Must mention the confirmed time');
+  });
+
+  test('Req 7 & 11: Battery of 20 Coordination -> Fixed Semantic Paraphrases', () => {
+    const coordDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena con amigos',
+      locationText: 'casa',
+      modality: 'presencial' as const,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-15', time: '20:00' }, // Option 0: Mañana 20:00
+        { date: '2026-09-18', time: '23:00' }, // Option 1: Viernes 23:00
+      ],
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+    };
+    const config = createDefaultInvitationConfig();
+
+    const testCases: Array<{ phrase: string; expectedDate: string; expectedTime: string }> = [
+      { phrase: 'Solo será mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Al final será mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Dejemos mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Queda mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Será solamente mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Me quedo con la de mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Confirmemos mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Elegí mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Descartá las otras y dejá mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'No coordinemos, será mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Listo, va mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Dejemos la primera', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Dejemos la primera opción', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Opción 1', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Me quedo con la segunda', expectedDate: '2026-09-18', expectedTime: '23:00' },
+      { phrase: 'Va la 1', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Fijemos mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Mejor sólo mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+      { phrase: 'Hagámoslo el viernes a las 23', expectedDate: '2026-09-18', expectedTime: '23:00' },
+      { phrase: 'Cancelá la coordinación, lo hacemos mañana a las 20', expectedDate: '2026-09-15', expectedTime: '20:00' },
+    ];
+
+    assert.equal(testCases.length, 20, 'Must have exactly 20 test cases in paraphrase battery');
+
+    for (const { phrase, expectedDate, expectedTime } of testCases) {
+      const transition = parseCoordinationTransition(phrase, coordDraft, baseDate);
+      assert.equal(
+        transition.type,
+        'switch_to_fixed',
+        `Phrase "${phrase}" must resolve to switch_to_fixed`
+      );
+      assert.equal(
+        transition.selectedFixedOption?.date,
+        expectedDate,
+        `Phrase "${phrase}" date mismatch`
+      );
+      assert.equal(
+        transition.selectedFixedOption?.time,
+        expectedTime,
+        `Phrase "${phrase}" time mismatch`
+      );
+
+      // Merge check
+      const patch = {
+        scope: 'encounter' as const,
+        actions: [
+          {
+            type: 'select_fixed_option' as const,
+            target: {
+              date: transition.selectedFixedOption.date,
+              time: transition.selectedFixedOption.time,
+              position: typeof transition.position === 'number' ? transition.position : null,
+            },
+            changes: null,
+          },
+        ],
+      };
+
+      const merged = mergeDraftPatch(coordDraft, config, patch);
+      assert.equal(merged.draft.dateMode, 'fixed', `DateMode must be fixed for "${phrase}"`);
+      assert.equal(merged.draft.date, expectedDate, `Merged date must match for "${phrase}"`);
+      assert.equal(merged.draft.time, expectedTime, `Merged time must match for "${phrase}"`);
+      assert.equal(merged.draft.dateOptions, null, `dateOptions must be null for "${phrase}"`);
+      assert.equal(merged.operationMetadata.operationType, 'CONVERT_COORD_TO_FIXED');
+    }
+  });
+
+  test('Req 5 Ambiguity Guard: "Dejemos la del viernes" with two Friday options must yield needs_clarification and leave draft intact', () => {
+    const twoFridayDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      locationText: 'casa',
+      modality: 'presencial' as const,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-18', time: '20:00' }, // Viernes 20:00
+        { date: '2026-09-18', time: '23:00' }, // Viernes 23:00
+      ],
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+    };
+    const config = createDefaultInvitationConfig();
+
+    // 1. Layer 1 Deterministic: must detect ambiguity
+    const transition = parseCoordinationTransition('Dejemos la del viernes', twoFridayDraft, baseDate);
+    assert.equal(transition.type, 'ambiguous_switch');
+    assert.equal(transition.ambiguousOptions?.length, 2);
+    assert.ok(transition.clarificationReason?.includes('más de una opción'));
+
+    // 2. Layer 2 SSOT Draft Merger: if an ambiguous select_fixed_option target is received
+    const ambiguousPatch = {
+      scope: 'encounter' as const,
+      actions: [
+        {
+          type: 'select_fixed_option' as const,
+          target: {
+            date: '2026-09-18', // Date only, no time, no position
+          },
+          changes: null,
+        },
+      ],
+    };
+
+    const mergeResult = mergeDraftPatch(twoFridayDraft, config, ambiguousPatch);
+
+    // Draft must NOT be converted to fixed
+    assert.equal(mergeResult.draft.dateMode, 'coordination');
+    assert.equal(mergeResult.draft.dateOptions?.length, 2);
+    assert.equal(mergeResult.draft.date, null);
+    assert.equal(mergeResult.draft.time, null);
+
+    // Must return needs_clarification action result
+    assert.equal(mergeResult.actionResults?.[0].status, 'needs_clarification');
+  });
+
+  test('Req 6 New Non-Matching Schedule: "Al final será mañana a las 21" abandons coordination and sets new fixed date/time', () => {
+    const coordDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      locationText: 'casa',
+      modality: 'presencial' as const,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-15', time: '20:00' }, // Mañana 20:00
+        { date: '2026-09-18', time: '23:00' }, // Viernes 23:00
+      ],
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+    };
+    const config = createDefaultInvitationConfig();
+
+    // Layer 1
+    const transition = parseCoordinationTransition('Al final será mañana a las 21', coordDraft, baseDate);
+    assert.equal(transition.type, 'switch_to_fixed');
+    assert.deepEqual(transition.selectedFixedOption, { date: '2026-09-15', time: '21:00' });
+
+    // Layer 2
+    const patch = {
+      scope: 'encounter' as const,
+      actions: [
+        {
+          type: 'select_fixed_option' as const,
+          target: null,
+          changes: {
+            dateRef: '2026-09-15',
+            timeRef: '21:00',
+          },
+        },
+      ],
+    };
+
+    const mergeResult = mergeDraftPatch(coordDraft, config, patch);
+    assert.equal(mergeResult.draft.dateMode, 'fixed');
+    assert.equal(mergeResult.draft.date, '2026-09-15');
+    assert.equal(mergeResult.draft.time, '21:00');
+    assert.equal(mergeResult.draft.dateOptions, null);
+    assert.equal(mergeResult.operationMetadata.operationType, 'CONVERT_COORD_TO_FIXED');
+  });
+
+  test('Negative Guards: questions, speculative statements, adds, modifies, and removes must NOT switch to fixed', () => {
+    const coordDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-15', time: '20:00' },
+        { date: '2026-09-18', time: '23:00' },
+      ],
+    };
+
+    // Questions
+    assert.equal(parseCoordinationTransition('¿cuál opción conviene?', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('¿Cuál conviene?', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('¿dejamos la del viernes?', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('¿a qué hora era?', coordDraft, baseDate).type, 'none');
+
+    // Speculative
+    assert.equal(parseCoordinationTransition('quizás mañana a las 20', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('Quizás mañana', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('Podría ser la primera', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('tal vez el viernes', coordDraft, baseDate).type, 'none');
+    assert.equal(parseCoordinationTransition('puede ser el viernes', coordDraft, baseDate).type, 'none');
+
+    // Additions
+    const addRes = parseCoordinationTransition('como alternativa el sábado a las 23', coordDraft, baseDate);
+    assert.equal(addRes.type, 'add');
+    const addRes2 = parseCoordinationTransition('Agregá otra opción', coordDraft, baseDate);
+    assert.notEqual(addRes2.type, 'switch_to_fixed');
+
+    // Removals
+    const removeRes = parseCoordinationTransition('sacá la opción del viernes', coordDraft, baseDate);
+    assert.equal(removeRes.type, 'remove');
+    const removeRes2 = parseCoordinationTransition('Eliminá la primera', coordDraft, baseDate);
+    assert.notEqual(removeRes2.type, 'switch_to_fixed');
+
+    // Modifications
+    const modRes = parseCoordinationTransition('cambiá el viernes a las 20', coordDraft, baseDate);
+    assert.equal(modRes.type, 'modify');
+    const modRes2 = parseCoordinationTransition('Cambiá la segunda a las 20', coordDraft, baseDate);
+    assert.notEqual(modRes2.type, 'switch_to_fixed');
+  });
+
+  test('Req 2 LLM Long-Tail Fallback: 5 Long-Tail expressions convert via select_fixed_option without memorized rules', () => {
+    const coordDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Cena con amigos',
+      locationText: 'casa',
+      modality: 'presencial' as const,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-09-15', time: '20:00' }, // Option 0: Mañana 20:00
+        { date: '2026-09-18', time: '23:00' }, // Option 1: Viernes 23:00
+      ],
+      coordinationDetected: true,
+      coordinationPendingConfirm: true,
+    };
+    const config = createDefaultInvitationConfig();
+
+    const longTailCases = [
+      {
+        description: 'Terminemos con la opción de mañana',
+        patch: {
+          scope: 'encounter' as const,
+          actions: [
+            {
+              type: 'select_fixed_option' as const,
+              target: { date: '2026-09-15', time: null, position: null },
+              changes: null,
+            },
+          ],
+        },
+        expectedDate: '2026-09-15',
+        expectedTime: '20:00',
+      },
+      {
+        description: 'Tomemos definitivamente la primera alternativa',
+        patch: {
+          scope: 'encounter' as const,
+          actions: [
+            {
+              type: 'select_fixed_option' as const,
+              target: { position: 0, date: null, time: null },
+              changes: null,
+            },
+          ],
+        },
+        expectedDate: '2026-09-15',
+        expectedTime: '20:00',
+      },
+      {
+        description: 'Mejor cerrémoslo con la de las ocho',
+        patch: {
+          scope: 'encounter' as const,
+          actions: [
+            {
+              type: 'select_fixed_option' as const,
+              target: { date: '2026-09-15', time: '20:00', position: null },
+              changes: null,
+            },
+          ],
+        },
+        expectedDate: '2026-09-15',
+        expectedTime: '20:00',
+      },
+      {
+        description: 'Que quede establecida la fecha del viernes',
+        patch: {
+          scope: 'encounter' as const,
+          actions: [
+            {
+              type: 'select_fixed_option' as const,
+              target: { date: '2026-09-18', time: null, position: null },
+              changes: null,
+            },
+          ],
+        },
+        expectedDate: '2026-09-18',
+        expectedTime: '23:00',
+      },
+      {
+        description: 'Definamos una sola fecha: mañana',
+        patch: {
+          scope: 'encounter' as const,
+          actions: [
+            {
+              type: 'select_fixed_option' as const,
+              target: { date: '2026-09-15', time: null, position: null },
+              changes: null,
+            },
+          ],
+        },
+        expectedDate: '2026-09-15',
+        expectedTime: '20:00',
+      },
+    ];
+
+    for (const { description, patch, expectedDate, expectedTime } of longTailCases) {
+      const mergeResult = mergeDraftPatch(coordDraft, config, patch);
+      assert.equal(mergeResult.draft.dateMode, 'fixed', `${description}: dateMode must be fixed`);
+      assert.equal(mergeResult.draft.date, expectedDate, `${description}: date must match`);
+      assert.equal(mergeResult.draft.time, expectedTime, `${description}: time must match`);
+      assert.equal(mergeResult.draft.dateOptions, null, `${description}: dateOptions must be null`);
+      assert.equal(mergeResult.draft.title, 'Cena con amigos');
+      assert.equal(mergeResult.operationMetadata.operationType, 'CONVERT_COORD_TO_FIXED');
+
+      const evaluation = evaluateDraft(mergeResult.draft, false, undefined, false);
+      const reply = buildAssistantReplyFromMergeResult(
+        mergeResult,
+        coordDraft,
+        config,
+        false,
+        evaluation,
+        patch
+      );
+      assert.ok(!reply.includes('No encontré un cambio nuevo'), `${description}: must not be no-op`);
+      assert.ok(reply.includes('Listo, dejé el encuentro para'), `${description}: natural reply`);
+    }
+  });
+
+  test('OpenAI Strict Schema & Validation Tests for select_fixed_option', () => {
+    // 1. Strict Schema Compliance (0 disallowed keywords, all objects have additionalProperties: false and full required array)
+    const sanitized = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA);
+    const issues = assertOpenAIStrictSchemaCompatible(sanitized);
+    assert.equal(issues.length, 0, `Schema must have 0 issues for OpenAI strict mode: ${issues.join(', ')}`);
+
+    // 2. Runtime Validator: select_fixed_option with position
+    const validPos = validatePatchOutput({
+      scope: 'encounter',
+      actions: [
+        {
+          type: 'select_fixed_option',
+          target: { position: 0, date: null, time: null },
+          changes: null,
+        },
+      ],
+    });
+    assert.equal(validPos.valid, true);
+
+    // 3. Runtime Validator: select_fixed_option with date
+    const validDate = validatePatchOutput({
+      scope: 'encounter',
+      actions: [
+        {
+          type: 'select_fixed_option',
+          target: { date: '2026-09-15', time: null, position: null },
+          changes: null,
+        },
+      ],
+    });
+    assert.equal(validDate.valid, true);
+
+    // 4. Runtime Validator: select_fixed_option with changes
+    const validChanges = validatePatchOutput({
+      scope: 'encounter',
+      actions: [
+        {
+          type: 'select_fixed_option',
+          target: null,
+          changes: { dateRef: 'mañana', timeRef: '21:00' },
+        },
+      ],
+    });
+    assert.equal(validChanges.valid, true);
+
+    // 5. Runtime Validator: select_fixed_option with neither target nor changes -> invalid
+    const invalidAction = validatePatchOutput({
+      scope: 'encounter',
+      actions: [
+        {
+          type: 'select_fixed_option',
+          target: null,
+          changes: null,
+        },
+      ],
+    });
+    assert.equal(invalidAction.valid, false);
+  });
+});
+
