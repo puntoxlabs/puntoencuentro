@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { EncounterDraft, InvitationConfig } from '@/lib/encounterDraft';
 import { createEmptyEncounterDraft, createDefaultInvitationConfig, hasMeaningfulDraftData } from '@/lib/encounterDraft';
-import { mergeDraftPatch, isValidVirtualLink, normalizeVirtualLink, isRecognizedVirtualPlatform } from '@/lib/draftMerger';
+import { mergeDraftPatch, isValidVirtualLink, normalizeVirtualLink, isRecognizedVirtualPlatform, type MergeResult } from '@/lib/draftMerger';
 import {
   addDaysToIsoDate,
   parseDeterministicTimeInput,
@@ -26,7 +26,7 @@ import {
   getDefaultInvitationTemplate,
   type InvitationTheme,
 } from '@/lib/invitationThemes';
-import { formatFriendlyDate, formatHumanSchedule } from '@/lib/formatDate';
+import { formatHumanSchedule } from '@/lib/formatDate';
 import { aiService, type AiInterpretationResponse } from '@/services/aiService';
 import { isInternalWizardAction, type DraftOperation } from '@/lib/wizardActions';
 export { isInternalWizardAction, type DraftOperation };
@@ -212,8 +212,275 @@ export function resolveMinimalInputFallback(
   return null;
 }
 
-function applyInterpretationResponse(
+export function buildAssistantReplyFromMergeResult(
+  mergeResult: MergeResult,
+  prevDraft: EncounterDraft,
+  prevConfig: InvitationConfig,
+  wasAlreadyComplete: boolean,
+  evaluation: { isComplete: boolean; nextQuestion?: FieldQuestion | null },
+  patchHint?: { themeHint?: { value?: string }; modality?: { value?: string } } | null
+): string {
+  const opMeta = mergeResult.operationMetadata;
+  const opType = opMeta.operationType;
+  let assistantReply = '';
 
+  const appliedActions = mergeResult.actionResults?.filter((a) => a.status === 'applied') || [];
+  const optionsRemoved = appliedActions.some((a) => a.action.type === 'remove_date_option');
+  const optionsModified = appliedActions.some((a) => a.action.type === 'modify_date_option');
+  const optionsAdded = appliedActions.some((a) => a.action.type === 'add_date_option');
+
+  const actionErrors: string[] = [];
+  if (mergeResult.actionResults) {
+    for (const res of mergeResult.actionResults) {
+      if (res.status === 'rejected' && res.reason && !actionErrors.includes(res.reason)) {
+        actionErrors.push(res.reason);
+      }
+      if (res.status === 'needs_clarification' && res.reason && !actionErrors.includes(res.reason)) {
+        actionErrors.push(res.reason);
+      }
+    }
+  }
+
+  if (appliedActions.length === 0 && actionErrors.length > 0) {
+    assistantReply = actionErrors.join(' ');
+    if (evaluation.nextQuestion && !assistantReply.includes(evaluation.nextQuestion.question)) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+    return assistantReply;
+  }
+
+  if (appliedActions.length > 1) {
+    const parts: string[] = [];
+    if (optionsModified) parts.push('actualicé el horario de la opción');
+    if (optionsRemoved) parts.push('quité la opción indicada');
+    if (optionsAdded) parts.push('agregué la opción');
+    assistantReply = `Listo, ${parts.join(' y ')}.`;
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Podés revisar las opciones en el resumen.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+    if (actionErrors.length > 0) {
+      assistantReply += ' ' + actionErrors.join(' ');
+    }
+    return assistantReply;
+  }
+
+  if (opType === 'INITIAL_CREATION') {
+    const title = mergeResult.draft.title || 'el encuentro';
+    const modalitySuffix = mergeResult.draft.modality === 'virtual' ? ' (virtual)' : '';
+    const locSuffix = mergeResult.draft.locationText ? ` en ${mergeResult.draft.locationText}` : '';
+
+    if (mergeResult.draft.dateMode === 'coordination' && mergeResult.draft.dateOptions && mergeResult.draft.dateOptions.length > 0) {
+      assistantReply = `Perfecto. Armé ${title} con ${mergeResult.draft.dateOptions.length} opciones de fecha para coordinar${modalitySuffix}${locSuffix}.`;
+    } else {
+      const schedule = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
+      if (schedule) {
+        assistantReply = `Perfecto. Armé ${title} para el ${schedule}${modalitySuffix}${locSuffix}.`;
+      } else {
+        assistantReply = `Perfecto. Armé ${title}${modalitySuffix}${locSuffix}.`;
+      }
+    }
+
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'CONVERT_FIXED_TO_COORD') {
+    const opt1 =
+      opMeta.previousFixedSchedule ||
+      (prevDraft.date && prevDraft.time ? { date: prevDraft.date, time: prevDraft.time } : null);
+    const opt2 = opMeta.addedOption;
+    if (opt1 && opt2) {
+      const sched1 = formatHumanSchedule(opt1.date, opt1.time);
+      const sched2 = formatHumanSchedule(opt2.date, opt2.time);
+      assistantReply = `Listo. Dejé ${sched1} como primera opción y agregué ${sched2} como alternativa.`;
+    } else {
+      assistantReply = `Listo. Pasé el encuentro a coordinación con ${mergeResult.draft.dateOptions?.length || 2} opciones.`;
+    }
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Podés revisar las opciones en el resumen.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'ADD_OPTION') {
+    if (opMeta.isDuplicateOption) {
+      assistantReply = 'Esa opción ya está incluida en la coordinación.';
+    } else if (opMeta.addedOption) {
+      const sched = formatHumanSchedule(opMeta.addedOption.date, opMeta.addedOption.time);
+      assistantReply = `Listo, agregué ${sched} como alternativa. Quedan ${mergeResult.draft.dateOptions?.length || 0} opciones para que voten los invitados.`;
+    } else {
+      assistantReply = `Listo, agregué la nueva opción como alternativa.`;
+    }
+    if (evaluation.isComplete) {
+      assistantReply += ' Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'FIELD_COMPLETION') {
+    if (opMeta.primaryField === 'location') {
+      assistantReply = `Anoté ${mergeResult.draft.locationText || 'el lugar'}.`;
+    } else if (opMeta.primaryField === 'schedule') {
+      const sched = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
+      assistantReply = `Anoté ${sched}.`;
+    } else if (opMeta.primaryField === 'title') {
+      assistantReply = `Anoté el título ${mergeResult.draft.title}.`;
+    } else if (opMeta.primaryField === 'modality') {
+      assistantReply = `Anoté la modalidad ${mergeResult.draft.modality}.`;
+    } else {
+      assistantReply = `Anoté el dato.`;
+    }
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'CHANGE_FIXED') {
+    const sched = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
+    assistantReply = `Listo, cambié la fecha para el ${sched}.`;
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'REMOVE_OPTION') {
+    assistantReply = `Listo, quité la opción indicada. Quedan ${mergeResult.draft.dateOptions?.length || 0} opciones.`;
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'MODIFY_OPTION') {
+    if (opMeta.modifiedOption) {
+      const sched = formatHumanSchedule(opMeta.modifiedOption.date, opMeta.modifiedOption.time);
+      assistantReply = `Listo, actualicé el horario de la opción a ${sched}.`;
+    } else {
+      assistantReply = `Listo, actualicé el horario de la opción.`;
+    }
+    if (evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Revisá el resumen antes de crear.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    }
+  } else if (opType === 'NO_CHANGE') {
+    if (opMeta.isDuplicateOption) {
+      assistantReply = 'Esa opción ya está incluida en la coordinación.';
+    } else if (
+      patchHint?.themeHint?.value &&
+      patchHint.themeHint.value === mergeResult.config.invitationTheme
+    ) {
+      const themeLabel =
+        INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+        mergeResult.config.invitationTheme;
+      assistantReply = `Ya está seleccionado el tema ${themeLabel}.`;
+    } else if (
+      patchHint?.modality?.value &&
+      patchHint.modality.value === mergeResult.draft.modality
+    ) {
+      assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
+    } else if (wasAlreadyComplete) {
+      assistantReply =
+        'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
+    } else if (evaluation.nextQuestion) {
+      assistantReply = evaluation.nextQuestion.question;
+    }
+  } else {
+    // FIELD_MODIFICATION
+    const themeChanged = prevConfig.invitationTheme !== mergeResult.config.invitationTheme;
+    const templateChanged = prevConfig.invitationTemplate !== mergeResult.config.invitationTemplate;
+    const invitationTypeChanged = prevConfig.invitationType !== mergeResult.config.invitationType;
+    const timeChanged = prevDraft.time !== mergeResult.draft.time;
+    const dateChanged = prevDraft.date !== mergeResult.draft.date;
+    const modalityChanged = prevDraft.modality !== mergeResult.draft.modality;
+    const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
+    const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
+    const titleChanged = prevDraft.title !== mergeResult.draft.title;
+
+    const appliedMessages: string[] = [];
+    if (themeChanged) {
+      const themeLabel =
+        INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
+        mergeResult.config.invitationTheme;
+      appliedMessages.push(`el tema a ${themeLabel}`);
+    }
+    if (templateChanged) {
+      const templateName =
+        getTemplateOptionsForTheme(mergeResult.config.invitationTheme).find(
+          (t) => t.id === mergeResult.config.invitationTemplate
+        )?.name || 'elegido';
+      appliedMessages.push(`el diseño a ${templateName}`);
+    }
+    if (invitationTypeChanged) {
+      appliedMessages.push(
+        `el tipo de invitación a ${mergeResult.config.invitationType === 'individual' ? 'Individual' : 'Enlace general'}`
+      );
+    }
+    if (timeChanged && dateChanged) {
+      const sched = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
+      appliedMessages.push(`la fecha para el ${sched}`);
+    } else if (timeChanged) {
+      appliedMessages.push(`la hora a las ${mergeResult.draft.time} hs`);
+    } else if (dateChanged) {
+      const dateStr = formatHumanSchedule(mergeResult.draft.date, null);
+      appliedMessages.push(`la fecha al ${dateStr}`);
+    }
+    if (modalityChanged) {
+      appliedMessages.push(`la modalidad a ${mergeResult.draft.modality === 'virtual' ? 'virtual' : 'presencial'}`);
+    }
+    if (locationChanged) {
+      appliedMessages.push(`el lugar a ${mergeResult.draft.locationText}`);
+    }
+    if (virtualLinkChanged) {
+      appliedMessages.push(`el enlace a ${mergeResult.draft.virtualLink}`);
+    }
+    if (titleChanged) {
+      appliedMessages.push(`el título a ${mergeResult.draft.title}`);
+    }
+
+    if (appliedMessages.length > 0) {
+      if (appliedMessages.length === 1) {
+        assistantReply = `Listo, cambié ${appliedMessages[0]}.`;
+      } else {
+        const last = appliedMessages.pop();
+        assistantReply = `Listo, cambié ${appliedMessages.join(', ')} y ${last}.`;
+      }
+    } else {
+      assistantReply = 'Listo, apliqué los cambios.';
+    }
+
+    if (themeChanged && wasAlreadyComplete && evaluation.isComplete) {
+      const templateOptions = getTemplateOptionsForTheme(mergeResult.config.invitationTheme);
+      if (templateOptions.length > 1) {
+        evaluation.nextQuestion = {
+          field: 'template',
+          question: `Elegí una variante para el tema seleccionado (o dejá la opción por defecto):`,
+          quickOptions: templateOptions.map((opt) => ({
+            label: opt.id === mergeResult.config.invitationTemplate ? `${opt.name} (por defecto)` : opt.name,
+            value: opt.id,
+          })),
+          type: 'choice',
+        };
+      }
+    }
+
+    if (!wasAlreadyComplete && !evaluation.isComplete && evaluation.nextQuestion) {
+      assistantReply += ` ${evaluation.nextQuestion.question}`;
+    } else if (wasAlreadyComplete && !evaluation.isComplete && evaluation.nextQuestion) {
+      assistantReply += ` Faltan datos: ${evaluation.nextQuestion.question}`;
+    } else if (!wasAlreadyComplete && evaluation.isComplete) {
+      assistantReply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
+    }
+  }
+
+  if (actionErrors.length > 0 && !assistantReply.includes(actionErrors[0])) {
+    assistantReply += (assistantReply ? ' ' : '') + actionErrors.join(' ');
+  }
+
+  return assistantReply;
+}
+
+function applyInterpretationResponse(
   response: AiInterpretationResponse,
   state: AiWizardState,
   set: (partial: Partial<AiWizardState> | ((state: AiWizardState) => Partial<AiWizardState>)) => void,
@@ -343,37 +610,6 @@ function applyInterpretationResponse(
   // Merge patch deterministically
   const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
 
-  // Detect concrete modifications based on actual merged values (or actual action results)
-  const themeChanged = prevConfig.invitationTheme !== mergeResult.config.invitationTheme;
-  const templateChanged = prevConfig.invitationTemplate !== mergeResult.config.invitationTemplate;
-  const invitationTypeChanged = prevConfig.invitationType !== mergeResult.config.invitationType;
-  const timeChanged = prevDraft.time !== mergeResult.draft.time;
-  const dateChanged = prevDraft.date !== mergeResult.draft.date;
-  const modalityChanged = prevDraft.modality !== mergeResult.draft.modality;
-  const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
-  const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
-  const titleChanged = prevDraft.title !== mergeResult.draft.title;
-  
-  const optionsRemoved = mergeResult.actionResults?.some(a => a.status === 'applied' && a.action.type === 'remove_date_option') || 
-                         (prevDraft.dateMode === 'coordination' && mergeResult.draft.dateMode === 'fixed');
-  
-  const optionsModified = mergeResult.actionResults?.some(a => a.status === 'applied' && a.action.type === 'modify_date_option');
-
-  const hasRejectedOrClarificationAction = mergeResult.actionResults?.some(a => a.status !== 'applied');
-  const hasAnyChange =
-    themeChanged ||
-    templateChanged ||
-    invitationTypeChanged ||
-    timeChanged ||
-    dateChanged ||
-    modalityChanged ||
-    locationChanged ||
-    virtualLinkChanged ||
-    titleChanged ||
-    optionsRemoved ||
-    optionsModified ||
-    hasRejectedOrClarificationAction;
-
   const isCoordPending =
     mergeResult.coordinationPendingConfirm !== undefined
       ? mergeResult.coordinationPendingConfirm
@@ -402,116 +638,14 @@ function applyInterpretationResponse(
     };
   }
 
-  let assistantReply = '';
-
-  if (!hasAnyChange) {
-    if (
-      response.patch?.themeHint?.value &&
-      response.patch.themeHint.value === mergeResult.config.invitationTheme
-    ) {
-      const themeLabel =
-        INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label ||
-        mergeResult.config.invitationTheme;
-      assistantReply = `Ya está seleccionado el tema ${themeLabel}.`;
-    } else if (
-      response.patch?.modality?.value &&
-      response.patch.modality.value === mergeResult.draft.modality
-    ) {
-      assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
-    } else if (wasAlreadyComplete) {
-      assistantReply =
-        'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
-    } else if (evaluation.nextQuestion) {
-      assistantReply = evaluation.nextQuestion.question;
-    }
-  } else {
-    // Accumulate applied changes
-    const appliedMessages = [];
-    
-    if (themeChanged) {
-      const themeLabel = INVITATION_THEMES.find((t) => t.id === mergeResult.config.invitationTheme)?.label || mergeResult.config.invitationTheme;
-      appliedMessages.push(`el tema a ${themeLabel}`);
-    }
-    if (templateChanged) {
-      const templateName = getTemplateOptionsForTheme(mergeResult.config.invitationTheme).find((t) => t.id === mergeResult.config.invitationTemplate)?.name || 'elegido';
-      appliedMessages.push(`el diseño a ${templateName}`);
-    }
-    if (invitationTypeChanged) {
-      appliedMessages.push(`el tipo de invitación a ${mergeResult.config.invitationType === 'individual' ? 'Individual' : 'Enlace general'}`);
-    }
-    if (timeChanged) {
-      appliedMessages.push(`la hora a las ${mergeResult.draft.time} hs`);
-    }
-    if (dateChanged) {
-      const dateStr = formatFriendlyDate(mergeResult.draft.date || '', '').split('•')[0].trim();
-      appliedMessages.push(`la fecha al ${dateStr}`);
-    }
-    if (modalityChanged) {
-      appliedMessages.push(`la modalidad a ${mergeResult.draft.modality === 'virtual' ? 'virtual' : 'presencial'}`);
-    }
-    if (locationChanged) {
-      appliedMessages.push(`el lugar a ${mergeResult.draft.locationText}`);
-    }
-    if (virtualLinkChanged) {
-      appliedMessages.push(`el enlace a ${mergeResult.draft.virtualLink}`);
-    }
-    if (titleChanged) {
-      appliedMessages.push(`el título a ${mergeResult.draft.title}`);
-    }
-    if (optionsRemoved) {
-      appliedMessages.push('quité la opción indicada');
-    }
-    if (optionsModified) {
-      appliedMessages.push('actualicé el horario de la opción');
-    }
-
-    const actionErrors = [];
-    if (mergeResult.actionResults) {
-      for (const res of mergeResult.actionResults) {
-        if (res.status === 'rejected') actionErrors.push(res.reason);
-        if (res.status === 'needs_clarification') actionErrors.push(res.reason);
-      }
-    }
-
-    if (appliedMessages.length > 0) {
-      if (appliedMessages.length === 1) {
-        assistantReply = `Listo, cambié ${appliedMessages[0]}.`;
-      } else {
-        const last = appliedMessages.pop();
-        assistantReply = `Listo, cambié ${appliedMessages.join(', ')} y ${last}.`;
-      }
-    } else if (!hasRejectedOrClarificationAction) {
-      assistantReply = 'Listo, apliqué los cambios.';
-    }
-
-    if (actionErrors.length > 0) {
-      assistantReply += (assistantReply ? ' ' : '') + actionErrors.join(' ');
-    }
-
-    if (themeChanged && wasAlreadyComplete && evaluation.isComplete) {
-      // Defer template choice to next question, but preserve the accumulated assistantReply
-      const templateOptions = getTemplateOptionsForTheme(mergeResult.config.invitationTheme);
-      if (templateOptions.length > 1) {
-        evaluation.nextQuestion = {
-          field: 'template',
-          question: `Elegí una variante para el tema seleccionado (o dejá la opción por defecto):`,
-          quickOptions: templateOptions.map((opt) => ({
-            label: opt.id === mergeResult.config.invitationTemplate ? `${opt.name} (por defecto)` : opt.name,
-            value: opt.id,
-          })),
-          type: 'choice',
-        };
-      }
-    }
-
-    if (!wasAlreadyComplete && !evaluation.isComplete && evaluation.nextQuestion) {
-      assistantReply += ` ${evaluation.nextQuestion.question}`;
-    } else if (wasAlreadyComplete && !evaluation.isComplete && evaluation.nextQuestion) {
-      assistantReply += ` Faltan datos: ${evaluation.nextQuestion.question}`;
-    } else if (!wasAlreadyComplete && evaluation.isComplete) {
-      assistantReply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
-    }
-  }
+  let assistantReply = buildAssistantReplyFromMergeResult(
+    mergeResult,
+    prevDraft,
+    prevConfig,
+    wasAlreadyComplete,
+    evaluation,
+    response.patch
+  );
 
   // If nextQuestion is rendered by an interactive card,
   // suppress assistant bubble to prevent duplicate prompt card + bubble
@@ -984,242 +1118,115 @@ export const useAiWizardStore = create<AiWizardState>()(
           }
         }
 
-        // 3a1. Deterministic Coordination Transition (Add, Remove, Modify, Switch to Fixed)
+        // 3a1. Deterministic Coordination Transition (Add, Remove, Modify, Switch to Fixed, Change Fixed)
         const transition = parseCoordinationTransition(trimmed, state.draft);
         if (transition.type !== 'none') {
-          if (transition.type === 'switch_to_fixed' && transition.selectedFixedOption) {
-            const opt = transition.selectedFixedOption;
-            const newDraft: EncounterDraft = {
-              ...state.draft,
-              dateMode: 'fixed',
-              date: opt.date,
-              time: opt.time,
-              dateOptions: null,
-            };
-            const evaluation = evaluateDraft(newDraft, false, undefined, false);
-            const friendly = formatHumanSchedule(opt.date, opt.time);
-            let reply = `Perfecto, dejamos la fecha fija para el ${friendly}.`;
-            if (evaluation.isComplete) {
-              reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro. Revisalo antes de crear.';
-            } else if (evaluation.nextQuestion) {
-              reply += ` ${evaluation.nextQuestion.question}`;
-            }
-            const assistantMsg: ChatMessage = {
-              id: generateUuid(),
-              role: 'assistant',
-              text: reply,
-              timestamp: Date.now() + 1,
-            };
-            set({
-              draft: newDraft,
-              messages: [...state.messages, userMsg, assistantMsg],
-              lastQuestion: evaluation.nextQuestion,
-              coordinationDetected: false,
-              coordinationPendingConfirm: false,
-              isComplete: evaluation.isComplete,
-              isInterpreting: false,
-              error: null,
-              lastUserPrompt: trimmed,
-            });
-            return;
-          }
-
-          if (transition.type === 'remove' && transition.removedOptionDate && state.draft.dateOptions) {
-            const remaining = state.draft.dateOptions.filter((o) => o.date !== transition.removedOptionDate);
-            if (remaining.length >= 2) {
-              const newDraft: EncounterDraft = {
-                ...state.draft,
-                dateOptions: remaining,
-              };
-              const evaluation = evaluateDraft(newDraft, true, undefined, false);
-              let reply = 'Eliminé esa opción.';
-              if (evaluation.isComplete) {
-                reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
-              } else if (evaluation.nextQuestion) {
-                reply += ` ${evaluation.nextQuestion.question}`;
-              }
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: reply,
-                timestamp: Date.now() + 1,
-              };
-              set({
-                draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
-                lastQuestion: evaluation.nextQuestion,
-                isComplete: evaluation.isComplete,
-                isInterpreting: false,
-                error: null,
-                lastUserPrompt: trimmed,
-              });
-              return;
-            } else if (remaining.length === 1) {
-              const opt = remaining[0];
-              const newDraft: EncounterDraft = {
-                ...state.draft,
-                dateMode: 'fixed',
-                date: opt.date,
-                time: opt.time,
-                dateOptions: null,
-              };
-              const evaluation = evaluateDraft(newDraft, false, undefined, false);
-              const friendly = formatHumanSchedule(opt.date, opt.time);
-              let reply = `Como quedó una sola opción, lo pasé a fecha fija para el ${friendly}.`;
-              if (evaluation.isComplete) {
-                reply += ' ¡Listo! Revisá los datos antes de crear.';
-              } else if (evaluation.nextQuestion) {
-                reply += ` ${evaluation.nextQuestion.question}`;
-              }
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: reply,
-                timestamp: Date.now() + 1,
-              };
-              set({
-                draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
-                lastQuestion: evaluation.nextQuestion,
-                coordinationDetected: false,
-                coordinationPendingConfirm: false,
-                isComplete: evaluation.isComplete,
-                isInterpreting: false,
-                error: null,
-                lastUserPrompt: trimmed,
-              });
-              return;
-            }
-          }
-
-          if (transition.type === 'modify' && transition.modifiedOption && state.draft.dateOptions) {
-            const modOpt = transition.modifiedOption;
-            const updatedOpts = state.draft.dateOptions.map((o) =>
-              o.date === modOpt.date ? { ...o, time: modOpt.time } : o
-            );
-            const newDraft: EncounterDraft = {
-              ...state.draft,
-              dateOptions: updatedOpts,
-            };
-            const evaluation = evaluateDraft(newDraft, true, undefined, false);
-            let reply = `Cambié el horario de esa opción a las ${modOpt.time}.`;
-            if (evaluation.isComplete) {
-              reply += ' ¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
-            } else if (evaluation.nextQuestion) {
-              reply += ` ${evaluation.nextQuestion.question}`;
-            }
-            const assistantMsg: ChatMessage = {
-              id: generateUuid(),
-              role: 'assistant',
-              text: reply,
-              timestamp: Date.now() + 1,
-            };
-            set({
-              draft: newDraft,
-              messages: [...state.messages, userMsg, assistantMsg],
-              lastQuestion: evaluation.nextQuestion,
-              isComplete: evaluation.isComplete,
-              isInterpreting: false,
-              error: null,
-              lastUserPrompt: trimmed,
-            });
-            return;
-          }
-
+          let patch: EncounterDraftPatch | null = null;
           if (transition.type === 'add' && transition.addedOption) {
-            const addOpt = transition.addedOption;
-            if (state.draft.dateMode === 'fixed' && state.draft.date && state.draft.time) {
-              const currentOpt = { date: state.draft.date, time: state.draft.time };
-              const uniqueMap = new Map<string, { date: string; time: string }>();
-              uniqueMap.set(`${currentOpt.date}_${currentOpt.time}`, currentOpt);
-              uniqueMap.set(`${addOpt.date}_${addOpt.time}`, addOpt);
-              const opts = Array.from(uniqueMap.values()).sort((a, b) =>
-                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-              );
-              const newDraft: EncounterDraft = {
-                ...state.draft,
-                dateMode: 'coordination',
-                date: null,
-                time: null,
-                dateOptions: opts,
-              };
-              const evaluation = evaluateDraft(newDraft, true, undefined, false);
-              let reply = `Agregué la nueva opción como alternativa. Quedan ${opts.length} opciones para que voten los invitados.`;
-              if (evaluation.isComplete) {
-                reply += ' ¡Listo! Revisá el resumen antes de crear.';
-              } else if (evaluation.nextQuestion) {
-                reply += ` ${evaluation.nextQuestion.question}`;
-              }
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: reply,
-                timestamp: Date.now() + 1,
-              };
-              set({
-                draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
-                lastQuestion: evaluation.nextQuestion,
-                coordinationDetected: true,
-                coordinationPendingConfirm: false,
-                isComplete: evaluation.isComplete,
-                isInterpreting: false,
-                error: null,
-                lastUserPrompt: trimmed,
-              });
-              return;
-            } else if (state.draft.dateOptions) {
-              if (state.draft.dateOptions.length >= 3) {
-                const assistantMsg: ChatMessage = {
+            patch = {
+              scope: 'encounter',
+              actions: [
+                {
+                  type: 'add_date_option',
+                  target: null,
+                  changes: {
+                    dateRef: transition.addedOption.date,
+                    timeRef: transition.addedOption.time,
+                  },
+                },
+              ],
+            };
+          } else if (transition.type === 'remove' && transition.removedOptionDate) {
+            patch = {
+              scope: 'encounter',
+              actions: [
+                {
+                  type: 'remove_date_option',
+                  target: { date: transition.removedOptionDate },
+                  changes: null,
+                },
+              ],
+            };
+          } else if (transition.type === 'modify' && transition.modifiedOption) {
+            patch = {
+              scope: 'encounter',
+              actions: [
+                {
+                  type: 'modify_date_option',
+                  target: { date: transition.modifiedOption.date },
+                  changes: { timeRef: transition.modifiedOption.time },
+                },
+              ],
+            };
+          } else if (transition.type === 'switch_to_fixed' && transition.selectedFixedOption) {
+            const [y, m, d] = transition.selectedFixedOption.date.split('-').map(Number);
+            const [hh, mm] = transition.selectedFixedOption.time.split(':').map(Number);
+            patch = {
+              scope: 'encounter',
+              dateModeSignal: { value: 'fixed', confidence: 'explicit' },
+              dateIntent: { value: { type: 'absolute', day: d, month: m, year: y }, confidence: 'explicit' },
+              timeIntent: { value: { type: 'exact', hour: hh, minute: mm }, confidence: 'explicit' },
+            };
+          } else if (transition.type === 'change_fixed' && transition.changedFixedOption) {
+            const [y, m, d] = transition.changedFixedOption.date.split('-').map(Number);
+            const [hh, mm] = transition.changedFixedOption.time.split(':').map(Number);
+            patch = {
+              scope: 'encounter',
+              dateModeSignal: { value: 'fixed', confidence: 'explicit' },
+              dateIntent: { value: { type: 'absolute', day: d, month: m, year: y }, confidence: 'explicit' },
+              timeIntent: { value: { type: 'exact', hour: hh, minute: mm }, confidence: 'explicit' },
+            };
+          }
+
+          if (patch) {
+            const mergeResult = mergeDraftPatch(state.draft, state.config, patch);
+            const isCoordPending =
+              mergeResult.coordinationPendingConfirm !== undefined
+                ? mergeResult.coordinationPendingConfirm
+                : get().coordinationPendingConfirm;
+            const evaluation = evaluateDraft(
+              mergeResult.draft,
+              mergeResult.coordinationDetected,
+              mergeResult.ambiguities[0],
+              isCoordPending
+            );
+
+            let reply = buildAssistantReplyFromMergeResult(
+              mergeResult,
+              state.draft,
+              state.config,
+              state.isComplete,
+              evaluation,
+              patch
+            );
+
+            if (shouldSuppressAssistantBubbleForQuestion(evaluation.nextQuestion)) {
+              reply = '';
+            }
+
+            const assistantMsg: ChatMessage | null = reply
+              ? {
                   id: generateUuid(),
                   role: 'assistant',
-                  text: 'Por ahora podés incluir hasta 3 opciones para coordinar. Podés cambiar o eliminar una de las opciones existentes.',
+                  text: reply,
                   timestamp: Date.now() + 1,
-                };
-                set({
-                  messages: [...state.messages, userMsg, assistantMsg],
-                  isInterpreting: false,
-                  error: null,
-                  lastUserPrompt: trimmed,
-                });
-                return;
-              }
-              const uniqueMap = new Map<string, { date: string; time: string }>();
-              for (const o of state.draft.dateOptions) {
-                uniqueMap.set(`${o.date}_${o.time}`, o);
-              }
-              uniqueMap.set(`${addOpt.date}_${addOpt.time}`, addOpt);
-              const opts = Array.from(uniqueMap.values()).sort((a, b) =>
-                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-              );
-              const newDraft: EncounterDraft = {
-                ...state.draft,
-                dateOptions: opts,
-              };
-              const evaluation = evaluateDraft(newDraft, true, undefined, false);
-              let reply = `Agregué la nueva opción como alternativa. Quedan ${opts.length} opciones.`;
-              if (evaluation.isComplete) {
-                reply += ' ¡Listo! Revisá el resumen antes de crear.';
-              } else if (evaluation.nextQuestion) {
-                reply += ` ${evaluation.nextQuestion.question}`;
-              }
-              const assistantMsg: ChatMessage = {
-                id: generateUuid(),
-                role: 'assistant',
-                text: reply,
-                timestamp: Date.now() + 1,
-              };
-              set({
-                draft: newDraft,
-                messages: [...state.messages, userMsg, assistantMsg],
-                lastQuestion: evaluation.nextQuestion,
-                isComplete: evaluation.isComplete,
-                isInterpreting: false,
-                error: null,
-                lastUserPrompt: trimmed,
-              });
-              return;
-            }
+                }
+              : null;
+
+            set({
+              draft: mergeResult.draft,
+              config: mergeResult.config,
+              messages: assistantMsg ? [...state.messages, userMsg, assistantMsg] : [...state.messages, userMsg],
+              lastQuestion: evaluation.nextQuestion,
+              coordinationDetected: mergeResult.coordinationDetected,
+              coordinationPendingConfirm: isCoordPending,
+              isComplete: evaluation.isComplete,
+              isInterpreting: false,
+              lastResolutionSource: 'deterministic',
+              error: null,
+              lastUserPrompt: trimmed,
+            });
+            return;
           }
         }
 
@@ -2790,6 +2797,13 @@ export const useAiWizardStore = create<AiWizardState>()(
       },
 
       reset: () => {
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('pe-ai-wizard-session');
+          } else if (typeof window !== 'undefined' && window.sessionStorage) {
+            window.sessionStorage.removeItem('pe-ai-wizard-session');
+          }
+        } catch {}
         const newSessionId = generateUuid();
         set({
           sessionId: newSessionId,

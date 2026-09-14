@@ -52,7 +52,7 @@ import {
   getSpeechRecognitionLocale,
   useSpeechDictation,
 } from '../src/hooks/useSpeechDictation.ts';
-import { validateEncounterDate, isFuture, formatHumanSchedule } from '../src/lib/formatDate.ts';
+import { validateEncounterDate, isFuture, formatHumanSchedule, formatFriendlyDate, formatFriendlyDateOnly } from '../src/lib/formatDate.ts';
 import {
   getArgentinaTodayISO,
   isArgentinaDateTimeInFuture,
@@ -9572,8 +9572,11 @@ describe('Hotfix Regression Tests: Edge v1.7 Schema + Contextual Modality Infere
       assert.deepEqual(actionItems.required.sort(), ['actions', 'changes', 'target', 'type'].filter(k => k !== 'actions').sort());
 
       const targetSchema = actionItems.properties.target;
-      assert.equal(targetSchema.additionalProperties, false);
-      assert.deepEqual(targetSchema.required.sort(), ['date', 'position', 'time']);
+      assert.ok(targetSchema.anyOf, 'target debe ser anyOf con null');
+      const targetObjectBranch = targetSchema.anyOf.find((b: any) => b.type === 'object');
+      assert.ok(targetObjectBranch, 'target debe tener una rama object');
+      assert.equal(targetObjectBranch.additionalProperties, false);
+      assert.deepEqual(targetObjectBranch.required.sort(), ['date', 'position', 'time']);
 
       const changesSchema = actionItems.properties.changes;
       assert.ok(changesSchema.anyOf, 'changes debe ser anyOf con null');
@@ -9587,6 +9590,604 @@ describe('Hotfix Regression Tests: Edge v1.7 Schema + Contextual Modality Infere
       const altItems = tempAltSchema.properties.value.items;
       assert.equal(altItems.additionalProperties, false);
       assert.deepEqual(altItems.required.sort(), ['dateRef', 'timeRef']);
+    });
+  });
+
+  describe('QA Suite: Casos A & B, Formato y Single Source of Truth', () => {
+    test('Caso A1: "Alternativa del sábado a las 23" sobre borrador fijo convierte a coordinación (2 opciones) sin regla 0b', async () => {
+      useAiWizardStore.getState().reset();
+
+      // Setup initial fixed draft: "Cena mañana a las 22 en casa"
+      const tomorrowISO = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          date: tomorrowISO,
+          time: '22:00',
+          dateMode: 'fixed',
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      // User sends alternative
+      await useAiWizardStore.getState().sendUserMessage('Alternativa del sábado a las 23');
+      const state = useAiWizardStore.getState();
+
+      assert.equal(state.draft.dateMode, 'coordination');
+      assert.equal(state.draft.dateOptions?.length, 2);
+      assert.equal(state.draft.dateOptions?.[0].date, tomorrowISO);
+      assert.equal(state.draft.dateOptions?.[0].time, '22:00');
+      assert.equal(state.draft.dateOptions?.[1].time, '23:00');
+      assert.equal(state.draft.date, null);
+      assert.equal(state.draft.time, null);
+
+      const lastMsg = state.messages[state.messages.length - 1]?.text || '';
+      assert.ok(lastMsg.includes('primera opción') && lastMsg.includes('como alternativa'), 'Debe confirmar las dos opciones');
+      assert.ok(!lastMsg.includes('¿Qué opciones querés proponer?'), 'NO debe disparar regla 0b');
+    });
+
+    test('Caso A1 (Variaciones determinísticas): "O el sábado a las 23" y "También puede ser el sábado a las 23"', async () => {
+      useAiWizardStore.getState().reset();
+      const tomorrowISO = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          date: tomorrowISO,
+          time: '22:00',
+          dateMode: 'fixed',
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      await useAiWizardStore.getState().sendUserMessage('o el sábado a las 23');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateMode, 'coordination');
+      assert.equal(state.draft.dateOptions?.length, 2);
+    });
+
+    test('Caso A2: Agregar 3ra opción sobre borrador en coordinación', async () => {
+      useAiWizardStore.getState().reset();
+      const d1 = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      const d2 = addDaysToIsoDate(getArgentinaTodayISO(), 2);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: d1, time: '20:00' },
+            { date: d2, time: '21:00' },
+          ],
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      await useAiWizardStore.getState().sendUserMessage('sumá domingo a las 20 como alternativa');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateOptions?.length, 3);
+      const lastMsg = state.messages[state.messages.length - 1]?.text || '';
+      assert.ok(lastMsg.includes('Quedan 3 opciones para que voten los invitados'), 'Debe reportar 3 opciones');
+    });
+
+    test('Caso A3: Deduplicación: no agrega opción repetida', async () => {
+      useAiWizardStore.getState().reset();
+      const d1 = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      const d2 = addDaysToIsoDate(getArgentinaTodayISO(), 2);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: d1, time: '20:00' },
+            { date: d2, time: '21:00' },
+          ],
+        },
+        isComplete: true,
+      }));
+
+      // Directly test mergeDraftPatch with duplicate action
+      const patch = {
+        scope: 'encounter' as const,
+        actions: [
+          {
+            type: 'add_date_option' as const,
+            target: null,
+            changes: { dateRef: d1, timeRef: '20:00' },
+          },
+        ],
+      };
+      const mergeRes = mergeDraftPatch(useAiWizardStore.getState().draft, useAiWizardStore.getState().config, patch);
+      assert.equal(mergeRes.draft.dateOptions?.length, 2, 'No debe duplicar');
+      assert.equal(mergeRes.operationMetadata.isDuplicateOption, true);
+    });
+
+    test('Caso A4: Límite de 3 opciones: rechaza 4ta opción con mensaje amigable', () => {
+      const d1 = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      const d2 = addDaysToIsoDate(getArgentinaTodayISO(), 2);
+      const d3 = addDaysToIsoDate(getArgentinaTodayISO(), 3);
+      const d4 = addDaysToIsoDate(getArgentinaTodayISO(), 4);
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: 'Cena',
+        dateMode: 'coordination' as const,
+        dateOptions: [
+          { date: d1, time: '20:00' },
+          { date: d2, time: '21:00' },
+          { date: d3, time: '22:00' },
+        ],
+      };
+      const patch = {
+        scope: 'encounter' as const,
+        actions: [
+          {
+            type: 'add_date_option' as const,
+            target: null,
+            changes: { dateRef: d4, timeRef: '20:00' },
+          },
+        ],
+      };
+      const res = mergeDraftPatch(draft, createDefaultInvitationConfig(), patch);
+      assert.equal(res.draft.dateOptions?.length, 3);
+      assert.ok(res.actionResults?.[0]?.reason?.includes('hasta 3 opciones'));
+    });
+
+    test('Caso B: Creación inicial ("Cena virtual mañana a las 21") confirma naturalmente sin "cambié"', async () => {
+      useAiWizardStore.getState().reset();
+      const originalInterpret = aiService.interpretMessage;
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          dateIntent: { value: { type: 'relative' as const, value: 'tomorrow' as const }, confidence: 'explicit' as const },
+          timeIntent: { value: { type: 'exact' as const, hour: 21, minute: 0 }, confidence: 'explicit' as const },
+          modality: { value: 'virtual' as const, confidence: 'explicit' as const },
+        },
+      });
+
+      try {
+        await useAiWizardStore.getState().sendUserMessage('Cena virtual mañana a las 21');
+        const state = useAiWizardStore.getState();
+        assert.equal(state.draft.title, 'Cena');
+        assert.equal(state.draft.modality, 'virtual');
+        assert.equal(state.draft.time, '21:00');
+
+        const lastMsg = state.messages[state.messages.length - 1]?.text || '';
+        assert.ok(lastMsg.startsWith('Perfecto. Armé Cena'), 'Debe iniciar con Perfecto. Armé...');
+        assert.ok(!lastMsg.toLowerCase().includes('cambié'), 'NO debe decir cambié en creación inicial');
+        assert.ok(!lastMsg.toLowerCase().includes('modifiqué'), 'NO debe decir modifiqué en creación inicial');
+        assert.ok(lastMsg.includes('videollamada'), 'Debe preguntar por el enlace de videollamada');
+      } finally {
+        aiService.interpretMessage = originalInterpret;
+      }
+    });
+
+    test('Caso Cambio Fijo: "cambiar la fecha al sábado a las 23" mantiene fixed y actualiza fecha/hora', async () => {
+      useAiWizardStore.getState().reset();
+      const tomorrowISO = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          date: tomorrowISO,
+          time: '22:00',
+          dateMode: 'fixed',
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      await useAiWizardStore.getState().sendUserMessage('cambiar la fecha al sábado a las 23');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateMode, 'fixed');
+      assert.equal(state.draft.time, '23:00');
+      const lastMsg = state.messages[state.messages.length - 1]?.text || '';
+      assert.ok(lastMsg.includes('cambié la fecha para el'), 'Debe confirmar el cambio de fecha');
+      assert.ok(!lastMsg.includes('a las,'), 'NO debe contener a las,');
+      assert.ok(!lastMsg.includes('a las ,'), 'NO debe contener a las ,');
+      assert.ok(!lastMsg.includes('undefined'), 'NO debe contener undefined');
+      assert.ok(!lastMsg.includes('null'), 'NO debe contener null');
+    });
+
+    test('Formateo limpio: formatFriendlyDate y formatHumanSchedule sin "a las," ni strings ISO crudos', () => {
+      const todayISO = getArgentinaTodayISO();
+      const tomorrowISO = addDaysToIsoDate(todayISO, 1);
+      const futureISO = '2026-11-20';
+
+      // 1. Hora ausente / fecha sin hora
+      const dateOnly = formatFriendlyDate(tomorrowISO, '');
+      assert.ok(!dateOnly.includes('a las'), 'No debe tener a las si no hay hora');
+      assert.ok(!dateOnly.includes('a las,'), 'No debe tener a las,');
+
+      const dateOnlyHelper = formatFriendlyDateOnly(tomorrowISO);
+      assert.ok(!dateOnlyHelper.includes('a las'), 'Helper dateOnly no debe tener a las');
+
+      const scheduleDateOnly = formatHumanSchedule(tomorrowISO, null);
+      assert.ok(!scheduleDateOnly.includes('a las'), 'formatHumanSchedule sin hora no debe tener a las');
+      assert.ok(!scheduleDateOnly.includes(tomorrowISO), 'formatHumanSchedule no debe contener ISO crudo');
+
+      // 2. Hoy / Mañana
+      const schedToday = formatHumanSchedule(todayISO, '20:00');
+      assert.ok(schedToday.includes('Hoy') && schedToday.includes('20:00'), 'Debe decir Hoy · 20:00');
+
+      const schedTom = formatHumanSchedule(tomorrowISO, '21:00');
+      assert.ok(schedTom.includes('Mañana') && schedTom.includes('21:00'), 'Debe decir Mañana · 21:00');
+
+      // 3. Fecha futura normal
+      const schedFuture = formatHumanSchedule(futureISO, '22:00');
+      assert.ok(!schedFuture.includes(futureISO), 'Fecha futura no debe mostrar YYYY-MM-DD crudo');
+      assert.ok(schedFuture.includes('22:00'), 'Debe contener la hora');
+
+      // 4. Invariantes de formato en todos los outputs
+      for (const str of [dateOnly, dateOnlyHelper, scheduleDateOnly, schedToday, schedTom, schedFuture]) {
+        assert.ok(!str.includes('a las,'), `String "${str}" no debe contener "a las,"`);
+        assert.ok(!str.includes('a las ,'), `String "${str}" no debe contener "a las ,"`);
+        assert.ok(!str.includes('undefined'), `String "${str}" no debe contener "undefined"`);
+        assert.ok(!str.includes('null'), `String "${str}" no debe contener "null"`);
+      }
+    });
+
+    test('Runtime Validation: add_date_option, modify_date_option y remove_date_option', () => {
+      // ADD_OPTION: target null, changes con dateRef/timeRef
+      const validAdd = validatePatchOutput({
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'add_date_option',
+            target: null,
+            changes: { dateRef: '2026-10-15', timeRef: '20:00' },
+          },
+        ],
+      });
+      assert.equal(validAdd.valid, true);
+
+      // ADD_OPTION inválido: changes ausente
+      const invalidAdd = validatePatchOutput({
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'add_date_option',
+            target: null,
+            changes: null,
+          },
+        ],
+      });
+      assert.equal(invalidAdd.valid, false);
+
+      // MODIFY_OPTION válido: target y changes presentes
+      const validModify = validatePatchOutput({
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'modify_date_option',
+            target: { date: '2026-10-15' },
+            changes: { timeRef: '22:00' },
+          },
+        ],
+      });
+      assert.equal(validModify.valid, true);
+
+      // REMOVE_OPTION válido: target presente, changes null
+      const validRemove = validatePatchOutput({
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'remove_date_option',
+            target: { date: '2026-10-15' },
+            changes: null,
+          },
+        ],
+      });
+      assert.equal(validRemove.valid, true);
+
+      // REMOVE_OPTION inválido: target null
+      const invalidRemove = validatePatchOutput({
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'remove_date_option',
+            target: null,
+            changes: null,
+          },
+        ],
+      });
+      assert.equal(invalidRemove.valid, false);
+    });
+
+    test('Compatibilidad Edge actual: Frontend nuevo procesa responses sin add_date_option', async () => {
+      useAiWizardStore.getState().reset();
+      const originalInterpret = aiService.interpretMessage;
+
+      // Fixture de Edge actual (v1.6): sin actions, con temporalAlternatives
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          title: { value: 'Cena', confidence: 'explicit' as const },
+          themeHint: { value: 'friends', confidence: 'explicit' as const },
+          invitationTypeHint: { value: 'individual', confidence: 'explicit' as const },
+          temporalAlternatives: {
+            value: [
+              { dateRef: 'hoy', timeRef: '20' },
+              { dateRef: 'mañana', timeRef: '21' },
+            ],
+            confidence: 'explicit' as const,
+          },
+        },
+      });
+
+      try {
+        await useAiWizardStore.getState().sendUserMessage('Organizar una juntada con amigos para ver cuándo nos vemos');
+        const state = useAiWizardStore.getState();
+        assert.equal(state.draft.title, 'Cena');
+        assert.equal(state.config.invitationTheme, 'friends');
+        assert.equal(state.config.invitationType, 'individual');
+        assert.equal(state.coordinationPendingConfirm, true);
+        assert.ok(
+          (state.draft.dateOptions && state.draft.dateOptions.length === 2) ||
+          (state.draft.pendingTemporalAlternatives && state.draft.pendingTemporalAlternatives.length === 2)
+        );
+      } finally {
+        aiService.interpretMessage = originalInterpret;
+      }
+    });
+
+    test('Compatibilidad Edge nueva: Frontend nuevo procesa add_date_option vía draftMerger', async () => {
+      useAiWizardStore.getState().reset();
+      const tomorrowISO = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          date: tomorrowISO,
+          time: '20:00',
+          dateMode: 'fixed',
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      const originalInterpret = aiService.interpretMessage;
+      // Fixture de Edge nueva: emite add_date_option
+      aiService.interpretMessage = async () => ({
+        ok: true,
+        scope: 'encounter',
+        patch: {
+          actions: [
+            {
+              type: 'add_date_option',
+              target: null,
+              changes: { dateRef: '2026-10-20', timeRef: '22:00' },
+            },
+          ],
+        },
+      });
+
+      try {
+        // Enviar mensaje no interceptado determinísticamente para que use el mock de LLM
+        await useAiWizardStore.getState().sendUserMessage('Por favor incluir también la fecha del 20 de octubre a las 22');
+        const state = useAiWizardStore.getState();
+        assert.equal(state.draft.dateMode, 'coordination');
+        assert.equal(state.draft.dateOptions?.length, 2);
+        assert.equal(state.draft.dateOptions?.[0].date, tomorrowISO);
+        assert.equal(state.draft.dateOptions?.[1].date, '2026-10-20');
+        assert.equal(state.draft.dateOptions?.[1].time, '22:00');
+        const lastMsg = state.messages[state.messages.length - 1]?.text || '';
+        assert.ok(lastMsg.includes('primera opción') && lastMsg.includes('como alternativa'));
+      } finally {
+        aiService.interpretMessage = originalInterpret;
+      }
+    });
+
+    test('Call Count: "Alternativa del sábado a las 23" se resuelve determinísticamente (providerCalls = 0)', async () => {
+      useAiWizardStore.getState().reset();
+      const tomorrowISO = addDaysToIsoDate(getArgentinaTodayISO(), 1);
+      useAiWizardStore.setState((state) => ({
+        ...state,
+        draft: {
+          ...state.draft,
+          title: 'Cena',
+          date: tomorrowISO,
+          time: '22:00',
+          dateMode: 'fixed',
+          modality: 'presencial',
+          locationText: 'casa',
+        },
+        isComplete: true,
+      }));
+
+      let providerCalls = 0;
+      const originalInterpret = aiService.interpretMessage;
+      aiService.interpretMessage = async () => {
+        providerCalls++;
+        return { ok: true, scope: 'encounter', patch: {} };
+      };
+
+      try {
+        await useAiWizardStore.getState().sendUserMessage('Alternativa del sábado a las 23');
+        const state = useAiWizardStore.getState();
+        assert.equal(providerCalls, 0, 'No debe llamar al LLM, debe ser 100% determinístico');
+        assert.equal(state.lastResolutionSource, 'deterministic');
+        assert.equal(state.draft.dateMode, 'coordination');
+        assert.equal(state.draft.dateOptions?.length, 2);
+      } finally {
+        aiService.interpretMessage = originalInterpret;
+      }
+    });
+
+    test('Reset limpia estado y sessionStorage', () => {
+      let mockCleared = false;
+      const fakeStorage = {
+        setItem: () => {},
+        getItem: () => null,
+        removeItem: (key: string) => {
+          if (key === 'pe-ai-wizard-session') mockCleared = true;
+        },
+      };
+      const orig = (globalThis as any).sessionStorage;
+      (globalThis as any).sessionStorage = fakeStorage;
+      try {
+        useAiWizardStore.getState().reset();
+        assert.equal(mockCleared, true, 'sessionStorage pe-ai-wizard-session debe eliminarse');
+      } finally {
+        (globalThis as any).sessionStorage = orig;
+      }
+    });
+
+    describe('QA Suite: Auditoría de Compatibilidad Frontend Viejo (commit e133d59) vs Edge Nueva', () => {
+      // Simulación fiel de la lógica de mergeDraftPatch en commit e133d59 para procesar actions
+      function oldFrontendMergeDraftPatchSimulation(draft: any, config: any, patch: any) {
+        const d = { ...draft };
+        const c = { ...config };
+
+        // 10. Granular Actions Processing en e133d59:
+        if (patch.actions && patch.actions.length > 0 && d.dateOptions && d.dateOptions.length > 0) {
+          const originalSnapshot = [...d.dateOptions];
+          const resolvedActions = patch.actions.map((action: any) => {
+            let targetIndex = -1;
+            // En e133d59: 'position' in action.target lanza TypeError si action.target es null
+            if ('position' in action.target && typeof action.target.position === 'number') {
+              if (action.target.position >= 0 && action.target.position < originalSnapshot.length) {
+                targetIndex = action.target.position;
+              }
+            } else if ('date' in action.target) {
+              const matches = originalSnapshot.reduce((acc: number[], opt: any, idx: number) => {
+                if (opt.date === action.target.date && (!action.target.time || opt.time === action.target.time)) {
+                  acc.push(idx);
+                }
+                return acc;
+              }, []);
+              if (matches.length === 1) targetIndex = matches[0];
+            }
+            if (targetIndex === -1) {
+              return { action, targetIndex, status: 'rejected', reason: 'No se encontró la opción' };
+            }
+            return { action, targetIndex, status: 'ok' };
+          });
+
+          for (const item of resolvedActions) {
+            if (item.status !== 'ok') continue;
+            if (item.action.type === 'modify_date_option') {
+              // modifica
+            } else if (item.action.type === 'remove_date_option') {
+              // remueve
+            }
+            // NOTA: add_date_option NO existía en e133d59
+          }
+        }
+        return { draft: d, config: c };
+      }
+
+      test('Auditoría Caso A (add_date_option en draft fixed): Frontend viejo produce SILENT NO-OP (FAIL)', () => {
+        const fixedDraft = {
+          title: 'Cena',
+          date: '2026-10-15',
+          time: '20:00',
+          dateMode: 'fixed',
+          dateOptions: null,
+        };
+
+        const edgeNuevaResponse = {
+          actions: [
+            {
+              type: 'add_date_option',
+              target: null,
+              changes: {
+                dateRef: 'sábado',
+                timeRef: '23',
+              },
+            },
+          ],
+        };
+
+        // El frontend viejo evalúa (d.dateOptions && d.dateOptions.length > 0) que es falsy para fixed
+        const result = oldFrontendMergeDraftPatchSimulation(fixedDraft, {}, edgeNuevaResponse);
+
+        // Assert: El frontend viejo IGNORA completamente la acción porque draft.dateOptions es null
+        assert.equal(result.draft.dateMode, 'fixed', 'Frontend viejo no cambia a coordination');
+        assert.equal(result.draft.date, '2026-10-15', 'Fecha fija no mutó');
+        assert.equal(result.draft.time, '20:00', 'Hora fija no mutó');
+        assert.equal(result.draft.dateOptions, null, 'No agregó la opción del sábado a las 23');
+      });
+
+      test('Auditoría Caso A (add_date_option en draft con dateOptions): Frontend viejo CRASHEA con TypeError (FAIL)', () => {
+        const coordDraft = {
+          title: 'Cena',
+          date: null,
+          time: null,
+          dateMode: 'coordination',
+          dateOptions: [
+            { date: '2026-10-15', time: '20:00' },
+            { date: '2026-10-16', time: '21:00' },
+          ],
+        };
+
+        const edgeNuevaResponse = {
+          actions: [
+            {
+              type: 'add_date_option',
+              target: null, // add_date_option tiene target null según schema strict
+              changes: {
+                dateRef: 'sábado',
+                timeRef: '23',
+              },
+            },
+          ],
+        };
+
+        // En e133d59, se ejecuta 'position' in action.target -> TypeError: Cannot use 'in' operator to search for 'position' in null
+        assert.throws(
+          () => {
+            oldFrontendMergeDraftPatchSimulation(coordDraft, {}, edgeNuevaResponse);
+          },
+          {
+            name: 'TypeError',
+            message: /Cannot use 'in' operator to search for 'position' in null/,
+          }
+        );
+      });
+
+      test('Auditoría modify/remove en draft fixed: Frontend viejo produce SILENT NO-OP (FAIL)', () => {
+        const fixedDraft = {
+          title: 'Cena',
+          date: '2026-10-15',
+          time: '20:00',
+          dateMode: 'fixed',
+          dateOptions: null,
+        };
+
+        const edgeNuevaModify = {
+          actions: [
+            {
+              type: 'modify_date_option',
+              target: { position: 0 },
+              changes: { timeRef: '22:00' },
+            },
+          ],
+        };
+
+        const result = oldFrontendMergeDraftPatchSimulation(fixedDraft, {}, edgeNuevaModify);
+        // En fixed draft, dateOptions es null, por lo que el frontend viejo ignora la acción
+        assert.equal(result.draft.time, '20:00', 'No modificó la hora');
+        assert.equal(result.draft.dateOptions, null);
+      });
     });
   });
 });

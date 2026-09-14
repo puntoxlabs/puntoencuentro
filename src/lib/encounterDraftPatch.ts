@@ -71,6 +71,14 @@ export type DateOptionTarget =
  */
 export type EncounterDraftAction =
   | {
+      type: 'add_date_option';
+      target?: null;
+      changes: {
+        dateRef?: string;
+        timeRef?: string;
+      };
+    }
+  | {
       type: 'modify_date_option';
       /** Identifies which existing option to modify (resolved against original snapshot). */
       target: DateOptionTarget;
@@ -88,6 +96,7 @@ export type EncounterDraftAction =
       type: 'remove_date_option';
       /** Identifies which existing option to remove (resolved against original snapshot). */
       target: DateOptionTarget;
+      changes?: null;
     };
 
 /**

@@ -96,15 +96,18 @@ REGLAS FUNDAMENTALES:
    - Si el usuario pide explícitamente invitación "individual", "personal", "privada" -> emite invitationTypeHint con value: "individual", confidence: "explicit".
    - Si el usuario pide explícitamente invitación "general", "enlace general", "grupo", "pública" -> emite invitationTypeHint con value: "link_general", confidence: "explicit".
 
-13. MODIFICACIONES GRANULARES DE OPCIONES (actions):
-   - Si el usuario indica eliminar o modificar UNA opción existente de una lista coordinada (ej: "sacá la primera opción", "cambiá la del viernes a las 20"), emití un arreglo 'actions' con la operación explícita.
-   - El 'target' identifica qué opción modificar/eliminar usando la fecha exacta ("date") O la posición ("position", índice base 0).
-   - Para modificar, 'changes' incluye 'dateRef' o 'timeRef' con tokens semánticos (ej: "viernes", "21 hs", NO fecha canónica).
+13. OPERACIONES GRANULARES DE OPCIONES (actions):
+   - Si el usuario indica agregar, eliminar o modificar UNA opción en una coordinación o proponer una alternativa a una fecha fija (ej: "agregá el sábado a las 23", "alternativa del sábado a las 23", "o el sábado a las 23", "sacá la primera opción", "cambiá la del viernes a las 20"), emití un arreglo 'actions' con la operación explícita.
+   - Para agregar una opción alternativa: { "type": "add_date_option", "target": null, "changes": { "dateRef": "el sábado", "timeRef": "a las 23" } }
+   - El 'target' identifica qué opción modificar/eliminar usando la fecha exacta ("date") O la posición ("position", índice base 0). Para "add_date_option", 'target' debe ser null.
+   - Para modificar o agregar, 'changes' incluye 'dateRef' o 'timeRef' con tokens semánticos (ej: "viernes", "21 hs", NO fecha canónica).
+   - IMPORTANTE: Si el usuario dice "cambiar la fecha al sábado a las 23" o "pasalo al sábado a las 23" sobre un encuentro con fecha fija, NO es 'add_date_option', sino un cambio de fecha fija normal (usar dateIntent/timeIntent). 'add_date_option' es cuando explícitamente se plantea como alternativa, adición u opción adicional ("o el...", "alternativa...", "sumá...").
    - Ejemplos de uso:
-     * Para eliminar por fecha: { "type": "remove_date_option", "target": { "date": "YYYY-MM-DD" } }
-     * Para eliminar por posición: { "type": "remove_date_option", "target": { "position": 0 } }
-     * Para modificar horario: { "type": "modify_date_option", "target": { "position": 1 }, "changes": { "timeRef": "20:00" } }
-     * Para modificar fecha: { "type": "modify_date_option", "target": { "date": "YYYY-MM-DD" }, "changes": { "dateRef": "el domingo" } }
+     * Para agregar opción alternativa: { "type": "add_date_option", "target": null, "changes": { "dateRef": "el sábado", "timeRef": "23:00" } }
+     * Para eliminar por fecha: { "type": "remove_date_option", "target": { "date": "YYYY-MM-DD", "time": null, "position": null }, "changes": null }
+     * Para eliminar por posición: { "type": "remove_date_option", "target": { "position": 0, "date": null, "time": null }, "changes": null }
+     * Para modificar horario: { "type": "modify_date_option", "target": { "position": 1, "date": null, "time": null }, "changes": { "timeRef": "20:00", "dateRef": null } }
+     * Para modificar fecha: { "type": "modify_date_option", "target": { "date": "YYYY-MM-DD", "time": null, "position": null }, "changes": { "dateRef": "el domingo", "timeRef": null } }
    - NUNCA uses 'actions' para set_theme, set_title u otras modificaciones escalares. Usá los campos principales.
 
 14. ALTERNATIVAS TEMPORALES (temporalAlternatives):

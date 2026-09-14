@@ -1,7 +1,25 @@
 import { getArgentinaTodayISO, isArgentinaDateTimeInFuture } from '@/lib/argentinaDateTime';
 
-export function formatFriendlyDate(fecha: string, hora: string): string {
-  if (!fecha || !hora) return `${fecha} a las ${hora}`;
+export function formatFriendlyDateOnly(fecha: string): string {
+  if (!fecha) return '';
+  const parts = fecha.split('-');
+  if (parts.length !== 3) return fecha;
+
+  const [, month, day] = parts;
+  const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const monthIndex = parseInt(month, 10) - 1;
+
+  if (monthIndex < 0 || monthIndex > 11) return fecha;
+
+  const monthName = monthNames[monthIndex];
+  return `${parseInt(day, 10)} ${monthName}`;
+}
+
+export function formatFriendlyDate(fecha: string, hora?: string | null): string {
+  if (!fecha) return '';
+  if (!hora || hora.trim() === '') {
+    return formatFriendlyDateOnly(fecha);
+  }
 
   const parts = fecha.split('-');
   if (parts.length !== 3) return `${fecha} a las ${hora}`;

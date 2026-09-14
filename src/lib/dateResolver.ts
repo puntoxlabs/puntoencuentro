@@ -1896,11 +1896,12 @@ export function parseCoordinationTransition(
   } | null,
   baseDateParts: { year: number; month: number; day: number } = getArgentinaDateTimeParts()
 ): {
-  type: 'add' | 'remove' | 'modify' | 'switch_to_fixed' | 'none';
+  type: 'add' | 'remove' | 'modify' | 'switch_to_fixed' | 'change_fixed' | 'none';
   addedOption?: { date: string; time: string };
   removedOptionDate?: string;
   modifiedOption?: { date: string; time: string };
   selectedFixedOption?: { date: string; time: string };
+  changedFixedOption?: { date: string; time: string };
 } {
   const clean = text.trim();
   const safeDraft = currentDraft || { dateMode: null, date: null, time: null, dateOptions: null };
@@ -2014,15 +2015,72 @@ export function parseCoordinationTransition(
     }
   }
 
-  // D. Add option: "agregá también sábado a las 20 como alternativa", "también podría ser el sábado a las 21", "sumá sábado 20"
-  const addMatch = clean.match(
-    /^(?:agreg[aá]|sum[aá]|pon[eé]|tambi[eé]n(?:\s+podr[ií]a\s+ser)?)(?:\s+tambi[eé]n)?(?:\s+como\s+alternativa)?\s+(.+)$/i
+  // D. Add alternative option:
+  // Only applies when there is an existing schedule in the draft to add alternatives to!
+  const hasExistingSchedule =
+    currentDraft === undefined ||
+    Boolean(
+      (safeDraft.date && safeDraft.time) ||
+      (safeDraft.dateOptions && safeDraft.dateOptions.length > 0)
+    );
+  if (hasExistingSchedule) {
+    const addMatch = clean.match(
+      /^(?:(?:como\s+)?alternativa(?:\s+del?|\s+para\s+el?|\s+al?)?|otra\s+opci[oó]n(?:\s+del?|\s+para\s+el?|\s+al?)?|otra\s+alternativa(?:\s+del?|\s+para\s+el?|\s+al?)?|o\s+(?:tambi[eé]n\s+)?(?:el)?|tambi[eé]n\s+(?:puede|podr[ií]a)\s+ser(?:\s+el)?|podr[ií]a\s+ser(?:\s+tambi[eé]n)?(?:\s+el)?|agreg[aá]|sum[aá]|pon[eé]|tambi[eé]n)(?:\s+tambi[eé]n)?(?:\s+como\s+alternativa)?[:\s]+(.+)$/i
+    );
+    if (addMatch) {
+      let segText = addMatch[1]
+        .replace(/\b(?:como\s+alternativa|de\s+alternativa)\b/gi, '')
+        .replace(/^(?:del?|para\s+el?|al?|el)\s+/i, '')
+        .trim();
+
+      // If the segment starts with an activity definition (e.g. "cena hoy en casa a las 11"),
+      // this is an encounter statement, not a date alternative.
+      if (/^(?:un[a]?\s+)?(?:cena|almuerzo|desayuno|merienda|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i.test(segText)) {
+        return { type: 'none' };
+      }
+
+      const singleParse = parseNaturalLanguageDateOptions(segText + ' o ' + segText, baseDateParts);
+      if (singleParse.options.length > 0) {
+        return { type: 'add', addedOption: singleParse.options[0] };
+      }
+
+      // Direct fallback if singleParse didn't match
+      const timeMatch = segText.match(/(?:a\s+las?|para\s+las?)\s+([0-9]{1,2}(?::[0-9]{2})?)/i) ||
+                        segText.match(/\b([0-9]{1,2}(?::[0-9]{2})?)\s*(?:hs|horas)?\b/i);
+      if (timeMatch) {
+        const timeStr = timeMatch[1];
+        const datePart = segText.replace(timeMatch[0], '').replace(/^(?:el|del?|para\s+el?)\s+/i, '').trim();
+        const timeParsed = parseDeterministicTimeInput(timeStr);
+        const dateIntent = parseDeterministicDateIntent(datePart);
+        if (dateIntent && timeParsed.kind === 'exact') {
+          const resolvedDate = resolveDateIntent(dateIntent, baseDateParts);
+          if (resolvedDate.resolved && resolvedDate.date) {
+            const finalTime = timeParsed.time;
+            if (validateResolvedDateTimeInFuture(resolvedDate.date, finalTime)) {
+              return { type: 'add', addedOption: { date: resolvedDate.date, time: finalTime } };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // E. Change fixed encounter schedule:
+  // "cambiar la fecha al sábado a las 23", "cambiá la fecha al sábado a las 23", "pasalo al sábado a las 23", "cambiar al sábado a las 23"
+  const changeFixedMatch = clean.match(
+    /^(?:cambi[aá](?:r)?|pas[aá](?:r)?|modific[aá](?:r)?)\s+(?:la\s+fecha|el\s+d[ií]a|el\s+horario|la\s+hora)?(?:\s+(?:al?|para\s+el?))?\s+(.+)$/i
   );
-  if (addMatch) {
-    let segText = addMatch[1].replace(/\b(?:como\s+alternativa|de\s+alternativa)\b/gi, '').trim();
+  if (changeFixedMatch) {
+    let segText = changeFixedMatch[1]
+      .replace(/^(?:del?|para\s+el?|al?|el)\s+/i, '')
+      .trim();
     const singleParse = parseNaturalLanguageDateOptions(segText + ' o ' + segText, baseDateParts);
     if (singleParse.options.length > 0) {
-      return { type: 'add', addedOption: singleParse.options[0] };
+      const opt = singleParse.options[0];
+      if (safeDraft.dateMode === 'coordination' && safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
+        return { type: 'switch_to_fixed', selectedFixedOption: opt };
+      }
+      return { type: 'change_fixed', changedFixedOption: opt };
     }
   }
 

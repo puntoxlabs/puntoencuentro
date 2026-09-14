@@ -169,16 +169,21 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          type: { type: "string", enum: ["modify_date_option", "remove_date_option"] },
+          type: { type: "string", enum: ["add_date_option", "modify_date_option", "remove_date_option"] },
           target: {
-            type: "object",
-            properties: {
-              date: { type: ["string", "null"] },
-              time: { type: ["string", "null"] },
-              position: { type: ["integer", "null"] }
-            },
-            required: ["date", "time", "position"],
-            additionalProperties: false
+            anyOf: [
+              {
+                type: "object",
+                properties: {
+                  date: { type: ["string", "null"] },
+                  time: { type: ["string", "null"] },
+                  position: { type: ["integer", "null"] }
+                },
+                required: ["date", "time", "position"],
+                additionalProperties: false
+              },
+              { type: "null" }
+            ]
           },
           changes: {
             anyOf: [
@@ -262,21 +267,27 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
           return { valid: false, error: 'Each action must be an object' };
         }
         const action = item as Record<string, unknown>;
-        if (!['modify_date_option', 'remove_date_option'].includes(String(action.type))) {
+        if (!['add_date_option', 'modify_date_option', 'remove_date_option'].includes(String(action.type))) {
           return { valid: false, error: `Invalid action type: ${action.type}` };
         }
-        if (!action.target || typeof action.target !== 'object' || Array.isArray(action.target)) {
-          return { valid: false, error: 'Action target must be an object' };
-        }
-        const target = action.target as Record<string, unknown>;
-        const hasDate = typeof target.date === 'string';
-        const hasPos = typeof target.position === 'number';
-        if (!hasDate && !hasPos) {
-          return { valid: false, error: 'Action target must have date or position' };
-        }
-        if (action.type === 'modify_date_option') {
+        if (action.type === 'add_date_option') {
           if (!action.changes || typeof action.changes !== 'object' || Array.isArray(action.changes)) {
-            return { valid: false, error: 'Modify action must include changes object' };
+            return { valid: false, error: 'Add action must include changes object' };
+          }
+        } else {
+          if (!action.target || typeof action.target !== 'object' || Array.isArray(action.target)) {
+            return { valid: false, error: 'Action target must be an object' };
+          }
+          const target = action.target as Record<string, unknown>;
+          const hasDate = typeof target.date === 'string';
+          const hasPos = typeof target.position === 'number';
+          if (!hasDate && !hasPos) {
+            return { valid: false, error: 'Action target must have date or position' };
+          }
+          if (action.type === 'modify_date_option') {
+            if (!action.changes || typeof action.changes !== 'object' || Array.isArray(action.changes)) {
+              return { valid: false, error: 'Modify action must include changes object' };
+            }
           }
         }
       }
