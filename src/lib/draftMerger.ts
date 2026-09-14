@@ -1,5 +1,5 @@
 import type { EncounterDraft, InvitationConfig, PendingTemporalAlternative } from '@/lib/encounterDraft';
-import type { EncounterDraftPatch, TemporalAlternative } from '@/lib/encounterDraftPatch';
+import type { EncounterDraftPatch, TemporalAlternative, ActionApplicationResult } from '@/lib/encounterDraftPatch';
 import {
   resolveDateIntent,
   resolveTimeIntent,
@@ -29,6 +29,8 @@ export interface MergeResult {
   pastDateDetected: boolean;
   coordinationPendingConfirm?: boolean;
   temporalAlternativesOverflow?: boolean;
+  /** Per-action outcomes for granular date operations — used by the reply accumulator. */
+  actionResults?: ActionApplicationResult[];
 }
 
 /**
@@ -653,6 +655,173 @@ export function mergeDraftPatch(
     }
   }
 
+  // 9. Invitation Type hint
+  if (
+    patch.invitationTypeHint?.value &&
+    patch.invitationTypeHint.confidence !== 'inferred_low' &&
+    patch.invitationTypeHint.confidence !== 'ambiguous'
+  ) {
+    config.invitationType = patch.invitationTypeHint.value;
+  }
+
+  // 10. Granular Actions Processing
+  const actionResults: ActionApplicationResult[] = [];
+  if (patch.actions && patch.actions.length > 0 && draft.dateOptions && draft.dateOptions.length > 0) {
+    // Take a stable snapshot for target resolution
+    const originalSnapshot = [...draft.dateOptions];
+    
+    // First resolve all targets
+    const resolvedActions = patch.actions.map(action => {
+      let targetIndex = -1;
+      
+      if ('position' in action.target && typeof action.target.position === 'number') {
+        if (action.target.position >= 0 && action.target.position < originalSnapshot.length) {
+          targetIndex = action.target.position;
+        }
+      } else if ('date' in action.target) {
+        // Find by date (and time if provided)
+        const matches = originalSnapshot.reduce((acc, opt, idx) => {
+          const target = action.target as { date: string; time?: string };
+          if (opt.date === target.date && (!target.time || opt.time === target.time)) {
+            acc.push(idx);
+          }
+          return acc;
+        }, [] as number[]);
+        
+        if (matches.length === 1) {
+          targetIndex = matches[0];
+        } else if (matches.length > 1) {
+          return { action, targetIndex: -1, status: 'needs_clarification' as const, reason: 'Multiple opciones coinciden con la fecha. Se necesita la hora.' };
+        }
+      }
+      
+      if (targetIndex === -1) {
+         return { action, targetIndex, status: 'rejected' as const, reason: 'No se encontró la opción a modificar/eliminar.' };
+      }
+      return { action, targetIndex, status: 'ok' as const };
+    });
+
+    // Now apply modifications (Step 1)
+    for (const item of resolvedActions) {
+      if (item.status !== 'ok') {
+        actionResults.push({ status: item.status, action: item.action, reason: item.reason });
+        continue;
+      }
+      
+      if (item.action.type === 'modify_date_option') {
+        const changes = item.action.changes;
+        if (!changes || (!changes.dateRef && !changes.timeRef)) {
+          actionResults.push({ status: 'rejected', action: item.action, reason: 'No changes provided' });
+          continue;
+        }
+        
+        let parsedDate: string | null = null;
+        let parsedTime: string | null = null;
+        let hasAmbiguity = false;
+        let ambiguityReason = '';
+
+        if (changes.dateRef) {
+          const raw = changes.dateRef.trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            parsedDate = raw;
+          } else {
+             const intent = parseDeterministicDateIntent(raw);
+             if (intent) {
+               const resolved = resolveDateIntent(intent, undefined);
+               if (!resolved.resolved && resolved.ambiguityReason) { hasAmbiguity = true; ambiguityReason = resolved.ambiguityReason; }
+               else if (resolved.date) parsedDate = resolved.date;
+             }
+          }
+        }
+        
+        if (changes.timeRef) {
+           const raw = changes.timeRef.trim();
+           if (/^\d{2}:\d{2}$/.test(raw)) {
+             parsedTime = raw;
+           } else {
+             const intent = parseDeterministicTimeInput(raw);
+             if (intent && intent.kind === 'exact') {
+               if (intent.sourceForm === 'ambiguous_12h_word') {
+                 const res = resolveContextualHour(
+                   intent.hour, 
+                   intent.sourceForm, 
+                   { title: null, description: null }, 
+                   intent.minute, 
+                   intent.dayOffset || 0
+                 );
+                 if (res.requiresConfirmation) {
+                   hasAmbiguity = true;
+                   ambiguityReason = res.questionText || 'Ambigüedad en la hora.';
+                 } else if (res.resolvedHour !== null) {
+                   parsedTime = `${String(res.resolvedHour).padStart(2, '0')}:${String(res.minute).padStart(2, '0')}`;
+                 }
+               } else {
+                 parsedTime = intent.time;
+               }
+             }
+           }
+        }
+        
+        // Check if resolution was successful
+        let newDate = parsedDate || originalSnapshot[item.targetIndex].date;
+        let newTime = parsedTime || originalSnapshot[item.targetIndex].time;
+        
+        if (hasAmbiguity) {
+             actionResults.push({ status: 'needs_clarification', action: item.action, reason: ambiguityReason });
+             ambiguities.push({ field: changes.dateRef && !parsedDate ? 'date' : 'time', reason: ambiguityReason, options: [] });
+        } else {
+          // Check future and deduplicate against draft.dateOptions
+          const isInFuture = validateResolvedDateTimeInFuture(newDate, newTime);
+          if (!isInFuture) {
+             actionResults.push({ status: 'rejected', action: item.action, reason: 'Date is in the past' });
+             continue;
+          }
+          
+          // Modify in place in draft.dateOptions
+          const targetOriginal = originalSnapshot[item.targetIndex];
+          const currIndex = draft.dateOptions.findIndex(o => o.date === targetOriginal.date && o.time === targetOriginal.time);
+          
+          if (currIndex !== -1) {
+             // Avoid duplicate options
+             const isDuplicate = draft.dateOptions.some((o, i) => i !== currIndex && o.date === newDate && o.time === newTime);
+             if (isDuplicate) {
+               actionResults.push({ status: 'rejected', action: item.action, reason: 'Modified option duplicates an existing option' });
+             } else {
+               draft.dateOptions[currIndex] = { date: newDate, time: newTime };
+               actionResults.push({ status: 'applied', action: item.action });
+             }
+          }
+        }
+      }
+        }
+    // Apply removals (Step 2)
+    for (const item of resolvedActions) {
+      if (item.status === 'ok' && item.action.type === 'remove_date_option') {
+        const targetOriginal = originalSnapshot[item.targetIndex];
+        const currIndex = draft.dateOptions.findIndex(o => o.date === targetOriginal.date && o.time === targetOriginal.time);
+        
+        if (currIndex !== -1) {
+           draft.dateOptions.splice(currIndex, 1);
+           actionResults.push({ status: 'applied', action: item.action });
+        } else {
+           // Might have been already modified/removed, but that's unlikely given our flow unless conflicting actions
+           actionResults.push({ status: 'rejected', action: item.action, reason: 'Option no longer exists' });
+        }
+      }
+    }
+
+    // Step 3: Collapse to fixed if only 1 option remains
+    if (draft.dateOptions && draft.dateOptions.length === 1) {
+      draft.dateMode = 'fixed';
+      draft.date = draft.dateOptions[0].date;
+      draft.time = draft.dateOptions[0].time;
+      draft.dateOptions = null;
+    } else if (draft.dateOptions && draft.dateOptions.length === 0) {
+      // Edge case: all options removed
+      draft.dateOptions = null;
+    }
+  }
+
   return {
     draft,
     config,
@@ -661,5 +830,6 @@ export function mergeDraftPatch(
     pastDateDetected,
     coordinationPendingConfirm,
     temporalAlternativesOverflow: draft.temporalAlternativesOverflow,
+    actionResults: actionResults.length > 0 ? actionResults : undefined,
   };
 }

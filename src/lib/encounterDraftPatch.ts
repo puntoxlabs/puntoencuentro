@@ -54,6 +54,51 @@ export interface TemporalAlternative {
   timeRef?: string;
 }
 
+/**
+ * Identifies an existing dateOption by its resolved date (and optionally time for disambiguation).
+ * OR by its 0-based position in the original snapshot at the start of the turn.
+ *
+ * Semantics: `position` always refers to the original array snapshot before any action
+ * in the same turn is applied, so there is no index drift between actions.
+ */
+export type DateOptionTarget =
+  | { date: string; time?: string }  // by ISO date + optional HH:mm disambiguator
+  | { position: number };             // 0-based index into the original snapshot
+
+/**
+ * Discriminated union of all supported granular operations on dateOptions.
+ * LLM emits semantic refs (dateRef/timeRef); the domain resolves them deterministically.
+ */
+export type EncounterDraftAction =
+  | {
+      type: 'modify_date_option';
+      /** Identifies which existing option to modify (resolved against original snapshot). */
+      target: DateOptionTarget;
+      /**
+       * Values to apply. At least one of dateRef or timeRef must be present.
+       * These are semantic tokens (e.g. "viernes", "a las 21") — NOT canonical dates.
+       * The domain resolves them using the same logic as temporalAlternatives.
+       */
+      changes: {
+        dateRef?: string;
+        timeRef?: string;
+      };
+    }
+  | {
+      type: 'remove_date_option';
+      /** Identifies which existing option to remove (resolved against original snapshot). */
+      target: DateOptionTarget;
+    };
+
+/**
+ * Per-action outcome returned by draftMerger so the assistant reply accumulator
+ * reports only what was actually applied, not what was proposed in the patch.
+ */
+export type ActionApplicationResult =
+  | { status: 'applied';               action: EncounterDraftAction }
+  | { status: 'rejected';              action: EncounterDraftAction; reason: string }
+  | { status: 'needs_clarification';   action: EncounterDraftAction; reason: string };
+
 export interface EncounterDraftPatch {
   scope?: 'encounter' | 'off_topic' | 'unclear';
   title?: InterpretedField<string>;
@@ -69,6 +114,10 @@ export interface EncounterDraftPatch {
   virtualLink?: InterpretedField<string>;
   themeHint?: InterpretedField<string>;
   templateHint?: InterpretedField<string>;
+  invitationTypeHint?: InterpretedField<'individual' | 'link_general'>;
   temporalAlternatives?: InterpretedField<TemporalAlternative[]>;
   temporalAlternativesOverflow?: InterpretedField<boolean>;
+  /** Granular operations on existing dateOptions. Typed — no arbitrary shapes. */
+  actions?: EncounterDraftAction[];
 }
+

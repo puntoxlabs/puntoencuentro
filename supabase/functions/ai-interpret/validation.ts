@@ -116,6 +116,16 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       required: ["value", "confidence"],
       additionalProperties: false
     },
+    invitationTypeHint: {
+      type: "object",
+      properties: {
+        value: { type: "string", enum: ["individual", "link_general"] },
+        confidence: { type: "string", enum: ["explicit", "inferred_high", "inferred_low", "ambiguous"] },
+        originalText: { type: "string" }
+      },
+      required: ["value", "confidence"],
+      additionalProperties: false
+    },
     themeHint: {
       type: "object",
       properties: {
@@ -153,6 +163,80 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       required: ["value", "confidence"],
       additionalProperties: false
     },
+    actions: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        oneOf: [
+          {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["modify_date_option"] },
+              target: {
+                oneOf: [
+                  {
+                    type: "object",
+                    properties: {
+                      date: { type: "string", pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+                      time: { type: "string", pattern: "^[0-9]{2}:[0-9]{2}$" }
+                    },
+                    required: ["date"],
+                    additionalProperties: false
+                  },
+                  {
+                    type: "object",
+                    properties: {
+                      position: { type: "integer", minimum: 0 }
+                    },
+                    required: ["position"],
+                    additionalProperties: false
+                  }
+                ]
+              },
+              changes: {
+                type: "object",
+                properties: {
+                  dateRef: { type: "string" },
+                  timeRef: { type: "string" }
+                },
+                additionalProperties: false
+              }
+            },
+            required: ["type", "target", "changes"],
+            additionalProperties: false
+          },
+          {
+            type: "object",
+            properties: {
+              type: { type: "string", enum: ["remove_date_option"] },
+              target: {
+                oneOf: [
+                  {
+                    type: "object",
+                    properties: {
+                      date: { type: "string", pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+                      time: { type: "string", pattern: "^[0-9]{2}:[0-9]{2}$" }
+                    },
+                    required: ["date"],
+                    additionalProperties: false
+                  },
+                  {
+                    type: "object",
+                    properties: {
+                      position: { type: "integer", minimum: 0 }
+                    },
+                    required: ["position"],
+                    additionalProperties: false
+                  }
+                ]
+              }
+            },
+            required: ["type", "target"],
+            additionalProperties: false
+          }
+        ]
+      }
+    },
     temporalAlternativesOverflow: {
       type: "object",
       properties: {
@@ -185,9 +269,11 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
     'modality',
     'locationText',
     'virtualLink',
+    'invitationTypeHint',
     'themeHint',
     'templateHint',
     'temporalAlternatives',
+    'actions',
     'temporalAlternativesOverflow'
   ]);
 
@@ -205,8 +291,15 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
       continue;
     }
 
-    if (typeof field !== 'object' || field === null) {
-      return { valid: false, error: `Property ${key} must be an object` };
+    if (key === 'actions') {
+      if (!Array.isArray(field)) {
+        return { valid: false, error: `Property actions must be an array` };
+      }
+      continue;
+    }
+
+    if (typeof field !== 'object' || field === null || Array.isArray(field)) {
+      return { valid: false, error: `Property ${key} must be an object (not array)` };
     }
 
     const fieldRecord = field as Record<string, unknown>;

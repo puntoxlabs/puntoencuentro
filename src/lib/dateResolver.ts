@@ -1884,7 +1884,7 @@ export function parseCoordinationTransition(
     }
 
     if (safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
-      const matched = safeDraft.dateOptions.find((opt) => {
+      const matches = safeDraft.dateOptions.filter((opt) => {
         if (targetIso && opt.date === targetIso) return true;
         const optDateObj = new Date(opt.date + 'T12:00:00Z');
         const dayIdx = optDateObj.getUTCDay();
@@ -1893,7 +1893,9 @@ export function parseCoordinationTransition(
         return false;
       });
 
-      if (matched) {
+      if (matches.length > 1) return { type: "none" };
+      if (matches.length === 1) {
+        const matched = matches[0];
         return {
           type: 'switch_to_fixed',
           selectedFixedOption: {
@@ -1929,7 +1931,7 @@ export function parseCoordinationTransition(
     }
 
     if (safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
-      const matched = safeDraft.dateOptions.find((opt) => {
+      const matches = safeDraft.dateOptions.filter((opt) => {
         if (targetIso && opt.date === targetIso) return true;
         const optDateObj = new Date(opt.date + 'T12:00:00Z');
         const dayIdx = optDateObj.getUTCDay();
@@ -1938,7 +1940,9 @@ export function parseCoordinationTransition(
         return false;
       });
 
-      if (matched) {
+      if (matches.length > 1) return { type: "none" };
+      if (matches.length === 1) {
+        const matched = matches[0];
         return { type: 'remove', removedOptionDate: matched.date };
       }
     }
@@ -1956,14 +1960,16 @@ export function parseCoordinationTransition(
     const targetDay = normalizeCoordText(modifyMatch[1]);
     const timeParsed = parseDeterministicTimeInput(modifyMatch[2]);
     if (timeParsed.kind === 'exact') {
-      const matched = safeDraft.dateOptions.find((opt) => {
+      const matches = safeDraft.dateOptions.filter((opt) => {
         const optDateObj = new Date(opt.date + 'T12:00:00Z');
         const dayIdx = optDateObj.getUTCDay();
         const wkInfo = Object.values(WEEKDAY_MAPPING).find((w) => w.dayIndex === dayIdx);
         if (wkInfo && normalizeCoordText(wkInfo.nameEs) === targetDay) return true;
         return false;
       });
-      if (matched) {
+      if (matches.length > 1) return { type: "none" };
+      if (matches.length === 1) {
+        const matched = matches[0];
         return {
           type: 'modify',
           modifiedOption: { date: matched.date, time: timeParsed.time },

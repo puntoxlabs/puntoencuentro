@@ -5760,7 +5760,8 @@ describe('QA Producción: Paridad de contrato nth_weekday_of_month (TypeScript, 
   });
 
   test('Paridad 3: SYSTEM_PROMPT version 1.6.0 documenta explícitamente nth_weekday_of_month con ejemplos', () => {
-    assert.equal(PROMPT_VERSION, '1.6.0');
+    assert.equal(PROMPT_VERSION, '1.7.0');
+    assert.ok(SYSTEM_PROMPT.includes('target'), 'Prompt must instruct on target/changes usage for actions');
     assert.ok(SYSTEM_PROMPT.includes('nth_weekday_of_month'), 'SYSTEM_PROMPT must reference nth_weekday_of_month');
     assert.ok(SYSTEM_PROMPT.includes('primer viernes del mes que viene'), 'SYSTEM_PROMPT must include primer viernes example');
     assert.ok(SYSTEM_PROMPT.includes('último sábado de octubre'), 'SYSTEM_PROMPT must include último sábado example');
@@ -9093,5 +9094,168 @@ describe('QA Hotfix: Coordination Confirmation Action & Internal Action Tokens',
       assert.ok(typeof human === 'string');
       assert.notEqual(human, '2026-09-13T23:00:00');
     });
+  });
+});
+
+describe('Crear con IA - Acciones Compuestas y Modificaciones Granulares', () => {
+  let store: any;
+
+  test('[E2E] Instrucción compuesta (Tema + Tipo Invitación) se aplican ambas y la respuesta las enumera', async () => {
+    useAiWizardStore.getState().reset();
+    
+    // Setup state
+    useAiWizardStore.setState(state => ({
+      ...state,
+      draft: { ...state.draft, title: 'Cena', dateOptions: null, dateMode: 'fixed' },
+      config: { ...state.config, invitationTheme: 'classic', invitationType: 'link_general' },
+      lastResolutionSource: 'llm'
+    }));
+    
+    const originalInterpret = aiService.interpretMessage;
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        themeHint: { value: 'family', confidence: 'explicit' as const },
+        invitationTypeHint: { value: 'individual', confidence: 'explicit' as const }
+      }
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('Cambiar tema a familiar y tipo de enlace individual');
+      const state = useAiWizardStore.getState();
+      
+      assert.equal(state.config.invitationTheme, 'family');
+      assert.equal(state.config.invitationType, 'individual');
+      assert.ok(
+        state.messages.some(m => m.text.includes('tema a Familia') && m.text.includes('tipo de invitación a Individual')),
+        'La respuesta debe enumerar ambos cambios acumulativamente'
+      );
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('[E2E] Modificación de dateOption (Cross-Action) resuelve contra el target estático y muta array', async () => {
+    useAiWizardStore.getState().reset();
+    
+    // Setup state
+    useAiWizardStore.setState(state => ({
+      ...state,
+      draft: { 
+        ...state.draft, 
+        title: 'Cena', 
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: '2026-10-10', time: '20:00' }, // A
+          { date: '2026-10-11', time: '20:00' }, // B
+          { date: '2026-10-12', time: '20:00' }  // C
+        ]
+      },
+      lastResolutionSource: 'llm'
+    }));
+    
+    const originalInterpret = aiService.interpretMessage;
+    // User: "cambiá la segunda al viernes a las 21 y eliminá la primera" (assume B is Friday, A is Thursday)
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        actions: [
+          { type: 'modify_date_option', target: { position: 1 }, changes: { dateRef: '2026-10-11', timeRef: '21:00' } },
+          { type: 'remove_date_option', target: { position: 0 } }
+        ]
+      }
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('cambiá la segunda al viernes a las 21 y eliminá la primera');
+      const state = useAiWizardStore.getState();
+      
+      assert.equal(state.draft.dateOptions?.length, 2);
+      // B modified, A removed -> remaining should be B(modified) and C
+      assert.equal(state.draft.dateOptions?.[0].date, '2026-10-11');
+      assert.equal(state.draft.dateOptions?.[0].time, '21:00'); // Modified
+      assert.equal(state.draft.dateOptions?.[1].date, '2026-10-12');
+      assert.equal(state.draft.dateOptions?.[1].time, '20:00'); // Preserved
+      
+      const lastMsg = state.messages[state.messages.length - 1].text;
+      assert.ok(lastMsg.includes('actualicé el horario') || lastMsg.includes('quité la opción'), 'Debe reportar los cambios aplicados');
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+  
+  test('[E2E] Eliminar opción ambigua por misma fecha', async () => {
+    useAiWizardStore.getState().reset();
+    
+    useAiWizardStore.setState(state => ({
+      ...state,
+      draft: { 
+        ...state.draft, 
+        title: 'Cena', 
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: '2026-10-09', time: '20:00' },
+          { date: '2026-10-09', time: '22:00' },
+          { date: '2026-10-10', time: '21:00' } 
+        ]
+      },
+      lastResolutionSource: 'llm'
+    }));
+    
+    const originalInterpret = aiService.interpretMessage;
+    // User: "eliminá la opción del viernes" (where viernes is 10-10, meaning two options match)
+    aiService.interpretMessage = async () => ({
+      ok: true,
+      scope: 'encounter',
+      patch: {
+        actions: [
+          { type: 'remove_date_option', target: { date: '2026-10-09' } }
+        ]
+      }
+    });
+
+    try {
+      await useAiWizardStore.getState().sendUserMessage('eliminá la opción del viernes');
+      const state = useAiWizardStore.getState();
+      
+      // Should NOT delete any because it's ambiguous
+      assert.equal(state.draft.dateOptions?.length, 3);
+      // Should ask for clarification
+      const lastMsgText = state.messages.length > 0 ? state.messages[state.messages.length - 1].text : '';
+      assert.ok(
+        (lastMsgText.includes('No encontré la opción') || lastMsgText.includes('Multiple opciones coinciden')),
+        'Debe requerir clarificación o reportar acción no aplicada'
+      );
+    } finally {
+      aiService.interpretMessage = originalInterpret;
+    }
+  });
+
+  test('[E2E] Eliminar opción inequívoca (interceptor test)', async () => {
+    useAiWizardStore.getState().reset();
+    
+    useAiWizardStore.setState(state => ({
+      ...state,
+      draft: { 
+        ...state.draft, 
+        title: 'Cena', 
+        dateMode: 'coordination',
+        dateOptions: [
+          { date: '2026-10-09', time: '20:00' }, // viernes
+          { date: '2026-10-09', time: '22:00' }, // viernes
+          { date: '2026-10-10', time: '21:00' }  // sábado
+        ]
+      },
+      lastResolutionSource: 'llm'
+    }));
+    
+    await useAiWizardStore.getState().sendUserMessage('eliminá la opción del sábado');
+    const state = useAiWizardStore.getState();
+    
+    // Should delete exactly one
+    assert.equal(state.draft.dateOptions?.length, 2);
+    assert.ok(state.draft.dateOptions.every(o => o.date === '2026-10-09'), 'Sólo deben quedar opciones del viernes');
   });
 });
