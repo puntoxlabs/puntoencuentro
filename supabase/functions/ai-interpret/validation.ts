@@ -152,9 +152,10 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
           items: {
             type: "object",
             properties: {
-              dateRef: { type: "string" },
-              timeRef: { type: "string" }
+              dateRef: { type: ["string", "null"] },
+              timeRef: { type: ["string", "null"] }
             },
+            required: ["dateRef", "timeRef"],
             additionalProperties: false
           }
         },
@@ -165,76 +166,37 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
     },
     actions: {
       type: "array",
-      maxItems: 5,
       items: {
-        oneOf: [
-          {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["modify_date_option", "remove_date_option"] },
+          target: {
             type: "object",
             properties: {
-              type: { type: "string", enum: ["modify_date_option"] },
-              target: {
-                oneOf: [
-                  {
-                    type: "object",
-                    properties: {
-                      date: { type: "string", pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
-                      time: { type: "string", pattern: "^[0-9]{2}:[0-9]{2}$" }
-                    },
-                    required: ["date"],
-                    additionalProperties: false
-                  },
-                  {
-                    type: "object",
-                    properties: {
-                      position: { type: "integer", minimum: 0 }
-                    },
-                    required: ["position"],
-                    additionalProperties: false
-                  }
-                ]
-              },
-              changes: {
-                type: "object",
-                properties: {
-                  dateRef: { type: "string" },
-                  timeRef: { type: "string" }
-                },
-                additionalProperties: false
-              }
+              date: { type: ["string", "null"] },
+              time: { type: ["string", "null"] },
+              position: { type: ["integer", "null"] }
             },
-            required: ["type", "target", "changes"],
+            required: ["date", "time", "position"],
             additionalProperties: false
           },
-          {
-            type: "object",
-            properties: {
-              type: { type: "string", enum: ["remove_date_option"] },
-              target: {
-                oneOf: [
-                  {
-                    type: "object",
-                    properties: {
-                      date: { type: "string", pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
-                      time: { type: "string", pattern: "^[0-9]{2}:[0-9]{2}$" }
-                    },
-                    required: ["date"],
-                    additionalProperties: false
-                  },
-                  {
-                    type: "object",
-                    properties: {
-                      position: { type: "integer", minimum: 0 }
-                    },
-                    required: ["position"],
-                    additionalProperties: false
-                  }
-                ]
-              }
-            },
-            required: ["type", "target"],
-            additionalProperties: false
+          changes: {
+            anyOf: [
+              {
+                type: "object",
+                properties: {
+                  dateRef: { type: ["string", "null"] },
+                  timeRef: { type: ["string", "null"] }
+                },
+                required: ["dateRef", "timeRef"],
+                additionalProperties: false
+              },
+              { type: "null" }
+            ]
           }
-        ]
+        },
+        required: ["type", "target", "changes"],
+        additionalProperties: false
       }
     },
     temporalAlternativesOverflow: {
@@ -295,6 +257,29 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
       if (!Array.isArray(field)) {
         return { valid: false, error: `Property actions must be an array` };
       }
+      for (const item of field) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return { valid: false, error: 'Each action must be an object' };
+        }
+        const action = item as Record<string, unknown>;
+        if (!['modify_date_option', 'remove_date_option'].includes(String(action.type))) {
+          return { valid: false, error: `Invalid action type: ${action.type}` };
+        }
+        if (!action.target || typeof action.target !== 'object' || Array.isArray(action.target)) {
+          return { valid: false, error: 'Action target must be an object' };
+        }
+        const target = action.target as Record<string, unknown>;
+        const hasDate = typeof target.date === 'string';
+        const hasPos = typeof target.position === 'number';
+        if (!hasDate && !hasPos) {
+          return { valid: false, error: 'Action target must have date or position' };
+        }
+        if (action.type === 'modify_date_option') {
+          if (!action.changes || typeof action.changes !== 'object' || Array.isArray(action.changes)) {
+            return { valid: false, error: 'Modify action must include changes object' };
+          }
+        }
+      }
       continue;
     }
 
@@ -341,6 +326,24 @@ export function sanitizeSchemaForGemini<T = Record<string, unknown>>(schema: T):
   return result as T;
 }
 
+const DISALLOWED_OPENAI_KEYWORDS = new Set([
+  'pattern',
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minItems',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'format',
+  'default',
+]);
+
 /**
  * Transforms a canonical JSON Schema into a strict-mode compatible JSON Schema for OpenAI Structured Outputs.
  * In OpenAI strict mode:
@@ -348,7 +351,8 @@ export function sanitizeSchemaForGemini<T = Record<string, unknown>>(schema: T):
  * 2. Conceptually optional properties (those not in the original `required`) are made nullable
  *    (e.g., type: [type, "null"] or anyOf: [...anyOf, { type: "null" }]).
  * 3. `additionalProperties: false` is enforced on all objects.
- * 4. Does not mutate the original schema.
+ * 4. Strips unsupported keywords (pattern, minimum/maximum, minItems/maxItems, etc.) and converts oneOf -> anyOf.
+ * 5. Does not mutate the original schema.
  */
 export function sanitizeSchemaForOpenAI<T = Record<string, unknown>>(schema: T): T {
   if (typeof schema !== 'object' || schema === null) {
@@ -362,11 +366,24 @@ export function sanitizeSchemaForOpenAI<T = Record<string, unknown>>(schema: T):
   const result: Record<string, unknown> = {};
   const record = schema as Record<string, unknown>;
 
+  // Convert oneOf to anyOf defensively if present
+  if (record.oneOf && Array.isArray(record.oneOf)) {
+    result.anyOf = record.oneOf.map((item) => sanitizeSchemaForOpenAI(item));
+  }
+
   for (const [key, value] of Object.entries(record)) {
+    if (key === 'oneOf') continue;
+    if (DISALLOWED_OPENAI_KEYWORDS.has(key)) continue;
     result[key] = sanitizeSchemaForOpenAI(value);
   }
 
-  if (result.type === 'object' && result.properties && typeof result.properties === 'object') {
+  const isObjectNode = (result.type === 'object' || !result.type || (Array.isArray(result.type) && result.type.includes('object'))) &&
+    result.properties !== undefined &&
+    typeof result.properties === 'object' &&
+    result.properties !== null;
+
+  if (isObjectNode) {
+    result.type = 'object';
     const origRequired = new Set(Array.isArray(record.required) ? (record.required as string[]) : []);
     const properties = result.properties as Record<string, unknown>;
     const allKeys = Object.keys(properties);
@@ -379,10 +396,15 @@ export function sanitizeSchemaForOpenAI<T = Record<string, unknown>>(schema: T):
       } else {
         // Conceptually optional: make nullable in strict mode
         if (propSchema.anyOf && Array.isArray(propSchema.anyOf)) {
-          newProperties[key] = {
-            ...propSchema,
-            anyOf: [...propSchema.anyOf, { type: 'null' }],
-          };
+          const hasNull = propSchema.anyOf.some(
+            (b: any) => b && typeof b === 'object' && b.type === 'null'
+          );
+          newProperties[key] = hasNull
+            ? propSchema
+            : {
+                ...propSchema,
+                anyOf: [...propSchema.anyOf, { type: 'null' }],
+              };
         } else if (propSchema.type) {
           const types = Array.isArray(propSchema.type) ? propSchema.type : [propSchema.type];
           if (!types.includes('null')) {

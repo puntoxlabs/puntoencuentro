@@ -1360,6 +1360,9 @@ export const useAiWizardStore = create<AiWizardState>()(
               date: composite.date,
               baseDate: composite.baseDate,
               time: composite.time,
+              modality: composite.modality ?? state.draft.modality,
+              locationText: composite.locationText ?? state.draft.locationText,
+              virtualLink: composite.virtualLink ?? state.draft.virtualLink,
               appliedDayRollover: composite.appliedDayRollover ?? false,
             };
 

@@ -92,6 +92,8 @@ import { useAiWizardStore, resolveMinimalInputFallback, shouldSuppressAssistantB
 import { aiService, CLIENT_AI_TIMEOUT_MS } from '@/services/aiService';
 import { supabase } from '@/lib/supabase';
 import { ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect.ts';
+import { parseCompositeEncounterInput } from '../src/lib/dateResolver.ts';
+import { inferModalityFromContext } from '../src/lib/modalityInference.ts';
 
 describe('Domain Logic Tests: Date & Time Resolution', () => {
   // Baseline date: Monday 2026-09-07
@@ -9324,3 +9326,343 @@ describe('Temporal Guard & Deterministic Clock Provider Edge Cases', () => {
     }
   });
 });
+
+describe('Hotfix Regression Tests: Edge v1.7 Schema + Contextual Modality Inference', () => {
+  describe('Problema A: OpenAI Schema Compatibility & Actions Validation', () => {
+    test('1. Sanitize schema for OpenAI removes all disallowed keywords (0 violations)', () => {
+      const sanitized = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA);
+      const disallowed = ['oneOf', 'pattern', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minItems', 'maxItems', 'uniqueItems', 'minProperties', 'maxProperties', 'default'];
+      const issues: string[] = [];
+
+      function walk(obj: any, path = '') {
+        if (!obj || typeof obj !== 'object') return;
+        for (const k of Object.keys(obj)) {
+          const currentPath = path ? path + '.' + k : k;
+          if (disallowed.includes(k)) {
+            issues.push(currentPath);
+          }
+          if (obj.type === 'object' && obj.properties) {
+            const req = new Set(obj.required || []);
+            for (const prop of Object.keys(obj.properties)) {
+              if (!req.has(prop)) {
+                issues.push('missing_req:' + currentPath + '.' + prop);
+              }
+            }
+          }
+          walk(obj[k], currentPath);
+        }
+      }
+
+      walk(sanitized);
+      assert.equal(issues.length, 0, 'OpenAI sanitized schema must have 0 disallowed keywords');
+    });
+
+    test('2. Legacy response without actions passes schema validation (Item 5: Compatibilidad Legacy)', () => {
+      const legacyPatch = {
+        scope: 'encounter',
+        title: { value: 'Cena con amigos', confidence: 'explicit' },
+        dateIntent: { value: { type: 'relative', value: 'tomorrow' }, confidence: 'explicit' },
+        timeIntent: { value: { type: 'exact', hour: 22, minute: 0 }, confidence: 'explicit' },
+        modality: { value: 'presencial', confidence: 'inferred_high' },
+        locationText: { value: 'casa', confidence: 'explicit' },
+      };
+      const val = validatePatchOutput(legacyPatch);
+      assert.equal(val.valid, true);
+    });
+
+    test('3. Response with actions array passes schema validation', () => {
+      const compoundPatch = {
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'modify_date_option',
+            target: { position: 1 },
+            changes: { timeRef: '20:00' }
+          },
+          {
+            type: 'remove_date_option',
+            target: { date: '2026-10-10' }
+          }
+        ]
+      };
+      const val = validatePatchOutput(compoundPatch);
+      assert.equal(val.valid, true);
+    });
+
+    test('4. Response with invalid action rejected by runtime validation', () => {
+      const invalidActionPatch = {
+        scope: 'encounter',
+        actions: [
+          {
+            type: 'invalid_action_type',
+            target: { position: 0 }
+          }
+        ]
+      };
+      const val = validatePatchOutput(invalidActionPatch);
+      assert.equal(val.valid, false);
+      assert.ok(val.error?.includes('Invalid action type'));
+    });
+  });
+
+  describe('Problema B: Jerarquía de Señales e Inferencia Contextual de Modalidad', () => {
+    test('1. Jerarquía 1: Modalidad explícita virtual ("Cena virtual mañana") -> virtual', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Cena virtual mañana', title: 'Cena' });
+      assert.equal(res.modality, 'virtual');
+      assert.equal(res.confidence, 'explicit');
+      assert.equal(res.source, 'explicit_modality');
+    });
+
+    test('2. Jerarquía 1: Modalidad explícita presencial ("Reunión presencial mañana") -> presencial', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Reunión presencial mañana', title: 'Reunión' });
+      assert.equal(res.modality, 'presencial');
+      assert.equal(res.confidence, 'explicit');
+      assert.equal(res.source, 'explicit_modality');
+    });
+
+    test('3. Jerarquía 2: Señal virtual explícita ("Cena por Meet") -> virtual', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Cena por Meet', title: 'Cena' });
+      assert.equal(res.modality, 'virtual');
+      assert.equal(res.source, 'explicit_modality');
+    });
+
+    test('4. Jerarquía 3: Lugar físico explícito ("Cena mañana en casa") -> presencial', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Cena mañana en casa', title: 'Cena' });
+      assert.equal(res.modality, 'presencial');
+      assert.equal(res.confidence, 'inferred_high');
+      assert.equal(res.source, 'physical_location');
+    });
+
+    test('5. Jerarquía 3: Lugar físico explícito ("Reunión en la oficina") -> presencial', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Reunión en la oficina', title: 'Reunión', locationText: 'la oficina' });
+      assert.equal(res.modality, 'presencial');
+      assert.equal(res.confidence, 'inferred_high');
+    });
+
+    test('6. Jerarquía 4: Inferencia semántica actividad fuertemente presencial ("Cena mañana a las 21") -> presencial', () => {
+      const res = inferModalityFromContext({ userPrompt: 'Cena mañana a las 21', title: 'Cena' });
+      assert.equal(res.modality, 'presencial');
+      assert.equal(res.confidence, 'inferred_high');
+      assert.equal(res.source, 'semantic_activity');
+    });
+
+    test('7. Jerarquía 5: Actividades ambiguas sin señal -> null (preguntar)', () => {
+      const ambiguousActivities = ['reunión', 'charla', 'clase', 'capacitación', 'entrevista', 'tutoría', 'workshop', 'presentación'];
+      for (const act of ambiguousActivities) {
+        const res = inferModalityFromContext({ title: act, userPrompt: act + ' mañana' });
+        assert.equal(res.modality, null, act + ' debe permanecer con modality null');
+        assert.equal(res.source, 'ambiguous');
+      }
+    });
+
+    test('8. Actividad ambigua con plataforma virtual ("Clase por Zoom") -> virtual', () => {
+      const res = inferModalityFromContext({ title: 'Clase', userPrompt: 'Clase por Zoom' });
+      assert.equal(res.modality, 'virtual');
+    });
+  });
+
+  describe('End-to-End QA: Casos Reales de Producción', () => {
+    test('QA Caso 13: "Cena mañana a las 21" infiere presencial y pregunta lugar (NO modalidad)', () => {
+      const composite = parseCompositeEncounterInput('Cena mañana a las 21');
+      assert.ok(composite, 'Debe parsear composite');
+      assert.equal(composite.title, 'Cena');
+      assert.equal(composite.time, '21:00');
+      assert.equal(composite.modality, 'presencial');
+      assert.equal(composite.locationText, null);
+
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: composite.title,
+        date: composite.date,
+        time: composite.time,
+        modality: composite.modality,
+      };
+
+      const evaluation = evaluateDraft(draft);
+      assert.equal(evaluation.isComplete, false);
+      assert.equal(evaluation.nextQuestion?.field, 'locationText');
+      assert.equal(evaluation.nextQuestion?.question, '¿Dónde va a ser?');
+      assert.notEqual(evaluation.nextQuestion?.field, 'modality', 'NO debe preguntar modalidad');
+    });
+
+    test('QA Caso 14: "Cena mañana a las 22 en casa" resuelve completo sin preguntas ni error', () => {
+      const composite = parseCompositeEncounterInput('Cena mañana a las 22 en casa');
+      assert.ok(composite, 'Debe parsear composite con lugar');
+      assert.equal(composite.title, 'Cena');
+      assert.equal(composite.time, '22:00');
+      assert.equal(composite.modality, 'presencial');
+      assert.equal(composite.locationText, 'casa');
+
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: composite.title,
+        date: composite.date,
+        time: composite.time,
+        modality: composite.modality,
+        locationText: composite.locationText,
+      };
+
+      const evaluation = evaluateDraft(draft);
+      assert.equal(evaluation.isComplete, true);
+      assert.equal(evaluation.nextQuestion, null, 'NO debe tener preguntas pendientes');
+    });
+
+    test('QA Caso "Reunión mañana a las 18 por Meet" -> virtual sin preguntar modalidad', () => {
+      const composite = parseCompositeEncounterInput('Reunión mañana a las 18 por Meet');
+      assert.ok(composite);
+      assert.equal(composite.title, 'Reunión');
+      assert.equal(composite.time, '18:00');
+      assert.equal(composite.modality, 'virtual');
+      assert.equal(composite.virtualLink, 'Meet');
+    });
+
+    test('QA Caso "Reunión mañana a las 21" -> ambiguo, pregunta modalidad', () => {
+      const composite = parseCompositeEncounterInput('Reunión mañana a las 21');
+      assert.ok(composite);
+      assert.equal(composite.title, 'Reunión');
+      assert.equal(composite.time, '21:00');
+      assert.equal(composite.modality, null);
+
+      const draft = {
+        ...createEmptyEncounterDraft(),
+        title: composite.title,
+        date: composite.date,
+        time: composite.time,
+      };
+
+      const evaluation = evaluateDraft(draft);
+      assert.equal(evaluation.isComplete, false);
+      assert.equal(evaluation.nextQuestion?.field, 'modality');
+      assert.equal(evaluation.nextQuestion?.question, '¿Va a ser presencial o virtual?');
+    });
+
+    test('QA Inferencia contextual de modalidad semántica: actividad fuertemente presencial -> presencial', () => {
+      const res = inferModalityFromContext({ title: 'Cena con amigos' });
+      assert.equal(res.modality, 'presencial');
+      assert.equal(res.confidence, 'inferred_high');
+      assert.equal(res.source, 'semantic_activity');
+    });
+
+    test('QA Patch con modalidad inferida por LLM: se asigna correctamente al draft', () => {
+      const initialDraft = createEmptyEncounterDraft();
+      const initialConfig = createDefaultInvitationConfig();
+      const patch = {
+        scope: 'encounter' as const,
+        title: { value: 'Cena con amigos', confidence: 'explicit' as const },
+        dateIntent: { value: { type: 'relative' as const, value: 'tomorrow' as const }, confidence: 'explicit' as const },
+        timeIntent: { value: { type: 'exact' as const, hour: 21, minute: 0 }, confidence: 'explicit' as const },
+        modality: { value: 'presencial' as const, confidence: 'inferred_high' as const },
+      };
+
+      const result = mergeDraftPatch(initialDraft, initialConfig, patch);
+      assert.equal(result.draft.title, 'Cena con amigos');
+      assert.equal(result.draft.modality, 'presencial');
+    });
+
+    test('QA OpenAI Strict Mode Schema: sanitizeSchemaForOpenAI produce 0 violaciones recursivas', () => {
+      const sanitized = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA) as any;
+      const issues = assertOpenAIStrictSchemaCompatible(sanitized);
+      assert.deepEqual(issues, [], `OpenAI strict schema tiene violaciones: ${issues.join(', ')}`);
+
+      // Verificar nodos anidados clave
+      const actionsSchema = sanitized.properties.actions;
+      assert.ok(actionsSchema, 'actions debe existir en schema sanitizado');
+      const actionItems = actionsSchema.items;
+      assert.equal(actionItems.additionalProperties, false);
+      assert.deepEqual(actionItems.required.sort(), ['actions', 'changes', 'target', 'type'].filter(k => k !== 'actions').sort());
+
+      const targetSchema = actionItems.properties.target;
+      assert.equal(targetSchema.additionalProperties, false);
+      assert.deepEqual(targetSchema.required.sort(), ['date', 'position', 'time']);
+
+      const changesSchema = actionItems.properties.changes;
+      assert.ok(changesSchema.anyOf, 'changes debe ser anyOf con null');
+      const changesObjectBranch = changesSchema.anyOf.find((b: any) => b.type === 'object');
+      assert.ok(changesObjectBranch, 'changes debe tener una rama object');
+      assert.equal(changesObjectBranch.additionalProperties, false);
+      assert.deepEqual(changesObjectBranch.required.sort(), ['dateRef', 'timeRef']);
+
+      const tempAltSchema = sanitized.properties.temporalAlternatives;
+      assert.ok(tempAltSchema);
+      const altItems = tempAltSchema.properties.value.items;
+      assert.equal(altItems.additionalProperties, false);
+      assert.deepEqual(altItems.required.sort(), ['dateRef', 'timeRef']);
+    });
+  });
+});
+
+const DISALLOWED_OPENAI_KEYWORDS_TEST = [
+  'pattern',
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minItems',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'format',
+  'default',
+];
+
+export function assertOpenAIStrictSchemaCompatible(schema: unknown, path = 'root'): string[] {
+  const issues: string[] = [];
+
+  function check(node: any, currentPath: string) {
+    if (!node || typeof node !== 'object') return;
+
+    for (const kw of DISALLOWED_OPENAI_KEYWORDS_TEST) {
+      if (kw in node) {
+        issues.push(`Disallowed keyword "${kw}" at ${currentPath}`);
+      }
+    }
+
+    const isObject = node.type === 'object' || (Array.isArray(node.type) && node.type.includes('object')) || node.properties !== undefined;
+    if (isObject && node.properties && typeof node.properties === 'object') {
+      if (node.additionalProperties !== false) {
+        issues.push(`additionalProperties is not false at ${currentPath}`);
+      }
+      if (!Array.isArray(node.required)) {
+        issues.push(`Missing required array at ${currentPath}`);
+      } else {
+        const reqSet = new Set(node.required);
+        const propKeys = Object.keys(node.properties);
+        for (const prop of propKeys) {
+          if (!reqSet.has(prop)) {
+            issues.push(`Property "${prop}" at ${currentPath} is missing from required`);
+          }
+        }
+        for (const req of node.required) {
+          if (!propKeys.includes(req)) {
+            issues.push(`Required field "${req}" at ${currentPath} is not defined in properties`);
+          }
+        }
+      }
+    }
+
+    if (node.properties && typeof node.properties === 'object') {
+      for (const [key, propSchema] of Object.entries(node.properties)) {
+        check(propSchema, `${currentPath}.properties.${key}`);
+      }
+    }
+
+    if (node.items) {
+      if (Array.isArray(node.items)) {
+        node.items.forEach((item: any, idx: number) => check(item, `${currentPath}.items[${idx}]`));
+      } else {
+        check(node.items, `${currentPath}.items`);
+      }
+    }
+
+    if (node.anyOf && Array.isArray(node.anyOf)) {
+      node.anyOf.forEach((sub: any, idx: number) => check(sub, `${currentPath}.anyOf[${idx}]`));
+    }
+  }
+
+  check(schema, path);
+  return issues;
+}

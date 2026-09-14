@@ -2,6 +2,7 @@ import {
   getArgentinaDateTimeParts,
   isArgentinaDateTimeInFuture,
 } from '@/lib/argentinaDateTime';
+import { inferModalityFromContext } from '@/lib/modalityInference';
 import type {
   DateIntent,
   TimeIntent,
@@ -1328,6 +1329,9 @@ export interface CompositeEncounterResult {
   requiresConfirmation: boolean;
   questionText?: string;
   quickOptions?: Array<{ label: string; value: string }>;
+  modality?: 'presencial' | 'virtual' | null;
+  locationText?: string | null;
+  virtualLink?: string | null;
 }
 
 /**
@@ -1369,11 +1373,28 @@ export function parseCompositeEncounterInput(text: string): CompositeEncounterRe
     }
   }
 
-  // 3. Match time expression in restAfterDate
-  const timeParsed = parseDeterministicTimeInput(restAfterDate);
+  // 3. Extract optional trailing location ("en casa", "en Antares", etc.) or platform ("por Meet", "por Zoom")
+  let timeStr = restAfterDate;
+  let trailingLocation: string | null = null;
+  let trailingVirtual: string | null = null;
+
+  const virtualMatch = restAfterDate.match(/\s+por\s+(meet|zoom|teams|videollamada|discord|google\s+meet)\b/i);
+  if (virtualMatch && virtualMatch.index !== undefined) {
+    trailingVirtual = virtualMatch[1].trim();
+    timeStr = restAfterDate.slice(0, virtualMatch.index).trim();
+  } else {
+    const locMatch = restAfterDate.match(/\s+en\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+)$/i);
+    if (locMatch && locMatch.index !== undefined) {
+      trailingLocation = locMatch[1].trim();
+      timeStr = restAfterDate.slice(0, locMatch.index).trim();
+    }
+  }
+
+  // 4. Match time expression
+  const timeParsed = parseDeterministicTimeInput(timeStr);
   if (timeParsed.kind !== 'exact') return null;
 
-  // 4. Contextual hour resolution with activity title
+  // 5. Contextual hour resolution with activity title
   const contextualRes = resolveContextualHour(
     timeParsed.hour,
     timeParsed.sourceForm,
@@ -1389,15 +1410,27 @@ export function parseCompositeEncounterInput(text: string): CompositeEncounterRe
     appliedRollover = true;
   }
 
+  // 6. Infer modality from context
+  const modalityInferred = inferModalityFromContext({
+    title,
+    locationText: trailingLocation,
+    virtualLink: trailingVirtual,
+    userPrompt: text,
+  });
+
   if (contextualRes.requiresConfirmation) {
     return {
       title,
       date: dateIso || '',
       baseDate: dateIso || '',
       time: null,
+      appliedDayRollover: appliedRollover,
       requiresConfirmation: true,
       questionText: contextualRes.questionText,
       quickOptions: contextualRes.options?.map((opt) => ({ label: opt, value: opt })),
+      modality: modalityInferred.modality,
+      locationText: trailingLocation,
+      virtualLink: trailingVirtual,
     };
   }
 
@@ -1409,6 +1442,9 @@ export function parseCompositeEncounterInput(text: string): CompositeEncounterRe
     time: finalTime,
     appliedDayRollover: appliedRollover,
     requiresConfirmation: false,
+    modality: modalityInferred.modality,
+    locationText: trailingLocation,
+    virtualLink: trailingVirtual,
   };
 }
 
