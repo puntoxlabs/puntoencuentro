@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-process.env.MOCK_SYSTEM_TIME = '2026-09-13T15:00:00.000Z'; // 12:00 mediodía en Argentina
-
-
 
 import { test, describe } from 'node:test';
 import React from 'react';
@@ -59,7 +56,12 @@ import { validateEncounterDate, isFuture, formatHumanSchedule } from '../src/lib
 import {
   getArgentinaTodayISO,
   isArgentinaDateTimeInFuture,
+  setTestSystemTime,
+  resetTestSystemTime,
 } from '../src/lib/argentinaDateTime.ts';
+
+// Establecemos reloj determinístico para la suite de tests (12:00 Argentina / 15:00 UTC)
+setTestSystemTime('2026-09-13T15:00:00.000Z');
 import {
   createEmptyEncounterDraft,
   createDefaultInvitationConfig,
@@ -9261,5 +9263,64 @@ describe('Crear con IA - Acciones Compuestas y Modificaciones Granulares', () =>
     // Should delete exactly one
     assert.equal(state.draft.dateOptions?.length, 2);
     assert.ok(state.draft.dateOptions.every(o => o.date === '2026-10-09'), 'Sólo deben quedar opciones del viernes');
+  });
+});
+
+
+describe('Temporal Guard & Deterministic Clock Provider Edge Cases', () => {
+  test('Caso A: ahora = 21:00, "hoy 22:00" -> futuro', () => {
+    try {
+      setTestSystemTime('2026-09-13T21:00:00-03:00');
+      assert.equal(isArgentinaDateTimeInFuture('2026-09-13', '22:00'), true);
+      assert.equal(validateEncounterDate('2026-09-13', '22:00'), null);
+    } finally {
+      setTestSystemTime('2026-09-13T15:00:00.000Z');
+    }
+  });
+
+  test('Caso B: ahora = 22:30, "hoy 22:00" -> pasado', () => {
+    try {
+      setTestSystemTime('2026-09-13T22:30:00-03:00');
+      assert.equal(isArgentinaDateTimeInFuture('2026-09-13', '22:00'), false);
+      assert.equal(validateEncounterDate('2026-09-13', '22:00'), 'La fecha y hora deben ser futuras');
+    } finally {
+      setTestSystemTime('2026-09-13T15:00:00.000Z');
+    }
+  });
+
+  test('Caso C: ahora = 23:50, "mañana 00:10" -> futuro', () => {
+    try {
+      setTestSystemTime('2026-09-13T23:50:00-03:00');
+      assert.equal(isArgentinaDateTimeInFuture('2026-09-14', '00:10'), true);
+      assert.equal(validateEncounterDate('2026-09-14', '00:10'), null);
+    } finally {
+      setTestSystemTime('2026-09-13T15:00:00.000Z');
+    }
+  });
+
+  test('Caso D: 24:00 contextual -> día siguiente 00:00', () => {
+    try {
+      setTestSystemTime('2026-09-13T12:00:00-03:00');
+      const intent = { type: 'relative', value: 'today' } as const;
+      const res = resolveDateIntent(intent);
+      assert.equal(res.date, '2026-09-13');
+      const nextDay = addDaysToIsoDate(res.date, 1);
+      assert.equal(nextDay, '2026-09-14');
+    } finally {
+      setTestSystemTime('2026-09-13T15:00:00.000Z');
+    }
+  });
+
+  test('Caso E: cambio de día / mes -> correcto fin de mes', () => {
+    try {
+      setTestSystemTime('2026-09-30T23:55:00-03:00');
+      const today = getArgentinaTodayISO();
+      assert.equal(today, '2026-09-30');
+      const tomorrow = addDaysToIsoDate(today, 1);
+      assert.equal(tomorrow, '2026-10-01');
+      assert.equal(isArgentinaDateTimeInFuture('2026-10-01', '00:05'), true);
+    } finally {
+      setTestSystemTime('2026-09-13T15:00:00.000Z');
+    }
   });
 });

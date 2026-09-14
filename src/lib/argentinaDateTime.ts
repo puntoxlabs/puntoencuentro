@@ -11,11 +11,37 @@ const argentinaFormatter = new Intl.DateTimeFormat('en-CA', {
   hourCycle: 'h23',
 });
 
+let testSystemTimeGetter: (() => Date) | null = null;
+
+/**
+ * Configure a fixed system time or custom time getter for tests.
+ * Safe for browser runtime (in-memory only, no node process.env dependency).
+ */
+export function setTestSystemTime(dateOrGetter: Date | string | number | (() => Date) | null): void {
+  if (dateOrGetter === null) {
+    testSystemTimeGetter = null;
+    return;
+  }
+  if (typeof dateOrGetter === 'function') {
+    testSystemTimeGetter = dateOrGetter;
+    return;
+  }
+  const fixedDate = new Date(dateOrGetter);
+  testSystemTimeGetter = () => fixedDate;
+}
+
+/**
+ * Reset test system time to normal real-time clock.
+ */
+export function resetTestSystemTime(): void {
+  testSystemTimeGetter = null;
+}
+
 /**
  * Returns current Argentina time parts [year, month, day, hour, minute]
  */
-export function getArgentinaDateTimeParts(): { year: number; month: number; day: number; hour: number; minute: number } {
-  const now = typeof process !== 'undefined' && process.env.MOCK_SYSTEM_TIME ? new Date(process.env.MOCK_SYSTEM_TIME) : new Date();
+export function getArgentinaDateTimeParts(referenceDate?: Date): { year: number; month: number; day: number; hour: number; minute: number } {
+  const now = referenceDate ?? (testSystemTimeGetter ? testSystemTimeGetter() : new Date());
   const parts = argentinaFormatter.formatToParts(now);
   const map: Record<string, string> = {};
   for (const part of parts) {
@@ -40,8 +66,8 @@ export function getArgentinaDateTimeParts(): { year: number; month: number; day:
 /**
  * Returns current Argentina date in YYYY-MM-DD format (useful for `min` attributes)
  */
-export function getArgentinaTodayISO(): string {
-  const parts = getArgentinaDateTimeParts();
+export function getArgentinaTodayISO(referenceDate?: Date): string {
+  const parts = getArgentinaDateTimeParts(referenceDate);
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
 }
@@ -86,11 +112,11 @@ export function compareArgentinaLocalDateTimes(keyA: string, keyB: string): numb
 /**
  * Checks if a given Argentina date/time is strictly in the future compared to now.
  */
-export function isArgentinaDateTimeInFuture(date: string, time: string): boolean {
+export function isArgentinaDateTimeInFuture(date: string, time: string, referenceDate?: Date): boolean {
   if (!isValidDateTime(date, time)) return false;
 
   const targetKey = buildArgentinaLocalKey(date, time);
-  const currentParts = getArgentinaDateTimeParts();
+  const currentParts = getArgentinaDateTimeParts(referenceDate);
 
   const pad = (n: number) => n.toString().padStart(2, '0');
   const currentKey = `${currentParts.year}-${pad(currentParts.month)}-${pad(currentParts.day)}T${pad(currentParts.hour)}:${pad(currentParts.minute)}`;
