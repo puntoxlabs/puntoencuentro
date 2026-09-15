@@ -19,6 +19,16 @@ export function useCreateEncounter() {
   const startFixedEncounter = () => {
     if (authLoading || creatingRef.current) return;
 
+    import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+      qaTelemetryService.trackEvent({
+        event_type: 'session_started',
+        source: 'ui_manual',
+        creation_source: 'manual',
+        initial_route: '/create',
+        status: 'started',
+      });
+    });
+
     if (user) {
       navigate('/create');
       return;

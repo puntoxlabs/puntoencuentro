@@ -26,6 +26,16 @@ export function useStartCoordinationEncounter() {
     if (!DATE_COORDINATION_ENABLED) return;
     if (authLoading) return;
 
+    import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+      qaTelemetryService.trackEvent({
+        event_type: 'session_started',
+        source: 'ui_manual',
+        creation_source: 'manual',
+        initial_route: '/create/coordination',
+        status: 'started',
+      });
+    });
+
     if (isPermanentUser(user)) {
       navigate('/create/coordination');
       return;

@@ -701,6 +701,35 @@ function applyInterpretationResponse(
     lastEscalationReason: null,
     error: null,
   });
+
+  import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+    let turnEventType: 'turn_resolved' | 'clarification_requested' | 'technical_error' | 'provider_fallback' = 'turn_resolved';
+
+    if (response.fallbackUsed) {
+      turnEventType = 'provider_fallback';
+    } else if (!evaluation.isComplete && evaluation.nextQuestion && mergeResult.ambiguities.length > 0) {
+      turnEventType = 'clarification_requested';
+    }
+
+    qaTelemetryService.trackEvent({
+      event_type: turnEventType,
+      source: response.fallbackUsed ? 'llm_mistral' : 'llm_openai',
+      creation_source: 'ai',
+      turn_number: get().turns,
+      operation: mergeResult.operationMetadata.operationType,
+      result: turnEventType === 'clarification_requested' ? 'needs_clarification' : 'success',
+      provider: response.provider || response.primaryProvider || 'openai',
+      fallback_used: response.fallbackUsed ?? false,
+      latency_ms: response.totalLatencyMs || response.primaryLatencyMs,
+      fields_changed: mergeResult.operationMetadata.changedFields?.slice(0, 15) || [],
+      metadata: {
+        ambiguity_type: mergeResult.ambiguities[0]?.field || 'none',
+        resolver: response.model || 'unknown',
+        action_status: 'ok',
+        turn_intent: 'create'
+      }
+    });
+  });
 }
 
 /**

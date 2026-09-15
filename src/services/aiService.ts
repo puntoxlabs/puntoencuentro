@@ -322,60 +322,48 @@ export const aiService = {
 
   /**
    * Minimum-privilege RPC to record AI session initiation.
-   * Fails silently without blocking the user flow if telemetry table/RPC is not yet migrated.
+   * Fails silently without blocking the user flow.
    */
   async startSession(sessionId: string, provider?: string, model?: string): Promise<void> {
-    try {
-      const { error } = await supabase.rpc('registrar_sesion_ai_inicio', {
-        p_session_id: sessionId,
-        p_provider: provider ?? null,
-        p_model: model ?? null,
+    void sessionId; void model;
+    import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+      qaTelemetryService.trackEvent({
+        event_type: 'session_started',
+        source: 'system',
+        creation_source: 'ai',
+        provider: provider,
+        status: 'started',
       });
-
-      if (error) {
-        console.warn('[aiService.startSession] Telemetry warning (non-blocking):', error.message);
-      }
-    } catch (err) {
-      console.warn('[aiService.startSession] Non-blocking telemetry error:', err);
-    }
+    });
   },
 
   /**
    * Minimum-privilege RPC to record AI session completion, fallback, or error.
    */
   async finishSession(params: FinishAiSessionParams): Promise<void> {
-    try {
-      const basePayload: Record<string, any> = {
-        p_session_id: params.sessionId,
-        p_status: params.status,
-        p_encounter_id: params.encounterId ?? null,
-        p_turns: params.turns ?? null,
-        p_input_tokens: params.inputTokens ?? null,
-        p_output_tokens: params.outputTokens ?? null,
-        p_latency_ms: params.latencyMs ?? null,
-        p_elapsed_ms: params.elapsedMs ?? null,
-        p_error_type: params.errorType ?? null,
-        p_provider: params.provider ?? null,
-        p_model: params.model ?? null,
-      };
+    import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+      let eventType: 'encounter_created' | 'session_cancelled' | 'technical_error' | 'turn_resolved' | 'provider_fallback' = 'turn_resolved';
+      if (params.status === 'completed') eventType = 'encounter_created';
+      else if (params.status === 'abandoned') eventType = 'session_cancelled';
+      else if (params.status === 'error') eventType = 'technical_error';
+      else if (params.status === 'fallback_manual') eventType = 'provider_fallback';
 
-      if (params.metadata) {
-        const { error } = await supabase.rpc('registrar_sesion_ai_fin', {
-          ...basePayload,
-          p_metadata: params.metadata,
-        });
-
-        if (!error) return;
-        console.warn('[aiService.finishSession] RPC with p_metadata error, retrying without p_metadata:', error.message);
-      }
-
-      const { error } = await supabase.rpc('registrar_sesion_ai_fin', basePayload);
-      if (error) {
-        console.warn('[aiService.finishSession] Telemetry warning (non-blocking):', error.message);
-      }
-    } catch (err) {
-      console.warn('[aiService.finishSession] Non-blocking telemetry error:', err);
-    }
+      qaTelemetryService.trackEvent({
+        event_type: eventType as any,
+        source: 'system',
+        creation_source: 'ai',
+        status: params.status === 'completed' ? 'completed' : (params.status === 'abandoned' ? 'cancelled' : 'started'),
+        encounter_id: params.encounterId ?? undefined,
+        turn_number: params.turns,
+        latency_ms: params.latencyMs,
+        elapsed_ms: params.elapsedMs,
+        provider: params.provider,
+        fallback_used: params.metadata?.fallbackUsed,
+        metadata: {
+          error_code: params.errorType ?? null,
+        },
+      });
+    });
   },
 };
 

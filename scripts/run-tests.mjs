@@ -20,6 +20,9 @@ try {
 
   await server.ssrLoadModule('./scripts/test-qa-backend.ts');
   console.log('✅ QA backend & security tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-qa-telemetry.ts');
+  console.log('✅ QA Telemetry integration tests (A al S) executed successfully via Vite SSR loader.');
 } catch (err) {
   console.error('❌ Test failed:', err);
   process.exit(1);

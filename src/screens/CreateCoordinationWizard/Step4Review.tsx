@@ -114,6 +114,17 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         createdSuccessfullyRef.current = true;
         resetDraft();
         navigate(`/coordination/${result.encuentro.id}`);
+
+        import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+          qaTelemetryService.trackEvent({
+            event_type: 'encounter_created',
+            source: 'ui_manual',
+            creation_source: 'manual',
+            encounter_id: result.encuentro.id,
+            status: 'completed',
+            date_mode: 'coordination',
+          });
+        });
       } else {
         // Pass through details from RPC if present
         const resultWithDetails = result as { ok: false; error: string; details?: string };
@@ -125,9 +136,29 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         } else {
           setError(getCoordinationCreateErrorMessage(result.error || 'unknown_error'));
         }
+
+        import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+          qaTelemetryService.trackEvent({
+            event_type: 'technical_error',
+            source: 'ui_manual',
+            creation_source: 'manual',
+            status: 'started',
+            metadata: { error_code: result.error || 'unknown_error' }
+          });
+        });
       }
     } catch (error: unknown) {
       console.error('[CreateCoordination] failed', error);
+      setError('Ocurrió un error inesperado al intentar crear el encuentro.');
+      import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+        qaTelemetryService.trackEvent({
+          event_type: 'technical_error',
+          source: 'ui_manual',
+          creation_source: 'manual',
+          status: 'started',
+          metadata: { error_code: 'unexpected_error' }
+        });
+      });
       setRawErrorCode('js_exception');
       setError(getCoordinationCreateErrorMessage('unknown_error'));
     } finally {

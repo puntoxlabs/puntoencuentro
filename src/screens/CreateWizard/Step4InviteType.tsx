@@ -130,9 +130,28 @@ const Step4InviteType: React.FC<Step4Props> = () => {
       } else {
         navigate(`/share/${encuentroId}`, { replace: true });
       }
+
+      import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+        qaTelemetryService.trackEvent({
+          event_type: 'encounter_created',
+          source: 'ui_manual',
+          creation_source: 'manual',
+          encounter_id: encuentroId ?? undefined,
+          status: 'completed',
+        });
+      });
     } catch (error: any) {
       console.error('[CREATE ERROR FULL]', error);
       alert(error?.message || JSON.stringify(error));
+      import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
+        qaTelemetryService.trackEvent({
+          event_type: 'technical_error',
+          source: 'ui_manual',
+          creation_source: 'manual',
+          status: 'started',
+          metadata: { error_code: 'create_failed' }
+        });
+      });
     } finally { setLoading(false); }
   };
 
