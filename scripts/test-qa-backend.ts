@@ -57,7 +57,12 @@ describe('QA Backend & Security Tests (Migration 20260915100000_qa_observability
     const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
     await db.exec(migrationSql);
 
-    // 3. Grant admin role to adminUser
+    // 3. Execute the hotfix migration file
+    const hotfixPath = path.resolve(process.cwd(), 'supabase/migrations/20260915185643_fix_qa_timeline_sensitive_fields.sql');
+    const hotfixSql = fs.readFileSync(hotfixPath, 'utf-8');
+    await db.exec(hotfixSql);
+
+    // 4. Grant admin role to adminUser
     await db.exec(`
       INSERT INTO public.qa_authorized_users (user_id, role)
       VALUES ('${adminUser}', 'admin')
@@ -820,6 +825,46 @@ describe('QA Backend & Security Tests (Migration 20260915100000_qa_observability
 
       const eventsAfter = await db.query(`SELECT COUNT(*) AS c FROM public.creation_session_events WHERE session_id = '${sessId}';`);
       assert.equal((eventsAfter.rows[0] as any).c, 0);
+    });
+
+    test('F. Timeline and Sessions DO NOT expose client_token_hash or unexpected columns', async () => {
+      const sessId = '10101010-1010-1010-1010-101010101010';
+      await setAuth(normalUser);
+
+      // Init session
+      await db.query(`
+        SELECT public.registrar_evento_creacion(
+          p_session_id => '${sessId}'::UUID,
+          p_event_type => 'session_started',
+          p_source => 'system',
+          p_creation_source => 'ai',
+          p_initial_route => '/create/ai'
+        );
+      `);
+
+      // Mock a fake sensitive column temporarily
+      await db.query(`ALTER TABLE public.creation_sessions ADD COLUMN IF NOT EXISTS _test_secret_password TEXT DEFAULT 'my_secret';`);
+
+      await setAuth(adminUser);
+
+      // 1. Test get_qa_session_timeline
+      const tlRes = await db.query(`SELECT public.get_qa_session_timeline('${sessId}'::UUID) AS tl;`);
+      const tl = (tlRes.rows[0] as any).tl;
+      assert.ok(tl.session);
+      assert.equal(tl.session.client_token_hash, undefined, 'Timeline MUST NOT expose client_token_hash');
+      assert.equal(tl.session._test_secret_password, undefined, 'Timeline MUST NOT expose unapproved columns');
+      
+      // 2. Test get_qa_sessions
+      const sRes = await db.query(`SELECT public.get_qa_sessions(1) AS sl;`);
+      const sl = (sRes.rows[0] as any).sl.sessions;
+      const sessObj = sl.find((s: any) => s.id === sessId);
+      assert.ok(sessObj);
+      assert.equal(sessObj.client_token_hash, undefined, 'Sessions list MUST NOT expose client_token_hash');
+      assert.equal(sessObj._test_secret_password, undefined, 'Sessions list MUST NOT expose unapproved columns');
+
+      // Cleanup
+      await db.query(`ALTER TABLE public.creation_sessions DROP COLUMN _test_secret_password;`);
+      await db.query(`DELETE FROM public.creation_sessions WHERE id = '${sessId}';`);
     });
   });
 });
