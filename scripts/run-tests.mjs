@@ -17,6 +17,9 @@ try {
 
   await server.ssrLoadModule('./scripts/test-postgres-concurrency.ts');
   console.log('✅ PostgreSQL durable rate-limit & concurrency tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-qa-backend.ts');
+  console.log('✅ QA backend & security tests executed successfully via Vite SSR loader.');
 } catch (err) {
   console.error('❌ Test failed:', err);
   process.exit(1);
