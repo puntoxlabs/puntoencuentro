@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useHiddenDiscovery } from '@/hooks/useHiddenDiscovery';
 import './AppBar.css';
 
 interface AppBarProps {
@@ -13,6 +14,7 @@ interface AppBarProps {
 
 export const AppBar: React.FC<AppBarProps> = ({ title, subtitle, showBack = false, onBack, rightAction }) => {
   const navigate = useNavigate();
+  const { handleTap } = useHiddenDiscovery();
 
   const handleBack = () => {
     if (onBack) {
@@ -33,7 +35,7 @@ export const AppBar: React.FC<AppBarProps> = ({ title, subtitle, showBack = fals
       )}
 
       <div className="app-bar-center">
-        <h1 className="app-bar-title">{title}</h1>
+        <h1 className="app-bar-title" onClick={handleTap}>{title}</h1>
         {subtitle && <p className="app-bar-subtitle">{subtitle}</p>}
       </div>
 

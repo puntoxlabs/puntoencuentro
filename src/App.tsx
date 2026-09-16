@@ -51,6 +51,11 @@ const CoordinationFeatureGate: React.FC<{ children: React.ReactNode }> = ({ chil
   return <>{children}</>;
 };
 
+import InternalQAOverview from '@/screens/InternalQA/index';
+import QASessions from '@/screens/InternalQA/QASessions';
+import QASessionDetail from '@/screens/InternalQA/QASessionDetail';
+import { QAGate } from '@/components/qa/QAGate';
+
 const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
@@ -77,6 +82,9 @@ const AppRoutes: React.FC = () => {
         </CoordinationFeatureGate>
       } />
       <Route path="/cancel-summary/:id" element={<CancelSummary />} />
+      <Route path="/internal/qa" element={<QAGate><InternalQAOverview /></QAGate>} />
+      <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />
+      <Route path="/internal/qa/sessions/:sessionId" element={<QAGate><QASessionDetail /></QAGate>} />
     </Routes>
   );
 };

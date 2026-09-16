@@ -23,6 +23,9 @@ try {
 
   await server.ssrLoadModule('./scripts/test-qa-telemetry.ts');
   console.log('✅ QA Telemetry integration tests (A al S) executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-qa-frontend.ts');
+  console.log('✅ QA Frontend (Etapa C) behavioral tests executed successfully via Vite SSR loader.');
 } catch (err) {
   console.error('❌ Test failed:', err);
   process.exit(1);

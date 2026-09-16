@@ -33,8 +33,7 @@ import { DATE_COORDINATION_ENABLED } from '@/config/features';
 import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceSheet';
 import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
 import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
-
-
+import { useHiddenDiscovery } from '@/hooks/useHiddenDiscovery';
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -256,6 +255,7 @@ const Home: React.FC = () => {
   const storeState = useHomeStore.getState();
   const staleOrganized = storeState.encuentros;
   const staleParticipated = storeState.participatedEncuentros;
+  const { handleTap } = useHiddenDiscovery();
 
   // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
   const [loading, setLoading] = useState(
@@ -657,7 +657,7 @@ const Home: React.FC = () => {
     <ScreenContainer style={{ background: 'var(--color-background)' }}>
       <header className="home-header">
         <div>
-          <h1 className="home-header-title">
+          <h1 className="home-header-title" onClick={handleTap}>
             Tus encuentros
           </h1>
           <p className="home-header-subtitle">
