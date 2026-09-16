@@ -6,6 +6,9 @@ const server = await createServer({
 });
 
 try {
+  await server.ssrLoadModule('./scripts/setup-telemetry-mock.ts');
+  console.log('✅ Telemetry isolation layer loaded successfully.');
+
   await server.ssrLoadModule('./scripts/test-domain.ts');
   console.log('✅ Domain tests executed successfully via Vite SSR loader.');
 
@@ -26,6 +29,11 @@ try {
 
   await server.ssrLoadModule('./scripts/test-qa-frontend.ts');
   console.log('✅ QA Frontend (Etapa C) behavioral tests executed successfully via Vite SSR loader.');
+
+  console.log('\n--- QA TELEMETRY MOCK REPORT ---');
+  console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
+  console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);
+  console.log('--------------------------------\n');
 } catch (err) {
   console.error('❌ Test failed:', err);
   process.exit(1);

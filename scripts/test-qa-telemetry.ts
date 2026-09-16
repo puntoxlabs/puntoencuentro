@@ -293,4 +293,39 @@ describe('QA Telemetry Behavioral Tests', () => {
 
     assert.equal(callCount, 1, 'Should NOT retry on 4xx errors');
   });
+
+  test('Aislamiento RPC: código productivo de telemetría es interceptado y no toca red', async () => {
+    // Restauramos el RPC al estado del test harness (nuestro mock global)
+    const currentMock = supabase.rpc;
+    supabase.rpc = originalRpc;
+
+    // Anotamos el contador antes
+    const interceptCountBefore = (globalThis as any).__QA_TELEMETRY_INTERCEPTED_CALLS || 0;
+
+    // Llamada REAL al código productivo
+    qaTelemetryService.trackEvent({ event_type: 'session_started', source: 'ui_manual' });
+    await sleep(50); // Dar tiempo a la ejecución asíncrona
+
+    const interceptCountAfter = (globalThis as any).__QA_TELEMETRY_INTERCEPTED_CALLS || 0;
+
+    assert.ok(interceptCountAfter > interceptCountBefore, 'El mock global debe haber interceptado la llamada productiva');
+
+    // Restauramos el mock del test
+    supabase.rpc = currentMock;
+  });
+
+  test('Defensa en Profundidad: evasión de mock dispara el failsafe de fetch', async () => {
+    // Simulamos que por error el mock fue evadido y se intenta enviar una petición a la URL productiva
+    let fetchFailed = false;
+    try {
+      await fetch('https://aurbicjwftjhwryhyjiq.supabase.co/rest/v1/rpc/registrar_evento_creacion', {
+        method: 'POST',
+      });
+    } catch (e: any) {
+      if (e.message.includes('QA_TELEMETRY_REAL_INVOCATION_BLOCKED')) {
+        fetchFailed = true;
+      }
+    }
+    assert.ok(fetchFailed, 'Si se evade el mock, el interceptor fetch debe abortar con un error duro inmediato');
+  });
 });
