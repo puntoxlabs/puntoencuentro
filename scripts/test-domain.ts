@@ -10748,3 +10748,282 @@ describe('QA Suite: Coordination -> Fixed Semantic Intent (Incident & Generaliza
   });
 });
 
+// ============================================================
+// Regresión — Fix: cláusulas conversacionales en alternativas
+// dateResolver.ts — parseNaturalLanguageDateOptions
+// Hotfix: strip de cola conversacional post-coma
+// ============================================================
+describe('Regresión Fix: cláusula conversacional final en alternativas de coordinación', () => {
+  // Fecha de referencia fija para resultados deterministas
+  const BASE = { year: 2026, month: 9, day: 22 };
+
+  function sortOpts(opts: Array<{ date: string; time: string }>) {
+    return [...opts].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  }
+
+  function assertTwoOpts(
+    sorted: Array<{ date: string; time: string }>,
+    d0: string, t0: string,
+    d1: string, t1: string,
+    label: string
+  ) {
+    assert.equal(sorted[0].date, d0, `${label} opt[0].date`);
+    assert.equal(sorted[0].time, t0, `${label} opt[0].time`);
+    assert.equal(sorted[1].date, d1, `${label} opt[1].date`);
+    assert.equal(sorted[1].time, t1, `${label} opt[1].time`);
+  }
+
+  // Casos que eran FAIL antes del fix
+  test('Fix-A: cláusula "para que cada uno indique cuándo puede" (propongamos)', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero organizar una cena con amigos. Propongamos el 17 de octubre a las 21 o el 18 de octubre a las 20, para que cada uno indique cuándo puede',
+      BASE
+    );
+    assert.equal(res.options.length, 2, 'Debe extraer 2 opciones');
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-A');
+  });
+
+  test('Fix-E: cláusula "para que cada uno indique cuándo puede" (podría ser)', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero organizar una cena con amigos. Podría ser el 17 de octubre a las 21 o el 18 de octubre a las 20, para que cada uno indique cuándo puede',
+      BASE
+    );
+    assert.equal(res.options.length, 2, 'Debe extraer 2 opciones');
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-E');
+  });
+
+  // Casos que ya funcionaban — deben continuar igual (regresión)
+  test('Fix-C: sin cláusula final — regresión', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Cena con amigos. Podría ser el 17 de octubre a las 21 o el 18 de octubre a las 20',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-C');
+  });
+
+  test('Fix-D: sin cláusula final (propongamos sin cola) — regresión', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero organizar una cena con amigos. Propongamos el 17 de octubre a las 21 o el 18 de octubre a las 20',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-D');
+  });
+
+  // Nuevos casos de robustez
+  test('Fix-F: cláusula "así todos pueden elegir qué día les queda mejor"', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero organizar una cena con amigos el 17 de octubre a las 21 o el 18 de octubre a las 20, así todos pueden elegir qué día les queda mejor',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-F');
+  });
+
+  test('Fix-G: cláusula "y después decidimos cuál elegimos"', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Propongamos dos fechas para la reunión: el 17 de octubre a las 21 o el 18 de octubre a las 20, y después decidimos cuál elegimos',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-G');
+  });
+
+  test('Fix-H: cláusula "para ver cuándo puede la mayoría"', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Podemos juntarnos el 17 de octubre a las 21 o el 18 de octubre a las 20, para ver cuándo puede la mayoría',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-H');
+  });
+
+  test('Fix-I: cláusula "y que los invitados voten la opción que prefieran"', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero coordinar una cena el 17 de octubre a las 21 o el 18 de octubre a las 20, y que los invitados voten la opción que prefieran',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '21:00', '2026-10-18', '20:00', 'Fix-I');
+  });
+
+  test('Fix-J: coordinación con ubicación "en mi casa" — no captura texto post-"para"', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero coordinar una cena con amigos en mi casa para el 17 de octubre a las 20 o el 18 de octubre a las 21',
+      BASE
+    );
+    assert.equal(res.options.length, 2, 'Debe extraer 2 opciones');
+    assertTwoOpts(sortOpts(res.options), '2026-10-17', '20:00', '2026-10-18', '21:00', 'Fix-J');
+    assert.ok(
+      res.extractedLocation && res.extractedLocation.toLowerCase().includes('mi casa'),
+      `Debe extraer ubicación "mi casa", obtuvo: "${res.extractedLocation}"`
+    );
+  });
+
+  // Regresiones adicionales obligatorias
+  test('Regresión: fecha fija — no debe ser candidato de coordinación', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Quiero organizar una cena el 17 de octubre a las 21',
+      BASE
+    );
+    assert.equal(res.isCoordinationCandidate, false, 'Fecha única no debe ser candidato');
+    assert.equal(res.options.length, 0);
+  });
+
+  test('Regresión: días relativos como alternativas (mañana / pasado mañana)', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Cena mañana a las 20 o pasado mañana a las 21',
+      BASE
+    );
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].time, '21:00');
+    assert.notEqual(res.options[0].date, res.options[1].date, 'Fechas distintas');
+  });
+
+  test('Regresión: misma fecha, distintos horarios — retorna 2 opciones concretas en la misma fecha', () => {
+    const res = parseNaturalLanguageDateOptions(
+      'Cena el 17 de octubre a las 20 o a las 21',
+      BASE
+    );
+    assert.equal(res.options.length, 2, 'Debe resolver exactamente 2 opciones');
+    assert.equal(res.options[0].date, '2026-10-17');
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].date, '2026-10-17');
+    assert.equal(res.options[1].time, '21:00');
+  });
+
+  // ============================================================
+  // Gate: Validación de Ubicaciones (Casos 1.A al 1.F)
+  // ============================================================
+  test('Gate Ubicación 1.A: "en mi casa" fecha fija', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una cena en mi casa el 17 de octubre a las 21', BASE);
+    assert.equal(res.extractedLocation, 'mi casa');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, false);
+  });
+
+  test('Gate Ubicación 1.B: "en el club" fecha fija', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una cena en el club el 17 de octubre a las 21', BASE);
+    assert.equal(res.extractedLocation, 'el club');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, false);
+  });
+
+  test('Gate Ubicación 1.C: "en la plaza" fecha fija', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos un encuentro en la plaza el 17 de octubre a las 18', BASE);
+    assert.equal(res.extractedLocation, 'la plaza');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, false);
+  });
+
+  test('Gate Ubicación 1.D: "en Los Troncos" fecha fija', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una reunión en Los Troncos el 17 de octubre a las 20', BASE);
+    assert.equal(res.extractedLocation, 'Los Troncos');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, false);
+  });
+
+  test('Gate Ubicación 1.E: "en el salón de fiestas" fecha fija', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una fiesta en el salón de fiestas el 17 de octubre a las 21', BASE);
+    assert.equal(res.extractedLocation, 'el salón de fiestas');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, false);
+  });
+
+  test('Gate Ubicación 1.F: "en mi casa" en coordinación multi-fecha', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una reunión en mi casa para el 17 de octubre a las 20 o el 18 de octubre a las 21', BASE);
+    assert.equal(res.extractedLocation, 'mi casa');
+    assert.equal(res.extractedModality, 'presencial');
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].date, '2026-10-17');
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].date, '2026-10-18');
+    assert.equal(res.options[1].time, '21:00');
+  });
+
+  // ============================================================
+  // Gate: Validación de Alternativas Temporales (Casos 2.A al 2.E)
+  // ============================================================
+  test('Gate Alternativa 2.A: dos opciones distintas con cláusula final ("para que cada uno indique cuándo puede")', () => {
+    const res = parseNaturalLanguageDateOptions('Propongamos el 17 de octubre a las 21 o el 18 de octubre a las 20, para que cada uno indique cuándo puede', BASE);
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].date, '2026-10-17');
+    assert.equal(res.options[0].time, '21:00');
+    assert.equal(res.options[1].date, '2026-10-18');
+    assert.equal(res.options[1].time, '20:00');
+    assert.equal(res.hasExplicitCoordinationIntent, true);
+  });
+
+  test('Gate Alternativa 2.B: dos opciones distintas con cláusula "y después decidimos"', () => {
+    const res = parseNaturalLanguageDateOptions('Podría ser el 17 de octubre a las 21 o el 18 de octubre a las 20, y después decidimos', BASE);
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.equal(res.options[0].date, '2026-10-17');
+    assert.equal(res.options[0].time, '21:00');
+    assert.equal(res.options[1].date, '2026-10-18');
+    assert.equal(res.options[1].time, '20:00');
+    assert.equal(res.hasExplicitCoordinationIntent, true);
+  });
+
+  test('Gate Alternativa 2.C: fecha fija, sin coordinación accidental', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una cena el 17 de octubre a las 21', BASE);
+    assert.equal(res.isCoordinationCandidate, false);
+    assert.equal(res.options.length, 0);
+  });
+
+  test('Gate Alternativa 2.D: dos fechas consecutivas ("mañana a las 20 o pasado mañana a las 21")', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una cena mañana a las 20 o pasado mañana a las 21', BASE);
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2);
+    assert.notEqual(res.options[0].date, res.options[1].date);
+  });
+
+  test('Gate Alternativa 2.E: dos alternativas horarias para la misma fecha (sin quedar en pendingTimeOptions)', () => {
+    const res = parseNaturalLanguageDateOptions('Organicemos una cena el 17 de octubre a las 20 o a las 21', BASE);
+    assert.equal(res.isCoordinationCandidate, true);
+    assert.equal(res.options.length, 2, 'Debe generar 2 opciones resueltas, no quedar solo en pendingTimeOptions');
+    assert.equal(res.options[0].date, '2026-10-17');
+    assert.equal(res.options[0].time, '20:00');
+    assert.equal(res.options[1].date, '2026-10-17');
+    assert.equal(res.options[1].time, '21:00');
+  });
+
+  // ============================================================
+  // Gate: Integración TC-03 en Flujo Completo useAiWizardStore
+  // ============================================================
+  test('Gate Integración TC-03: flujo completo de useAiWizardStore aplica coordinación directamente', async () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.getState().initSession();
+
+    const tc03Text = 'Quiero organizar una cena con amigos. Propongamos el 17 de octubre a las 21 o el 18 de octubre a las 20, para que cada uno indique cuándo puede';
+    await useAiWizardStore.getState().sendUserMessage(tc03Text);
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.title, 'Cena');
+    assert.equal(state.draft.dateMode, 'coordination');
+    assert.equal(state.draft.date, null);
+    assert.equal(state.draft.time, null);
+    assert.equal(state.draft.dateOptions?.length, 2);
+    assert.equal(state.draft.dateOptions?.[0].date, '2026-10-17');
+    assert.equal(state.draft.dateOptions?.[0].time, '21:00');
+    assert.equal(state.draft.dateOptions?.[1].date, '2026-10-18');
+    assert.equal(state.draft.dateOptions?.[1].time, '20:00');
+    assert.equal(state.coordinationDetected, true);
+    assert.equal(state.coordinationPendingConfirm, false);
+    // No hace preguntas redundantes sobre la fecha o si quiere coordinar
+    assert.notEqual(state.lastQuestion?.field, 'coordination_confirm');
+    assert.notEqual(state.lastQuestion?.field, 'date');
+    assert.equal(state.lastQuestion?.field, 'modality');
+  });
+
+  test('Gate Seguridad: frase "después decidimos" con una sola fecha NO activa coordinación', () => {
+    const res = parseNaturalLanguageDateOptions('Cena el 17 de octubre a las 21, y después decidimos el lugar', BASE);
+    assert.equal(res.isCoordinationCandidate, false, 'No debe ser candidato si hay una sola fecha');
+    assert.equal(res.options.length, 0);
+  });
+});
+

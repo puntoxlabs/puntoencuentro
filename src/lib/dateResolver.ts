@@ -1577,7 +1577,7 @@ export function parseNaturalLanguageDateOptions(
 
   // 1. Check explicit coordination intent keywords
   const explicitRegex =
-    /\b(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:puedan\s+)?(?:elegir|elijan|votar|voten)|(?:elegir|elijan|votar|voten)\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|a\s+votaci[oó]n|opciones\s+para\s+votar|para\s+coordinar)\b/i;
+    /\b(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|(?:elegir|elijan|votar|voten)\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|a\s+votaci[oó]n|opciones\s+para\s+votar|para\s+coordinar|(?:as[íi]\s+|para\s+que\s+|que\s+)(?:cada\s+uno|todos|los\s+invitados)\s+(?:pued[ae]n\s+)?(?:indique[n]?|indicar|diga[n]?|decir|elija[n]?|elegir|vote[n]?|votar)|indique[n]?\s+(?:cu[aá]ndo|cu[aá]l)|(?:para\s+)?ver\s+cu[aá]ndo\s+puede|despu[eé]s\s+decid(?:imos|ir))\b/i;
   result.hasExplicitCoordinationIntent = explicitRegex.test(clean);
 
   // 2. Check duration
@@ -1617,7 +1617,9 @@ export function parseNaturalLanguageDateOptions(
   }
 
   // 4. Extract common location
-  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s+(?:o|u|durante|por|con|\.)|\s*$)/i);
+  // NOTE: use \b before the disjunctive 'o'/'u' to avoid matching the 'o' inside month names like "octubre".
+  // Also stop at a comma or the word "para/el/la..." to prevent consuming date text after the location.
+  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s*,|\s+(?:para\b|el\b|la\b|los\b|las\b|\bo\b|\bu\b|durante|por|con|\.)|\s*$)/i);
   if (locMatch) {
     const locCandidate = locMatch[1].trim();
     if (!/^(?:el|la|los|las|un|una|este|esta|otro|otra)$/i.test(locCandidate)) {
@@ -1681,6 +1683,17 @@ export function parseNaturalLanguageDateOptions(
   for (const seg of rawSegments) {
     let cleanSeg = seg.trim();
 
+    // Strip trailing conversational clauses that appear after a comma and contain no
+    // date/time tokens. Examples: ", para que cada uno indique cuándo puede",
+    // ", así todos pueden elegir", ", y después decidimos cuál elegimos".
+    // A date/time token is: a weekday name, a digit-day (el 17), a month name,
+    // "las" / "hs" / "horas", or a bare HH:MM pattern.
+    cleanSeg = cleanSeg.replace(
+      /,\s+(?![^,]*(?:\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b|\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b|\bel\s+\d|\b\d{1,2}:\d{2}\b|\ba\s+las?\s+\d|\blas?\s+\d|\b\d{1,2}\s*(?:hs|horas)\b)).+$/i,
+      ''
+    ).trim();
+
+    // Strip trailing location suffix (e.g. "en mi casa") that may remain after the split
     cleanSeg = cleanSeg.replace(/\ben\s+[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+$/i, '').trim();
 
     let segTime: string | null = null;
@@ -1775,6 +1788,15 @@ export function parseNaturalLanguageDateOptions(
     }
 
     cleanSeg = cleanSeg.replace(/\b(?:horas|hs|de\s+la\s+noche|de\s+la\s+tarde|de\s+la\s+mañana)\b/gi, '').trim();
+
+    // Strip leading conversational prefix before the first temporal token.
+    // After the time is stripped, cleanSeg should start at the date token (e.g. "el 17 de octubre").
+    // Residual text like "con amigos. podría ser el 17 de octubre" must be trimmed to "el 17 de octubre"
+    // so that parseDeterministicDateIntent can find the date.
+    cleanSeg = cleanSeg.replace(
+      /^(?:.*?)(?=\b(?:el\s+\d|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[ñn]ana|pasado\s+ma[ñn]ana|pr[oó]ximo\s+|esta\s+semana|este\s+|el\s+pr[oó]ximo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|\d{1,2}\s*\/\s*\d{1,2}|ayer\b))/i,
+      ''
+    ).trim();
 
     let segDate: string | null = null;
     let isPast = false;
