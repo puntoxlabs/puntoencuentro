@@ -20,9 +20,10 @@ export const ENCOUNTER_DRAFT_PATCH_SCHEMA = {
       type: "object",
       properties: {
         value: { type: "string" },
+        action: { type: "string", enum: ["set", "clear"] },
         confidence: { type: "string", enum: ["explicit", "inferred_high", "inferred_low", "ambiguous"] }
       },
-      required: ["value", "confidence"],
+      required: ["value", "action", "confidence"],
       additionalProperties: false
     },
     dateIntent: {
@@ -320,6 +321,15 @@ export function validatePatchOutput(data: unknown): { valid: boolean; error?: st
     if (!validConfidences.includes(String(fieldRecord.confidence))) {
       return { valid: false, error: `Invalid confidence in ${key}: ${fieldRecord.confidence}` };
     }
+
+    if (key === 'description') {
+      if (typeof fieldRecord.value !== 'string') {
+        return { valid: false, error: 'Property description.value must be a string' };
+      }
+      if (fieldRecord.action !== undefined && !['set', 'clear'].includes(String(fieldRecord.action))) {
+        return { valid: false, error: 'Property description.action must be "set" or "clear"' };
+      }
+    }
   }
 
   return { valid: true };
@@ -508,7 +518,8 @@ export function cleanNullProperties<T = unknown>(obj: T): T {
       value !== null &&
       !Array.isArray(value) &&
       'value' in (value as Record<string, unknown>) &&
-      isSentinelValue((value as Record<string, unknown>).value)
+      isSentinelValue((value as Record<string, unknown>).value) &&
+      (value as Record<string, unknown>).action !== 'clear'
     ) {
       continue;
     }

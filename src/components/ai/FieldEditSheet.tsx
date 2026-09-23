@@ -40,6 +40,7 @@ export interface FieldEditSheetProps {
   onSaveTitle: (title: string) => void;
   onSaveLocation: (modality: 'presencial' | 'virtual', value: string) => void;
   onSaveTheme: (theme: InvitationTheme, templateId?: string) => void;
+  onSaveDescription: (description: string | null) => void;
 }
 
 export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
@@ -57,6 +58,7 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
   onSaveTitle,
   onSaveLocation,
   onSaveTheme,
+  onSaveDescription,
 }) => {
   const localToday = getArgentinaTodayISO();
   const { i18n } = useTranslation();
@@ -78,6 +80,7 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
   const [locationBuffer, setLocationBuffer] = useState<string>('');
   const [themeBuffer, setThemeBuffer] = useState<InvitationTheme>('classic');
   const [templateBuffer, setTemplateBuffer] = useState<string>('');
+  const [descriptionBuffer, setDescriptionBuffer] = useState<string>('');
 
   // UI / Error state
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +88,7 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Re-sync buffers when sheet opens or field changes
   useEffect(() => {
@@ -134,6 +138,11 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
       setThemeBuffer(currentTheme);
       setTemplateBuffer(currentTemp);
       snapshot = { themeBuffer: currentTheme, templateBuffer: currentTemp };
+    } else if (field === 'description') {
+      const initDesc = draft.description || '';
+      setDescriptionBuffer(initDesc);
+      snapshot = { descriptionBuffer: initDesc };
+      setTimeout(() => descriptionInputRef.current?.focus(), 150);
     }
     
     setInitialSnapshot(snapshot);
@@ -146,8 +155,9 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
     if (field === 'title') return titleBuffer !== initialSnapshot.titleBuffer;
     if (field === 'location') return modalityBuffer !== initialSnapshot.modalityBuffer || locationBuffer !== initialSnapshot.locationBuffer;
     if (field === 'theme') return themeBuffer !== initialSnapshot.themeBuffer || templateBuffer !== initialSnapshot.templateBuffer;
+    if (field === 'description') return descriptionBuffer !== initialSnapshot.descriptionBuffer;
     return false;
-  }, [isOpen, field, dateOptionsBuffer, fixedDate, fixedTime, titleBuffer, modalityBuffer, locationBuffer, themeBuffer, templateBuffer, initialSnapshot]);
+  }, [isOpen, field, dateOptionsBuffer, fixedDate, fixedTime, titleBuffer, modalityBuffer, locationBuffer, themeBuffer, templateBuffer, descriptionBuffer, initialSnapshot]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -352,6 +362,22 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
   const handleSaveThemeClick = () => {
     setError(null);
     onSaveTheme(themeBuffer, templateBuffer);
+    onClose();
+  };
+
+  // --------------------------------------------------------------------------
+  // Actions: description
+  // --------------------------------------------------------------------------
+  const handleSaveDescriptionClick = () => {
+    setError(null);
+    const clean = descriptionBuffer.trim();
+    onSaveDescription(clean.length > 0 ? clean : null);
+    onClose();
+  };
+
+  const handleRemoveDescriptionClick = () => {
+    setError(null);
+    onSaveDescription(null);
     onClose();
   };
 
@@ -832,6 +858,68 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
               </div>
             </div>
           )}
+
+          {/* ================================================================ */}
+          {/* FIELD: description                                               */}
+          {/* ================================================================ */}
+          {field === 'description' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="input-group" style={{ margin: 0 }}>
+                <label className="input-label" htmlFor="description-textarea">
+                  Mensaje personalizado
+                </label>
+                <textarea
+                  id="description-textarea"
+                  ref={descriptionInputRef}
+                  value={descriptionBuffer}
+                  onChange={(e) => {
+                    setDescriptionBuffer(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Escribí un mensaje personalizado para tus invitados..."
+                  aria-label="Mensaje para los invitados"
+                  data-testid="description-textarea"
+                  rows={5}
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '15px',
+                    fontFamily: 'inherit',
+                    color: '#0f172a',
+                    background: '#ffffff',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                    lineHeight: '1.5',
+                  }}
+                />
+              </div>
+
+              {(draft.description || descriptionBuffer.trim().length > 0) && (
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    data-testid="remove-description-button"
+                    onClick={handleRemoveDescriptionClick}
+                    style={{
+                      color: '#dc2626',
+                      minHeight: 44,
+                      padding: '8px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    <span>Quitar mensaje</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}
@@ -846,7 +934,7 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
           <Button
             variant="outline"
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             style={{ minHeight: 44 }}
           >
             Cancelar
@@ -861,6 +949,7 @@ export const FieldEditSheet: React.FC<FieldEditSheetProps> = ({
               else if (field === 'title') handleSaveTitleClick();
               else if (field === 'location') handleSaveLocationClick();
               else if (field === 'theme') handleSaveThemeClick();
+              else if (field === 'description') handleSaveDescriptionClick();
             }}
             style={{ minHeight: 44 }}
           >

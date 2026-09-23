@@ -218,7 +218,7 @@ export function buildAssistantReplyFromMergeResult(
   prevConfig: InvitationConfig,
   wasAlreadyComplete: boolean,
   evaluation: { isComplete: boolean; nextQuestion?: FieldQuestion | null },
-  patchHint?: { themeHint?: { value?: string }; modality?: { value?: string } } | null
+  patchHint?: { themeHint?: { value?: string }; modality?: { value?: string }; description?: { value?: string } } | null
 ): string {
   const opMeta = mergeResult.operationMetadata;
   const opType = opMeta.operationType;
@@ -273,7 +273,9 @@ export function buildAssistantReplyFromMergeResult(
     const modalitySuffix = mergeResult.draft.modality === 'virtual' ? ' (virtual)' : '';
     const locSuffix = mergeResult.draft.locationText ? ` en ${mergeResult.draft.locationText}` : '';
 
-    if (mergeResult.draft.dateMode === 'coordination' && mergeResult.draft.dateOptions && mergeResult.draft.dateOptions.length > 0) {
+    if (!mergeResult.draft.title && !mergeResult.draft.date && (!mergeResult.draft.dateOptions || mergeResult.draft.dateOptions.length === 0) && mergeResult.draft.description) {
+      assistantReply = 'Preparé el mensaje para tus invitados. Podés revisarlo antes de crear el encuentro.';
+    } else if (mergeResult.draft.dateMode === 'coordination' && mergeResult.draft.dateOptions && mergeResult.draft.dateOptions.length > 0) {
       assistantReply = `Perfecto. Armé ${title} con ${mergeResult.draft.dateOptions.length} opciones de fecha para coordinar${modalitySuffix}${locSuffix}.`;
     } else {
       const schedule = formatHumanSchedule(mergeResult.draft.date, mergeResult.draft.time);
@@ -330,6 +332,8 @@ export function buildAssistantReplyFromMergeResult(
       assistantReply = `Anoté el título ${mergeResult.draft.title}.`;
     } else if (opMeta.primaryField === 'modality') {
       assistantReply = `Anoté la modalidad ${mergeResult.draft.modality}.`;
+    } else if (opMeta.primaryField === 'description' || (!prevDraft.description && mergeResult.draft.description)) {
+      assistantReply = 'Preparé el mensaje para tus invitados. Podés revisarlo antes de crear el encuentro.';
     } else {
       assistantReply = `Anoté el dato.`;
     }
@@ -389,6 +393,11 @@ export function buildAssistantReplyFromMergeResult(
       patchHint.modality.value === mergeResult.draft.modality
     ) {
       assistantReply = `Ya está configurado como encuentro ${mergeResult.draft.modality}.`;
+    } else if (
+      patchHint?.description?.value &&
+      patchHint.description.value === mergeResult.draft.description
+    ) {
+      assistantReply = 'Ese ya es el mensaje configurado para el encuentro.';
     } else if (wasAlreadyComplete) {
       assistantReply =
         'No encontré un cambio nuevo para aplicar en el encuentro. Podés indicarme fecha, hora, lugar, modalidad o tema.';
@@ -406,6 +415,7 @@ export function buildAssistantReplyFromMergeResult(
     const locationChanged = prevDraft.locationText !== mergeResult.draft.locationText;
     const virtualLinkChanged = prevDraft.virtualLink !== mergeResult.draft.virtualLink;
     const titleChanged = prevDraft.title !== mergeResult.draft.title;
+    const descriptionChanged = prevDraft.description !== mergeResult.draft.description;
 
     const appliedMessages: string[] = [];
     if (themeChanged) {
@@ -447,9 +457,24 @@ export function buildAssistantReplyFromMergeResult(
     if (titleChanged) {
       appliedMessages.push(`el título a ${mergeResult.draft.title}`);
     }
+    if (descriptionChanged) {
+      if (mergeResult.draft.description) {
+        appliedMessages.push(prevDraft.description ? 'el mensaje para los invitados' : 'el mensaje para los invitados');
+      } else {
+        appliedMessages.push('quité el mensaje personalizado');
+      }
+    }
 
     if (appliedMessages.length > 0) {
-      if (appliedMessages.length === 1) {
+      if (appliedMessages.length === 1 && descriptionChanged) {
+        if (!prevDraft.description && mergeResult.draft.description) {
+          assistantReply = 'Preparé el mensaje para tus invitados. Podés revisarlo antes de crear el encuentro.';
+        } else if (prevDraft.description && mergeResult.draft.description) {
+          assistantReply = 'Listo, actualicé el mensaje para tus invitados.';
+        } else {
+          assistantReply = 'Listo, quité el mensaje personalizado.';
+        }
+      } else if (appliedMessages.length === 1) {
         assistantReply = `Listo, cambié ${appliedMessages[0]}.`;
       } else {
         const last = appliedMessages.pop();
@@ -2861,6 +2886,22 @@ export const useAiWizardStore = create<AiWizardState>()(
               invitationTheme: op.theme,
               invitationTemplate: op.templateId || state.config.invitationTemplate,
             },
+          });
+          return;
+        }
+
+        if (op.type === 'set_description') {
+          const newDesc = op.description && op.description.trim() ? op.description.trim() : null;
+          const newDraft: EncounterDraft = {
+            ...state.draft,
+            description: newDesc,
+          };
+          const evaluation = evaluateDraft(newDraft, state.coordinationDetected);
+          set({
+            draft: newDraft,
+            isComplete: evaluation.isComplete,
+            lastQuestion: evaluation.nextQuestion,
+            error: null,
           });
           return;
         }

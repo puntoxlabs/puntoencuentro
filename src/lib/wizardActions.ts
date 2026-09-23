@@ -15,7 +15,8 @@ export type EditableField =
   | 'location'
   | 'fixed_datetime'
   | 'date_options'
-  | 'theme';
+  | 'theme'
+  | 'description';
 
 export interface DateOptionValue {
   date: string; // Formato canónico YYYY-MM-DD
@@ -28,7 +29,8 @@ export type DraftOperation =
   | { type: 'set_fixed_datetime'; date: string; time: string }
   | { type: 'set_date_options'; options: DateOptionValue[] }
   | { type: 'convert_to_fixed'; option?: DateOptionValue }
-  | { type: 'set_theme'; theme: InvitationTheme; templateId?: string };
+  | { type: 'set_theme'; theme: InvitationTheme; templateId?: string }
+  | { type: 'set_description'; description: string | null };
 
 export type WizardAction =
   | { type: 'edit_field'; field: EditableField }
@@ -75,6 +77,12 @@ export const EDITABLE_FIELD_REGISTRY: Record<EditableField, EditableFieldConfig>
     label: 'Tema del encuentro',
     ariaLabel: 'Cambiar tema',
     description: 'Diseño visual y categoría de invitación',
+  },
+  description: {
+    field: 'description',
+    label: 'Mensaje para los invitados',
+    ariaLabel: 'Editar mensaje para los invitados',
+    description: 'Texto personalizado que verán los invitados en la invitación',
   },
 };
 
@@ -130,6 +138,9 @@ export function checkFieldDirty(
   }
   if (field === 'theme') {
     return currentBuffer.themeBuffer !== initialSnapshot.themeBuffer || currentBuffer.templateBuffer !== initialSnapshot.templateBuffer;
+  }
+  if (field === 'description') {
+    return currentBuffer.descriptionBuffer !== initialSnapshot.descriptionBuffer;
   }
   return false;
 }

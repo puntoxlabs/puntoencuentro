@@ -36,7 +36,7 @@ export type MergeOperationType =
 
 export interface MergeOperationMetadata {
   operationType: MergeOperationType;
-  primaryField?: 'title' | 'schedule' | 'location' | 'modality' | 'theme' | 'template' | 'options';
+  primaryField?: 'title' | 'schedule' | 'location' | 'modality' | 'theme' | 'template' | 'options' | 'description';
   changedFields?: string[];
   isDuplicateOption?: boolean;
   addedOption?: { date: string; time: string };
@@ -518,8 +518,12 @@ export function mergeDraftPatch(
   }
 
   // 3. Description
-  if (patch.description?.value && patch.description.value.trim()) {
-    draft.description = patch.description.value.trim();
+  if (patch.description) {
+    if (patch.description.action === 'clear') {
+      draft.description = null;
+    } else if (patch.description.value && patch.description.value.trim()) {
+      draft.description = patch.description.value.trim();
+    }
   }
 
   // 4. Modality, Location & Virtual Link
@@ -1248,65 +1252,71 @@ export function mergeDraftPatch(
         primaryField = 'schedule';
         changedFields.push('schedule');
       }
-    } else {
-      if (draft.title !== currentDraft.title) {
-        changedFields.push('title');
-        if (!currentDraft.title && draft.title) {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
-          if (!primaryField) primaryField = 'title';
-        } else {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
-          if (!primaryField) primaryField = 'title';
-        }
+    }
+
+    if (draft.title !== currentDraft.title) {
+      changedFields.push('title');
+      if (!currentDraft.title && draft.title) {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
+        if (!primaryField) primaryField = 'title';
+      } else {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
+        if (!primaryField) primaryField = 'title';
       }
-      if (draft.locationText !== currentDraft.locationText) {
-        changedFields.push('location');
-        if (!currentDraft.locationText && draft.locationText) {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
-          if (!primaryField) primaryField = 'location';
-        } else {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
-          if (!primaryField) primaryField = 'location';
-        }
+    }
+    if (draft.locationText !== currentDraft.locationText) {
+      changedFields.push('location');
+      if (!currentDraft.locationText && draft.locationText) {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
+        if (!primaryField) primaryField = 'location';
+      } else {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
+        if (!primaryField) primaryField = 'location';
       }
-      if (draft.virtualLink !== currentDraft.virtualLink) {
-        changedFields.push('virtualLink');
-        if (!currentDraft.virtualLink && draft.virtualLink) {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
-          if (!primaryField) primaryField = 'location';
-        } else {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
-          if (!primaryField) primaryField = 'location';
-        }
+    }
+    if (draft.virtualLink !== currentDraft.virtualLink) {
+      changedFields.push('virtualLink');
+      if (!currentDraft.virtualLink && draft.virtualLink) {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
+        if (!primaryField) primaryField = 'location';
+      } else {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
+        if (!primaryField) primaryField = 'location';
       }
-      if (draft.modality !== currentDraft.modality) {
-        changedFields.push('modality');
-        if (!currentDraft.modality && draft.modality) {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
-          if (!primaryField) primaryField = 'modality';
-        } else {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
-          if (!primaryField) primaryField = 'modality';
-        }
+    }
+    if (draft.modality !== currentDraft.modality) {
+      changedFields.push('modality');
+      if (!currentDraft.modality && draft.modality) {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
+        if (!primaryField) primaryField = 'modality';
+      } else {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
+        if (!primaryField) primaryField = 'modality';
       }
-      if (config.invitationTheme !== currentConfig.invitationTheme) {
-        changedFields.push('theme');
-        operationType = 'FIELD_MODIFICATION';
-        if (!primaryField) primaryField = 'theme';
+    }
+    if (config.invitationTheme !== currentConfig.invitationTheme) {
+      changedFields.push('theme');
+      operationType = 'FIELD_MODIFICATION';
+      if (!primaryField) primaryField = 'theme';
+    }
+    if (config.invitationTemplate !== currentConfig.invitationTemplate) {
+      changedFields.push('template');
+      operationType = 'FIELD_MODIFICATION';
+      if (!primaryField) primaryField = 'template';
+    }
+    if (draft.description !== currentDraft.description) {
+      changedFields.push('description');
+      if (!currentDraft.description && draft.description) {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
+        if (!primaryField) primaryField = 'description';
+      } else {
+        if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
+        if (!primaryField) primaryField = 'description';
       }
-      if (config.invitationTemplate !== currentConfig.invitationTemplate) {
-        changedFields.push('template');
-        operationType = 'FIELD_MODIFICATION';
-        if (!primaryField) primaryField = 'template';
-      }
-      if (draft.description !== currentDraft.description) {
-        changedFields.push('description');
-        if (!currentDraft.description && draft.description) {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_COMPLETION';
-        } else {
-          if (operationType === 'NO_CHANGE') operationType = 'FIELD_MODIFICATION';
-        }
-      }
+    }
+
+    if (changedFields.length > 1) {
+      operationType = 'FIELD_MODIFICATION';
     }
   }
 

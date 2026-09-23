@@ -33,6 +33,13 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
 }) => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showInvitationTypeSelector, setShowInvitationTypeSelector] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  const hasDescription = Boolean(draft.description && draft.description.trim().length > 0);
+  const isLongDescription = Boolean(
+    draft.description &&
+    (draft.description.length > 160 || draft.description.split('\n').length > 3)
+  );
 
   const activeThemeConfig = INVITATION_THEMES.find((t) => t.id === config.invitationTheme);
   const themeTemplates = getTemplateOptionsForTheme(config.invitationTheme);
@@ -240,6 +247,150 @@ export const DraftSummary: React.FC<DraftSummaryProps> = ({
           >
             <Edit3 size={16} />
           </button>
+        </div>
+
+        {/* Row: Mensaje para los invitados */}
+        <div
+          data-testid="draft-summary-description-section"
+          style={{
+            paddingTop: '10px',
+            borderTop: '1px solid #e2e8f0',
+          }}
+        >
+          {hasDescription ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      textTransform: 'uppercase',
+                      color: '#64748b',
+                      fontWeight: 600,
+                      display: 'block',
+                    }}
+                  >
+                    Mensaje para los invitados
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-testid="edit-description-button"
+                  onClick={() =>
+                    onAction
+                      ? onAction({ type: 'edit_field', field: 'description' })
+                      : onModify('description')
+                  }
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary, #4f46e5)',
+                    cursor: 'pointer',
+                    padding: '10px',
+                    minWidth: '44px',
+                    minHeight: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  aria-label="Editar mensaje para los invitados"
+                  title="Editar mensaje para los invitados"
+                >
+                  <Edit3 size={16} />
+                </button>
+              </div>
+              <div
+                data-testid="draft-description-text"
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  color: '#334155',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  lineHeight: '1.5',
+                  marginTop: '2px',
+                  ...(isLongDescription && !isDescriptionExpanded
+                    ? {
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }
+                    : {}),
+                }}
+              >
+                {draft.description}
+              </div>
+              {isLongDescription && (
+                <button
+                  type="button"
+                  data-testid="toggle-description-expand-button"
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary, #4f46e5)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '6px 0',
+                    marginTop: '2px',
+                    minHeight: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  aria-label={isDescriptionExpanded ? 'Ver menos del mensaje' : 'Ver más del mensaje'}
+                >
+                  {isDescriptionExpanded ? 'Ver menos' : 'Ver más'}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1, paddingRight: '8px' }}>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    color: '#64748b',
+                    fontWeight: 500,
+                  }}
+                >
+                  Mensaje para los invitados (opcional)
+                </span>
+              </div>
+              <button
+                type="button"
+                data-testid="add-description-button"
+                onClick={() =>
+                  onAction
+                    ? onAction({ type: 'edit_field', field: 'description' })
+                    : onModify('description')
+                }
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary, #4f46e5)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  padding: '10px 12px',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                }}
+                aria-label="Agregar mensaje para los invitados"
+              >
+                + Agregar mensaje
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Row 1: Tema */}

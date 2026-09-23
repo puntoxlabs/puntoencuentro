@@ -120,10 +120,14 @@ export type ActionApplicationResult =
   | { status: 'rejected';              action: EncounterDraftAction; reason: string }
   | { status: 'needs_clarification';   action: EncounterDraftAction; reason: string };
 
+export interface DescriptionField extends InterpretedField<string> {
+  action?: 'set' | 'clear';
+}
+
 export interface EncounterDraftPatch {
   scope?: 'encounter' | 'off_topic' | 'unclear';
   title?: InterpretedField<string>;
-  description?: InterpretedField<string>;
+  description?: DescriptionField;
   dateIntent?: InterpretedField<DateIntent>;
   timeIntent?: InterpretedField<TimeIntent>;
   dateModeSignal?: InterpretedField<'fixed' | 'coordination'>;

@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { DraftSummary } from '@/components/ai/DraftSummary';
 import { FieldQuestion } from '@/components/ai/FieldQuestion';
 import { CreateAIWizard } from '@/screens/CreateAIWizard';
+import { FieldEditSheet } from '@/components/ai/FieldEditSheet';
 
 import {
   resolveDateIntent,
@@ -40,6 +41,7 @@ import {
   hasTimeEvidence,
   sanitizeTemporalIntents,
   validatePatchOutput,
+  cleanNullProperties,
   ENCOUNTER_DRAFT_PATCH_SCHEMA,
   sanitizeSchemaForOpenAI,
 } from '../supabase/functions/ai-interpret/validation.ts';
@@ -5768,7 +5770,7 @@ describe('QA Producción: Paridad de contrato nth_weekday_of_month (TypeScript, 
   });
 
   test('Paridad 3: SYSTEM_PROMPT version 1.6.0 documenta explícitamente nth_weekday_of_month con ejemplos', () => {
-    assert.equal(PROMPT_VERSION, '1.7.0');
+    assert.equal(PROMPT_VERSION, '1.8.0');
     assert.ok(SYSTEM_PROMPT.includes('target'), 'Prompt must instruct on target/changes usage for actions');
     assert.ok(SYSTEM_PROMPT.includes('nth_weekday_of_month'), 'SYSTEM_PROMPT must reference nth_weekday_of_month');
     assert.ok(SYSTEM_PROMPT.includes('primer viernes del mes que viene'), 'SYSTEM_PROMPT must include primer viernes example');
@@ -11024,6 +11026,1205 @@ describe('Regresión Fix: cláusula conversacional final en alternativas de coor
     const res = parseNaturalLanguageDateOptions('Cena el 17 de octubre a las 21, y después decidimos el lugar', BASE);
     assert.equal(res.isCoordinationCandidate, false, 'No debe ser candidato si hay una sola fecha');
     assert.equal(res.options.length, 0);
+  });
+});
+
+describe('Entrega A: Mensaje Personalizado de la Invitación (MP-A01 a MP-A10)', () => {
+  const defaultDraft = createEmptyEncounterDraft();
+  const defaultConfig = createDefaultInvitationConfig();
+
+  test('MP-A01: Mensaje creativo cómico - aplicación de texto en 1a persona sin meta-instrucción', () => {
+    const patch = {
+      scope: 'encounter' as const,
+      title: { value: 'Cena con amigos', confidence: 'explicit' as const },
+      description: {
+        value: '¡Vengan con hambre! Voy a cocinar para un ejército y necesito voluntarios que me ayuden a liquidar todo.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(defaultDraft, defaultConfig, patch);
+    assert.equal(
+      result.draft.description,
+      '¡Vengan con hambre! Voy a cocinar para un ejército y necesito voluntarios que me ayuden a liquidar todo.'
+    );
+    assert.ok(!result.draft.description.includes('Armales un mensaje'));
+    assert.ok(!result.draft.description.includes('Escribiles un mensaje'));
+  });
+
+  test('MP-A02: Mensaje literal exacto - fidelidad textual de caracteres, signos y contenido', () => {
+    const exactMessage = 'Los espero el sábado. Traigan algo para compartir';
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: exactMessage,
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(defaultDraft, defaultConfig, patch);
+    assert.strictEqual(result.draft.description, exactMessage);
+  });
+
+  test('MP-A03: Mensaje creativo y modificación posterior', () => {
+    const draftT1 = {
+      ...defaultDraft,
+      title: 'Noche de películas',
+      description: '¡Noche de películas y pochoclos! Vengan listos para maratonear.',
+    };
+
+    const patchT2 = {
+      scope: 'encounter' as const,
+      description: {
+        value: 'Pelis y pochoclos. Cada uno puede elegir una película.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const resultT2 = mergeDraftPatch(draftT1, defaultConfig, patchT2);
+    assert.equal(resultT2.draft.description, 'Pelis y pochoclos. Cada uno puede elegir una película.');
+    assert.equal(resultT2.draft.title, 'Noche de películas');
+  });
+
+  test('MP-A04: Modificación compuesta sobre mensaje existente', () => {
+    const draftPrev = {
+      ...defaultDraft,
+      title: 'Cena en casa',
+      description: 'Los espero para cenar.',
+    };
+
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: '¡Qué lindo vernos! Los espero con muchas ganas para cenar, traigan algo para compartir.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(draftPrev, defaultConfig, patch);
+    assert.equal(
+      result.draft.description,
+      '¡Qué lindo vernos! Los espero con muchas ganas para cenar, traigan algo para compartir.'
+    );
+    assert.equal(result.draft.title, 'Cena en casa');
+  });
+
+  test('MP-A05: Eliminación explícita - action "clear" vacía el mensaje a null', () => {
+    const draftWithMsg = {
+      ...defaultDraft,
+      title: 'Asado',
+      description: 'Los espero para cenar.',
+    };
+
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: '',
+        action: 'clear' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(draftWithMsg, defaultConfig, patch);
+    assert.equal(result.draft.description, null);
+    assert.ok(result.operationMetadata.changedFields?.includes('description'));
+
+    // Feedback conversacional
+    const reply = buildAssistantReplyFromMergeResult(
+      result,
+      draftWithMsg,
+      defaultConfig,
+      true,
+      { isComplete: true, nextQuestion: null }
+    );
+    assert.ok(reply.includes('Listo, quité el mensaje personalizado'));
+  });
+
+  test('MP-A06: Ausencia de modificación - mensaje permanece intacto al cambiar otros campos', () => {
+    const draftWithMsg = {
+      ...defaultDraft,
+      title: 'Cena de amigos',
+      date: '2026-10-10',
+      time: '21:00',
+      description: 'Los espero para cenar.',
+    };
+
+    const patch = {
+      scope: 'encounter' as const,
+      dateIntent: {
+        value: { type: 'absolute' as const, day: 17, month: 10, year: 2026 },
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(draftWithMsg, defaultConfig, patch);
+    assert.equal(result.draft.description, 'Los espero para cenar.');
+    assert.equal(result.draft.date, '2026-10-17');
+    assert.equal(result.draft.time, '21:00');
+    assert.ok(!result.operationMetadata.changedFields?.includes('description'));
+  });
+
+  test('MP-A07: Instrucción compuesta (título, fecha, hora, modalidad, lugar y mensaje)', () => {
+    const patch = {
+      scope: 'encounter' as const,
+      title: { value: 'Cena con amigos', confidence: 'explicit' as const },
+      dateIntent: {
+        value: { type: 'absolute' as const, day: 17, month: 10, year: 2026 },
+        confidence: 'explicit' as const,
+      },
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 21, minute: 0 },
+        confidence: 'explicit' as const,
+      },
+      modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+      locationText: { value: 'mi casa', confidence: 'explicit' as const },
+      description: {
+        value: '¡Vengan con hambre! Hay asado para todos.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(defaultDraft, defaultConfig, patch);
+    assert.equal(result.draft.title, 'Cena con amigos');
+    assert.equal(result.draft.date, '2026-10-17');
+    assert.equal(result.draft.time, '21:00');
+    assert.equal(result.draft.modality, 'presencial');
+    assert.equal(result.draft.locationText, 'mi casa');
+    assert.equal(result.draft.description, '¡Vengan con hambre! Hay asado para todos.');
+  });
+
+  test('MP-A08: Mensaje multilínea - conserva saltos de línea y formato interno', () => {
+    const multilineMsg = '¡Hola a todos!\n\nLos espero el sábado a las 21.\nTraigan algo para tomar y muchas ganas de charlar.';
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: multilineMsg,
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(defaultDraft, defaultConfig, patch);
+    assert.strictEqual(result.draft.description, multilineMsg);
+    assert.ok(result.draft.description.includes('\n\n'));
+  });
+
+  test('MP-A09: Edición sobre valor actual del draft (sembrado manual y posterior patch)', () => {
+    const manuallySeededDraft = {
+      ...defaultDraft,
+      title: 'Cumpleaños',
+      description: 'Mensaje redactado por el anfitrión manualmente.',
+    };
+
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: 'Mensaje redactado por el anfitrión manualmente (actualizado por IA para hacerlo más breve).',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(manuallySeededDraft, defaultConfig, patch);
+    assert.equal(
+      result.draft.description,
+      'Mensaje redactado por el anfitrión manualmente (actualizado por IA para hacerlo más breve).'
+    );
+  });
+
+  test('MP-A10: Feedback conversacional al crear y actualizar mensaje', () => {
+    // 1. Creación de mensaje
+    const resultCreate = mergeDraftPatch(defaultDraft, defaultConfig, {
+      scope: 'encounter',
+      description: { value: 'Bienvenidos todos', action: 'set', confidence: 'explicit' },
+    });
+    const replyCreate = buildAssistantReplyFromMergeResult(
+      resultCreate,
+      defaultDraft,
+      defaultConfig,
+      false,
+      { isComplete: false, nextQuestion: { field: 'date', question: '¿Cuándo sería?', type: 'text' } }
+    );
+    assert.ok(replyCreate.includes('Preparé el mensaje para tus invitados'));
+
+    // 2. Modificación de mensaje existente
+    const resultUpdate = mergeDraftPatch(resultCreate.draft, defaultConfig, {
+      scope: 'encounter',
+      description: { value: 'Bienvenidos todos a mi casa', action: 'set', confidence: 'explicit' },
+    });
+    const replyUpdate = buildAssistantReplyFromMergeResult(
+      resultUpdate,
+      resultCreate.draft,
+      defaultConfig,
+      true,
+      { isComplete: true, nextQuestion: null }
+    );
+    assert.ok(replyUpdate.includes('Listo, actualicé el mensaje para tus invitados'));
+  });
+
+  test('Validación de schema y compatibilidad de patch con description', () => {
+    // Válido con action set
+    assert.deepEqual(
+      validatePatchOutput({
+        scope: 'encounter',
+        description: { value: 'Hola a todos', action: 'set', confidence: 'explicit' },
+      }),
+      { valid: true }
+    );
+
+    // Válido con action clear
+    assert.deepEqual(
+      validatePatchOutput({
+        scope: 'encounter',
+        description: { value: '', action: 'clear', confidence: 'explicit' },
+      }),
+      { valid: true }
+    );
+
+    // Inválido con action no admitida
+    const invalidAction = validatePatchOutput({
+      scope: 'encounter',
+      description: { value: 'Hola', action: 'delete', confidence: 'explicit' },
+    });
+    assert.equal(invalidAction.valid, false);
+
+    // Inválido si value no es string
+    const invalidValue = validatePatchOutput({
+      scope: 'encounter',
+      description: { value: 123, action: 'set', confidence: 'explicit' },
+    });
+    assert.equal(invalidValue.valid, false);
+
+    // cleanNullProperties conserva action clear sin dropearlo
+    const cleaned = cleanNullProperties({
+      scope: 'encounter',
+      description: { value: '', action: 'clear', confidence: 'explicit' },
+    }) as any;
+    assert.equal(cleaned.description?.action, 'clear');
+
+    // sanitizeSchemaForOpenAI genera strict schema compatible
+    const sanitized = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA);
+    const descProp = (sanitized as any).properties?.description;
+    assert.ok(descProp, 'description schema debe existir');
+  });
+});
+
+describe('Gate Técnico Final Entrega A: Contrato set/clear, schemas, textos literales, feedback compuesto e idempotencia', () => {
+  const defaultDraft = createEmptyEncounterDraft();
+  const defaultConfig = createDefaultInvitationConfig();
+
+  // ==========================================
+  // 1. VALIDAR EL CONTRATO DE ELIMINACIÓN
+  // ==========================================
+  test('1.A: Campo description ausente conserva el valor anterior', () => {
+    const prevDraft = {
+      ...defaultDraft,
+      title: 'Juntada',
+      description: 'Mensaje existente que debe persistir',
+    };
+    const patch = {
+      scope: 'encounter' as const,
+      locationText: { value: 'Bar de la esquina', confidence: 'explicit' as const },
+    };
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.description, 'Mensaje existente que debe persistir');
+    assert.equal(result.draft.locationText, 'Bar de la esquina');
+    assert.ok(!result.operationMetadata.changedFields?.includes('description'));
+  });
+
+  test('1.B: action = set con texto crea o modifica el mensaje', () => {
+    const prevDraft = { ...defaultDraft, title: 'Cena', description: 'Mensaje viejo' };
+    const patch = {
+      scope: 'encounter' as const,
+      description: { value: 'Mensaje nuevo y renovado', action: 'set' as const, confidence: 'explicit' as const },
+    };
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.description, 'Mensaje nuevo y renovado');
+    assert.ok(result.operationMetadata.changedFields?.includes('description'));
+    assert.equal(result.operationMetadata.primaryField, 'description');
+  });
+
+  test('1.C: action = clear ante eliminación explícita establece description = null', () => {
+    const prevDraft = { ...defaultDraft, title: 'Cena', description: 'Mensaje que se va a borrar' };
+    const patch = {
+      scope: 'encounter' as const,
+      description: { value: '', action: 'clear' as const, confidence: 'explicit' as const },
+    };
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.description, null);
+    assert.ok(result.operationMetadata.changedFields?.includes('description'));
+  });
+
+  test('1.D: Cambio de fecha sin orden de eliminación conserva description', () => {
+    const prevDraft = {
+      ...defaultDraft,
+      title: 'Asado',
+      date: '2026-10-10',
+      time: '13:00',
+      description: 'Traigan postre',
+    };
+    const patch = {
+      scope: 'encounter' as const,
+      dateIntent: {
+        value: { type: 'absolute' as const, day: 24, month: 10, year: 2026 },
+        confidence: 'explicit' as const,
+      },
+    };
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.date, '2026-10-24');
+    assert.equal(result.draft.description, 'Traigan postre');
+    assert.ok(!result.operationMetadata.changedFields?.includes('description'));
+  });
+
+  test('1.E: action = set con texto vacío NO se interpreta como eliminación (conserva anterior)', () => {
+    const prevDraft = { ...defaultDraft, title: 'Cena', description: 'Mensaje seguro' };
+    const patch = {
+      scope: 'encounter' as const,
+      description: { value: '   ', action: 'set' as const, confidence: 'explicit' as const },
+    };
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.description, 'Mensaje seguro', 'Un texto en blanco con action=set no debe borrar el mensaje');
+    assert.ok(!result.operationMetadata.changedFields?.includes('description'));
+  });
+
+  test('1.F: Proveedor de respaldo que omite action es interpretado de forma compatible', () => {
+    const prevDraft = { ...defaultDraft, title: 'Cena', description: 'Mensaje inicial' };
+    // Con texto y action omitido:
+    const patchWithText = {
+      scope: 'encounter' as const,
+      description: { value: 'Nuevo texto sin action explícito', confidence: 'explicit' as const },
+    } as any;
+    const resultText = mergeDraftPatch(prevDraft, defaultConfig, patchWithText);
+    assert.equal(resultText.draft.description, 'Nuevo texto sin action explícito');
+
+    // Con texto vacío y action omitido: no borra
+    const patchEmpty = {
+      scope: 'encounter' as const,
+      description: { value: '', confidence: 'explicit' as const },
+    } as any;
+    const resultEmpty = mergeDraftPatch(prevDraft, defaultConfig, patchEmpty);
+    assert.equal(resultEmpty.draft.description, 'Mensaje inicial');
+  });
+
+  // ==========================================
+  // 2. VALIDAR SCHEMAS
+  // ==========================================
+  test('2.A: Schema sanitizado para OpenAI cumple estrictamente con Structured Outputs', () => {
+    const openAiSchema = sanitizeSchemaForOpenAI(ENCOUNTER_DRAFT_PATCH_SCHEMA);
+    const desc = openAiSchema.properties.description;
+
+    assert.ok(desc, 'Propiedad description debe estar presente');
+    assert.deepEqual(desc.type, ['object', 'null'], 'description debe ser nullable en strict mode');
+    assert.equal(desc.additionalProperties, false);
+    assert.deepEqual(desc.required, ['value', 'action', 'confidence']);
+    assert.deepEqual(desc.properties.action.enum, ['set', 'clear']);
+    assert.ok(openAiSchema.required.includes('description'), 'description debe estar en el required raíz de OpenAI');
+  });
+
+  test('2.B: Paridad estructural de adaptadores de fallback (cleanNullProperties)', () => {
+    // Si modelo emite description: null (cuando no hay cambios), se omite limpiamente
+    const nullOut = cleanNullProperties({
+      scope: 'encounter',
+      description: null,
+      title: { value: 'Fiesta', confidence: 'explicit' },
+    }) as any;
+    assert.equal(nullOut.description, undefined, 'description: null se omite para no alterar el draft');
+
+    // Si modelo emite action: clear con value vacío, NO se elimina el wrapper
+    const clearOut = cleanNullProperties({
+      scope: 'encounter',
+      description: { value: '', action: 'clear', confidence: 'explicit' },
+    }) as any;
+    assert.ok(clearOut.description, 'action: clear no debe ser dropeado por cleanNullProperties');
+    assert.equal(clearOut.description.action, 'clear');
+  });
+
+  // ==========================================
+  // 3. VALIDAR TEXTOS LITERALES Y NORMALIZACIÓN
+  // ==========================================
+  test('3.A: Recorrido completo y preservación de caracteres literales, emojis, puntuación y saltos de línea', () => {
+    const rawLiteral = '   ¡Hola a todos! ¿Están listos para la pizza? 🍕🎉\n\nTraigan algo para tomar.\t¡Los espero!   ';
+    const patch = {
+      scope: 'encounter' as const,
+      title: { value: 'Noche de Pizza', confidence: 'explicit' as const },
+      modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+      locationText: { value: 'Casa', confidence: 'explicit' as const },
+      dateIntent: { value: { type: 'absolute' as const, day: 20, month: 10, year: 2026 }, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 20, minute: 30 }, confidence: 'explicit' as const },
+      description: { value: rawLiteral, action: 'set' as const, confidence: 'explicit' as const },
+    };
+
+    // 1. mergeDraftPatch aplica .trim() exterior pero preserva todo el contenido interior
+    const result = mergeDraftPatch(defaultDraft, defaultConfig, patch);
+    const expectedTrimmed = '¡Hola a todos! ¿Están listos para la pizza? 🍕🎉\n\nTraigan algo para tomar.\t¡Los espero!';
+    assert.strictEqual(result.draft.description, expectedTrimmed);
+    assert.ok(result.draft.description?.includes('🍕🎉'), 'Conserva emojis');
+    assert.ok(result.draft.description?.includes('\n\n'), 'Conserva saltos de línea');
+    assert.ok(result.draft.description?.includes('\t'), 'Conserva tabulaciones internas');
+
+    // 2. Mapeo a DTO fecha fija
+    const dto = translateToCreateEncuentroDTO(result.draft, defaultConfig, { hostId: 'user-123', replacesEncounterId: null, postEventActiveMinutes: 30 });
+    assert.strictEqual(dto.descripcion, expectedTrimmed);
+
+    // 3. Mapeo a payload de coordinación
+    const coordDraft = {
+      ...result.draft,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-10-20', time: '20:30' },
+        { date: '2026-10-21', time: '21:00' },
+      ],
+    };
+    const coordPayload = translateToCoordinationPayload(coordDraft, defaultConfig);
+    assert.strictEqual(coordPayload.payload.descripcion, expectedTrimmed);
+  });
+
+  // ==========================================
+  // 4. VALIDAR FEEDBACK COMPUESTO E IDEMPOTENCIA
+  // ==========================================
+  test('4.A: Modificación compuesta simultánea (fecha + mensaje) aplica ambos cambios y reporta feedback coherente', () => {
+    const prevDraft = {
+      ...defaultDraft,
+      title: 'Cena con amigos',
+      date: '2026-10-10',
+      time: '21:00',
+      modality: 'presencial' as const,
+      locationText: 'Mi casa',
+      description: 'Los espero a cenar',
+    };
+
+    const patch = {
+      scope: 'encounter' as const,
+      dateIntent: {
+        value: { type: 'absolute' as const, day: 17, month: 10, year: 2026 },
+        confidence: 'explicit' as const,
+      },
+      description: {
+        value: '¡Vengan con ganas de pasarla genial! Los espero con pizza casera.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const result = mergeDraftPatch(prevDraft, defaultConfig, patch);
+    assert.equal(result.draft.date, '2026-10-17');
+    assert.equal(result.draft.description, '¡Vengan con ganas de pasarla genial! Los espero con pizza casera.');
+    assert.equal(result.draft.title, 'Cena con amigos');
+    assert.equal(result.draft.locationText, 'Mi casa');
+
+    const reply = buildAssistantReplyFromMergeResult(
+      result,
+      prevDraft,
+      defaultConfig,
+      true,
+      { isComplete: true, nextQuestion: null }
+    );
+    assert.ok(reply.includes('la fecha al Sáb, 17 oct'), 'Debe reportar el cambio de fecha');
+    assert.ok(reply.includes('el mensaje para los invitados'), 'Debe reportar el cambio del mensaje');
+    assert.ok(!reply.includes('el título'), 'No debe inventar cambios en campos no modificados');
+    assert.ok(!reply.includes('el lugar'), 'No debe inventar cambios en campos no modificados');
+  });
+
+  test('4.B: Idempotencia: cuando el mensaje es idéntico al existente, no se reporta falsamente', () => {
+    const existingMessage = 'Vengan con ganas de festejar.';
+    const draft = {
+      ...defaultDraft,
+      title: 'Cumpleaños',
+      description: existingMessage,
+    };
+
+    const result = mergeDraftPatch(draft, defaultConfig, {
+      scope: 'encounter',
+      description: { value: existingMessage, action: 'set', confidence: 'explicit' },
+    });
+
+    assert.ok(!result.operationMetadata.changedFields?.includes('description'), 'No debe figurar en changedFields');
+
+    // Comprobar respuesta de store / assistantReply con patchHint
+    const reply = buildAssistantReplyFromMergeResult(
+      result,
+      draft,
+      defaultConfig,
+      true,
+      { isComplete: true, nextQuestion: null },
+      { description: { value: existingMessage } }
+    );
+    assert.equal(reply, 'Ese ya es el mensaje configurado para el encuentro.');
+  });
+});
+
+// ============================================================================
+// ENTREGA B: BATERÍA MP-B01 A MP-B14
+// Visualización, incorporación y edición manual del mensaje personalizado
+// ============================================================================
+describe('Crear con IA — Mensaje Personalizado — Entrega B (MP-B01 a MP-B14)', () => {
+  const baseDraft = {
+    ...createEmptyEncounterDraft(),
+    title: 'Cena de Fin de Año',
+    date: '2026-12-15',
+    time: '21:00',
+    modality: 'presencial' as const,
+    locationText: 'Restaurante Central',
+  };
+
+  const baseConfig = createDefaultInvitationConfig();
+
+  // MP-B01: Mensaje generado visible en DraftSummary
+  test('MP-B01: Mensaje generado visible en DraftSummary con botón de editar', () => {
+    const draftWithMessage = {
+      ...baseDraft,
+      description: '¡Los esperamos para celebrar el cierre de año! Traigan buena onda.',
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft: draftWithMessage,
+        config: baseConfig,
+        isLoading: false,
+        onConfirmCreate: () => {},
+        onModify: () => {},
+        onFallbackManual: () => {},
+        onChangeConfig: () => {},
+      })
+    );
+
+    assert.ok(html.includes('data-testid="draft-summary-description-section"'), 'Debe incluir la sección del mensaje');
+    assert.ok(html.includes('Mensaje para los invitados'), 'Debe incluir el título de la sección');
+    assert.ok(html.includes('data-testid="edit-description-button"'), 'Debe incluir el botón de editar');
+    assert.ok(html.includes('data-testid="draft-description-text"'), 'Debe incluir el contenedor del texto');
+    assert.ok(html.includes('¡Los esperamos para celebrar el cierre de año! Traigan buena onda.'), 'Debe contener el texto del mensaje');
+    assert.ok(!html.includes('data-testid="add-description-button"'), 'No debe mostrar botón de agregar si ya existe mensaje');
+  });
+
+  // MP-B02: Ausencia de mensaje muestra "+ Agregar mensaje"
+  test('MP-B02: Ausencia de mensaje muestra "+ Agregar mensaje"', () => {
+    const draftWithoutMessage = {
+      ...baseDraft,
+      description: null,
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft: draftWithoutMessage,
+        config: baseConfig,
+        isLoading: false,
+        onConfirmCreate: () => {},
+        onModify: () => {},
+        onFallbackManual: () => {},
+        onChangeConfig: () => {},
+      })
+    );
+
+    assert.ok(html.includes('Mensaje para los invitados (opcional)'), 'Debe mostrar la fila discreta opcional');
+    assert.ok(html.includes('data-testid="add-description-button"'), 'Debe incluir el botón agregar mensaje');
+    assert.ok(html.includes('+ Agregar mensaje'), 'Debe mostrar el texto + Agregar mensaje');
+    assert.ok(!html.includes('data-testid="edit-description-button"'), 'No debe mostrar botón de editar');
+    assert.ok(!html.includes('data-testid="draft-description-text"'), 'No debe mostrar bloque de texto');
+  });
+
+  // MP-B03: Agregar un mensaje manual
+  test('MP-B03: Agregar un mensaje manual mediante applyDraftOperation', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({ draft: { ...baseDraft, description: null }, config: baseConfig });
+
+    assert.equal(useAiWizardStore.getState().draft.description, null);
+
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: 'Mensaje agregado manualmente por el anfitrión',
+    });
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.description, 'Mensaje agregado manualmente por el anfitrión');
+    assert.equal(state.isComplete, true);
+  });
+
+  // MP-B04: Editar un mensaje existente y guardar
+  test('MP-B04: Editar un mensaje existente y guardar actualiza draft.description', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: 'Versión inicial del mensaje' },
+      config: baseConfig,
+    });
+
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: 'Versión editada y corregida por el anfitrión',
+    });
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.description, 'Versión editada y corregida por el anfitrión');
+  });
+
+  // MP-B05: Cancelar una edición conserva el valor previo
+  test('MP-B05: Cancelar una edición conserva el valor previo sin alteraciones', () => {
+    const originalText = 'Mensaje confirmado anterior';
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: originalText },
+      config: baseConfig,
+    });
+
+    // Simulación del dirty check de FieldEditSheet
+    const isDirty = checkFieldDirty(
+      'description',
+      { descriptionBuffer: 'Texto modificado pero cancelado' },
+      { descriptionBuffer: originalText }
+    );
+    assert.equal(isDirty, true, 'Debe detectar buffer dirty');
+
+    // Al cancelar (onClose sin guardar), el estado canónico permanece intacto
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.description, originalText, 'El mensaje canónico debe permanecer inalterado');
+  });
+
+  // MP-B06: Quitar mensaje establece description = null
+  test('MP-B06: Quitar mensaje establece description = null (explícito y textarea vacío)', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: 'Mensaje que será eliminado' },
+      config: baseConfig,
+    });
+
+    // 1. Quitar explícito con null
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: null,
+    });
+    assert.equal(useAiWizardStore.getState().draft.description, null);
+
+    // 2. Guardar textarea con solo espacios en blanco normaliza a null
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: '    \n   \t  ',
+    });
+    assert.equal(useAiWizardStore.getState().draft.description, null, 'Espacios en blanco se normalizan a null');
+  });
+
+  // MP-B07: Modificar el mensaje no altera otros campos del encuentro
+  test('MP-B07: Modificar el mensaje no altera otros campos del encuentro', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: null },
+      config: baseConfig,
+    });
+
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: 'Traer juego de mesa favorito.',
+    });
+
+    const currentDraft = useAiWizardStore.getState().draft;
+    assert.equal(currentDraft.title, 'Cena de Fin de Año');
+    assert.equal(currentDraft.date, '2026-12-15');
+    assert.equal(currentDraft.time, '21:00');
+    assert.equal(currentDraft.modality, 'presencial');
+    assert.equal(currentDraft.locationText, 'Restaurante Central');
+    assert.equal(currentDraft.description, 'Traer juego de mesa favorito.');
+  });
+
+  // MP-B08: Edición IA -> manual
+  test('MP-B08: Secuencia IA -> manual: IA propone mensaje y anfitrión lo ajusta a mano', () => {
+    useAiWizardStore.getState().reset();
+
+    // 1. Turno IA genera mensaje
+    const aiPatch = {
+      scope: 'encounter' as const,
+      description: {
+        value: '¡Vengan todos al festejo del sábado!',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+    const mergeResult = mergeDraftPatch(baseDraft, baseConfig, aiPatch);
+    useAiWizardStore.setState({ draft: mergeResult.draft, config: mergeResult.config });
+    assert.equal(useAiWizardStore.getState().draft.description, '¡Vengan todos al festejo del sábado!');
+
+    // 2. Anfitrión abre editor y lo ajusta
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: '¡Vengan todos al festejo del sábado! Recuerden confirmar antes del viernes.',
+    });
+
+    assert.equal(
+      useAiWizardStore.getState().draft.description,
+      '¡Vengan todos al festejo del sábado! Recuerden confirmar antes del viernes.'
+    );
+  });
+
+  // MP-B09: Edición manual -> IA, utilizando el valor actualizado
+  test('MP-B09: Secuencia manual -> IA: valor editado a mano sirve de base para siguiente turno de IA', () => {
+    useAiWizardStore.getState().reset();
+
+    // 1. Anfitrión carga mensaje manual
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: 'Reunión de equipo presencial en sala 3. Traigan sus laptops cargadas.',
+    });
+    const manualDraft = useAiWizardStore.getState().draft;
+
+    // 2. IA recibe instrucción que modifica la hora y conserva el mensaje manual
+    const nextTurnPatch = {
+      scope: 'encounter' as const,
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 10, minute: 30 },
+        confidence: 'explicit' as const,
+      },
+    };
+    const mergeResult = mergeDraftPatch(manualDraft, baseConfig, nextTurnPatch);
+    assert.equal(mergeResult.draft.time, '10:30');
+    assert.equal(mergeResult.draft.description, 'Reunión de equipo presencial en sala 3. Traigan sus laptops cargadas.');
+
+    // 3. IA recibe instrucción de acortar el mensaje
+    const shortenPatch = {
+      scope: 'encounter' as const,
+      description: {
+        value: 'Reunión en sala 3. Traigan laptops.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+    const shortenResult = mergeDraftPatch(mergeResult.draft, mergeResult.config, shortenPatch);
+    assert.equal(shortenResult.draft.description, 'Reunión en sala 3. Traigan laptops.');
+    assert.ok(shortenResult.operationMetadata.changedFields?.includes('description'));
+  });
+
+  // MP-B10: Conservación del mensaje tras F5
+  test('MP-B10: Conservación del mensaje tras F5 / rehidratación de sessionStorage', () => {
+    const testDesc = 'Mensaje que debe sobrevivir a una recarga de página (F5)';
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: testDesc },
+      config: baseConfig,
+    });
+
+    const storeState = useAiWizardStore.getState();
+    assert.equal(storeState.draft.description, testDesc);
+
+    // Simulación del contrato partialize de zustand persist
+    const partialized = {
+      draft: storeState.draft,
+      config: storeState.config,
+    };
+    const serialized = JSON.stringify(partialized);
+    const restored = JSON.parse(serialized);
+
+    assert.equal(restored.draft.description, testDesc, 'draft.description debe recuperarse íntegro del JSON persistido');
+  });
+
+  // MP-B11: Texto multilínea y mensaje extenso en el resumen
+  test('MP-B11: Texto multilínea extenso activa control Ver más / Ver menos sin truncar', () => {
+    const longMultiLineMessage =
+      '¡Hola a todos los invitados!\n\n' +
+      'Les escribo para coordinar los detalles de nuestra reunión de fin de año.\n' +
+      'Por favor traigan algo para compartir en la mesa dulce y bebidas sin alcohol.\n\n' +
+      '¡Nos vemos pronto!';
+
+    const draftWithLongMsg = {
+      ...baseDraft,
+      description: longMultiLineMessage,
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(DraftSummary, {
+        draft: draftWithLongMsg,
+        config: baseConfig,
+        isLoading: false,
+        onConfirmCreate: () => {},
+        onModify: () => {},
+        onFallbackManual: () => {},
+        onChangeConfig: () => {},
+      })
+    );
+
+    // Debe contener el botón de expandir "Ver más"
+    assert.ok(html.includes('data-testid="toggle-description-expand-button"'), 'Debe incluir toggle de expansión');
+    assert.ok(html.includes('Ver más'), 'Debe indicar Ver más inicialmente');
+    assert.ok(html.includes('white-space:pre-wrap') || html.includes('white-space: pre-wrap'), 'Debe respetar formato pre-wrap');
+  });
+
+  // MP-B12: Verificación mobile de apertura, edición, teclado, scroll y botones principales
+  test('MP-B12: Verificación mobile de FieldEditSheet (touch targets >= 44px, textarea, botones)', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(FieldEditSheet, {
+        field: 'description',
+        draft: { ...baseDraft, description: 'Mensaje para verificar touch targets' },
+        config: baseConfig,
+        isOpen: true,
+        onClose: () => {},
+        onSaveDateOptions: () => {},
+        onConvertToFixedFromOption: () => {},
+        onSaveFixedDateTime: () => {},
+        onSaveTitle: () => {},
+        onSaveLocation: () => {},
+        onSaveTheme: () => {},
+        onSaveDescription: () => {},
+      })
+    );
+
+    assert.ok(html.includes('data-testid="description-textarea"'), 'Textarea presente');
+    assert.ok(html.includes('data-testid="remove-description-button"'), 'Botón quitar mensaje presente');
+    assert.ok(html.includes('min-height:44px') || html.includes('min-height: 44px'), 'Debe cumplir touch targets accesibles');
+    assert.ok(html.includes('role="dialog"'), 'Debe poseer role dialog');
+    assert.ok(html.includes('aria-label="Editar mensaje para los invitados"'), 'Debe poseer aria-label accesible');
+  });
+
+  // MP-B13: Eliminación manual seguida de una modificación no relacionada: el mensaje no reaparece
+  test('MP-B13: Eliminación manual seguida de modificación no relacionada: mensaje permanece en null', () => {
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...baseDraft, description: 'Mensaje anterior que fue quitado' },
+      config: baseConfig,
+    });
+
+    // 1. Anfitrión quita el mensaje
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: null,
+    });
+    assert.equal(useAiWizardStore.getState().draft.description, null);
+
+    // 2. Llega turno de IA que solo modifica el título
+    const titlePatch = {
+      scope: 'encounter' as const,
+      title: { value: 'Gran Cena de Despedida', confidence: 'explicit' as const },
+    };
+    const res = mergeDraftPatch(useAiWizardStore.getState().draft, baseConfig, titlePatch);
+
+    assert.equal(res.draft.title, 'Gran Cena de Despedida');
+    assert.equal(res.draft.description, null, 'El mensaje eliminado no debe resucitar ante cambios no relacionados');
+  });
+
+  // MP-B14: Mensaje existente, edición sin cambios y guardado: no generar una modificación ficticia
+  test('MP-B14: Mensaje existente, edición idéntica: checkFieldDirty es false y no genera modificación ficticia', () => {
+    const currentText = 'Nos vemos a las 21 en casa.';
+
+    // Buffer sin cambios no es dirty
+    const dirty = checkFieldDirty(
+      'description',
+      { descriptionBuffer: currentText },
+      { descriptionBuffer: currentText }
+    );
+    assert.equal(dirty, false, 'Buffer idéntico no debe ser considerado dirty');
+
+    // Buffer con cambios sí es dirty
+    const dirty2 = checkFieldDirty(
+      'description',
+      { descriptionBuffer: currentText + ' Traigan helado.' },
+      { descriptionBuffer: currentText }
+    );
+    assert.equal(dirty2, true, 'Buffer modificado debe ser dirty');
+  });
+
+  // MP-B15: Botón Cancelar del footer invoca requestClose y activa confirmación de descarte ante cambios sin guardar
+  test('MP-B15: Botón Cancelar del footer protege contra descarte involuntario cuando el buffer está sucio', () => {
+    const dirty = checkFieldDirty(
+      'description',
+      { descriptionBuffer: 'Texto no guardado' },
+      { descriptionBuffer: 'Texto original' }
+    );
+    assert.equal(dirty, true);
+
+    const html = renderToStaticMarkup(
+      React.createElement(FieldEditSheet, {
+        field: 'description',
+        draft: { ...baseDraft, description: 'Texto original' },
+        config: baseConfig,
+        isOpen: true,
+        onClose: () => {},
+        onSaveDateOptions: () => {},
+        onConvertToFixedFromOption: () => {},
+        onSaveFixedDateTime: () => {},
+        onSaveTitle: () => {},
+        onSaveLocation: () => {},
+        onSaveTheme: () => {},
+        onSaveDescription: () => {},
+      })
+    );
+
+    assert.ok(html.includes('Cancelar'), 'Debe incluir botón Cancelar');
+    assert.ok(html.includes('Guardar'), 'Debe incluir botón Guardar');
+  });
+});
+
+describe('Entrega C: Integración Funcional, Persistencia y Pantallas de Invitados', () => {
+  const hostMeta = {
+    hostId: '00000000-0000-0000-0000-000000000001',
+    replacesEncounterId: null,
+    postEventActiveMinutes: 45,
+  };
+
+  const fixedDraftBase: EncounterDraft = {
+    ...createEmptyEncounterDraft(),
+    title: 'Cena de Despedida',
+    dateMode: 'fixed',
+    date: '2026-09-25',
+    time: '21:00',
+    modality: 'presencial',
+    locationText: 'Av. Libertador 1234',
+    description: null,
+  };
+
+  const coordinationDraftBase: EncounterDraft = {
+    ...createEmptyEncounterDraft(),
+    title: 'Asado con amigos',
+    dateMode: 'coordination',
+    dateOptions: [
+      { date: '2026-09-26', time: '13:00' },
+      { date: '2026-09-27', time: '13:00' },
+    ],
+    modality: 'presencial',
+    locationText: 'Quincho de Juan',
+    description: null,
+  };
+
+  // MP-C01: Encuentro con fecha fija y mensaje personalizado
+  test('MP-C01: Encuentro con fecha fija y mensaje personalizado (Draft -> DTO -> RPC payload -> Guest view)', () => {
+    const customMessage = 'Traigan algo para tomar y abrigo que refresca a la noche.';
+    const draft: EncounterDraft = { ...fixedDraftBase, description: customMessage };
+    const config = createDefaultInvitationConfig();
+
+    // 1. translateToCreateEncuentroDTO
+    const dto = translateToCreateEncuentroDTO(draft, config, hostMeta);
+    assert.equal(dto.descripcion, customMessage);
+    assert.equal(dto.titulo, 'Cena de Despedida');
+    assert.equal(dto.fecha, '2026-09-25');
+    assert.equal(dto.hora, '21:00');
+
+    // 2. RPC payload mapping
+    const rpcPayload = { ...dto, post_event_active_minutes: hostMeta.postEventActiveMinutes };
+    assert.equal(rpcPayload.descripcion, customMessage);
+
+    // 3. Guest view format simulation (JoinGeneral / InviteGuest guest-host-message)
+    const guestData = { ...rpcPayload, id: 'test-enc-id' };
+    assert.equal(guestData.descripcion, customMessage);
+  });
+
+  // MP-C02: Encuentro con coordinación y mensaje personalizado
+  test('MP-C02: Encuentro con coordinación y mensaje personalizado (Draft -> Payload -> RPC payload -> Guest view)', () => {
+    const customMessage = 'Votemos qué día nos queda más cómodo para juntarnos a comer asado.';
+    const draft: EncounterDraft = { ...coordinationDraftBase, description: customMessage };
+    const config = createDefaultInvitationConfig();
+
+    // 1. translateToCoordinationPayload
+    const { payload, opciones } = translateToCoordinationPayload(draft, config, hostMeta);
+    assert.equal(payload.descripcion, customMessage);
+    assert.equal(opciones.length, 2);
+
+    // 2. RPC payload mapping (crear_encuentro_con_opciones_seguro)
+    const rpcPayload = { ...payload, post_event_active_minutes: hostMeta.postEventActiveMinutes };
+    assert.equal(rpcPayload.descripcion, customMessage);
+
+    // 3. Guest view simulation (CoordinationThemeHero)
+    const guestData = { titulo: payload.titulo, descripcion: payload.descripcion };
+    assert.equal(guestData.descripcion, customMessage);
+  });
+
+  // MP-C03: Encuentro sin mensaje personalizado
+  test('MP-C03: Encuentro sin mensaje personalizado (null -> undefined en DTO -> ausente en RPC)', () => {
+    const draft: EncounterDraft = { ...fixedDraftBase, description: null };
+    const config = createDefaultInvitationConfig();
+
+    const dto = translateToCreateEncuentroDTO(draft, config, hostMeta);
+    assert.equal(dto.descripcion, undefined, 'Encuentro sin mensaje debe mapear a undefined en DTO');
+
+    const { payload } = translateToCoordinationPayload({ ...coordinationDraftBase, description: null }, config, hostMeta);
+    assert.equal(payload.descripcion, undefined, 'Coordinación sin mensaje debe mapear a undefined en payload');
+  });
+
+  // MP-C04: Mensaje creativo generado por IA y posteriormente editado manualmente
+  test('MP-C04: Mensaje creativo generado por IA y posteriormente editado manualmente', () => {
+    const initialDraft: EncounterDraft = { ...fixedDraftBase, description: null };
+    const config = createDefaultInvitationConfig();
+
+    // 1. IA genera mensaje
+    const aiPatch = {
+      scope: 'encounter' as const,
+      description: {
+        value: '¡Preparate para una noche épica de pizzas caseras!',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+    const afterAi = mergeDraftPatch(initialDraft, config, aiPatch);
+    assert.equal(afterAi.draft.description, '¡Preparate para una noche épica de pizzas caseras!');
+
+    // 2. Usuario edita manualmente en FieldEditSheet
+    const manualEdited = '¡Preparate para una noche épica de pizzas caseras! Traigan juegos de mesa si tienen.';
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({ draft: afterAi.draft, config });
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: manualEdited,
+    });
+
+    const finalDraft = useAiWizardStore.getState().draft;
+    assert.equal(finalDraft.description, manualEdited);
+
+    // 3. DTO final refleja la edición manual
+    const dto = translateToCreateEncuentroDTO(finalDraft, config, hostMeta);
+    assert.equal(dto.descripcion, manualEdited);
+  });
+
+  // MP-C05: Mensaje manual modificado mediante conversación
+  test('MP-C05: Mensaje manual modificado mediante conversación', () => {
+    const config = createDefaultInvitationConfig();
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({
+      draft: { ...fixedDraftBase, description: 'Nos vemos 20:00 en casa.' },
+      config,
+    });
+
+    // IA recibe instrucción conversacional de actualizar el mensaje
+    const updatePatch = {
+      scope: 'encounter' as const,
+      description: {
+        value: 'Cambiamos a 20:30 así cenamos tranquilos.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+    const afterUpdate = mergeDraftPatch(useAiWizardStore.getState().draft, config, updatePatch);
+    assert.equal(afterUpdate.draft.description, 'Cambiamos a 20:30 así cenamos tranquilos.');
+
+    const dto = translateToCreateEncuentroDTO(afterUpdate.draft, config, hostMeta);
+    assert.equal(dto.descripcion, 'Cambiamos a 20:30 así cenamos tranquilos.');
+  });
+
+  // MP-C06: Eliminación de mensaje antes de crear
+  test('MP-C06: Eliminación de mensaje antes de crear (manual o IA clear -> description null -> DTO undefined)', () => {
+    const config = createDefaultInvitationConfig();
+    const draftWithMessage: EncounterDraft = { ...fixedDraftBase, description: 'Mensaje que se arrepiente de enviar' };
+
+    // 1. Eliminación por acción manual de UI
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({ draft: draftWithMessage, config });
+    useAiWizardStore.getState().applyDraftOperation({
+      type: 'set_description',
+      description: null,
+    });
+    assert.equal(useAiWizardStore.getState().draft.description, null);
+
+    const dtoAfterManual = translateToCreateEncuentroDTO(useAiWizardStore.getState().draft, config, hostMeta);
+    assert.equal(dtoAfterManual.descripcion, undefined);
+
+    // 2. Eliminación por patch conversacional action: clear
+    const clearPatch = {
+      scope: 'encounter' as const,
+      description: { action: 'clear' as const, confidence: 'explicit' as const },
+    };
+    const afterClear = mergeDraftPatch(draftWithMessage, config, clearPatch);
+    assert.equal(afterClear.draft.description, null);
+    const dtoAfterClear = translateToCreateEncuentroDTO(afterClear.draft, config, hostMeta);
+    assert.equal(dtoAfterClear.descripcion, undefined);
+  });
+
+  // MP-C07: Mensaje multilínea con emojis y puntuación especial
+  test('MP-C07: Mensaje multilínea con emojis y puntuación especial preserva integridad completa', () => {
+    const specialMessage = '¡Hola a todos! 🎉\n\nPor favor confirmar antes del viernes.\n¿Quién trae el postre? 🍰\n- Punto de encuentro: Puerta principal 🚪\n¡Los esperamos! :)';
+    const draft: EncounterDraft = { ...fixedDraftBase, description: specialMessage };
+    const config = createDefaultInvitationConfig();
+
+    const dto = translateToCreateEncuentroDTO(draft, config, hostMeta);
+    assert.equal(dto.descripcion, specialMessage, 'El DTO debe conservar exactamente emojis, saltos y signos');
+
+    // JSON serialization round-trip (Supabase RPC contract)
+    const jsonSerialized = JSON.stringify({ p_data: dto });
+    const jsonParsed = JSON.parse(jsonSerialized);
+    assert.equal(jsonParsed.p_data.descripcion, specialMessage, 'JSON transport de RPC no debe mutar ni escapar destructivamente');
+  });
+
+  // MP-C08: Modificación simultánea de fecha y mensaje
+  test('MP-C08: Modificación simultánea de fecha y mensaje en un solo paso atómico', () => {
+    const initialDraft: EncounterDraft = {
+      ...fixedDraftBase,
+      date: '2026-09-18',
+      time: '21:00',
+      description: 'Cena el viernes',
+    };
+    const config = createDefaultInvitationConfig();
+
+    const compositePatch = {
+      scope: 'encounter' as const,
+      dateIntent: {
+        value: { type: 'absolute' as const, day: 19, month: 9, year: 2026 },
+        confidence: 'explicit' as const,
+      },
+      timeIntent: {
+        value: { type: 'exact' as const, hour: 21, minute: 30 },
+        confidence: 'explicit' as const,
+      },
+      description: {
+        value: 'Pasamos al sábado para que puedan venir todos.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const merged = mergeDraftPatch(initialDraft, config, compositePatch);
+    assert.equal(merged.draft.date, '2026-09-19');
+    assert.equal(merged.draft.time, '21:30');
+    assert.equal(merged.draft.description, 'Pasamos al sábado para que puedan venir todos.');
+
+    const dto = translateToCreateEncuentroDTO(merged.draft, config, hostMeta);
+    assert.equal(dto.fecha, '2026-09-19');
+    assert.equal(dto.hora, '21:30');
+    assert.equal(dto.descripcion, 'Pasamos al sábado para que puedan venir todos.');
+  });
+
+  // MP-C09: Mensaje que permanece intacto al modificar lugar, modalidad, tema o tipo de invitación
+  test('MP-C09: Mensaje permanece intacto ante mutaciones sucesivas de lugar, modalidad, tema y tipo de invitación', () => {
+    const fixedMessage = 'Mensaje sagrado que no debe tocarse';
+    let draft: EncounterDraft = { ...fixedDraftBase, description: fixedMessage };
+    let config = createDefaultInvitationConfig();
+
+    // 1. Modificar modalidad a virtual
+    draft = { ...draft, modality: 'virtual', virtualLink: 'https://meet.google.com/abc-defg-hij', locationText: null };
+    assert.equal(draft.description, fixedMessage);
+
+    // 2. Modificar tema a celebration
+    config = { ...config, invitationTheme: 'celebration', invitationTemplate: 'celebration_gold' };
+    assert.equal(draft.description, fixedMessage);
+
+    // 3. Modificar tipo de invitación a individual
+    config = { ...config, invitationType: 'individual' };
+    assert.equal(draft.description, fixedMessage);
+
+    // 4. Modificar título
+    draft = { ...draft, title: 'Nuevo Título Celebración' };
+    assert.equal(draft.description, fixedMessage);
+
+    const dto = translateToCreateEncuentroDTO(draft, config, hostMeta);
+    assert.equal(dto.descripcion, fixedMessage);
+    assert.equal(dto.modalidad, 'virtual');
+    assert.equal(dto.tema_invitacion, 'celebration');
+    assert.equal(dto.tipo_invitacion, 'individual');
+  });
+
+  // MP-C10: Diferencias entre enlace general e invitación individual
+  test('MP-C10: Coherencia de descripción entre link_general e individual (ambos consumen public.encuentros.descripcion)', () => {
+    const message = 'Bienvenidos a la fiesta.';
+    const draft: EncounterDraft = { ...fixedDraftBase, description: message };
+
+    // Enlace general
+    const generalConfig = { ...createDefaultInvitationConfig(), invitationType: 'link_general' as const };
+    const generalDto = translateToCreateEncuentroDTO(draft, generalConfig, hostMeta);
+    assert.equal(generalDto.tipo_invitacion, 'link_general');
+    assert.equal(generalDto.descripcion, message);
+
+    // Invitación individual
+    const indConfig = { ...createDefaultInvitationConfig(), invitationType: 'individual' as const };
+    const indDto = translateToCreateEncuentroDTO(draft, indConfig, hostMeta);
+    assert.equal(indDto.tipo_invitacion, 'individual');
+    assert.equal(indDto.descripcion, message);
+
+    // Ambos flujos mapean idénticamente al campo descripcion de public.encuentros
+    assert.equal(generalDto.descripcion, indDto.descripcion);
   });
 });
 

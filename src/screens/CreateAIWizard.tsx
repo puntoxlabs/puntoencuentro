@@ -623,6 +623,14 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     }
   };
 
+  const handleSaveDescription = (description: string | null) => {
+    if (applyDraftOperation) {
+      applyDraftOperation({ type: 'set_description', description });
+    } else {
+      updateDraftField('description', description);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     if (googleLoading) return;
     setGoogleLoading(true);
@@ -1037,6 +1045,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
                 dispatchWizardAction({ type: 'edit_field', field: 'location' });
               } else if (field === 'theme') {
                 dispatchWizardAction({ type: 'edit_field', field: 'theme' });
+              } else if (field === 'description') {
+                dispatchWizardAction({ type: 'edit_field', field: 'description' });
               }
             }}
             onFallbackManual={handleFallbackManual}
@@ -1196,6 +1206,8 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
                   dispatchWizardAction({ type: 'edit_field', field: 'location' });
                 } else if (field === 'theme') {
                   dispatchWizardAction({ type: 'edit_field', field: 'theme' });
+                } else if (field === 'description') {
+                  dispatchWizardAction({ type: 'edit_field', field: 'description' });
                 }
               }}
               onFallbackManual={handleFallbackManual}
@@ -1720,6 +1732,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         onSaveTitle={handleSaveTitle}
         onSaveLocation={handleSaveLocation}
         onSaveTheme={handleSaveTheme}
+        onSaveDescription={handleSaveDescription}
       />
     </ScreenContainer>
   );
