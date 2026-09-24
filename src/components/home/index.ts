@@ -4,3 +4,6 @@ export { HomeSuggestionChips } from './HomeSuggestionChips';
 export { HomeDraftResumeCard } from './HomeDraftResumeCard';
 export { HomeValueProposition } from './HomeValueProposition';
 export { DraftOverwriteConfirmSheet } from './DraftOverwriteConfirmSheet';
+export { HomeRotatingPhrase } from './HomeRotatingPhrase';
+export { HomeFlankingVisuals } from './HomeFlankingVisuals';
+export { HomePillarsSection } from './HomePillarsSection';

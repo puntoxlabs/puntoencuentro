@@ -9,6 +9,9 @@ import {
   HomeDraftResumeCard,
   HomeValueProposition,
   DraftOverwriteConfirmSheet,
+  HomeRotatingPhrase,
+  HomeFlankingVisuals,
+  HomePillarsSection,
 } from '../src/components/home/index';
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
@@ -198,6 +201,69 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       } finally {
         aiService.startSession = origStartSession;
       }
+    });
+  });
+
+  describe('8. Componente HomeRotatingPhrase y Frases Inspiradoras V2', () => {
+    test('A. Renderiza la primera frase por defecto y el botón accesible de pausa', () => {
+      const html = renderToString(React.createElement(HomeRotatingPhrase));
+      assert.ok(html.includes('Quiero invitar a mis amigos a tomar un café.'), 'Debe renderizar primera frase');
+      assert.ok(html.includes('home-rotating-phrase-slot'), 'Debe tener slot de altura fija para CLS=0');
+      assert.ok(html.includes('home-rotating-phrase-btn'), 'Debe incluir botón accesible de pausa');
+      assert.ok(html.includes('Pausar rotación'), 'Aria label de pausa presente');
+    });
+
+    test('B. Soporta catálogo personalizado y llamada onClick', () => {
+      const html = renderToString(
+        React.createElement(HomeRotatingPhrase, {
+          phrases: ['Quiero festejar mi cumpleaños'],
+          onPhraseClick: () => {},
+        })
+      );
+      assert.ok(html.includes('Quiero festejar mi cumpleaños'));
+      assert.ok(html.includes('home-rotating-phrase-text--clickable'));
+    });
+
+    test('C. La rotación de frases NO modifica el store aiWizardStore ni el input', () => {
+      const store = useAiWizardStore.getState();
+      const promptBefore = store.pendingInitialPrompt;
+      const transferBefore = store.pendingInitialTransferId;
+
+      renderToString(React.createElement(HomeRotatingPhrase));
+
+      assert.equal(useAiWizardStore.getState().pendingInitialPrompt, promptBefore);
+      assert.equal(useAiWizardStore.getState().pendingInitialTransferId, transferBefore);
+    });
+  });
+
+  describe('9. Componente HomePillarsSection (Delimitación 1.0 vs Próximamente)', () => {
+    test('A. Renderiza Pilar 1 activo y Pilares 2 y 3 con badge Próximamente y deshabilitados', () => {
+      const html = renderToString(
+        React.createElement(HomePillarsSection, {
+          onCreateClick: () => {},
+        })
+      );
+      assert.ok(html.includes('Crear un encuentro'), 'Debe incluir Pilar 1');
+      assert.ok(html.includes('Abrir un encuentro'), 'Debe incluir Pilar 2');
+      assert.ok(html.includes('Encontrar con quién'), 'Debe incluir Pilar 3');
+      assert.ok(html.includes('Próximamente'), 'Debe incluir badges de Próximamente');
+      assert.ok(html.includes('home-pillar-cta--disabled'), 'Pilares 2 y 3 deben tener botón deshabilitado');
+    });
+  });
+
+  describe('10. Componente HomeFlankingVisuals V2', () => {
+    test('A. Renderiza banner móvil y composición lateral con status badges', () => {
+      const html = renderToString(React.createElement(HomeFlankingVisuals));
+      assert.ok(html.includes('home-mobile-visual-banner'), 'Debe incluir banner mobile');
+      assert.ok(html.includes('Asado este sábado'), 'Debe incluir status card de asado');
+      assert.ok(html.includes('Pádel'), 'Debe incluir status card de pádel');
+      assert.ok(html.includes('Café esta semana'), 'Debe incluir status card de café');
+      assert.ok(html.includes('De ganas a encuentros'), 'Debe incluir doodle manuscrito');
+    });
+
+    test('B. Soporta estado colapsado cuando isInputFocused=true', () => {
+      const html = renderToString(React.createElement(HomeFlankingVisuals, { isInputFocused: true }));
+      assert.ok(html.includes('home-mobile-visual-banner--collapsed'), 'Debe colapsar banner con teclado/foco');
     });
   });
 });

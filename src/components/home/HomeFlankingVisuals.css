@@ -1,0 +1,350 @@
+/* HomeFlankingVisuals.css - Flancos Fotográficos y Banner Mobile V2 */
+
+/* ── Banner Compacto Mobile ── */
+.home-mobile-visual-banner {
+  width: 100%;
+  max-height: 190px;
+  overflow: hidden;
+  margin: 0.5rem 0 0.25rem;
+  border-radius: var(--radius-2xl, 24px);
+  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease, margin 0.24s ease, transform 0.24s ease;
+  transform-origin: top center;
+  position: relative;
+  z-index: 1;
+}
+
+.home-mobile-visual-banner--collapsed {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  pointer-events: none;
+  transform: scaleY(0.9);
+}
+
+.home-mobile-visual-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 190px;
+  border-radius: var(--radius-2xl, 24px);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(16, 29, 61, 0.08);
+  border: 2px solid #FFFFFF;
+  background-color: #FEF3C7;
+}
+
+.home-mobile-visual-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.home-mobile-visual-fallback {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #FFEDD5 0%, #FEF3C7 50%, #E0E7FF 100%);
+}
+
+.home-mobile-visual-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.1) 40%, transparent 100%);
+}
+
+.home-visual-doodle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-style: italic;
+  user-select: none;
+}
+
+.home-visual-doodle--mobile {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  color: #FFFFFF;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+/* Status Pill en Mobile */
+.home-floating-status-pill--mobile {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-pill, 9999px);
+  box-shadow: 0 2px 8px rgba(16, 29, 61, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.home-status-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-status-pill-emoji {
+  font-size: 14px;
+}
+
+.home-status-pill-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.1;
+}
+
+.home-status-pill-meta {
+  display: block;
+  font-size: 9px;
+  color: #64748B;
+}
+
+.home-status-pill-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background-color: #DCFCE7;
+  color: #15803D;
+  border-radius: 9999px;
+  border: 1px solid #BBF7D0;
+}
+
+/* ── Flancos Desktop (>= 1024px) ── */
+.home-desktop-flanks-wrapper {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .home-mobile-visual-banner {
+    display: none;
+  }
+
+  .home-desktop-flanks-wrapper {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    overflow: visible;
+  }
+
+  .home-desktop-flank {
+    position: absolute;
+    width: 240px;
+    top: 10px;
+    pointer-events: auto;
+  }
+
+  .home-desktop-flank--left {
+    left: 0;
+  }
+
+  .home-desktop-flank--right {
+    right: 0;
+  }
+
+  .home-visual-doodle--left {
+    color: #B45309;
+    margin-bottom: 8px;
+    transform: rotate(-3deg);
+    font-size: 14px;
+  }
+
+  .home-visual-doodle--right {
+    color: #047857;
+    margin-bottom: 8px;
+    text-align: right;
+    transform: rotate(2deg);
+    font-size: 14px;
+  }
+
+  .home-desktop-photo-card {
+    position: relative;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(16, 29, 61, 0.08);
+    border: 3px solid #FFFFFF;
+    background: #FFFFFF;
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+  }
+
+  .home-desktop-photo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(16, 29, 61, 0.12);
+  }
+
+  .home-desktop-photo-card--primary {
+    aspect-ratio: 4 / 3;
+    width: 100%;
+  }
+
+  .home-desktop-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .home-desktop-photo-fallback {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 50%, #FED7AA 100%);
+  }
+
+  .home-desktop-photo-card--padel {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
+  }
+
+  .home-desktop-card-bg-padel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .home-padel-icon {
+    font-size: 30px;
+  }
+
+  .home-desktop-photo-card--cafe {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    background: linear-gradient(135deg, #FFFBEB 0%, #FDE68A 100%);
+  }
+
+  .home-desktop-card-bg-cafe {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .home-cafe-icon {
+    font-size: 30px;
+  }
+
+  /* Floating status badges */
+  .home-floating-status-pill--desktop-left {
+    position: absolute;
+    bottom: -6px;
+    left: 8px;
+    right: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: var(--radius-pill, 9999px);
+    box-shadow: 0 4px 14px rgba(16, 29, 61, 0.12);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+  }
+
+  .home-status-pill-avatars {
+    display: flex;
+    margin-right: -4px;
+  }
+
+  .home-status-pill-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #FFFFFF;
+    color: #FFFFFF;
+  }
+
+  .home-status-pill-avatar--1 {
+    background-color: #3B82F6;
+    z-index: 2;
+  }
+
+  .home-status-pill-avatar--2 {
+    background-color: #8B5CF6;
+    margin-left: -6px;
+    z-index: 1;
+  }
+
+  .home-status-pill-info {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .home-status-pill-info .home-status-pill-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0F172A;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-status-pill-info .home-status-pill-meta {
+    font-size: 9px;
+    color: #64748B;
+    white-space: nowrap;
+  }
+
+  .home-status-pill-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: #10B981;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .home-floating-status-pill--desktop-padel,
+  .home-floating-status-pill--desktop-cafe {
+    position: absolute;
+    bottom: -6px;
+    right: 8px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: var(--radius-pill, 9999px);
+    box-shadow: 0 4px 14px rgba(16, 29, 61, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+  }
+
+  .home-status-pill-avatar-icon {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .home-desktop-flank {
+    width: 260px;
+  }
+}

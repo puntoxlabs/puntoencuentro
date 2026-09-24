@@ -11,6 +11,8 @@ interface HomeIntentInputProps {
   isSubmitting?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  onFocusChange?: (isFocused: boolean) => void;
+  isListeningChange?: (isListening: boolean) => void;
 }
 
 export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
@@ -18,8 +20,10 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
   onChange,
   onSubmit,
   isSubmitting = false,
-  placeholder = 'Quiero organizar una cena con amigos el sábado...',
+  placeholder = 'ej. jugar al pádel el sábado a las 18',
   disabled = false,
+  onFocusChange,
+  isListeningChange,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -35,12 +39,16 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
     },
   });
 
+  useEffect(() => {
+    isListeningChange?.(isListening);
+  }, [isListening, isListeningChange]);
+
   // Auto-resize textarea height smoothly
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, 72), 160)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 60), 160)}px`;
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -74,15 +82,39 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
   return (
     <div className="home-intent-wrapper">
       <div className="home-intent-card" onClick={() => textareaRef.current?.focus()}>
+        <div className="home-intent-card-header">
+          <div className="home-intent-badge">
+            <Sparkles size={13} className="home-intent-sparkle-icon" />
+            <span>QUIERO...</span>
+          </div>
+          {value && (
+            <button
+              type="button"
+              className="home-intent-clear-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              title="Borrar texto"
+              aria-label="Borrar texto"
+              disabled={disabled || isSubmitting}
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
+
         <textarea
           ref={textareaRef}
           className="home-intent-textarea"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => onFocusChange?.(false)}
           placeholder={placeholder}
           disabled={disabled || isSubmitting}
-          rows={3}
+          rows={2}
           aria-label="¿Qué querés hacer?"
           data-testid="home-intent-textarea"
         />
@@ -101,30 +133,14 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
                 aria-label={isListening ? 'Detener dictado' : 'Dictar por voz'}
                 disabled={disabled || isSubmitting}
               >
-                {isListening ? <Square size={16} /> : <Mic size={18} />}
+                {isListening ? <Square size={15} /> : <Mic size={17} />}
               </button>
             )}
 
-            {value && (
-              <button
-                type="button"
-                className="home-intent-tool-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClear();
-                }}
-                title="Borrar texto"
-                aria-label="Borrar texto"
-                disabled={disabled || isSubmitting}
-              >
-                <X size={16} />
-              </button>
-            )}
+            <span className="home-intent-hint">
+              {isListening ? 'Escuchando…' : 'Enter para enviar'}
+            </span>
           </div>
-
-          <span className="home-intent-hint">
-            {isListening ? 'Escuchando…' : 'Enter para enviar'}
-          </span>
         </div>
       </div>
 
@@ -146,8 +162,8 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
           </>
         ) : (
           <>
-            <Sparkles size={18} />
             <span>Hacer que pase</span>
+            <span className="home-intent-cta-arrow">→</span>
           </>
         )}
       </Button>

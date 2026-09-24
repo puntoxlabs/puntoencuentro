@@ -1,9 +1,13 @@
+/* HomeIntentInput.css - Input de Intención y CTA Propuesta V2 */
+
 .home-intent-wrapper {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 0.875rem;
-  margin-top: 0.25rem;
+  max-width: 680px;
+  gap: 0.75rem;
+  margin: 0.5rem auto 0;
+  box-sizing: border-box;
 }
 
 .home-intent-card {
@@ -11,16 +15,60 @@
   display: flex;
   flex-direction: column;
   background: var(--color-surface, #FFFFFF);
-  border: 1.5px solid var(--color-outline-variant, #D1D6E2);
-  border-radius: var(--radius-xl, 20px);
-  padding: 0.875rem 1rem 0.625rem;
-  box-shadow: var(--shadow-sm, 0 2px 4px rgba(15, 19, 34, 0.04));
+  border: 1.5px solid var(--color-outline-variant, #E2E8F0);
+  border-radius: var(--radius-2xl, 24px);
+  padding: 0.875rem 1.125rem 0.625rem;
+  box-shadow: 0 4px 14px rgba(16, 29, 61, 0.05);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .home-intent-card:focus-within {
-  border-color: var(--color-primary, #184CD4);
-  box-shadow: 0 0 0 4px rgba(24, 76, 212, 0.12);
+  border-color: var(--color-primary, #3167F6);
+  box-shadow: 0 0 0 4px rgba(49, 103, 246, 0.12), 0 6px 20px rgba(16, 29, 61, 0.08);
+}
+
+.home-intent-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.home-intent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-outline, #8E95A7);
+  text-transform: uppercase;
+}
+
+.home-intent-sparkle-icon {
+  color: #8B5CF6; /* Violet accent from V2 */
+}
+
+.home-intent-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--color-surface-variant, #F1F5F9);
+  color: var(--color-on-surface-variant, #64748B);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  padding: 0;
+}
+
+.home-intent-clear-btn:hover {
+  background-color: #E2E8F0;
+  color: #0F172A;
 }
 
 .home-intent-textarea {
@@ -32,72 +80,77 @@
   font-family: inherit;
   font-size: 1.0625rem;
   line-height: 1.45;
-  color: var(--color-on-surface, #0F1322);
-  min-height: 4.5rem;
-  max-height: 10rem;
+  color: var(--color-on-surface, #101D3D);
+  min-height: 3.5rem;
+  max-height: 9rem;
   box-sizing: border-box;
+  padding: 0;
 }
 
 .home-intent-textarea::placeholder {
-  color: var(--color-outline, #8E95A7);
-  opacity: 0.85;
+  color: var(--color-outline, #94A3B8);
+  opacity: 0.9;
 }
 
 .home-intent-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(209, 214, 226, 0.4);
+  padding-top: 0.375rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
   margin-top: 0.25rem;
 }
 
 .home-intent-tools {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
 }
 
 .home-intent-tool-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--color-on-surface-variant, #4B5162);
+  border: 1px solid var(--color-outline-variant, #E2E8F0);
+  background: var(--color-surface, #FFFFFF);
+  color: var(--color-on-surface-variant, #64748B);
   cursor: pointer;
-  transition: background-color var(--transition-base), color var(--transition-base);
+  transition: all var(--transition-base);
 }
 
 .home-intent-tool-btn:hover {
-  background-color: var(--color-surface-variant, #F0F3F9);
-  color: var(--color-primary, #184CD4);
+  background-color: var(--color-surface-variant, #F1F5F9);
+  color: var(--color-primary, #3167F6);
+  border-color: #CBD5E1;
 }
 
 .home-intent-tool-btn--active {
   background-color: #FEE4E2;
   color: #D92D20;
+  border-color: #FECDCA;
   animation: pulse-mic 1.5s infinite;
 }
 
 @keyframes pulse-mic {
   0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  50% { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
 
 .home-intent-hint {
   font-size: var(--text-xs, 12px);
-  color: var(--color-outline, #8E95A7);
+  color: var(--color-outline, #94A3B8);
   user-select: none;
 }
 
 .home-intent-submit-btn {
   width: 100%;
-  height: var(--btn-height, 52px);
+  height: 52px;
   font-size: 1.0625rem;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -105,14 +158,19 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: var(--radius-xl, 20px);
-  box-shadow: 0 4px 12px rgba(24, 76, 212, 0.2);
-  transition: transform var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base);
+  border-radius: var(--radius-pill, 9999px);
+  background-color: var(--color-primary, #184CD4);
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 4px 14px rgba(24, 76, 212, 0.25);
+  cursor: pointer;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background-color var(--transition-base), opacity var(--transition-base);
 }
 
 .home-intent-submit-btn:not(:disabled):hover {
+  background-color: #123BA8;
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(24, 76, 212, 0.28);
+  box-shadow: 0 6px 18px rgba(24, 76, 212, 0.32);
 }
 
 .home-intent-submit-btn:not(:disabled):active {
@@ -121,9 +179,19 @@
 }
 
 .home-intent-submit-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.home-intent-cta-arrow {
+  font-size: 1.25rem;
+  font-weight: 800;
+  transition: transform var(--transition-base);
+}
+
+.home-intent-submit-btn:not(:disabled):hover .home-intent-cta-arrow {
+  transform: translateX(3px);
 }
 
 .home-intent-spinner {
@@ -137,4 +205,10 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@media (min-width: 640px) {
+  .home-intent-card {
+    padding: 1rem 1.375rem 0.75rem;
+  }
 }

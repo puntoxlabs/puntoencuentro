@@ -35,6 +35,7 @@ import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncou
 import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
 import { useHiddenDiscovery } from '@/hooks/useHiddenDiscovery';
 import { hasMeaningfulDraftData } from '@/lib/encounterDraft';
+import { ensureHostSession } from '@/lib/ensureHostSession';
 import {
   HomeHero,
   HomeIntentInput,
@@ -42,7 +43,10 @@ import {
   HomeDraftResumeCard,
   HomeValueProposition,
   DraftOverwriteConfirmSheet,
+  HomeFlankingVisuals,
+  HomePillarsSection,
 } from '@/components/home';
+import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -294,16 +298,25 @@ const Home: React.FC = () => {
   const [isModeChoiceOpen, setIsModeChoiceOpen] = useState(false);
   const [homeIntent, setHomeIntent] = useState('');
   const [isSubmittingIntent, setIsSubmittingIntent] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isSpeechListening, setIsSpeechListening] = useState(false);
   const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
 
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);
   const hasActiveDraft = hasMeaningfulDraftData(aiDraft, aiConfig);
 
-  const startNewEncounterWithIntent = (text: string) => {
+  const startNewEncounterWithIntent = async (text: string) => {
+    if (isSubmittingIntent) return;
     setIsSubmittingIntent(true);
-    useAiWizardStore.getState().startNewWithPrompt(text);
-    navigate('/create/ai');
+    try {
+      await ensureHostSession();
+      useAiWizardStore.getState().startNewWithPrompt(text);
+      navigate('/create/ai');
+    } catch (err) {
+      console.error('[Home] Error al inicializar sesión:', err);
+      setIsSubmittingIntent(false);
+    }
   };
 
   const handleIntentSubmit = () => {
@@ -760,25 +773,38 @@ const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <HomeHero />
+      {/* Hero Section con Composición Centrada Envolvente V2 */}
+      <div className="home-hero-wrapper">
+        <HomeFlankingVisuals isInputFocused={isInputFocused} />
 
-      {/* Input de Intención y CTA */}
-      <HomeIntentInput
-        value={homeIntent}
-        onChange={setHomeIntent}
-        onSubmit={handleIntentSubmit}
-        isSubmitting={isSubmittingIntent}
-      />
+        <div className="home-hero-center-column">
+          <HomeHero
+            isPausedByInput={isInputFocused || isSpeechListening || Boolean(homeIntent.trim())}
+            onPhraseClick={(phrase) => {
+              setHomeIntent(phrase);
+            }}
+          />
 
-      {/* Chips de Sugerencia */}
-      <div style={{ marginTop: '0.75rem', width: '100%' }}>
-        <HomeSuggestionChips onSelect={handleSelectSuggestion} />
+          {/* Input de Intención y CTA */}
+          <HomeIntentInput
+            value={homeIntent}
+            onChange={setHomeIntent}
+            onSubmit={handleIntentSubmit}
+            isSubmitting={isSubmittingIntent}
+            onFocusChange={setIsInputFocused}
+            isListeningChange={setIsSpeechListening}
+          />
+
+          {/* Chips de Sugerencia */}
+          <div style={{ marginTop: '0.75rem', width: '100%' }}>
+            <HomeSuggestionChips suggestions={V2_SUGGESTIONS} onSelect={handleSelectSuggestion} />
+          </div>
+        </div>
       </div>
 
       {/* Card de reanudación de borrador activo */}
       {hasActiveDraft && (
-        <div style={{ marginTop: '0.75rem', width: '100%' }}>
+        <div style={{ marginTop: '0.75rem', width: '100%', maxWidth: '680px', margin: '0.75rem auto 0' }}>
           <HomeDraftResumeCard
             title={aiDraft.title}
             details={
@@ -793,6 +819,9 @@ const Home: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Modalidades de encuentro (Los 3 Pilares V2) */}
+      <HomePillarsSection onCreateClick={handleCreateClick} />
 
       {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
       {!loading && (!encuentros || encuentros.length === 0) && !user && (
