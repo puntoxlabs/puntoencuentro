@@ -782,7 +782,7 @@ export function parseDeterministicDateIntent(text: string): DateIntent | null {
   }
 
   const dayMonthMatch = normalized.match(
-    /^(?:el\s+)?([1-9]|[12]\d|3[01])\s+de\s+([a-z]+)(?:\s+(?:del?\s+)?(\d{4}))?$/
+    /^(?:(?:el\s+)?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+)?(?:el\s+)?([1-9]|[12]\d|3[01])\s+de\s+([a-z]+)(?:\s+(?:del?\s+)?(\d{4}))?$/
   );
   if (dayMonthMatch && MONTHS_MAP[dayMonthMatch[2]]) {
     return {
@@ -1525,6 +1525,26 @@ export function looksLikeOtherFieldIntent(text: string): boolean {
   return false;
 }
 
+/**
+ * Detects whether a text contains explicit date mentions (month names, relative date words,
+ * weekday names, day-of-month indicators like "el 23", "\d{1,2}/\d{1,2}", etc.).
+ * Used to avoid mistakenly classifying compound instructions as time-only queries.
+ */
+export function hasExplicitDateTokens(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const clean = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  return (
+    /\b(hoy|manana|pasado\s+manana|este\s+finde|fin\s+de\s+semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/i.test(
+      clean
+    ) ||
+    /\b(?:el\s+)?(?:[1-9]|[12]\d|3[01])\s+de\s+[a-z]+\b/i.test(clean) ||
+    /\bel\s+(?:[1-9]|[12]\d|3[01])\b/i.test(clean) ||
+    /\b\d{1,2}\s*[\/\-]\s*\d{1,2}\b/.test(clean) ||
+    /\b(?:proximo|proxima|este|esta)\s+(?:finde|semana|mes)\b/i.test(clean)
+  );
+}
+
 export interface ParsedDateOption {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
@@ -1577,7 +1597,7 @@ export function parseNaturalLanguageDateOptions(
 
   // 1. Check explicit coordination intent keywords
   const explicitRegex =
-    /\b(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|(?:elegir|elijan|votar|voten)\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|a\s+votaci[oó]n|opciones\s+para\s+votar|para\s+coordinar|(?:as[íi]\s+|para\s+que\s+|que\s+)(?:cada\s+uno|todos|los\s+invitados)\s+(?:pued[ae]n\s+)?(?:indique[n]?|indicar|diga[n]?|decir|elija[n]?|elegir|vote[n]?|votar)|indique[n]?\s+(?:cu[aá]ndo|cu[aá]l)|(?:para\s+)?ver\s+cu[aá]ndo\s+puede|despu[eé]s\s+decid(?:imos|ir))\b/i;
+    /\b(?:quiero\s+que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|que\s+(?:los\s+invitados\s+)?(?:pued[ae]n\s+)?(?:elegir|elijan|votar|voten)|(?:elegir|elijan|votar|voten)\s+entre|coordinemos\s+entre|coordinar\s+entre|coordinemos|coordinar\s+fechas|a\s+votaci[oó]n|opciones\s+para\s+votar|para\s+coordinar|(?:as[íi]\s+|para\s+que\s+|que\s+)(?:cada\s+uno|todos|los\s+invitados)\s+(?:pued[ae]n\s+)?(?:indique[n]?|indicar|diga[n]?|decir|elija[n]?|elegir|vote[n]?|votar)|indique[n]?\s+(?:cu[aá]ndo|cu[aá]l)|(?:para\s+)?ver\s+cu[aá]ndo\s+puede|(?:para\s+)?ver\s+qu[eé]\s+(?:prefiere|eligen|sale)|propongamos|proponer|despu[eé]s\s+decid(?:imos|ir))\b/i;
   result.hasExplicitCoordinationIntent = explicitRegex.test(clean);
 
   // 2. Check duration
@@ -1604,7 +1624,7 @@ export function parseNaturalLanguageDateOptions(
 
   // 3. Extract activity/title if present at start or after organize verbs or within explicit coordination
   const activityMatch = clean.match(
-    /\b(?:un[a]?\s+)?(cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i
+    /\b(?:un[a]?\s+)?(cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento|juntada)\b/i
   );
   if (activityMatch) {
     const rawWord = activityMatch[1].toLowerCase();
@@ -1613,13 +1633,14 @@ export function parseNaturalLanguageDateOptions(
     else if (/^desayun/i.test(rawWord)) result.extractedTitle = 'Desayuno';
     else if (/^merend|^merien/i.test(rawWord)) result.extractedTitle = 'Merienda';
     else if (/^reuni/i.test(rawWord)) result.extractedTitle = 'Reunión';
+    else if (/^junt/i.test(rawWord)) result.extractedTitle = 'Juntada';
     else result.extractedTitle = rawWord.charAt(0).toUpperCase() + rawWord.slice(1);
   }
 
   // 4. Extract common location
   // NOTE: use \b before the disjunctive 'o'/'u' to avoid matching the 'o' inside month names like "octubre".
   // Also stop at a comma or the word "para/el/la..." to prevent consuming date text after the location.
-  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s*,|\s+(?:para\b|el\b|la\b|los\b|las\b|\bo\b|\bu\b|durante|por|con|\.)|\s*$)/i);
+  const locMatch = clean.match(/\ben\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s*[,.]|\s+(?:para\b|el\b|la\b|los\b|las\b|\bo\b|\bu\b|durante|por|con)|\s*$)/i);
   if (locMatch) {
     const locCandidate = locMatch[1].trim();
     if (!/^(?:el|la|los|las|un|una|este|esta|otro|otra)$/i.test(locCandidate)) {
@@ -1637,7 +1658,7 @@ export function parseNaturalLanguageDateOptions(
 
   if (result.extractedTitle) {
     workText = workText.replace(
-      /\b(?:para\s+)?(?:organizar|hacer|armar|tener)?\s*(?:un[a]?\s+)?(?:cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento)\b/i,
+      /\b(?:para\s+)?(?:organizar|hacer|armar|tener)?\s*(?:un[a]?\s+)?(?:cena|cenar|cenemos|almuerzo|almorzar|almorcemos|desayuno|desayunar|desayunamos|merienda|merendar|merendemos|reuni[oó]n|asado|taller|partido|caf[eé]|cumpleaños|salida|evento|juntada)\b/i,
       ''
     ).trim();
   }
@@ -1683,13 +1704,13 @@ export function parseNaturalLanguageDateOptions(
   for (const seg of rawSegments) {
     let cleanSeg = seg.trim();
 
-    // Strip trailing conversational clauses that appear after a comma and contain no
-    // date/time tokens. Examples: ", para que cada uno indique cuándo puede",
-    // ", así todos pueden elegir", ", y después decidimos cuál elegimos".
+    // Strip trailing conversational clauses that appear after a comma, period or conversational conjunction
+    // and contain no date/time tokens. Examples: ", para que cada uno indique cuándo puede",
+    // ", así todos pueden elegir", " para ver qué prefiere la mayoría", ". Mensaje para los invitados: ...".
     // A date/time token is: a weekday name, a digit-day (el 17), a month name,
     // "las" / "hs" / "horas", or a bare HH:MM pattern.
     cleanSeg = cleanSeg.replace(
-      /,\s+(?![^,]*(?:\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b|\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b|\bel\s+\d|\b\d{1,2}:\d{2}\b|\ba\s+las?\s+\d|\blas?\s+\d|\b\d{1,2}\s*(?:hs|horas)\b)).+$/i,
+      /(?:,\s*|\.\s*|\s+para\s+ver\s+|\s+para\s+que\s+|\s+as[íi]\s+que\s+)(?![^,]*(?:\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b|\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b|\bel\s+\d|\b\d{1,2}:\d{2}\b|\ba\s+las?\s+\d|\blas?\s+\d|\b\d{1,2}\s*(?:hs|horas)\b)).+$/i,
       ''
     ).trim();
 
@@ -1881,7 +1902,11 @@ export function parseNaturalLanguageDateOptions(
 
   result.options.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
-  if (result.options.length >= 2 || (result.options.length === 1 && result.invalidPastOptions.length > 0)) {
+  if (
+    result.options.length >= 2 ||
+    (result.options.length === 1 && result.invalidPastOptions.length > 0) ||
+    result.hasExplicitCoordinationIntent
+  ) {
     result.isCoordinationCandidate = true;
   }
 
@@ -1941,7 +1966,7 @@ export function parseCoordinationTransition(
 
   // 1. Positional switch: "la primera", "opción 1", "me quedo con la segunda", etc.
   if (safeDraft.dateOptions && safeDraft.dateOptions.length > 0) {
-    const posPattern = /^(?:(?:dejemos|dej[aá]|me\s+quedo\s+con|qued[eé]monos\s+con|confirm[aá](?:mos)?|fij[aá](?:mos)?|eleg[ií](?:mos)?|prefiero|va|vamos\s+con)\s+)?(?:la\s+)?(primera|segunda|tercera|[uú]ltima|opci[oó]n\s+[123]|1|2|3)(?:\s+opci[oó]n)?$/i;
+    const posPattern = /^(?:(?:mejor\s+)?(?:dejemos|dej[aá]|me\s+quedo\s+con|qued[eé]monos\s+con|confirm[aá](?:mos)?|fij[aá](?:mos)?|eleg[ií](?:mos)?|prefiero|va|vamos\s+con)\s+)?(?:directamente\s+)?(?:la\s+)?(primera|segunda|tercera|[uú]ltima|opci[oó]n\s+[123]|1|2|3)(?:\s+opci[oó]n)?(?:\s+(?:como\s+fecha\s+fija|como\s+fija))?$/i;
     const posMatch = clean.match(posPattern);
     if (posMatch) {
       const pRaw = posMatch[1].toLowerCase().replace(/^opci[oó]n\s+/, '');

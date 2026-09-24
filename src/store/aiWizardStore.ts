@@ -15,6 +15,7 @@ import {
   parseNaturalLanguageDateOptions,
   parseCoordinationTransition,
   validateResolvedDateTimeInFuture,
+  hasExplicitDateTokens,
   pad,
 } from '@/lib/dateResolver';
 import type { EncounterDraftPatch } from '@/lib/encounterDraftPatch';
@@ -645,10 +646,17 @@ function applyInterpretationResponse(
   // Merge patch deterministically
   const mergeResult = mergeDraftPatch(state.draft, state.config, response.patch);
 
-  const isCoordPending =
+  let isCoordPending =
     mergeResult.coordinationPendingConfirm !== undefined
       ? mergeResult.coordinationPendingConfirm
       : get().coordinationPendingConfirm;
+
+  if (isCoordPending && state.lastUserPrompt) {
+    const nlCoord = parseNaturalLanguageDateOptions(state.lastUserPrompt);
+    if (nlCoord.hasExplicitCoordinationIntent) {
+      isCoordPending = false;
+    }
+  }
 
   // Evaluate draft completeness and select next question
   const evaluation = evaluateDraft(
@@ -1328,8 +1336,19 @@ export const useAiWizardStore = create<AiWizardState>()(
         // 3a2. Deterministic Coordination Input (Multi-date candidates e.g. "Cena hoy a las 20 horas en casa o mañana a las 20 horas en casa")
         const nlCoord = parseNaturalLanguageDateOptions(trimmed, undefined, state.draft.date || state.draft.baseDate);
         if (nlCoord.isCoordinationCandidate) {
+          const hasDateMention = hasExplicitDateTokens(trimmed);
+          const hasPersonalMessage = /\b(?:mensaje(?:\s+para(?:\s+los)?\s+invitados)?|descripci[oó]n|nota)\s*[:]/i.test(trimmed);
+          const isComplexInput = trimmed.length > 70 || /[.,]/.test(trimmed) || hasPersonalMessage;
+
           // A. Multi-hour alternatives pending common date (e.g. "Desayuno a las 10 o a las 11:00 en casa")
-          if (nlCoord.pendingTimeOptions && nlCoord.pendingTimeOptions.length >= 2 && nlCoord.options.length === 0) {
+          // Fail-open: only intercept as pendingTimeOptions if user did not provide date tokens or compound instructions
+          if (
+            nlCoord.pendingTimeOptions &&
+            nlCoord.pendingTimeOptions.length >= 2 &&
+            nlCoord.options.length === 0 &&
+            !hasDateMention &&
+            !isComplexInput
+          ) {
             const newDraft: EncounterDraft = {
               ...state.draft,
               title: nlCoord.extractedTitle || state.draft.title,
@@ -1342,18 +1361,21 @@ export const useAiWizardStore = create<AiWizardState>()(
               pendingTimeOptions: nlCoord.pendingTimeOptions,
             };
 
-            const evaluation = evaluateDraft(newDraft, true, undefined, false);
-            const reply = evaluation.nextQuestion?.question || '¿Qué día sería?';
+            const nextQ: FieldQuestion = {
+              field: 'date',
+              question: '¿Qué día sería?',
+              type: 'text',
+            };
             const assistantMsg: ChatMessage = {
               id: generateUuid(),
               role: 'assistant',
-              text: reply,
+              text: '¿Qué día sería?',
               timestamp: Date.now() + 1,
             };
             set({
               draft: newDraft,
               messages: [...state.messages, userMsg, assistantMsg],
-              lastQuestion: evaluation.nextQuestion,
+              lastQuestion: nextQ,
               coordinationDetected: true,
               coordinationPendingConfirm: false,
               isComplete: false,
@@ -1364,96 +1386,101 @@ export const useAiWizardStore = create<AiWizardState>()(
             return;
           }
 
-          const newDraft: EncounterDraft = {
-            ...state.draft,
-            title: nlCoord.extractedTitle || state.draft.title,
-            locationText: nlCoord.extractedLocation || state.draft.locationText,
-            modality: nlCoord.extractedModality || state.draft.modality,
-            durationMinutes: nlCoord.extractedDurationMinutes || state.draft.durationMinutes,
-            date: null,
-            time: null,
-            dateOptions: nlCoord.options,
-            pendingTimeOptions: null,
-          };
-
-          // One past option + one future option
-          if (nlCoord.invalidPastOptions.length > 0 && nlCoord.options.length === 1) {
-            const pastReason = nlCoord.invalidPastOptions[0].reason;
-            const validDesc = nlCoord.options[0].rawText || 'la otra fecha';
-            const assistantMsg: ChatMessage = {
-              id: generateUuid(),
-              role: 'assistant',
-              text: `${pastReason} La de ${validDesc} sí es válida. ¿Querés agregar otra fecha?`,
-              timestamp: Date.now() + 1,
+          // If the prompt contains a personal message or complex contextual instruction that
+          // deterministic parsing cannot fully represent (like description / custom message),
+          // fail-open and delegate to aiService.interpret so that no user data is dropped or lost.
+          if (!hasPersonalMessage) {
+            const newDraft: EncounterDraft = {
+              ...state.draft,
+              title: nlCoord.extractedTitle || state.draft.title,
+              locationText: nlCoord.extractedLocation || state.draft.locationText,
+              modality: nlCoord.extractedModality || state.draft.modality,
+              durationMinutes: nlCoord.extractedDurationMinutes || state.draft.durationMinutes,
+              date: null,
+              time: null,
+              dateOptions: nlCoord.options,
+              pendingTimeOptions: null,
             };
-            newDraft.dateMode = 'coordination';
-            set({
-              draft: newDraft,
-              messages: [...state.messages, userMsg, assistantMsg],
-              lastQuestion: {
-                field: 'coordination_options',
-                question: '¿Querés agregar otra fecha como alternativa?',
-                type: 'text',
-              },
-              coordinationDetected: true,
-              coordinationPendingConfirm: false,
-              isInterpreting: false,
-              error: null,
-              lastUserPrompt: trimmed,
-            });
-            return;
-          }
 
-          if (nlCoord.options.length >= 2) {
-            if (nlCoord.hasExplicitCoordinationIntent) {
-              // Explicit coordination: set mode immediately, no confirmation card
-              newDraft.dateMode = 'coordination';
-              const evaluation = evaluateDraft(newDraft, true, undefined, false);
-              let reply = '';
-              if (evaluation.isComplete) {
-                reply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
-              } else if (evaluation.nextQuestion) {
-                reply = evaluation.nextQuestion.question;
-              }
+            // One past option + one future option
+            if (nlCoord.invalidPastOptions.length > 0 && nlCoord.options.length === 1) {
+              const pastReason = nlCoord.invalidPastOptions[0].reason;
+              const validDesc = nlCoord.options[0].rawText || 'la otra fecha';
               const assistantMsg: ChatMessage = {
                 id: generateUuid(),
                 role: 'assistant',
-                text: reply,
+                text: `${pastReason} La de ${validDesc} sí es válida. ¿Querés agregar otra fecha?`,
                 timestamp: Date.now() + 1,
               };
+              newDraft.dateMode = 'coordination';
               set({
                 draft: newDraft,
                 messages: [...state.messages, userMsg, assistantMsg],
-                lastQuestion: evaluation.nextQuestion,
+                lastQuestion: {
+                  field: 'coordination_options',
+                  question: '¿Querés agregar otra fecha como alternativa?',
+                  type: 'text',
+                },
                 coordinationDetected: true,
                 coordinationPendingConfirm: false,
-                isComplete: evaluation.isComplete,
-                isInterpreting: false,
-                error: null,
-                lastUserPrompt: trimmed,
-              });
-              return;
-            } else {
-              // Implicit coordination: present confirmation card without duplicate assistant bubble
-              const evaluation = evaluateDraft(newDraft, true, undefined, true);
-              set({
-                draft: newDraft,
-                messages: [...state.messages, userMsg],
-                lastQuestion: evaluation.nextQuestion,
-                coordinationDetected: true,
-                coordinationPendingConfirm: true,
-                isComplete: false,
                 isInterpreting: false,
                 error: null,
                 lastUserPrompt: trimmed,
               });
               return;
             }
+
+            if (nlCoord.options.length >= 2) {
+              if (nlCoord.hasExplicitCoordinationIntent) {
+                // Explicit coordination: set mode immediately, no confirmation card
+                newDraft.dateMode = 'coordination';
+                const evaluation = evaluateDraft(newDraft, true, undefined, false);
+                let reply = '';
+                if (evaluation.isComplete) {
+                  reply = '¡Listo! Preparé el resumen con los datos de tu encuentro coordinado. Revisalo antes de crear.';
+                } else if (evaluation.nextQuestion) {
+                  reply = evaluation.nextQuestion.question;
+                }
+                const assistantMsg: ChatMessage = {
+                  id: generateUuid(),
+                  role: 'assistant',
+                  text: reply,
+                  timestamp: Date.now() + 1,
+                };
+                set({
+                  draft: newDraft,
+                  messages: [...state.messages, userMsg, assistantMsg],
+                  lastQuestion: evaluation.nextQuestion,
+                  coordinationDetected: true,
+                  coordinationPendingConfirm: false,
+                  isComplete: evaluation.isComplete,
+                  isInterpreting: false,
+                  error: null,
+                  lastUserPrompt: trimmed,
+                });
+                return;
+              } else {
+                // Implicit coordination: present confirmation card without duplicate assistant bubble
+                const evaluation = evaluateDraft(newDraft, true, undefined, true);
+                set({
+                  draft: newDraft,
+                  messages: [...state.messages, userMsg],
+                  lastQuestion: evaluation.nextQuestion,
+                  coordinationDetected: true,
+                  coordinationPendingConfirm: true,
+                  isComplete: false,
+                  isInterpreting: false,
+                  error: null,
+                  lastUserPrompt: trimmed,
+                });
+                return;
+              }
+            }
           }
         }
 
         // 3b. Deterministic Composite Input (Activity + Date + Time) e.g. "Cena mañana a las once", "Cena mañana a las 11 hs"
-        if (!state.draft.title) {
+        if (!state.draft.title && !nlCoord.isCoordinationCandidate) {
           const composite = parseCompositeEncounterInput(trimmed);
           if (composite) {
             const newDraft: EncounterDraft = {

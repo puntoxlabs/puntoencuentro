@@ -25,6 +25,7 @@ import {
   parseDeterministicDateExpression,
   parseNaturalLanguageDateOptions,
   parseCoordinationTransition,
+  hasExplicitDateTokens,
 } from '../src/lib/dateResolver.ts';
 import {
   EDITABLE_FIELD_REGISTRY,
@@ -12225,6 +12226,598 @@ describe('Entrega C: Integración Funcional, Persistencia y Pantallas de Invitad
 
     // Ambos flujos mapean idénticamente al campo descripcion de public.encuentros
     assert.equal(generalDto.descripcion, indDto.descripcion);
+  });
+});
+
+describe('Batería de Regresión REG-01 a REG-10: Coordinación e Instrucciones Compuestas con Mensaje', () => {
+  // Base temporal determinística: 2026-09-23 (miércoles)
+  const baseDate = { year: 2026, month: 9, day: 23 };
+
+  // REG-01: Caso Original (Coordinación + 2 fechas absolutas con día de la semana + lugar + mensaje personalizado)
+  test('REG-01: Caso original no intercepta como consulta horaria, resuelve fechas con día de semana y preserva mensaje personalizado', async () => {
+    const prompt = 'Quiero armar una juntada con amigos en mi casa. Propongamos el viernes 23 de octubre a las 21 o el sábado 24 de octubre a las 20 para ver qué prefiere la mayoría. Mensaje para los invitados: Voten la fecha que les quede mejor y vemos qué sale';
+
+    // 1. Detección de tokens de fecha
+    assert.equal(hasExplicitDateTokens(prompt), true, 'Debe detectar tokens explícitos de fecha');
+
+    // 2. Soporte de prefijo de día de la semana en dateResolver
+    const intentFri = parseDeterministicDateIntent('viernes 23 de octubre');
+    assert.ok(intentFri);
+    assert.equal(intentFri.type, 'absolute');
+    assert.equal(intentFri.day, 23);
+    assert.equal(intentFri.month, 10);
+
+    const intentSat = parseDeterministicDateIntent('sábado 24 de octubre');
+    assert.ok(intentSat);
+    assert.equal(intentSat.type, 'absolute');
+    assert.equal(intentSat.day, 24);
+    assert.equal(intentSat.month, 10);
+
+    // 3. Resolución en draftMerger vía temporalAlternatives
+    const alternatives = [
+      { dateRef: 'viernes 23 de octubre', timeRef: 'a las 21' },
+      { dateRef: 'sábado 24 de octubre', timeRef: 'a las 20' },
+    ];
+    const res = resolveTemporalAlternatives(alternatives, { title: 'Juntada con amigos' }, baseDate);
+    assert.equal(res.dateOptions?.length, 2);
+    assert.equal(res.dateOptions[0].date, '2026-10-23');
+    assert.equal(res.dateOptions[0].time, '21:00');
+    assert.equal(res.dateOptions[1].date, '2026-10-24');
+    assert.equal(res.dateOptions[1].time, '20:00');
+
+    // 4. Integración Store: emula respuesta del modelo ai-interpret sin saltarse el backend ni perder datos
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    try {
+      let interpretCalled = false;
+      let promptSent = '';
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async (userPrompt: string) => {
+        interpretCalled = true;
+        promptSent = userPrompt;
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Juntada con amigos', confidence: 'explicit' as const },
+            modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+            locationText: { value: 'mi casa', confidence: 'explicit' as const },
+            description: { value: 'Voten la fecha que les quede mejor y vemos qué sale', action: 'set' as const, confidence: 'explicit' as const },
+            temporalAlternatives: {
+              value: [
+                { dateRef: 'viernes 23 de octubre', timeRef: 'a las 21' },
+                { dateRef: 'sábado 24 de octubre', timeRef: 'a las 20' },
+              ],
+              confidence: 'explicit' as const,
+            },
+            dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          },
+          usage: { inputTokens: 50, outputTokens: 50, latencyMs: 100 },
+          provider: 'test',
+          model: 'test-model',
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(prompt);
+
+      const state = useAiWizardStore.getState();
+      assert.equal(interpretCalled, true, 'Debe invocar a aiService.interpretMessage sin intercepción prematura');
+      assert.equal(promptSent, prompt, 'El prompt enviado a la IA debe ser el texto original completo');
+      assert.equal(state.draft.dateMode, 'coordination', 'dateMode debe ser coordination');
+      assert.equal(state.draft.dateOptions?.length, 2, 'Debe tener 2 dateOptions');
+      assert.equal(state.draft.dateOptions?.[0].date, '2026-10-23');
+      assert.equal(state.draft.dateOptions?.[0].time, '21:00');
+      assert.equal(state.draft.dateOptions?.[1].date, '2026-10-24');
+      assert.equal(state.draft.dateOptions?.[1].time, '20:00');
+      assert.equal(state.draft.locationText, 'mi casa');
+      assert.equal(state.draft.modality, 'presencial');
+      assert.equal(state.draft.description, 'Voten la fecha que les quede mejor y vemos qué sale');
+      assert.equal(state.draft.title, 'Juntada con amigos');
+      assert.equal(state.isComplete, true, 'El borrador debe estar completo');
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+
+  // REG-02: Coordinación y ubicación sin mensaje personalizado
+  test('REG-02: Instrucción con fechas y ubicación sin mensaje personalizado no se intercepta como sólo horas', async () => {
+    const prompt = 'Quiero armar una juntada con amigos en mi casa. Propongamos el viernes 23 de octubre a las 21 o el sábado 24 de octubre a las 20 para ver qué prefiere la mayoría.';
+
+    assert.equal(hasExplicitDateTokens(prompt), true);
+
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    try {
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async () => {
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Juntada con amigos', confidence: 'explicit' as const },
+            modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+            locationText: { value: 'mi casa', confidence: 'explicit' as const },
+            temporalAlternatives: {
+              value: [
+                { dateRef: 'viernes 23 de octubre', timeRef: 'a las 21' },
+                { dateRef: 'sábado 24 de octubre', timeRef: 'a las 20' },
+              ],
+              confidence: 'explicit' as const,
+            },
+            dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          },
+          usage: { inputTokens: 50, outputTokens: 50, latencyMs: 50 },
+          provider: 'test',
+          model: 'test-model',
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(prompt);
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateMode, 'coordination');
+      assert.equal(state.draft.dateOptions?.length, 2);
+      assert.equal(state.draft.dateOptions?.[0].date, '2026-10-23');
+      assert.equal(state.draft.dateOptions?.[0].time, '21:00');
+      assert.equal(state.draft.dateOptions?.[1].date, '2026-10-24');
+      assert.equal(state.draft.dateOptions?.[1].time, '20:00');
+      assert.equal(state.draft.locationText, 'mi casa');
+      assert.equal(state.draft.pendingTimeOptions, null, 'No debe colapsar a consulta horaria');
+      assert.equal(state.draft.description, null, 'No debe inventar descripción');
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+
+  // REG-03: Alternativas temporales simples determinísticas
+  test('REG-03: Alternativas temporales simples resuelven ambas fechas y piden confirmación', async () => {
+    const prompt = 'el 17 de octubre a las 21 o el 18 de octubre a las 20';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 2);
+    assert.equal(parsed.options[0].date, '2026-10-17');
+    assert.equal(parsed.options[0].time, '21:00');
+    assert.equal(parsed.options[1].date, '2026-10-18');
+    assert.equal(parsed.options[1].time, '20:00');
+    assert.equal(parsed.hasExplicitCoordinationIntent, false, 'No tiene palabra clave explícita de coordinación');
+
+    useAiWizardStore.getState().reset();
+    await useAiWizardStore.getState().sendUserMessage(prompt);
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.coordinationPendingConfirm, true, 'Debe activar confirmation card');
+    assert.equal(state.draft.dateOptions?.length, 2);
+  });
+
+  // REG-04: Alternativas horarias reales en la misma fecha
+  test('REG-04: Alternativas horarias sobre la misma fecha estructuran 2 opciones', () => {
+    const prompt = 'Cena el 17 de octubre a las 20 o a las 21';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 2);
+    assert.equal(parsed.options[0].date, '2026-10-17');
+    assert.equal(parsed.options[0].time, '20:00');
+    assert.equal(parsed.options[1].date, '2026-10-17');
+    assert.equal(parsed.options[1].time, '21:00');
+    assert.equal(parsed.extractedTitle, 'Cena');
+  });
+
+  // REG-05: Horarios sin fecha (consulta exclusivamente horaria legítima)
+  test('REG-05: Consulta exclusivamente horaria ("Podría ser a las 20 o a las 21") pregunta día sin inventar fecha', async () => {
+    const prompt = 'Podría ser a las 20 o a las 21';
+    assert.equal(hasExplicitDateTokens(prompt), false, 'No contiene tokens de fecha');
+
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 0);
+    assert.deepEqual(parsed.pendingTimeOptions, ['20:00', '21:00']);
+
+    useAiWizardStore.getState().reset();
+    await useAiWizardStore.getState().sendUserMessage(prompt);
+
+    const state = useAiWizardStore.getState();
+    assert.deepEqual(state.draft.pendingTimeOptions, ['20:00', '21:00']);
+    assert.equal(state.draft.date, null, 'No debe inventar fecha');
+    assert.equal(state.draft.dateOptions, null);
+    assert.equal(state.lastQuestion?.field, 'date');
+    assert.equal(state.lastQuestion?.question, '¿Qué día sería?');
+  });
+
+  // REG-06: Fecha fija
+  test('REG-06: Fecha fija ("Organicemos una cena el 17 de octubre a las 21") no se degrada a coordinación', () => {
+    const prompt = 'Organicemos una cena el 17 de octubre a las 21';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, false, 'No es candidato de coordinación');
+
+    const intent = parseDeterministicDateIntent('17 de octubre');
+    assert.ok(intent);
+    const resolved = resolveDateIntent(intent, baseDate);
+    assert.equal(resolved.date, '2026-10-17');
+
+    const merged = mergeDraftPatch(createEmptyEncounterDraft(), createDefaultInvitationConfig(), {
+      title: { value: 'Cena', confidence: 'explicit' as const },
+      dateIntent: { value: intent, confidence: 'explicit' as const },
+      timeIntent: { value: { type: 'exact' as const, hour: 21, minute: 0 }, confidence: 'explicit' as const },
+      dateModeSignal: { value: 'fixed' as const, confidence: 'explicit' as const },
+    });
+
+    assert.equal(merged.draft.dateMode, 'fixed');
+    assert.equal(merged.draft.date, '2026-10-17');
+    assert.equal(merged.draft.time, '21:00');
+    assert.equal(merged.draft.dateOptions, null);
+  });
+
+  // REG-07: Regresión TC-03 (Coordinación explícita con cláusula conversacional)
+  test('REG-07: TC-03 ("cena con amigos el 17 de octubre a las 21 o el 18 de octubre a las 20 para que cada uno indique") activa coordinación sin confirmation card', async () => {
+    const prompt = 'cena con amigos el 17 de octubre a las 21 o el 18 de octubre a las 20 para que cada uno indique';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.hasExplicitCoordinationIntent, true, 'Debe detectar intención explícita por "para que cada uno indique"');
+    assert.equal(parsed.options.length, 2);
+    assert.equal(parsed.options[0].date, '2026-10-17');
+    assert.equal(parsed.options[0].time, '21:00');
+    assert.equal(parsed.options[1].date, '2026-10-18');
+    assert.equal(parsed.options[1].time, '20:00');
+
+    useAiWizardStore.getState().reset();
+    await useAiWizardStore.getState().sendUserMessage(prompt);
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.dateMode, 'coordination');
+    assert.equal(state.coordinationPendingConfirm, false, 'No debe pedir confirmación al ser explícito');
+    assert.equal(state.draft.dateOptions?.length, 2);
+  });
+
+  // REG-08: Transición TC-06 (Cambio de coordinación a fecha fija eligiendo primera opción)
+  test('REG-08: Transición TC-06 ("Mejor dejemos directamente la primera opción como fecha fija") fija la fecha correctamente', async () => {
+    const initialDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Juntada con amigos',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-10-23', time: '21:00' },
+        { date: '2026-10-24', time: '20:00' },
+      ],
+      locationText: 'mi casa',
+      modality: 'presencial' as const,
+    };
+
+    useAiWizardStore.getState().reset();
+    useAiWizardStore.setState({ draft: initialDraft, isComplete: false });
+
+    const transition = parseCoordinationTransition('Mejor dejemos directamente la primera opción como fecha fija', initialDraft);
+    assert.equal(transition.type, 'switch_to_fixed');
+    assert.equal(transition.position, 0);
+    assert.deepEqual(transition.selectedFixedOption, initialDraft.dateOptions[0]);
+
+    await useAiWizardStore.getState().sendUserMessage('Mejor dejemos directamente la primera opción como fecha fija');
+
+    const state = useAiWizardStore.getState();
+    assert.equal(state.draft.dateMode, 'fixed');
+    assert.equal(state.draft.date, '2026-10-23');
+    assert.equal(state.draft.time, '21:00');
+    assert.equal(state.draft.dateOptions, null);
+  });
+
+  // REG-09: Modificación compuesta de coordinación y mensaje
+  test('REG-09: Modificación compuesta actualiza fecha y adapta mensaje en un solo paso atómico', () => {
+    const initialDraft = {
+      ...createEmptyEncounterDraft(),
+      title: 'Juntada con amigos',
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-10-23', time: '21:00' },
+        { date: '2026-10-24', time: '20:00' },
+      ],
+      locationText: 'mi casa',
+      modality: 'presencial' as const,
+      description: 'Voten la fecha que les quede mejor y vemos qué sale',
+    };
+    const config = createDefaultInvitationConfig();
+
+    const patch = {
+      scope: 'encounter' as const,
+      description: {
+        value: '¡Se viene la mejor juntada del año! Voten la fecha.',
+        action: 'set' as const,
+        confidence: 'explicit' as const,
+      },
+      temporalAlternatives: {
+        value: [
+          { dateRef: 'sábado 24 de octubre', timeRef: 'a las 22' },
+          { dateRef: 'domingo 25 de octubre', timeRef: 'a las 20' },
+        ],
+        confidence: 'explicit' as const,
+      },
+    };
+
+    const res = mergeDraftPatch(initialDraft, config, patch, baseDate);
+    assert.equal(res.draft.dateMode, 'coordination');
+    assert.equal(res.draft.dateOptions?.length, 2);
+    assert.equal(res.draft.dateOptions?.[0].date, '2026-10-24');
+    assert.equal(res.draft.dateOptions?.[0].time, '22:00');
+    assert.equal(res.draft.dateOptions?.[1].date, '2026-10-25');
+    assert.equal(res.draft.dateOptions?.[1].time, '20:00');
+    assert.equal(res.draft.description, '¡Se viene la mejor juntada del año! Voten la fecha.');
+  });
+
+  // REG-10: Principio fail-open ante resultados parciales del parser determinístico
+  test('REG-10: Input complejo con coordinación parcial no se degrada a fecha fija determinística y delega a la IA', async () => {
+    const complexPrompt = 'Queremos coordinar entre el 23 de octubre a las 21 o alguna otra fecha del fin de semana que le convenga a todos.';
+
+    const nlCoord = parseNaturalLanguageDateOptions(complexPrompt, baseDate);
+    assert.equal(nlCoord.isCoordinationCandidate, true);
+
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    let delegated = false;
+    try {
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async (userPrompt: string) => {
+        delegated = true;
+        assert.equal(userPrompt, complexPrompt);
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Coordinación', confidence: 'inferred_medium' as const },
+            temporalAlternatives: {
+              value: [
+                { dateRef: '2026-10-23', timeRef: '21:00' },
+                { dateRef: '2026-10-24', timeRef: '21:00' },
+              ],
+              confidence: 'explicit' as const,
+            },
+            dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          },
+          usage: { inputTokens: 50, outputTokens: 50, latencyMs: 80 },
+          provider: 'test',
+          model: 'test-model',
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(complexPrompt);
+
+      assert.equal(delegated, true, 'Debe delegar a aiService.interpretMessage');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateMode, 'coordination');
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+});
+
+describe('Gate Final: Validación de Fail-Open Real y Regresiones del Parser A-G', () => {
+  const baseDate = { year: 2026, month: 9, day: 23 };
+
+  // 1. Fail-open Real Forzado
+  test('Gate Fail-Open Real: Input con coordinación y resultado determinístico incompleto (options = 0) delega íntegro a aiService.interpretMessage y completa borrador sin preguntas redundantes', async () => {
+    const complexPrompt = 'Quiero hacer un asado en mi casa. Coordinemos para juntarnos entre el tercer viernes de noviembre o el primer sábado de diciembre. Mensaje para los invitados: Traigan lo que vayan a tomar';
+
+    const nlCoord = parseNaturalLanguageDateOptions(complexPrompt, baseDate);
+    assert.equal(nlCoord.isCoordinationCandidate, true, 'Debe detectar intención de coordinación');
+    assert.equal(nlCoord.options.length, 0, 'El parser determinístico debe ser incompleto para expresiones relativas ordinales');
+
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    let interpretCalled = false;
+    let sentPrompt = '';
+
+    try {
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async (userPrompt: string) => {
+        interpretCalled = true;
+        sentPrompt = userPrompt;
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Asado', confidence: 'explicit' as const },
+            modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+            locationText: { value: 'mi casa', confidence: 'explicit' as const },
+            description: { value: 'Traigan lo que vayan a tomar', action: 'set' as const, confidence: 'explicit' as const },
+            temporalAlternatives: {
+              value: [
+                { dateRef: '2026-11-20', timeRef: '21:00' },
+                { dateRef: '2026-12-05', timeRef: '21:00' },
+              ],
+              confidence: 'explicit' as const,
+            },
+            dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          },
+          usage: { inputTokens: 60, outputTokens: 60, latencyMs: 90 },
+          provider: 'test-real-gate',
+          model: 'gpt-5.6-luna',
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(complexPrompt);
+
+      assert.equal(interpretCalled, true, 'La llamada a ai-interpret debe ocurrir efectivamente');
+      assert.equal(sentPrompt, complexPrompt, 'Se debe enviar el texto ORIGINAL completo sin recortes');
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.title, 'Asado');
+      assert.equal(state.draft.locationText, 'mi casa');
+      assert.equal(state.draft.modality, 'presencial');
+      assert.equal(state.draft.description, 'Traigan lo que vayan a tomar');
+      assert.equal(state.draft.dateMode, 'coordination');
+      assert.equal(state.draft.dateOptions?.length, 2);
+      assert.equal(state.draft.dateOptions?.[0].date, '2026-11-20');
+      assert.equal(state.draft.dateOptions?.[1].date, '2026-12-05');
+      assert.equal(state.isComplete, true, 'El borrador debe quedar completo');
+      assert.equal(state.lastQuestion, null, 'No debe emitir preguntas redundantes sobre datos recuperados');
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+
+  // 2. Regresiones del Parser (A a G)
+  test('Gate Regresión A: Fecha fija con lugar "el club"', () => {
+    const prompt = 'Cena el 17 de octubre a las 21 en el club';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, false, 'No debe ser candidato a coordinación');
+    assert.equal(parsed.extractedLocation, 'el club', 'Debe extraer "el club" sin perder el artículo');
+    assert.equal(parsed.extractedTitle, 'Cena');
+  });
+
+  test('Gate Regresión B: Fecha fija con lugar "Los Troncos"', () => {
+    const prompt = 'Cena el 17 de octubre a las 21 en Los Troncos';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, false, 'No debe ser candidato a coordinación');
+    assert.equal(parsed.extractedLocation, 'Los Troncos', 'Debe extraer "Los Troncos" respetando mayúsculas y artículo');
+    assert.equal(parsed.extractedTitle, 'Cena');
+  });
+
+  test('Gate Regresión C: Coordinación de dos fechas con mensaje personalizado', async () => {
+    const prompt = 'Quiero organizar una cena. Propongamos el 17 de octubre a las 21 o el 18 de octubre a las 20. Mensaje para los invitados: Los espero a todos';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 2);
+
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    let delegated = false;
+
+    try {
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async (p: string) => {
+        delegated = true;
+        assert.equal(p, prompt);
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Cena', confidence: 'explicit' as const },
+            description: { value: 'Los espero a todos', action: 'set' as const, confidence: 'explicit' as const },
+            temporalAlternatives: {
+              value: [
+                { dateRef: '2026-10-17', timeRef: '21:00' },
+                { dateRef: '2026-10-18', timeRef: '20:00' },
+              ],
+              confidence: 'explicit' as const,
+            },
+            dateModeSignal: { value: 'coordination' as const, confidence: 'explicit' as const },
+          },
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(prompt);
+
+      assert.equal(delegated, true, 'Debe delegar a IA por contener mensaje personalizado');
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.description, 'Los espero a todos');
+      assert.equal(state.draft.dateOptions?.length, 2);
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+
+  test('Gate Regresión D: Dos horarios para una misma fecha', () => {
+    const prompt = 'Cena el 17 de octubre a las 20 o a las 21 en mi casa';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 2);
+    assert.equal(parsed.options[0].date, '2026-10-17');
+    assert.equal(parsed.options[0].time, '20:00');
+    assert.equal(parsed.options[1].date, '2026-10-17');
+    assert.equal(parsed.options[1].time, '21:00');
+    assert.equal(parsed.extractedLocation, 'mi casa');
+    assert.equal(parsed.extractedTitle, 'Cena');
+    assert.ok(!parsed.pendingTimeOptions || parsed.pendingTimeOptions.length === 0, 'No debe dejar horarios pendientes de fecha');
+  });
+
+  test('Gate Regresión E: Dos horarios sin fecha proporcionada', async () => {
+    const prompt = 'Podría ser a las 20 o a las 21';
+    assert.equal(hasExplicitDateTokens(prompt), false);
+
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.options.length, 0);
+    assert.deepEqual(parsed.pendingTimeOptions, ['20:00', '21:00']);
+
+    useAiWizardStore.getState().reset();
+    await useAiWizardStore.getState().sendUserMessage(prompt);
+
+    const state = useAiWizardStore.getState();
+    assert.deepEqual(state.draft.pendingTimeOptions, ['20:00', '21:00']);
+    assert.equal(state.draft.date, null);
+    assert.equal(state.draft.dateOptions, null);
+    assert.equal(state.lastQuestion?.field, 'date');
+    assert.equal(state.lastQuestion?.question, '¿Qué día sería?');
+  });
+
+  test('Gate Regresión F: Mensaje personalizado que menciona fecha u horario en su contenido', async () => {
+    const prompt = 'Juntada el 17 de octubre a las 21 en mi casa. Mensaje para los invitados: Recuerden que el 18 de octubre a las 10 nos vemos de nuevo para limpiar';
+
+    const originalInterpretMessage = aiService.interpretMessage;
+    const originalStartSession = aiService.startSession;
+    try {
+      aiService.startSession = () => {};
+      aiService.interpretMessage = async () => {
+        return {
+          ok: true,
+          scope: 'encounter' as const,
+          patch: {
+            scope: 'encounter' as const,
+            title: { value: 'Juntada', confidence: 'explicit' as const },
+            modality: { value: 'presencial' as const, confidence: 'explicit' as const },
+            locationText: { value: 'mi casa', confidence: 'explicit' as const },
+            dateIntent: { value: { type: 'absolute' as const, day: 17, month: 10, year: 2026 }, confidence: 'explicit' as const },
+            timeIntent: { value: { type: 'exact' as const, hour: 21, minute: 0 }, confidence: 'explicit' as const },
+            description: {
+              value: 'Recuerden que el 18 de octubre a las 10 nos vemos de nuevo para limpiar',
+              action: 'set' as const,
+              confidence: 'explicit' as const,
+            },
+          },
+        };
+      };
+
+      useAiWizardStore.getState().reset();
+      await useAiWizardStore.getState().sendUserMessage(prompt);
+
+      const state = useAiWizardStore.getState();
+      assert.equal(state.draft.dateMode, 'fixed');
+      assert.equal(state.draft.date, '2026-10-17');
+      assert.equal(state.draft.time, '21:00');
+      assert.equal(state.draft.description, 'Recuerden que el 18 de octubre a las 10 nos vemos de nuevo para limpiar');
+      assert.equal(state.draft.dateOptions, null, 'La fecha interna del mensaje no debe generar opciones de coordinación');
+    } finally {
+      aiService.interpretMessage = originalInterpretMessage;
+      aiService.startSession = originalStartSession;
+    }
+  });
+
+  test('Gate Regresión G: Instrucción compuesta con ubicación y cláusula conversacional posterior', () => {
+    const prompt = 'Quiero armar una juntada con amigos en mi casa. Propongamos el viernes 23 de octubre a las 21 o el sábado 24 de octubre a las 20 para ver qué prefiere la mayoría';
+    const parsed = parseNaturalLanguageDateOptions(prompt, baseDate);
+    assert.equal(parsed.isCoordinationCandidate, true);
+    assert.equal(parsed.extractedLocation, 'mi casa');
+    assert.ok(parsed.extractedTitle === 'Juntada' || parsed.extractedTitle === 'Juntada con amigos');
+    assert.equal(parsed.options.length, 2);
+    assert.equal(parsed.options[0].date, '2026-10-23');
+    assert.equal(parsed.options[0].time, '21:00');
+    assert.equal(parsed.options[1].date, '2026-10-24');
+    assert.equal(parsed.options[1].time, '20:00');
   });
 });
 
