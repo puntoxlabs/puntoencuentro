@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Send, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, CheckCircle2, Mic, Square } from 'lucide-react';
 import { AppBar } from '@/components/ui/AppBar';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -307,9 +307,26 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   const prevMessagesCountRef = useRef(messages.length);
   const prevInterpretingRef = useRef(isInterpreting);
 
+  const location = useLocation();
+  const initialPromptConsumedRef = useRef(false);
+
   useEffect(() => {
     initSession();
-  }, [initSession]);
+    if (initialPromptConsumedRef.current) return;
+    initialPromptConsumedRef.current = true;
+
+    const pendingStore = useAiWizardStore.getState().consumePendingInitialPrompt();
+    const locState = location.state as { initialPrompt?: string; transferId?: string } | null;
+    const promptToExecute = pendingStore?.prompt?.trim() || locState?.initialPrompt?.trim();
+
+    if (locState?.initialPrompt && typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState({ ...window.history.state, initialPrompt: undefined }, '');
+    }
+
+    if (promptToExecute) {
+      void sendUserMessage(promptToExecute);
+    }
+  }, [initSession, sendUserMessage, location.state]);
 
   const [isSlowResponse, setIsSlowResponse] = useState(false);
 

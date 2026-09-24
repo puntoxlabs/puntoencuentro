@@ -30,6 +30,9 @@ try {
   await server.ssrLoadModule('./scripts/test-qa-frontend.ts');
   console.log('✅ QA Frontend (Etapa C) behavioral tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-home-integration.ts');
+  console.log('✅ New Mobile-First Home integration & component tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);

@@ -1,0 +1,99 @@
+.home-draft-resume-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #F0F5FF 0%, #FFFFFF 100%);
+  border: 1.5px solid #C7D7FE;
+  border-radius: var(--radius-lg, 16px);
+  padding: 0.875rem 1rem;
+  margin: 0.25rem 0;
+  box-shadow: 0 2px 6px rgba(24, 76, 212, 0.06);
+}
+
+.home-draft-resume-content {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.home-draft-resume-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-primary-container, #E5EDFF);
+  color: var(--color-primary, #184CD4);
+  flex-shrink: 0;
+}
+
+.home-draft-resume-texts {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-draft-resume-title {
+  font-size: var(--text-sm, 13px);
+  font-weight: 700;
+  color: var(--color-on-surface, #0F1322);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-draft-resume-subtitle {
+  font-size: var(--text-xs, 12px);
+  color: var(--color-on-surface-variant, #4B5162);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-draft-resume-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.home-draft-resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  background-color: var(--color-primary, #184CD4);
+  color: #FFFFFF;
+  font-size: var(--text-xs, 12px);
+  font-weight: 700;
+  border-radius: var(--radius-pill, 9999px);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.home-draft-resume-btn:hover {
+  background-color: var(--color-primary-dark, #123AA1);
+}
+
+.home-draft-discard-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-outline, #8E95A7);
+  cursor: pointer;
+  transition: color var(--transition-base), background-color var(--transition-base);
+}
+
+.home-draft-discard-btn:hover {
+  color: var(--color-danger, #D92D20);
+  background-color: var(--color-danger-bg, #FEF3F2);
+}

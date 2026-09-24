@@ -34,6 +34,15 @@ import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceShe
 import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
 import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
 import { useHiddenDiscovery } from '@/hooks/useHiddenDiscovery';
+import { hasMeaningfulDraftData } from '@/lib/encounterDraft';
+import {
+  HomeHero,
+  HomeIntentInput,
+  HomeSuggestionChips,
+  HomeDraftResumeCard,
+  HomeValueProposition,
+  DraftOverwriteConfirmSheet,
+} from '@/components/home';
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -283,6 +292,49 @@ const Home: React.FC = () => {
   const { startCoordinationEncounter, coordinationWarningProps } = useStartCoordinationEncounter();
 
   const [isModeChoiceOpen, setIsModeChoiceOpen] = useState(false);
+  const [homeIntent, setHomeIntent] = useState('');
+  const [isSubmittingIntent, setIsSubmittingIntent] = useState(false);
+  const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
+
+  const aiDraft = useAiWizardStore(s => s.draft);
+  const aiConfig = useAiWizardStore(s => s.config);
+  const hasActiveDraft = hasMeaningfulDraftData(aiDraft, aiConfig);
+
+  const startNewEncounterWithIntent = (text: string) => {
+    setIsSubmittingIntent(true);
+    useAiWizardStore.getState().startNewWithPrompt(text);
+    navigate('/create/ai');
+  };
+
+  const handleIntentSubmit = () => {
+    const text = homeIntent.trim();
+    if (!text || isSubmittingIntent) return;
+
+    if (hasActiveDraft) {
+      setIsOverwriteSheetOpen(true);
+      return;
+    }
+
+    startNewEncounterWithIntent(text);
+  };
+
+  const handleResumeOldDraft = () => {
+    setIsOverwriteSheetOpen(false);
+    navigate('/create/ai');
+  };
+
+  const handleConfirmNewDraft = () => {
+    setIsOverwriteSheetOpen(false);
+    startNewEncounterWithIntent(homeIntent.trim());
+  };
+
+  const handleDiscardOldDraft = () => {
+    useAiWizardStore.getState().reset();
+  };
+
+  const handleSelectSuggestion = (prompt: string) => {
+    setHomeIntent(prompt);
+  };
 
   const handleCreateClick = () => {
     sessionStorage.removeItem('cancel_reference');
@@ -654,15 +706,10 @@ const Home: React.FC = () => {
   };
 
   return (
-    <ScreenContainer style={{ background: 'var(--color-background)' }}>
+    <ScreenContainer style={{ background: 'var(--color-background)' }} className="home-screen-container">
       <header className="home-header">
-        <div>
-          <h1 className="home-header-title" onClick={handleTap}>
-            Tus encuentros
-          </h1>
-          <p className="home-header-subtitle">
-            {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
-          </p>
+        <div className="home-header-brand" onClick={handleTap}>
+          <span className="home-header-logo-text">PuntoEncuentro</span>
         </div>
         <div className="home-header-actions">
           {/* Botón de perfil/cuenta */}
@@ -689,25 +736,78 @@ const Home: React.FC = () => {
           </button>
 
           {/* Botón de filtros */}
-          <button
-            onClick={() => setIsFilterOpen(true)}
-            className="home-header-icon-btn"
-            style={{
-              color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
-            }}
-          >
-            <Sliders size={20} />
-          </button>
+          {(encuentros.length > 0 || filterStatus !== 'all' || filterType !== 'all') && (
+            <button
+              onClick={() => setIsFilterOpen(true)}
+              className="home-header-icon-btn"
+              style={{
+                color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
+              }}
+              title="Filtros"
+            >
+              <Sliders size={20} />
+            </button>
+          )}
 
           {/* Botón de información */}
           <button
             onClick={() => setIsInfoOpen(true)}
             className="home-header-icon-btn"
+            title="Información"
           >
             <MoreVertical size={20} />
           </button>
         </div>
       </header>
+
+      {/* Hero Section */}
+      <HomeHero />
+
+      {/* Input de Intención y CTA */}
+      <HomeIntentInput
+        value={homeIntent}
+        onChange={setHomeIntent}
+        onSubmit={handleIntentSubmit}
+        isSubmitting={isSubmittingIntent}
+      />
+
+      {/* Chips de Sugerencia */}
+      <div style={{ marginTop: '0.75rem', width: '100%' }}>
+        <HomeSuggestionChips onSelect={handleSelectSuggestion} />
+      </div>
+
+      {/* Card de reanudación de borrador activo */}
+      {hasActiveDraft && (
+        <div style={{ marginTop: '0.75rem', width: '100%' }}>
+          <HomeDraftResumeCard
+            title={aiDraft.title}
+            details={
+              aiDraft.date
+                ? `Programado para ${aiDraft.date}`
+                : aiDraft.dateOptions?.length
+                ? `${aiDraft.dateOptions.length} fechas propuestas`
+                : 'Borrador sin finalizar'
+            }
+            onResume={handleResumeOldDraft}
+            onDiscard={handleDiscardOldDraft}
+          />
+        </div>
+      )}
+
+      {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
+      {!loading && (!encuentros || encuentros.length === 0) && !user && (
+        <HomeValueProposition />
+      )}
+
+      {/* Sección "Tus encuentros" para usuarios con encuentros o logueados */}
+      {(user || (encuentros && encuentros.length > 0)) && (
+        <div className="home-encounters-section">
+          <div className="home-encounters-header">
+            <h2 className="home-encounters-title">Tus encuentros</h2>
+            <span className="home-encounters-count">
+              {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
+            </span>
+          </div>
 
       {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
       {user && (
@@ -811,8 +911,18 @@ const Home: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
         {renderContent()}
       </div>
+        </div>
+      )}
 
       {/* Bottom Sheets */}
+      <DraftOverwriteConfirmSheet
+        open={isOverwriteSheetOpen}
+        draftTitle={aiDraft.title}
+        newPrompt={homeIntent.trim()}
+        onConfirmNew={handleConfirmNewDraft}
+        onResumeOld={handleResumeOldDraft}
+        onClose={() => setIsOverwriteSheetOpen(false)}
+      />
       <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />

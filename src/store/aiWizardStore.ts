@@ -69,9 +69,14 @@ interface AiWizardState {
   lastUserPrompt: string | null;
   lastResolutionSource: 'deterministic' | 'llm' | 'clarification' | 'manual' | null;
   lastEscalationReason: string | null;
+  pendingInitialPrompt: string | null;
+  pendingInitialTransferId: string | null;
 
   // Actions
   initSession: () => void;
+  setPendingInitialPrompt: (prompt: string, transferId?: string) => void;
+  consumePendingInitialPrompt: () => { prompt: string; transferId?: string } | null;
+  startNewWithPrompt: (prompt: string) => void;
   sendUserMessage: (text: string) => Promise<void>;
   retryLastMessage: () => Promise<void>;
   updateDraftField: <K extends keyof EncounterDraft>(field: K, value: EncounterDraft[K]) => void;
@@ -983,6 +988,72 @@ export const useAiWizardStore = create<AiWizardState>()(
       lastUserPrompt: null,
       lastResolutionSource: null,
       lastEscalationReason: null,
+      pendingInitialPrompt: null,
+      pendingInitialTransferId: null,
+
+      setPendingInitialPrompt: (prompt: string, transferId?: string) => {
+        set({
+          pendingInitialPrompt: prompt,
+          pendingInitialTransferId: transferId || generateUuid(),
+        });
+      },
+
+      consumePendingInitialPrompt: () => {
+        const state = get();
+        const prompt = state.pendingInitialPrompt;
+        const transferId = state.pendingInitialTransferId;
+        if (!prompt) return null;
+        set({
+          pendingInitialPrompt: null,
+          pendingInitialTransferId: null,
+        });
+        return { prompt, transferId: transferId || undefined };
+      },
+
+      startNewWithPrompt: (prompt: string) => {
+        const newSessionId = generateUuid();
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('pe-ai-wizard-session');
+          } else if (typeof window !== 'undefined' && window.sessionStorage) {
+            window.sessionStorage.removeItem('pe-ai-wizard-session');
+          }
+        } catch {}
+        set({
+          sessionId: newSessionId,
+          draft: createEmptyEncounterDraft(),
+          config: createDefaultInvitationConfig(),
+          messages: [],
+          turns: 0,
+          consecutiveOffTopicCount: 0,
+          aiLocked: false,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalLatencyMs: 0,
+          primaryLatencyMs: 0,
+          fallbackLatencyMs: 0,
+          fallbackUsed: false,
+          primaryProvider: 'openai',
+          fallbackProvider: null,
+          providerUsed: null,
+          modelUsed: null,
+          primaryFailureType: null,
+          fallbackFailureType: null,
+          startedAt: Date.now(),
+          isInterpreting: false,
+          error: null,
+          lastQuestion: null,
+          coordinationDetected: false,
+          coordinationPendingConfirm: false,
+          isComplete: false,
+          lastUserPrompt: null,
+          lastResolutionSource: null,
+          lastEscalationReason: null,
+          pendingInitialPrompt: prompt,
+          pendingInitialTransferId: generateUuid(),
+        });
+        aiService.startSession(newSessionId);
+      },
 
       initSession: () => {
         const state = get();
@@ -2973,6 +3044,8 @@ export const useAiWizardStore = create<AiWizardState>()(
           lastUserPrompt: null,
           lastResolutionSource: null,
           lastEscalationReason: null,
+          pendingInitialPrompt: null,
+          pendingInitialTransferId: null,
         });
       },
     }),
