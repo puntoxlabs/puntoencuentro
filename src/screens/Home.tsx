@@ -45,8 +45,12 @@ import {
   DraftOverwriteConfirmSheet,
   HomeFlankingVisuals,
   HomePillarsSection,
+  HomeDynamicCanvas,
+  HomeVariantSwitcher,
 } from '@/components/home';
+import type { HomeVisualVariant } from '@/components/home';
 import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
+
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -257,7 +261,11 @@ const PastCard: React.FC<{
 };
 
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
-const Home: React.FC = () => {
+export interface HomeProps {
+  forcedVariant?: HomeVisualVariant;
+}
+
+const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
@@ -302,9 +310,49 @@ const Home: React.FC = () => {
   const [isSpeechListening, setIsSpeechListening] = useState(false);
   const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
 
+  // Variante de diseño visual de la Home ('envolvente' | 'visor' | 'refinado' | 'stitch')
+  const [visualVariant, setVisualVariant] = useState<HomeVisualVariant>(() => {
+    if (forcedVariant) return forcedVariant;
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const paramVariant = params.get('variant') || params.get('v');
+        if (paramVariant === 'd' || paramVariant === 'stitch') return 'stitch';
+        if (paramVariant === 'c' || paramVariant === 'refinado') return 'refinado';
+        if (paramVariant === 'b' || paramVariant === 'visor') return 'visor';
+        if (paramVariant === 'a' || paramVariant === 'envolvente') return 'envolvente';
+        const saved = localStorage.getItem('puntoencuentro_home_variant');
+        if (saved === 'stitch' || saved === 'refinado' || saved === 'visor' || saved === 'envolvente') return saved as HomeVisualVariant;
+      } catch (e) {
+        // Fallback seguro
+      }
+    }
+    return 'refinado';
+  });
+
+  const effectiveVariant: HomeVisualVariant = forcedVariant || visualVariant;
+
+  const handleVariantChange = (newVariant: HomeVisualVariant) => {
+    if (forcedVariant) return; // Si la variante está forzada externamente, no alterar preferencia
+    setVisualVariant(newVariant);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('puntoencuentro_home_variant', newVariant);
+        const url = new URL(window.location.href);
+        const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
+        url.searchParams.set('variant', vParam);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        // Ignorar fallos de storage
+      }
+    }
+  };
+
+
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);
   const hasActiveDraft = hasMeaningfulDraftData(aiDraft, aiConfig);
+
 
   const startNewEncounterWithIntent = async (text: string) => {
     if (isSubmittingIntent) return;
@@ -773,9 +821,19 @@ const Home: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section con Composición Centrada Envolvente V2 */}
-      <div className="home-hero-wrapper">
-        <HomeFlankingVisuals isInputFocused={isInputFocused} />
+      {/* Hero Section con Composición Centrada Envolvente V2 y Espacio Vivo Dinámico */}
+      <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}`}>
+        {/* Espacio vivo de etiquetas flotantes y fotos en movimiento */}
+        <HomeDynamicCanvas
+          variant={effectiveVariant}
+          isInputFocused={isInputFocused}
+          onTagClick={(tagText) => setHomeIntent(tagText)}
+        />
+
+        {/* Flancos visuales de soporte complementario en Variante A */}
+        {effectiveVariant === 'envolvente' && (
+          <HomeFlankingVisuals isInputFocused={isInputFocused} />
+        )}
 
         <div className="home-hero-center-column">
           <HomeHero
@@ -796,11 +854,12 @@ const Home: React.FC = () => {
           />
 
           {/* Chips de Sugerencia */}
-          <div style={{ marginTop: '0.75rem', width: '100%' }}>
+          <div style={{ marginTop: '0.75rem', width: '100%', position: 'relative', zIndex: 6 }}>
             <HomeSuggestionChips suggestions={V2_SUGGESTIONS} onSelect={handleSelectSuggestion} />
           </div>
         </div>
       </div>
+
 
       {/* Card de reanudación de borrador activo */}
       {hasActiveDraft && (
@@ -1002,7 +1061,16 @@ const Home: React.FC = () => {
           </span>
         </div>
       )}
+
+      {/* Selector Flotante de Variantes para Evaluación Local */}
+      {!forcedVariant && (
+        <HomeVariantSwitcher
+          currentVariant={effectiveVariant}
+          onVariantChange={handleVariantChange}
+        />
+      )}
     </ScreenContainer>
+
   );
 };
 

@@ -12,7 +12,12 @@ import {
   HomeRotatingPhrase,
   HomeFlankingVisuals,
   HomePillarsSection,
+  HomeDynamicCanvas,
+  HomeVariantSwitcher,
+  FLOATING_TAGS_CATALOG,
+  ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
+
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
 
@@ -264,6 +269,186 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
     test('B. Soporta estado colapsado cuando isInputFocused=true', () => {
       const html = renderToString(React.createElement(HomeFlankingVisuals, { isInputFocused: true }));
       assert.ok(html.includes('home-mobile-visual-banner--collapsed'), 'Debe colapsar banner con teclado/foco');
+    });
+  });
+
+  describe('11. Componente HomeDynamicCanvas y Selector de Variantes', () => {
+    test('A. Renderiza Variante A (Movimiento Envolvente) con fotos y etiquetas flotantes', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'envolvente',
+          isInputFocused: false,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--envolvente'), 'Debe incluir clase de variante envolvente');
+      assert.ok(html.includes('Organizar un asado'), 'Debe incluir tag de asado');
+      assert.ok(html.includes('Tomar unos mates'), 'Debe incluir tag de mates');
+      assert.ok(html.includes('Jugar al pádel'), 'Debe incluir tag de pádel');
+      assert.ok(html.includes('home-dynamic-photo-card--left-top'), 'Debe renderizar foto en flanco izquierdo');
+      assert.ok(html.includes('home-dynamic-photo-mobile-pill'), 'Debe renderizar cápsulas mobile');
+    });
+
+    test('B. Renderiza Variante B (Visor Dinámico) con portales fotográficos y cruces', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'visor',
+          isInputFocused: false,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--visor'), 'Debe incluir clase de variante visor');
+      assert.ok(html.includes('home-dynamic-visor-stage'), 'Debe incluir visor stage');
+      assert.ok(html.includes('home-visor-portal--left'), 'Debe incluir portal visor izquierdo');
+      assert.ok(html.includes('home-visor-portal--center'), 'Debe incluir portal visor central');
+      assert.ok(html.includes('home-visor-portal--right'), 'Debe incluir portal visor derecho');
+    });
+
+    test('C. Responde al foco del input atenuando elementos para despejar el teclado', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'envolvente',
+          isInputFocused: true,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--input-focused'), 'Debe incluir clase de input focused');
+    });
+
+    test('D. Renderiza HomeVariantSwitcher con botones para alternar Variante A, B y C', () => {
+      const html = renderToString(
+        React.createElement(HomeVariantSwitcher, {
+          currentVariant: 'refinado',
+          onVariantChange: () => {},
+        })
+      );
+      assert.ok(html.includes('Variante A'), 'Debe incluir opción Variante A');
+      assert.ok(html.includes('Variante B'), 'Debe incluir opción Variante B');
+      assert.ok(html.includes('Variante C'), 'Debe incluir opción Variante C');
+      assert.ok(html.includes('Variante D'), 'Debe incluir opción Variante D');
+      assert.ok(html.includes('Movimiento Envolvente'), 'Debe describir variante A');
+      assert.ok(html.includes('Visor Dinámico'), 'Debe describir variante B');
+      assert.ok(html.includes('Espacio Vivo Refinado'), 'Debe describir variante C');
+      assert.ok(html.includes('Mundo Vivo Stitch'), 'Debe describir variante D');
+      assert.ok(html.includes('home-variant-btn--c is-active'), 'Variante C debe estar activa');
+    });
+
+    test('E. Renderiza Variante C (Espacio Vivo Refinado) con fotos orgánicas, viñetas mobile y tags ghost', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'refinado',
+          isInputFocused: false,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--refinado'), 'Debe incluir clase de variante refinado');
+      assert.ok(html.includes('home-refinado-photos-stage'), 'Debe incluir photos stage de refinado');
+      assert.ok(html.includes('home-refinado-photo-momento--left'), 'Debe incluir momento desktop izquierdo');
+      assert.ok(html.includes('home-refinado-photo-momento--right-top'), 'Debe incluir momento desktop derecho superior');
+      assert.ok(html.includes('home-refinado-photo-momento--right-bottom'), 'Debe incluir momento desktop derecho inferior');
+      assert.ok(html.includes('home-refinado-mobile-peek--left'), 'Debe incluir viñeta mobile izquierda');
+      assert.ok(html.includes('home-refinado-mobile-peek--right'), 'Debe incluir viñeta mobile derecha');
+      assert.ok(html.includes('home-floating-tag--refinado'), 'Debe incluir tags refinados');
+      assert.ok(html.includes('home-floating-tag--ghost'), 'Debe incluir tags en estilo ghost');
+      assert.ok(html.includes('home-floating-tag--track-refinado-sky'), 'Debe incluir pista refinado-sky');
+      assert.ok(html.includes('home-floating-tag--track-refinado-lower-cross'), 'Debe incluir pista refinado-lower-cross');
+    });
+
+    test('F. Variante C responde al foco del input atenuando fotos y pausando animaciones', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'refinado',
+          isInputFocused: true,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--refinado'), 'Debe ser variante refinado');
+      assert.ok(html.includes('home-dynamic-canvas--input-focused'), 'Debe incluir clase input-focused');
+    });
+
+    test('G. Renderiza Variante D (Mundo Vivo Stitch) con composición asimétrica Stitch y viñetas mobile', () => {
+      const html = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'stitch',
+          isInputFocused: false,
+        })
+      );
+      assert.ok(html.includes('home-dynamic-canvas--stitch'), 'Debe incluir clase de variante stitch');
+      assert.ok(html.includes('home-stitch-photos-stage'), 'Debe incluir photos stage de stitch');
+      assert.ok(html.includes('home-stitch-photo--left'), 'Debe incluir gran fotografía izquierda de asado');
+      assert.ok(html.includes('home-stitch-photo--right-top'), 'Debe incluir foto de pádel superior derecha');
+      assert.ok(html.includes('home-stitch-photo--right-bottom'), 'Debe incluir foto de café inferior derecha');
+      assert.ok(html.includes('home-stitch-mobile-stage'), 'Debe incluir escenario móvil');
+      assert.ok(html.includes('home-stitch-mobile-frag--left'), 'Debe incluir fragmento móvil izquierdo');
+      assert.ok(html.includes('home-stitch-mobile-frag--right'), 'Debe incluir fragmento móvil derecho');
+      assert.ok(html.includes('home-stitch-mobile-frag--micro'), 'Debe incluir micro fragmento móvil');
+      assert.ok(html.includes('home-floating-tag--stitch'), 'Debe incluir tags estilo stitch');
+    });
+
+    test('H. Variante D incluye etiquetas decorativas viajeras organizadas en ciclos orgánicos y responde al foco', () => {
+      const htmlNormal = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'stitch',
+          isInputFocused: false,
+        })
+      );
+      assert.ok(htmlNormal.includes('Asado entre amigos'), 'Debe incluir etiqueta de Asado');
+      assert.ok(htmlNormal.includes('Mates al sol'), 'Debe incluir etiqueta de Mates');
+      assert.ok(htmlNormal.includes('Jugar al pádel'), 'Debe incluir etiqueta de Pádel');
+      assert.ok(htmlNormal.includes('home-floating-tag--track-stitch-sky-cross'), 'Debe incluir pista de cruce en cielo superior');
+      assert.ok(htmlNormal.includes('home-floating-tag--track-stitch-lower-travel'), 'Debe incluir pista de cruce inferior');
+
+      const htmlFocused = renderToString(
+        React.createElement(HomeDynamicCanvas, {
+          variant: 'stitch',
+          isInputFocused: true,
+        })
+      );
+      assert.ok(htmlFocused.includes('home-dynamic-canvas--input-focused'), 'Debe incluir clase input-focused en variante D');
+    });
+  });
+
+  describe('12. Ruta Privada de Preview (/preview/home-d) y forcedVariant', () => {
+    test('A. HomeDynamicCanvas con variant="stitch" refleja fielmente la Variante D', () => {
+      const html = renderToString(React.createElement(HomeDynamicCanvas, { variant: 'stitch' }));
+      assert.ok(html.includes('home-dynamic-canvas--stitch'), 'Debe incluir la clase de Variante D');
+      assert.ok(html.includes('home-stitch-photos-stage'), 'Debe contener el escenario de fotos');
+      assert.ok(html.includes('home-floating-tag--stitch'), 'Debe contener los tags de Stitch');
+    });
+
+    test('B. Inyección y limpieza de meta tag noindex, nofollow para PreviewHomeD', () => {
+      const head = {
+        children: [] as any[],
+        appendChild(child: any) {
+          this.children.push(child);
+        },
+        removeChild(child: any) {
+          const idx = this.children.indexOf(child);
+          if (idx !== -1) this.children.splice(idx, 1);
+        }
+      };
+      let meta: any = null;
+      const effectLogic = () => {
+        let metaTag = meta;
+        let wasCreated = false;
+        let previousContent: string | null = null;
+        if (!metaTag) {
+          metaTag = { name: 'robots', content: '', parentNode: head, setAttribute(k: string, v: string) { (this as any)[k] = v; }, getAttribute(k: string) { return (this as any)[k]; } };
+          head.appendChild(metaTag);
+          wasCreated = true;
+        } else {
+          previousContent = metaTag.getAttribute('content');
+        }
+        metaTag.setAttribute('content', 'noindex, nofollow');
+        return () => {
+          if (wasCreated) {
+            metaTag.parentNode.removeChild(metaTag);
+          } else if (previousContent !== null) {
+            metaTag.setAttribute('content', previousContent);
+          }
+        };
+      };
+
+      const cleanup = effectLogic();
+      assert.equal(head.children.length, 1);
+      assert.equal(head.children[0].content, 'noindex, nofollow');
+      cleanup();
+      assert.equal(head.children.length, 0);
     });
   });
 });

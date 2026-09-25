@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from '@/screens/Home';
+import PreviewHomeD from '@/screens/PreviewHomeD';
 import CreateWizard from '@/screens/CreateWizard';
 import DetailHost from '@/screens/DetailHost';
 import AddGuests from '@/screens/AddGuests';
@@ -62,6 +63,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/preview/home-d" element={<PreviewHomeD />} />
       <Route path="/create" element={<CreateWizard />} />
       <Route path="/create/ai" element={AI_CREATION_ENABLED ? <CreateAIWizard /> : <CreateWizard />} />
       <Route path="/create/coordination" element={<CreateCoordinationWizard />} />

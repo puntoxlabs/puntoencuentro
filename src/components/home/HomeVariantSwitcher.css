@@ -1,0 +1,218 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   HOME VARIANT SWITCHER — BARRA FLOTANTE DE EVALUACIÓN LOCAL
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.home-variant-floating-bar {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: rgba(16, 29, 61, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 10px 12px;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 480px;
+  animation: fadeInVariantBar 0.3s ease-out;
+}
+
+
+@keyframes fadeInVariantBar {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.home-variant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.home-variant-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #38bdf8;
+}
+
+.home-variant-icon {
+  color: #38bdf8;
+}
+
+.home-variant-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #f1f5f9;
+}
+
+.home-variant-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.home-variant-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.home-variant-options {
+  display: flex;
+  gap: 6px;
+}
+
+.home-variant-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.home-variant-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.home-variant-btn.is-active {
+  background: rgba(13, 148, 136, 0.24);
+  border-color: #0d9488;
+  box-shadow: 0 0 12px rgba(13, 148, 136, 0.35);
+}
+
+.home-variant-btn--c.is-active {
+  background: rgba(124, 58, 237, 0.28);
+  border-color: #8b5cf6;
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.4);
+}
+
+.home-variant-btn--c.is-active .home-variant-btn-dot {
+  background: #a78bfa;
+  box-shadow: 0 0 6px #a78bfa;
+}
+
+.home-variant-btn--d.is-active {
+  background: rgba(47, 107, 255, 0.28);
+  border-color: #2F6BFF;
+  box-shadow: 0 0 14px rgba(47, 107, 255, 0.45);
+}
+
+.home-variant-btn--d.is-active .home-variant-btn-dot {
+  background: #2F6BFF;
+  box-shadow: 0 0 6px #2F6BFF;
+}
+
+.home-variant-btn-dot {
+
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #64748b;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.home-variant-btn.is-active .home-variant-btn-dot {
+  background: #14b8a6;
+  box-shadow: 0 0 6px #14b8a6;
+}
+
+.home-variant-btn-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-variant-btn-name {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.home-variant-btn-desc {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.home-variant-btn.is-active .home-variant-btn-desc {
+  color: #5eead4;
+}
+
+/* Badge Minimizado */
+.home-variant-minimized-badge {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: rgba(16, 29, 61, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.home-variant-minimized-badge:hover {
+  background: rgba(16, 29, 61, 1);
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+}
+
+.home-variant-badge-icon {
+  color: #38bdf8;
+}
+
+/* En mobile, ajustar posición para no tapar contenido crítico */
+@media (max-width: 640px) {
+  .home-variant-floating-bar {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+
+  .home-variant-minimized-badge {
+    bottom: 12px;
+    right: 12px;
+    padding: 6px 12px;
+    font-size: 0.72rem;
+  }
+}
