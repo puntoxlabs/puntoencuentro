@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { MotionPathPlugin } from 'gsap/MotionPathPlugin';
@@ -205,6 +205,108 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const masterTlRef = useRef<gsap.core.Timeline | null>(null);
+  const [layoutReady, setLayoutReady] = useState(false);
+  const [debugState, setDebugState] = useState<{
+    enabled: boolean;
+    vvWidth?: number;
+    vvHeight?: number;
+    vvOffsetTop?: number;
+    zoneAY?: number;
+    zoneCY?: number;
+    containerWidth?: number;
+    containerHeight?: number;
+  }>({ enabled: false });
+
+  // Detección de ?debugMotion=1 para diagnóstico en /preview/home-gsap
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('debugMotion') === '1') {
+          setDebugState((prev) => ({ ...prev, enabled: true }));
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Estabilización de layout: esperar fonts y layout antes de disparar GSAP
+  useEffect(() => {
+    let isMounted = true;
+    const timeoutId = setTimeout(() => {
+      if (isMounted) setLayoutReady(true);
+    }, 450);
+
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      document.fonts.ready
+        .then(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (isMounted) {
+                clearTimeout(timeoutId);
+                setLayoutReady(true);
+              }
+            });
+          });
+        })
+        .catch(() => {
+          if (isMounted) setLayoutReady(true);
+        });
+    } else {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (isMounted) setLayoutReady(true);
+        });
+      });
+    }
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // ResizeObserver y VisualViewport para responsive robusto
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleResize = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (debugState.enabled && typeof window !== 'undefined') {
+          const vv = window.visualViewport;
+          const cRect = containerRef.current?.getBoundingClientRect();
+          setDebugState((prev) => ({
+            ...prev,
+            vvWidth: vv?.width ? Math.round(vv.width) : window.innerWidth,
+            vvHeight: vv?.height ? Math.round(vv.height) : window.innerHeight,
+            vvOffsetTop: vv?.offsetTop ? Math.round(vv.offsetTop) : 0,
+            containerWidth: cRect ? Math.round(cRect.width) : undefined,
+            containerHeight: cRect ? Math.round(cRect.height) : undefined,
+          }));
+        }
+      }, 150);
+    };
+
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(containerRef.current);
+
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      window.visualViewport.addEventListener('scroll', handleResize);
+    }
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      ro.disconnect();
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+        window.visualViewport.removeEventListener('scroll', handleResize);
+      }
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [debugState.enabled]);
 
   // Escucha del Modo Calma: desacelera la master timeline y atenúa
   useEffect(() => {
@@ -233,6 +335,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 
   useGSAP(
     () => {
+      if (!layoutReady) return;
       const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       // ── MODO REDUCED MOTION ──
@@ -794,10 +897,67 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
       // 2. MOBILE COREOGRAFÍA (< 768px)
       // ══════════════════════════════════════════════════════════════════
       mm.add('(max-width: 767px)', () => {
-        // En mobile: timeline de 28s alternando estrictamente entre:
-        // Zona A (Cornisa superior, Y: 95px - 130px, X: 35px - 180px)
-        // Zona C (Flanco inferior bajo chips, Y: 660px - 710px, X: 45px - 190px)
-        // Garantizando 0 invasión sobre H1 (140-180), Frase (180-230), Textarea/CTA (240-440), Chips (450-540)
+        const container = containerRef.current;
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = containerRect.width || window.innerWidth;
+        const containerHeight = containerRect.height || 670;
+
+        const eyebrowEl = document.querySelector('.home-hero-badge');
+        const chipsEl = document.querySelector('.home-suggestion-chips');
+        const photoLeftEl = container.querySelector('.home-gsap-mobile-frag--left');
+        const photoRightEl = container.querySelector('.home-gsap-mobile-frag--right');
+
+        const eyebrowRect = eyebrowEl ? eyebrowEl.getBoundingClientRect() : null;
+        const chipsRect = chipsEl ? chipsEl.getBoundingClientRect() : null;
+        const photoLeftRect = photoLeftEl ? photoLeftEl.getBoundingClientRect() : null;
+        const photoRightRect = photoRightEl ? photoRightEl.getBoundingClientRect() : null;
+
+        const eyebrowRelTop = eyebrowRect ? (eyebrowRect.top - containerRect.top) : 92;
+        const chipsRelBottom = chipsRect ? (chipsRect.bottom - containerRect.top) : (containerHeight - 72);
+
+        // Zone A (Cornisa Superior): entre top 16px y 26px, resguardada arriba del eyebrow
+        const zoneAY = Math.max(16, Math.min(26, Math.round(eyebrowRelTop - 46)));
+
+        // Zone C (Flanco Inferior): bajo chips funcionales y dentro del canvas
+        const zoneCY = Math.min(containerHeight - 52, Math.max(Math.round(chipsRelBottom + 12), containerHeight - 68));
+
+        // Cornisa bounds relativos al container (considerando amplitud de balanceo de las fotos de +/-4px)
+        const photoLeftEnd = photoLeftRect ? Math.round(photoLeftRect.right - containerRect.left + 4) : 76;
+        const photoRightStart = photoRightRect ? Math.round(photoRightRect.left - containerRect.left - 4) : Math.round(containerWidth - 76);
+        const tagAWidthApprox = 150;
+        const cornisaCenter = Math.round((photoLeftEnd + photoRightStart) / 2);
+        const centerA_X = Math.round(cornisaCenter - tagAWidthApprox / 2);
+
+        // Posicionamiento en el centro de la cornisa entre fotos (0 colisiones garantizadas)
+        const slotA1_x1 = centerA_X;
+        const slotA1_x2 = centerA_X;
+        const slotA2_x1 = centerA_X;
+        const slotA2_x2 = centerA_X;
+
+        // Zone C (Flanco Inferior bajo chips)
+        const tagCWidthApprox = 145;
+        const slotC1_x1 = 14;
+        const slotC1_x2 = 26;
+        const slotC2_x1 = Math.round(containerWidth - tagCWidthApprox - 14);
+        const slotC2_x2 = slotC2_x1 - 12;
+
+        if (debugState.enabled && typeof window !== 'undefined') {
+          const vv = window.visualViewport;
+          setDebugState((prev) => ({
+            ...prev,
+            zoneAY,
+            zoneCY,
+            containerWidth: Math.round(containerWidth),
+            containerHeight: Math.round(containerHeight),
+            vvWidth: vv?.width ? Math.round(vv.width) : window.innerWidth,
+            vvHeight: vv?.height ? Math.round(vv.height) : window.innerHeight,
+            vvOffsetTop: vv?.offsetTop ? Math.round(vv.offsetTop) : 0,
+          }));
+        }
+
+        // Master Timeline con duración de ciclo narrativo continuo de 24s
         const mobileMasterTl = gsap.timeline({ repeat: -1 });
         masterTlRef.current = mobileMasterTl;
 
@@ -823,310 +983,130 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 
         gsap.set('.home-gsap-tag', { visibility: 'hidden', opacity: 0, scale: 0.92 });
 
-        // Actor 1: Pizza (Flanco A: Inferior izquierdo bajo chips)
-        // Duración visible: t=0s a t=8.5s
-        mobileMasterTl.add(
-          gsap
+        // Helper para crear la timeline fluida de un tag (6.5s de presencia)
+        const createTagTl = (
+          tagId: string,
+          xStart: number,
+          xDrift: number,
+          yPos: number,
+          rotStart: number,
+          rotDrift: number
+        ) => {
+          return gsap
             .timeline()
-            .set('#gt-pizza', { visibility: 'visible' })
+            .set(tagId, { visibility: 'visible' })
             .fromTo(
-              '#gt-pizza',
-              { x: 18, y: 540, opacity: 0, scale: 0.94, rotation: -1.2 },
+              tagId,
+              { x: xStart, y: yPos, opacity: 0, scale: 0.94, rotation: rotStart },
               {
-                x: 40,
-                y: 540,
+                x: xStart + Math.round((xDrift - xStart) * 0.4),
+                y: yPos,
                 opacity: 0.96,
                 scale: 1.0,
-                rotation: -0.2,
+                rotation: (rotStart + rotDrift) / 2,
                 duration: 1.2,
                 ease: 'power2.out',
               }
             )
-            .to('#gt-pizza', {
-              x: 65,
-              y: 543,
-              rotation: 0.4,
-              scale: 1.015,
-              duration: 5.5,
+            .to(tagId, {
+              x: xDrift,
+              y: yPos + (xDrift > xStart ? 1.5 : -1.5),
+              rotation: rotDrift,
+              scale: 1.01,
+              duration: 3.8,
               ease: 'sine.inOut',
             })
-            .to('#gt-pizza', {
-              x: 90,
-              y: 540,
+            .to(tagId, {
               opacity: 0,
               scale: 0.94,
-              rotation: 1.0,
-              duration: 1.6,
+              duration: 1.5,
               ease: 'power1.in',
             })
-            .set('#gt-pizza', { visibility: 'hidden' }),
+            .set(tagId, { visibility: 'hidden' });
+        };
+
+        // Helper para la cola del wrap al inicio (t=0s a 3.5s)
+        const createWrapTailTl = (
+          tagId: string,
+          xMid: number,
+          xEnd: number,
+          yPos: number,
+          rotMid: number,
+          rotEnd: number
+        ) => {
+          return gsap
+            .timeline()
+            .set(tagId, { visibility: 'visible', opacity: 0.96, scale: 1.01, x: xMid, y: yPos, rotation: rotMid })
+            .to(tagId, {
+              x: xEnd,
+              y: yPos - 1,
+              rotation: rotEnd,
+              duration: 2.0,
+              ease: 'sine.inOut',
+            })
+            .to(tagId, {
+              opacity: 0,
+              scale: 0.94,
+              duration: 1.5,
+              ease: 'power1.in',
+            })
+            .set(tagId, { visibility: 'hidden' });
+        };
+
+        // ── COREOGRAFÍA CONTINUA 24s MOBILE (Sostenida: 1-2 tags, 0 gaps, 0 colisiones) ──
+        // Para que desde el segundo 0 haya 2 tags visibles (uno en Zone A y uno en Zone C):
+        // En t=0: gt-cumple (Zone C) está finalizando su ciclo (0s a 3.5s) mientras gt-pizza (Zone A) entra (0s a 6.5s)
+        mobileMasterTl.add(
+          createWrapTailTl('#gt-cumple', slotC2_x1 + 10, slotC2_x2, zoneCY, 0.2, -0.4),
           0
         );
 
-        // Actor 2: Pádel jueves · falta 1 (Flanco B: Inferior derecho bajo chips)
-        // Duración visible: t=0s a t=6.5s
+        // 1. Zone A: Pizza (Coral / Ribbon / Large) - t=0.0s a 6.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-padel', { visibility: 'visible' })
-            .fromTo(
-              '#gt-padel',
-              { x: 165, y: 585, opacity: 0, scale: 0.94, rotation: 1.0 },
-              {
-                x: 185,
-                y: 585,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: 0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-padel', {
-              x: 205,
-              y: 588,
-              rotation: -0.4,
-              duration: 4.2,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-padel', {
-              x: 225,
-              y: 585,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.4,
-              ease: 'power1.in',
-            })
-            .set('#gt-padel', { visibility: 'hidden' }),
+          createTagTl('#gt-pizza', slotA1_x1, slotA1_x2, zoneAY, -1.2, 0.4),
           0
         );
 
-        // Actor 3: Partido sábado · quedan 2 (Flanco A: Inferior izquierdo bajo chips)
-        // Entra a t=5.5s mientras Pádel empieza su salida
+        // 2. Zone C: Pádel (Sky / Ticket / Medium) - t=3.0s a 9.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-futbol', { visibility: 'visible' })
-            .fromTo(
-              '#gt-futbol',
-              { x: 18, y: 542, opacity: 0, scale: 0.94, rotation: -1.0 },
-              {
-                x: 42,
-                y: 542,
-                opacity: 0.96,
-                scale: 1.015,
-                rotation: -0.2,
-                duration: 1.3,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-futbol', {
-              x: 68,
-              y: 545,
-              rotation: 0.3,
-              duration: 5.5,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-futbol', {
-              x: 92,
-              y: 542,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-futbol', { visibility: 'hidden' }),
-          5.5
+          createTagTl('#gt-padel', slotC1_x1, slotC1_x2, zoneCY, 0.8, -0.3),
+          3.0
         );
 
-        // Actor 4: Salir a caminar (Flanco B: Inferior derecho bajo chips)
-        // Entra a t=7.5s mientras Pizza sale en Flanco A
+        // 3. Zone A: Mates (Warm / Curved-tape / Medium) - t=6.0s a 12.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-caminar', { visibility: 'visible' })
-            .fromTo(
-              '#gt-caminar',
-              { x: 168, y: 585, opacity: 0, scale: 0.94, rotation: 1.2 },
-              {
-                x: 188,
-                y: 585,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: 0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-caminar', {
-              x: 208,
-              y: 588,
-              rotation: -0.4,
-              duration: 5.2,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-caminar', {
-              x: 228,
-              y: 585,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-caminar', { visibility: 'hidden' }),
-          7.5
+          createTagTl('#gt-mates', slotA2_x1, slotA2_x2, zoneAY, 1.0, -0.4),
+          6.0
         );
 
-        // Actor 5: Café y charla · abierto (Flanco C: Centro-inferior)
-        // Entra a t=12.5s mientras Fútbol sale en Flanco A
+        // 4. Zone C: Fútbol (Teal / Blob / Large) - t=9.0s a 15.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-cafe', { visibility: 'visible' })
-            .fromTo(
-              '#gt-cafe',
-              { x: 35, y: 628, opacity: 0, scale: 0.94, rotation: -0.8 },
-              {
-                x: 62,
-                y: 628,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: 0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-cafe', {
-              x: 90,
-              y: 631,
-              rotation: -0.3,
-              duration: 5.0,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-cafe', {
-              x: 115,
-              y: 628,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-cafe', { visibility: 'hidden' }),
-          12.5
+          createTagTl('#gt-futbol', slotC2_x1, slotC2_x2, zoneCY, -0.8, 0.4),
+          9.0
         );
 
-        // Actor 6: Mates al sol (Flanco A: Inferior izquierdo bajo chips)
-        // Entra a t=14.0s mientras Caminata sale en Flanco B
+        // 5. Zone A: Caminar (Mint / Pill / Medium) - t=12.0s a 18.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-mates', { visibility: 'visible' })
-            .fromTo(
-              '#gt-mates',
-              { x: 20, y: 540, opacity: 0, scale: 0.94, rotation: -1.0 },
-              {
-                x: 44,
-                y: 540,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: 0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-mates', {
-              x: 72,
-              y: 543,
-              rotation: -0.3,
-              duration: 5.5,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-mates', {
-              x: 96,
-              y: 540,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-mates', { visibility: 'hidden' }),
-          14.0
+          createTagTl('#gt-caminar', slotA1_x1, slotA1_x2, zoneAY, -0.6, 0.3),
+          12.0
         );
 
-        // Actor 7: Bici abierta · quedan 3 (Flanco B: Inferior derecho bajo chips)
-        // Entra a t=19.0s mientras Café sale en Flanco C
+        // 6. Zone C: Café (Yellow / Asymmetric / Small) - t=15.0s a 21.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-bici', { visibility: 'visible' })
-            .fromTo(
-              '#gt-bici',
-              { x: 165, y: 585, opacity: 0, scale: 0.94, rotation: 1.0 },
-              {
-                x: 185,
-                y: 585,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: -0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-bici', {
-              x: 205,
-              y: 588,
-              rotation: 0.3,
-              duration: 5.0,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-bici', {
-              x: 225,
-              y: 585,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-bici', { visibility: 'hidden' }),
-          19.0
+          createTagTl('#gt-cafe', slotC1_x1, slotC1_x2, zoneCY, 0.6, -0.2),
+          15.0
         );
 
-        // Actor 8: Festejo de cumple (Flanco C: Centro-inferior)
-        // Entra a t=20.5s mientras Mates sale en Flanco A
+        // 7. Zone A: Bici (Mint / Ribbon / Large) - t=18.0s a 24.5s
         mobileMasterTl.add(
-          gsap
-            .timeline()
-            .set('#gt-cumple', { visibility: 'visible' })
-            .fromTo(
-              '#gt-cumple',
-              { x: 38, y: 628, opacity: 0, scale: 0.94, rotation: 1.0 },
-              {
-                x: 65,
-                y: 628,
-                opacity: 0.96,
-                scale: 1.0,
-                rotation: -0.2,
-                duration: 1.2,
-                ease: 'power2.out',
-              }
-            )
-            .to('#gt-cumple', {
-              x: 92,
-              y: 631,
-              rotation: 0.3,
-              duration: 5.0,
-              ease: 'sine.inOut',
-            })
-            .to('#gt-cumple', {
-              x: 118,
-              y: 628,
-              opacity: 0,
-              scale: 0.94,
-              duration: 1.5,
-              ease: 'power1.in',
-            })
-            .set('#gt-cumple', { visibility: 'hidden' }),
-          20.5
+          createTagTl('#gt-bici', slotA2_x1, slotA2_x2, zoneAY, 0.8, -0.3),
+          18.0
+        );
+
+        // 8. Zone C: Cumple (Rose / Asymmetric / Medium) - t=21.0s a 27.5s (conecta con el wrap en t=0)
+        mobileMasterTl.add(
+          createTagTl('#gt-cumple', slotC2_x1, slotC2_x2, zoneCY, -0.6, 0.2),
+          21.0
         );
       });
 
@@ -1134,7 +1114,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         mm.revert();
       };
     },
-    { scope: containerRef }
+    { scope: containerRef, dependencies: [layoutReady] }
   );
 
   return (
@@ -1241,6 +1221,31 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           </div>
         ))}
       </div>
+
+      {/* ── MODO DEBUG MOTION (?debugMotion=1) ── */}
+      {debugState.enabled && (
+        <div className="home-gsap-debug-hud">
+          <div className="home-gsap-debug-hud-title">
+            <span>GSAP Debug</span>
+            <span>{isInputFocused ? 'CALMA' : 'ACTIVE'}</span>
+          </div>
+          <div className="home-gsap-debug-hud-item">
+            Layout: <span>{layoutReady ? 'STABLE' : 'WAITING'}</span>
+          </div>
+          <div className="home-gsap-debug-hud-item">
+            VV: <span>{debugState.vvWidth ?? 0}×{debugState.vvHeight ?? 0}</span> (top: {debugState.vvOffsetTop ?? 0})
+          </div>
+          <div className="home-gsap-debug-hud-item">
+            Canvas: <span>{debugState.containerWidth ?? 0}×{debugState.containerHeight ?? 0}</span>
+          </div>
+          <div className="home-gsap-debug-hud-item">
+            Zone A Y: <span>{debugState.zoneAY ?? 0}px</span>
+          </div>
+          <div className="home-gsap-debug-hud-item">
+            Zone C Y: <span>{debugState.zoneCY ?? 0}px</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

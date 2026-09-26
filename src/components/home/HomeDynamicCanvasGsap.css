@@ -168,6 +168,13 @@
   white-space: nowrap;
 }
 
+/* Ocultar fotos desktop en pantallas móviles (< 768px) */
+@media (max-width: 767px) {
+  .home-gsap-photo {
+    display: none !important;
+  }
+}
+
 /* Fotos Mobile */
 .home-gsap-mobile-frag {
   position: absolute;
@@ -176,22 +183,30 @@
   box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.12);
   border: 2px solid #ffffff;
   animation: none !important;
+  z-index: 3;
+}
+
+/* Ocultar fotos móviles en pantallas desktop (>= 768px) */
+@media (min-width: 768px) {
+  .home-gsap-mobile-frag {
+    display: none !important;
+  }
 }
 
 .home-gsap-mobile-frag--left {
-  left: -12px;
+  left: -16px;
   top: 4px;
-  width: 104px;
-  height: 72px;
+  width: clamp(88px, 24vw, 100px);
+  height: clamp(60px, 16.5vw, 69px);
   border-radius: 16px;
   transform: rotate(-3deg);
 }
 
 .home-gsap-mobile-frag--right {
-  right: -12px;
+  right: -16px;
   top: 6px;
-  width: 104px;
-  height: 72px;
+  width: clamp(88px, 24vw, 100px);
+  height: clamp(60px, 16.5vw, 69px);
   border-radius: 16px;
   transform: rotate(3deg);
 }
@@ -302,31 +317,50 @@
 /* Adaptación Mobile de Tamaños */
 @media (max-width: 767px) {
   .home-gsap-tag {
-    max-width: min(78vw, 240px);
+    max-width: min(72vw, 175px);
+    gap: 0.25rem;
+  }
+
+  /* Tags de la Cornisa Superior (Zona A): ancho optimizado para ventana entre fotos */
+  #gt-pizza,
+  #gt-mates,
+  #gt-caminar,
+  #gt-bici {
+    max-width: min(48vw, 150px);
   }
 
   .home-gsap-tag--size-large {
-    font-size: clamp(0.92rem, 3.8vw, 1.02rem);
-    padding: 0.52rem 1.15rem;
+    font-size: 0.74rem;
+    padding: 0.26rem 0.55rem;
   }
   .home-gsap-tag--size-large .home-gsap-tag-emoji {
-    font-size: 1.28rem;
+    font-size: 0.98rem;
   }
 
   .home-gsap-tag--size-medium {
-    font-size: clamp(0.85rem, 3.4vw, 0.94rem);
-    padding: 0.45rem 1rem;
+    font-size: 0.72rem;
+    padding: 0.24rem 0.50rem;
   }
   .home-gsap-tag--size-medium .home-gsap-tag-emoji {
-    font-size: 1.15rem;
+    font-size: 0.92rem;
   }
 
   .home-gsap-tag--size-small {
-    font-size: clamp(0.76rem, 3.1vw, 0.85rem);
-    padding: 0.35rem 0.85rem;
+    font-size: 0.68rem;
+    padding: 0.20rem 0.45rem;
   }
   .home-gsap-tag--size-small .home-gsap-tag-emoji {
-    font-size: 1.02rem;
+    font-size: 0.86rem;
+  }
+
+  .home-gsap-tag--shape-ribbon {
+    padding-right: 0.72rem;
+  }
+
+  .home-gsap-tag .home-gsap-tag-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -456,4 +490,44 @@
     opacity: 0.85 !important;
     position: absolute !important;
   }
+}
+
+/* ── MODO DEBUG TEMPORAL (?debugMotion=1) ── */
+.home-gsap-debug-hud {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  top: auto;
+  right: auto;
+  max-width: 170px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.62rem;
+  line-height: 1.3;
+  color: #38bdf8;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.home-gsap-debug-hud-title {
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.home-gsap-debug-hud-item {
+  color: #cbd5e1;
+}
+
+.home-gsap-debug-hud-item span {
+  color: #38bdf8;
+  font-weight: 600;
 }
