@@ -13,7 +13,19 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
   currentVariant,
   onVariantChange,
 }) => {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+
+  const handleVariantSelect = (variant: HomeVisualVariant) => {
+    onVariantChange(variant);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsMinimized(true);
+    }
+  };
 
   if (isMinimized) {
     return (
@@ -55,7 +67,7 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
       <div className="home-variant-options">
         <button
           type="button"
-          onClick={() => onVariantChange('envolvente')}
+          onClick={() => handleVariantSelect('envolvente')}
           className={`home-variant-btn ${currentVariant === 'envolvente' ? 'is-active' : ''}`}
           aria-pressed={currentVariant === 'envolvente'}
         >
@@ -68,7 +80,7 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
 
         <button
           type="button"
-          onClick={() => onVariantChange('visor')}
+          onClick={() => handleVariantSelect('visor')}
           className={`home-variant-btn ${currentVariant === 'visor' ? 'is-active' : ''}`}
           aria-pressed={currentVariant === 'visor'}
         >
@@ -81,7 +93,7 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
 
         <button
           type="button"
-          onClick={() => onVariantChange('refinado')}
+          onClick={() => handleVariantSelect('refinado')}
           className={`home-variant-btn home-variant-btn--c ${currentVariant === 'refinado' ? 'is-active' : ''}`}
           aria-pressed={currentVariant === 'refinado'}
         >
@@ -94,7 +106,7 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
 
         <button
           type="button"
-          onClick={() => onVariantChange('stitch')}
+          onClick={() => handleVariantSelect('stitch')}
           className={`home-variant-btn home-variant-btn--d ${currentVariant === 'stitch' ? 'is-active' : ''}`}
           aria-pressed={currentVariant === 'stitch'}
         >

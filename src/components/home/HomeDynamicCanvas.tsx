@@ -216,6 +216,9 @@ export interface StitchTagItem {
   lane: 'sky-left' | 'sky-right' | 'left-mid' | 'right-mid' | 'lower-left' | 'lower-right';
   delay: string;
   duration?: string;
+  sizeTier?: 'large' | 'medium' | 'small';
+  mobileZone?: 'zone-a' | 'zone-b' | 'zone-c';
+  mobileSlot?: number;
 }
 
 export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
@@ -233,6 +236,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'sky-left',
     delay: '0s',
     duration: '24s',
+    sizeTier: 'large',
+    mobileZone: 'zone-a',
+    mobileSlot: 1,
   },
   {
     id: 's-mates',
@@ -247,6 +253,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'right-mid',
     delay: '-3s',
     duration: '28s',
+    sizeTier: 'medium',
+    mobileZone: 'zone-b',
+    mobileSlot: 3,
   },
   {
     id: 's-padel',
@@ -261,6 +270,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'lower-left',
     delay: '-6s',
     duration: '26s',
+    sizeTier: 'small',
+    mobileZone: 'zone-c',
+    mobileSlot: 2,
   },
 
   // Ciclo B (10s - 20s): Variación morfológica viva (blob, ticket, cápsula asimétrica) y ritmos ágiles
@@ -277,6 +289,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'sky-right',
     delay: '-9s',
     duration: '30s',
+    sizeTier: 'large',
+    mobileZone: 'zone-b',
+    mobileSlot: 6,
   },
   {
     id: 's-cafe',
@@ -291,6 +306,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'left-mid',
     delay: '-12s',
     duration: '22s',
+    sizeTier: 'small',
+    mobileZone: 'zone-a',
+    mobileSlot: 4,
   },
   {
     id: 's-caminar',
@@ -305,6 +323,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'lower-right',
     delay: '-15s',
     duration: '27s',
+    sizeTier: 'medium',
+    mobileZone: 'zone-c',
+    mobileSlot: 5,
   },
 
   // Ciclo C (20s - 33s): Ribbon con flameo, tickets, pasteles lavanda/rosa y profundidad
@@ -321,6 +342,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'sky-left',
     delay: '-18s',
     duration: '25s',
+    sizeTier: 'large',
   },
   {
     id: 's-cena',
@@ -335,6 +357,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'right-mid',
     delay: '-21s',
     duration: '29s',
+    sizeTier: 'medium',
   },
   {
     id: 's-playa',
@@ -349,6 +372,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'lower-left',
     delay: '-24s',
     duration: '31s',
+    sizeTier: 'small',
   },
   {
     id: 's-cumple',
@@ -363,6 +387,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     lane: 'left-mid',
     delay: '-27s',
     duration: '23s',
+    sizeTier: 'medium',
   },
   {
     id: 's-musica',
@@ -374,9 +399,10 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     shapeVariant: 'curved-tape',
     motionPattern: 'flutter',
     track: 'stitch-right-curve',
-    lane: 'sky-right',
+    lane: 'lower-right',
     delay: '-30s',
     duration: '26s',
+    sizeTier: 'small',
   },
 ];
 
@@ -742,7 +768,11 @@ export const HomeDynamicCanvas: React.FC<HomeDynamicCanvasProps> = ({
           STITCH_TAGS_CATALOG.map((tag) => (
             <div
               key={tag.id}
-              className={`home-floating-tag home-floating-tag--stitch home-floating-tag--stitch-${tag.styleVariant} home-floating-tag--stitch-color-${tag.colorTheme} home-floating-tag--stitch-shape-${tag.shapeVariant} home-floating-tag--motion-${tag.motionPattern} home-floating-tag--track-${tag.track} home-floating-tag--lane-${tag.lane} home-floating-tag--tag-${tag.id}`}
+              className={`home-floating-tag home-floating-tag--stitch home-floating-tag--stitch-${tag.styleVariant} home-floating-tag--stitch-color-${tag.colorTheme} home-floating-tag--stitch-shape-${tag.shapeVariant} home-floating-tag--size-${tag.sizeTier || 'medium'} ${
+                tag.mobileSlot
+                  ? `home-floating-tag--mobile-slot-${tag.mobileSlot} home-floating-tag--mobile-${tag.mobileZone}`
+                  : 'home-floating-tag--mobile-hidden'
+              } home-floating-tag--motion-${tag.motionPattern} home-floating-tag--track-${tag.track} home-floating-tag--lane-${tag.lane} home-floating-tag--tag-${tag.id}`}
               onClick={() => onTagClick?.(tag.text)}
               style={{
                 animationDelay: tag.delay,
