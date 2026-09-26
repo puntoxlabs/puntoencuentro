@@ -14,7 +14,7 @@ export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
   className = '',
   variant,
 }) => {
-  if (variant === 'stitch') {
+  if (variant === 'stitch' || variant === 'gsap') {
     return (
       <section className={`home-pillars-section home-pillars-section--stitch ${className}`} aria-label="Modalidades de encuentro de lanzamiento">
         <div className="home-pillars-grid home-pillars-grid--stitch">

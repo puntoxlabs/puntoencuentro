@@ -17,6 +17,7 @@ import {
   FLOATING_TAGS_CATALOG,
   ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
+import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
@@ -464,6 +465,29 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.equal(head.children[0].content, 'noindex, nofollow');
       cleanup();
       assert.equal(head.children.length, 0);
+    });
+  });
+
+  describe('13. Ruta Experimental GSAP (/preview/home-gsap) y HomeDynamicCanvasGsap', () => {
+    test('A. HomeDynamicCanvasGsap renderiza tags con GSAP_TAGS_CATALOG y 6 morfologías', () => {
+      const html = renderToString(React.createElement(HomeDynamicCanvasGsap));
+      assert.ok(html.includes('home-dynamic-canvas--gsap'), 'Debe incluir la clase de canvas GSAP');
+      assert.ok(html.includes('home-gsap-tag'), 'Debe contener los tags GSAP');
+      assert.ok(html.includes('gt-pizza'), 'Debe incluir tag pizza');
+      assert.ok(html.includes('gt-futbol'), 'Debe incluir tag fútbol');
+      assert.ok(html.includes('gt-bici'), 'Debe incluir tag bici');
+      assert.ok(html.includes('gt-padel'), 'Debe incluir tag pádel');
+    });
+
+    test('B. En variante "gsap", HomePillarsSection renderiza las 2 capacidades de lanzamiento sin Encontrar con quién', () => {
+      const html = renderToString(React.createElement(HomePillarsSection, {
+        onCreateClick: () => {},
+        variant: 'gsap',
+      }));
+      assert.ok(html.includes('Organizar un encuentro'), 'Debe incluir Organizar un encuentro');
+      assert.ok(html.includes('Abrir encuentros'), 'Debe incluir Abrir encuentros');
+      assert.ok(!html.includes('Encontrar con quién'), 'NO debe incluir Encontrar con quién');
+      assert.ok(!html.includes('Próximamente'), 'NO debe incluir Próximamente');
     });
   });
 });

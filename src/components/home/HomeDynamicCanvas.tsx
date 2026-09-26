@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './HomeDynamicCanvas.css';
 
-export type HomeVisualVariant = 'envolvente' | 'visor' | 'refinado' | 'stitch';
+export type HomeVisualVariant = 'envolvente' | 'visor' | 'refinado' | 'stitch' | 'gsap';
 
 export interface FloatingTagItem {
   id: string;

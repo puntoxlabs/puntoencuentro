@@ -51,6 +51,8 @@ import {
 import type { HomeVisualVariant } from '@/components/home';
 import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
 
+const HomeDynamicCanvasGsap = React.lazy(() => import('@/components/home/HomeDynamicCanvasGsap'));
+
 
 /** Obtiene el color primario del tema del encuentro */
 function getEncuentroPrimaryColor(enc: any): string {
@@ -824,11 +826,20 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
       {/* Hero Section con Composición Centrada Envolvente V2 y Espacio Vivo Dinámico */}
       <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}`}>
         {/* Espacio vivo de etiquetas flotantes y fotos en movimiento */}
-        <HomeDynamicCanvas
-          variant={effectiveVariant}
-          isInputFocused={isInputFocused}
-          onTagClick={(tagText) => setHomeIntent(tagText)}
-        />
+        {effectiveVariant === 'gsap' ? (
+          <React.Suspense fallback={null}>
+            <HomeDynamicCanvasGsap
+              isInputFocused={isInputFocused}
+              onTagClick={(tagText) => setHomeIntent(tagText)}
+            />
+          </React.Suspense>
+        ) : (
+          <HomeDynamicCanvas
+            variant={effectiveVariant}
+            isInputFocused={isInputFocused}
+            onTagClick={(tagText) => setHomeIntent(tagText)}
+          />
+        )}
 
         {/* Flancos visuales de soporte complementario en Variante A */}
         {effectiveVariant === 'envolvente' && (
