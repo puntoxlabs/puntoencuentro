@@ -254,6 +254,20 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(html.includes('Próximamente'), 'Debe incluir badges de Próximamente');
       assert.ok(html.includes('home-pillar-cta--disabled'), 'Pilares 2 y 3 deben tener botón deshabilitado');
     });
+
+    test('B. En Variante D renderiza 2 pilares de lanzamiento ("Organizar" y "Abrir encuentros") sin Próximamente ni Encontrar con quién', () => {
+      const html = renderToString(
+        React.createElement(HomePillarsSection, {
+          onCreateClick: () => {},
+          variant: 'stitch',
+        })
+      );
+      assert.ok(html.includes('Organizar un encuentro'), 'Debe incluir Pilar de Organizar');
+      assert.ok(html.includes('Abrir encuentros'), 'Debe incluir Pilar de Abrir encuentros');
+      assert.ok(!html.includes('Encontrar con quién'), 'NO debe publicitar Encontrar con quién en lanzamiento');
+      assert.ok(!html.includes('Próximamente'), 'NO debe tener badge de Próximamente en lanzamiento');
+      assert.ok(html.includes('home-pillars-grid--stitch'), 'Debe usar grid compacto de 2 columnas');
+    });
   });
 
   describe('10. Componente HomeFlankingVisuals V2', () => {
@@ -389,7 +403,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlNormal.includes('Asado entre amigos'), 'Debe incluir etiqueta de Asado');
       assert.ok(htmlNormal.includes('Mates al sol'), 'Debe incluir etiqueta de Mates');
-      assert.ok(htmlNormal.includes('Jugar al pádel'), 'Debe incluir etiqueta de Pádel');
+      assert.ok(htmlNormal.includes('Pádel'), 'Debe incluir etiqueta de Pádel');
+      assert.ok(htmlNormal.includes('falta 1') || htmlNormal.includes('quedan 2'), 'Debe incluir etiquetas de encuentros abiertos');
       assert.ok(htmlNormal.includes('home-floating-tag--track-stitch-sky-cross'), 'Debe incluir pista de cruce en cielo superior');
       assert.ok(htmlNormal.includes('home-floating-tag--track-stitch-lower-travel'), 'Debe incluir pista de cruce inferior');
 

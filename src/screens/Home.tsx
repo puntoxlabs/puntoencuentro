@@ -879,8 +879,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
         </div>
       )}
 
-      {/* Modalidades de encuentro (Los 3 Pilares V2) */}
-      <HomePillarsSection onCreateClick={handleCreateClick} />
+      {/* Modalidades de encuentro (Los 3 Pilares V2 / 2 Pilares en Lanzamiento Variante D) */}
+      <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
 
       {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
       {!loading && (!encuentros || encuentros.length === 0) && !user && (

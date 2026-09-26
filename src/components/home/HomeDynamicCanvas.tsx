@@ -222,11 +222,11 @@ export interface StitchTagItem {
 }
 
 export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
-  // Ciclo A (0s - 10s): Tags vivos de apertura con morfologías irregulares y dinámicas
+  // Ciclo A (0s - 10s): Apertura viva, pizza en ribbon, mates en cinta y pádel abierto (falta 1)
   {
-    id: 's-asado',
-    text: 'Asado entre amigos',
-    emoji: '🥩',
+    id: 's-pizza',
+    text: 'Noche de pizzas',
+    emoji: '🍕',
     cycle: 'A',
     styleVariant: 'translucent',
     colorTheme: 'coral',
@@ -254,12 +254,12 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     delay: '-3s',
     duration: '28s',
     sizeTier: 'medium',
-    mobileZone: 'zone-b',
+    mobileZone: 'zone-a',
     mobileSlot: 3,
   },
   {
     id: 's-padel',
-    text: 'Jugar al pádel',
+    text: 'Pádel jueves · falta 1',
     emoji: '🎾',
     cycle: 'A',
     styleVariant: 'ghost',
@@ -275,10 +275,10 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     mobileSlot: 2,
   },
 
-  // Ciclo B (10s - 20s): Variación morfológica viva (blob, ticket, cápsula asimétrica) y ritmos ágiles
+  // Ciclo B (10s - 20s): Partido abierto (quedan 2) en blob protagonista, café asimétrico y caminata en pill
   {
     id: 's-partidito',
-    text: 'Armar un partidito',
+    text: 'Partido sábado · quedan 2',
     emoji: '⚽',
     cycle: 'B',
     styleVariant: 'pill',
@@ -290,7 +290,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     delay: '-9s',
     duration: '30s',
     sizeTier: 'large',
-    mobileZone: 'zone-b',
+    mobileZone: 'zone-c',
     mobileSlot: 6,
   },
   {
@@ -307,7 +307,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     delay: '-12s',
     duration: '22s',
     sizeTier: 'small',
-    mobileZone: 'zone-a',
+    mobileZone: 'zone-c',
     mobileSlot: 4,
   },
   {
@@ -324,14 +324,14 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     delay: '-15s',
     duration: '27s',
     sizeTier: 'medium',
-    mobileZone: 'zone-c',
+    mobileZone: 'zone-a',
     mobileSlot: 5,
   },
 
-  // Ciclo C (20s - 33s): Ribbon con flameo, tickets, pasteles lavanda/rosa y profundidad
+  // Ciclo C (20s - 33s): Bici abierta (3 lugares) en ribbon, cena ticket, playa blob, cumple asimétrico y asado
   {
     id: 's-bici',
-    text: 'Una salida en bici',
+    text: 'Salida en bici · 3 lugares',
     emoji: '🚴',
     cycle: 'C',
     styleVariant: 'translucent',
@@ -361,7 +361,7 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
   },
   {
     id: 's-playa',
-    text: 'Ir a la playa',
+    text: 'Escapada a la playa',
     emoji: '🏖️',
     cycle: 'C',
     styleVariant: 'ghost',
@@ -390,9 +390,9 @@ export const STITCH_TAGS_CATALOG: StitchTagItem[] = [
     sizeTier: 'medium',
   },
   {
-    id: 's-musica',
-    text: 'Tocar música',
-    emoji: '🎸',
+    id: 's-asado',
+    text: 'Asado entre amigos',
+    emoji: '🥩',
     cycle: 'C',
     styleVariant: 'pill',
     colorTheme: 'lavender',
@@ -421,8 +421,8 @@ export const STITCH_PHOTOS_CATALOG: StitchPhotoItem[] = [
     id: 'asado-desktop',
     src: '/images/stitch/asado_amigos.webp',
     alt: 'Amigos compartiendo un asado al aire libre',
-    caption: 'Asado entre amigos',
-    badge: 'Tarde al aire libre',
+    caption: 'Fuego al aire libre',
+    badge: 'Tarde entre amigos',
     emoji: '🥩',
     position: 'stitch-desktop-left',
   },
@@ -446,7 +446,7 @@ export const STITCH_PHOTOS_CATALOG: StitchPhotoItem[] = [
     id: 'asado-mobile',
     src: '/images/stitch/asado_amigos.webp',
     alt: 'Asado entre amigos',
-    caption: 'Asado entre amigos',
+    caption: 'Asado al aire libre',
     emoji: '🥩',
     position: 'stitch-mobile-left',
   },

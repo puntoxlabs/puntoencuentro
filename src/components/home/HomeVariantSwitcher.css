@@ -210,8 +210,9 @@
   }
 
   .home-variant-minimized-badge {
-    bottom: 12px;
-    right: 12px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    left: 14px;
+    right: auto;
     padding: 6px 12px;
     font-size: 0.72rem;
   }
