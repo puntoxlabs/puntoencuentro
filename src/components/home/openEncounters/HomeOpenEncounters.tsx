@@ -96,6 +96,13 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }, temporaryMs);
   }, []);
 
+  // Asegurar que el carrusel comience siempre alineado en scrollLeft 0
+  useEffect(() => {
+    if (trackRef.current) {
+      trackRef.current.scrollLeft = 0;
+    }
+  }, [visibleEncounters.length]);
+
   // Auto-avance nativo
   useEffect(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -104,26 +111,30 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
     if (visibleEncounters.length <= 1) return;
 
-    const intervalId = window.setInterval(() => {
-      if (isInteracting) return;
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    let intervalId: number | null = null;
+    const initialDelayTimer = window.setTimeout(() => {
+      intervalId = window.setInterval(() => {
+        if (isInteracting) return;
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-      const track = trackRef.current;
-      if (!track) return;
+        const track = trackRef.current;
+        if (!track) return;
 
-      const maxScrollLeft = track.scrollWidth - track.clientWidth;
-      const cardWidth = track.firstElementChild?.clientWidth || 280;
-      const scrollStep = cardWidth + 12;
+        const maxScrollLeft = track.scrollWidth - track.clientWidth;
+        const cardWidth = track.firstElementChild?.clientWidth || 280;
+        const scrollStep = cardWidth + 12;
 
-      if (track.scrollLeft >= maxScrollLeft - 10) {
-        track.scrollTo({ left: 0, behavior: 'smooth' });
-      } else {
-        track.scrollBy({ left: scrollStep, behavior: 'smooth' });
-      }
-    }, 6000);
+        if (track.scrollLeft >= maxScrollLeft - 10) {
+          track.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          track.scrollBy({ left: scrollStep, behavior: 'smooth' });
+        }
+      }, 7000);
+    }, 10000);
 
     return () => {
-      window.clearInterval(intervalId);
+      window.clearTimeout(initialDelayTimer);
+      if (intervalId) window.clearInterval(intervalId);
       if (resumeTimerRef.current) {
         window.clearTimeout(resumeTimerRef.current);
       }

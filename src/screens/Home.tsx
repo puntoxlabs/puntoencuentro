@@ -455,14 +455,44 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const { startCoordinationEncounter, coordinationWarningProps } = useStartCoordinationEncounter();
 
   const [isModeChoiceOpen, setIsModeChoiceOpen] = useState(false);
+  const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
   const [homeIntent, setHomeIntent] = useState('');
   const [isSubmittingIntent, setIsSubmittingIntent] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isSpeechListening, setIsSpeechListening] = useState(false);
-  const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
+  const [isHeroCtaVisible, setIsHeroCtaVisible] = useState(true);
 
+  // Observador de visibilidad del CTA principal ("Hacer que pase") para activar FAB flotante en Mobile
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
+    const checkVisibility = () => {
+      const target = document.querySelector('.home-intent-submit-btn');
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const visible = rect.bottom > 20 && rect.top < window.innerHeight;
+      setIsHeroCtaVisible(visible);
+    };
 
+    window.addEventListener('scroll', checkVisibility, { passive: true });
+    const timer = setTimeout(checkVisibility, 200);
+
+    return () => {
+      window.removeEventListener('scroll', checkVisibility);
+      clearTimeout(timer);
+    };
+  }, [loading]);
+
+  const isAnySheetOpen =
+    isFilterOpen ||
+    isAccountOpen ||
+    isInfoOpen ||
+    isSecondaryFilterOpen ||
+    isModeChoiceOpen ||
+    isOverwriteSheetOpen ||
+    Boolean(coordinationWarningProps.open);
+
+  const showMobileFab = !loading && !isHeroCtaVisible && !isAnySheetOpen && !isInputFocused;
 
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);
@@ -1145,23 +1175,25 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
             <HomeValueProposition />
           )}
 
-          {/* 4. TUS ENCUENTROS (Toolbar simplificada + listado) */}
+          {/* 4. TUS ENCUENTROS (Toolbar simplificada + listado en contenedor centrado) */}
           <div className="home-encounters-section">
-            <HomeEncountersToolbar
-              activeScope={activeScope}
-              onScopeChange={setActiveScope}
-              isLoggedIn={Boolean(user)}
-              totalTodosCount={allUniqueTodosCount}
-              totalOrganizedCount={organizedEncuentros.length}
-              totalParticipatedCount={participatedEncuentros.length}
-              totalProximosCount={totalProximos}
-              totalPasadosCount={totalPasados}
-              activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
-              onOpenFilters={() => setIsSecondaryFilterOpen(true)}
-            />
+            <div className="pe-encounters-inner">
+              <HomeEncountersToolbar
+                activeScope={activeScope}
+                onScopeChange={setActiveScope}
+                isLoggedIn={Boolean(user)}
+                totalTodosCount={allUniqueTodosCount}
+                totalOrganizedCount={organizedEncuentros.length}
+                totalParticipatedCount={participatedEncuentros.length}
+                totalProximosCount={totalProximos}
+                totalPasadosCount={totalPasados}
+                activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
+                onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+              />
 
-            <div className="pe-gsap-encounters-container">
-              {renderGsapContent()}
+              <div className="pe-gsap-encounters-container">
+                {renderGsapContent()}
+              </div>
             </div>
           </div>
 
@@ -1338,15 +1370,16 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         }}
       />
 
-      {/* FAB Botón Crear */}
-      {!loading && encuentros && encuentros.length > 0 && (
+      {/* FAB Botón Crear Móvil (aparece suavemente al scrollear pasado el Hero) */}
+      {showMobileFab && (
         <div className="home-fab-container">
           <div className="home-fab-wrapper">
             <button
               onClick={handleCreateClick}
               className="home-fab"
+              aria-label="Crear encuentro"
             >
-              <Plus size={24} />
+              <Plus size={20} strokeWidth={2.5} />
               <span className="home-fab-text">Crear</span>
             </button>
           </div>
