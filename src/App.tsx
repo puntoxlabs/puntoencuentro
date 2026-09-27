@@ -61,6 +61,22 @@ import { QAGate } from '@/components/qa/QAGate';
 const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
+  React.useEffect(() => {
+    const isStaging =
+      (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging') ||
+      (typeof window !== 'undefined' && window.location.hostname.includes('staging'));
+
+    if (isStaging) {
+      let meta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'robots';
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', 'noindex, nofollow');
+    }
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />

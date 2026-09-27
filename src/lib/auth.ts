@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabase';
  */
 export const getHostId = (): string => {
   const HOST_KEY = 'puntoencuentro_host_id';
+  if (typeof localStorage === 'undefined') {
+    return '00000000-0000-0000-0000-000000000000';
+  }
   let hostId = localStorage.getItem(HOST_KEY);
 
   if (!hostId) {

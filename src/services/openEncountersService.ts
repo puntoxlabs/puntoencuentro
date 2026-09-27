@@ -1,0 +1,286 @@
+import { supabase } from '@/lib/supabase';
+import type {
+  OpenEncounterSummary,
+  Localidad,
+  OpenEncounterRequest,
+  AbrirEncuentroPayload,
+} from '@/components/home/openEncounters/types';
+
+const USER_ZONES_LOCAL_STORAGE_KEY = 'puntoencuentro_user_zones';
+
+export const openEncountersService = {
+  /**
+   * Obtiene el catálogo de localidades activas desde Supabase.
+   */
+  async getLocalidades(): Promise<Localidad[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_localidades_catalogo');
+      if (error) {
+        console.error('[openEncountersService] Error fetching localidades catalogo:', error);
+        return [];
+      }
+      return (data as Localidad[]) || [];
+    } catch (err) {
+      console.error('[openEncountersService] Exception fetching localidades:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Obtiene las localidades preferidas del usuario (desde backend o fallback localStorage).
+   */
+  async getUserLocalidades(userId?: string): Promise<string[]> {
+    // 1. Fallback rápido desde localStorage
+    const local = typeof localStorage !== 'undefined' ? localStorage.getItem(USER_ZONES_LOCAL_STORAGE_KEY) : null;
+    let localIds: string[] = [];
+    if (local) {
+      try {
+        localIds = JSON.parse(local);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_user_localidades_seguro', {
+        p_user_id: userId ?? null,
+      });
+      if (error || !data) {
+        return localIds;
+      }
+      const remoteIds = data as string[];
+      // Sincronizar en localStorage si vino dato remoto
+      if (Array.isArray(remoteIds) && remoteIds.length > 0 && typeof localStorage !== 'undefined') {
+        localStorage.setItem(USER_ZONES_LOCAL_STORAGE_KEY, JSON.stringify(remoteIds));
+        return remoteIds;
+      }
+      return localIds;
+    } catch {
+      return localIds;
+    }
+  },
+
+  /**
+   * Guarda las localidades del usuario tanto en Supabase como en localStorage.
+   */
+  async setUserLocalidades(localityIds: string[], userId?: string): Promise<boolean> {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(USER_ZONES_LOCAL_STORAGE_KEY, JSON.stringify(localityIds));
+      }
+      const { data, error } = await supabase.rpc('set_user_localidades_seguro', {
+        p_locality_ids: localityIds,
+        p_user_id: userId ?? null,
+      });
+      if (error) {
+        console.warn('[openEncountersService] Error saving user localidades remote:', error);
+      }
+      return (data as any)?.ok ?? true;
+    } catch (err) {
+      console.warn('[openEncountersService] Failed to set user localidades:', err);
+      return true; // LocalStorage ya se guardó
+    }
+  },
+
+  /**
+   * Obtiene los encuentros abiertos para Discovery desde el backend seguro.
+   * Filtra por localidades seleccionadas si se proporcionan.
+   * NUNCA expone dirección exacta ni tokens privados.
+   */
+  async getDiscoveryEncuentros(localityIds?: string[]): Promise<OpenEncounterSummary[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_discovery_encuentros_abiertos', {
+        p_locality_ids: localityIds && localityIds.length > 0 ? localityIds : null,
+      });
+
+      if (error) {
+        console.error('[openEncountersService] Error fetching discovery encuentros:', error);
+        return [];
+      }
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        emoji: item.emoji,
+        activityType: item.activity_type,
+        startsAt: item.starts_at,
+        dateLabel: item.date_label,
+        approximateZone: item.approximate_zone,
+        localityId: item.locality_id,
+        openSlots: Number(item.open_slots ?? 0),
+        confirmedCount: Number(item.confirmed_count ?? 1),
+        language: item.language || 'es',
+        description: item.description,
+        hostName: item.host_name,
+      }));
+    } catch (err) {
+      console.error('[openEncountersService] Exception fetching discovery:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Abre un encuentro existente para que aparezca en Discovery.
+   */
+  async abrirEncuentro(
+    encuentroId: string,
+    hostId: string,
+    payload: AbrirEncuentroPayload
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc('abrir_encuentro_seguro', {
+      p_encuentro_id: encuentroId,
+      p_host_id: hostId,
+      p_open_description: payload.open_description,
+      p_max_participants: payload.max_participants,
+      p_locality_id: payload.locality_id,
+      p_open_public_zone: payload.open_public_zone ?? null,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error abriendo encuentro:', error);
+      throw error;
+    }
+
+    return data as any;
+  },
+
+  /**
+   * Cierra un encuentro al Discovery (no elimina participantes ni el encuentro).
+   */
+  async cerrarEncuentro(
+    encuentroId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc('cerrar_encuentro_abierto_seguro', {
+      p_encuentro_id: encuentroId,
+      p_host_id: hostId,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error cerrando encuentro abierto:', error);
+      throw error;
+    }
+
+    return data as any;
+  },
+
+  /**
+   * Solicita sumarse a un encuentro abierto.
+   */
+  async solicitarSumarse(
+    encuentroId: string,
+    nombre: string,
+    mensaje?: string,
+    usuarioId?: string
+  ): Promise<{ ok: boolean; request_id?: string; error?: string }> {
+    const { data, error } = await supabase.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: encuentroId,
+      p_nombre: nombre,
+      p_mensaje: mensaje ?? null,
+      p_usuario_id: usuarioId ?? null,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error solicitando sumarse:', error);
+      throw error;
+    }
+
+    return data as any;
+  },
+
+  /**
+   * Consulta el estado de la solicitud del usuario actual para un encuentro.
+   */
+  async getMiSolicitud(
+    encuentroId: string,
+    usuarioId: string
+  ): Promise<{
+    ok: boolean;
+    has_request: boolean;
+    request_id?: string;
+    estado?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+    token_participante?: string;
+    created_at?: string;
+  }> {
+    const { data, error } = await supabase.rpc('get_mi_solicitud_encuentro_abierto', {
+      p_encuentro_id: encuentroId,
+      p_usuario_id: usuarioId,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error fetching mi solicitud:', error);
+      return { ok: false, has_request: false };
+    }
+
+    return data as any;
+  },
+
+  /**
+   * Obtiene todas las solicitudes del encuentro (sólo accesible para el host).
+   */
+  async getSolicitudesHost(
+    encuentroId: string,
+    hostId: string
+  ): Promise<OpenEncounterRequest[]> {
+    const { data, error } = await supabase.rpc('get_solicitudes_host_seguro', {
+      p_encuentro_id: encuentroId,
+      p_host_id: hostId,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error fetching solicitudes host:', error);
+      return [];
+    }
+
+    const res = data as any;
+    if (!res?.ok || !Array.isArray(res.solicitudes)) {
+      return [];
+    }
+
+    return res.solicitudes;
+  },
+
+  /**
+   * Aprueba transaccionalmente una solicitud y crea al participante regular.
+   */
+  async aprobarSolicitud(
+    requestId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; error?: string; participante_id?: string; token_invitacion?: string }> {
+    const { data, error } = await supabase.rpc('aprobar_solicitud_encuentro_abierto', {
+      p_request_id: requestId,
+      p_host_id: hostId,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error aprobando solicitud:', error);
+      throw error;
+    }
+
+    return data as any;
+  },
+
+  /**
+   * Rechaza una solicitud pendiente.
+   */
+  async rechazarSolicitud(
+    requestId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc('rechazar_solicitud_encuentro_abierto', {
+      p_request_id: requestId,
+      p_host_id: hostId,
+    });
+
+    if (error) {
+      console.error('[openEncountersService] Error rechazando solicitud:', error);
+      throw error;
+    }
+
+    return data as any;
+  },
+};

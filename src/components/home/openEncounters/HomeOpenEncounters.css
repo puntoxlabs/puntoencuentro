@@ -1,0 +1,193 @@
+/* HomeOpenEncounters.css - Visor y carrusel de Encuentros Abiertos */
+
+.pe-discovery-section {
+  width: 100%;
+  max-width: 1100px;
+  margin: 1.25rem auto 0;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .pe-discovery-section {
+    padding: 0 1.5rem;
+    margin: 1.75rem auto 0;
+  }
+}
+
+/* Header */
+.pe-discovery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.pe-discovery-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pe-discovery-title {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  letter-spacing: -0.015em;
+}
+
+.pe-discovery-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.pe-discovery-badge--interactive {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pe-discovery-badge--interactive:hover {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.pe-discovery-see-all-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #059669);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.pe-discovery-see-all-btn:hover {
+  background-color: rgba(5, 150, 105, 0.08);
+  opacity: 0.9;
+}
+
+/* Carrusel Container */
+.pe-discovery-carousel-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pe-discovery-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  padding: 4px 2px 8px 2px;
+}
+
+.pe-discovery-track::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Card item sizing */
+/* Mobile: ~1.15 cards visible so the next card peeks */
+.pe-discovery-item {
+  flex: 0 0 calc(84vw - 24px);
+  max-width: 290px;
+  min-width: 240px;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 480px) {
+  .pe-discovery-item {
+    flex: 0 0 270px;
+  }
+}
+
+/* Desktop: ~2.8 to 3.5 cards visible */
+@media (min-width: 768px) {
+  .pe-discovery-item {
+    flex: 0 0 calc(33.333% - 10px);
+    max-width: 320px;
+    min-width: 250px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .pe-discovery-item {
+    flex: 0 0 calc(28% - 10px);
+    max-width: 300px;
+  }
+}
+
+/* Empty State / No Zones State */
+.pe-discovery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1.25rem;
+  background-color: #f8fafc;
+  border: 1.5px dashed rgba(15, 23, 42, 0.12);
+  border-radius: 20px;
+  gap: 8px;
+}
+
+.pe-discovery-empty-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pe-discovery-empty-desc {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #64748b;
+  max-width: 360px;
+}
+
+.pe-discovery-empty-btn {
+  margin-top: 6px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pe-discovery-empty-btn--primary {
+  background-color: var(--color-primary, #059669);
+  color: #ffffff;
+}
+
+.pe-discovery-empty-btn--primary:hover {
+  background-color: #047857;
+}
+
+.pe-discovery-empty-btn--outline {
+  background-color: transparent;
+  color: #475569;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.pe-discovery-empty-btn--outline:hover {
+  background-color: #f1f5f9;
+}

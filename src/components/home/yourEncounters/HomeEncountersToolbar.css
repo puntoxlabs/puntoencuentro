@@ -1,0 +1,142 @@
+/* HomeEncountersToolbar.css - Cabecera simplificada de Tus Encuentros */
+
+.pe-toolbar-container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 1.5rem auto 0.75rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .pe-toolbar-container {
+    padding: 0 1.5rem;
+    margin: 2rem auto 1rem;
+  }
+}
+
+.pe-toolbar-header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-bottom: 0.85rem;
+}
+
+.pe-toolbar-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  letter-spacing: -0.02em;
+}
+
+.pe-toolbar-summary-count {
+  font-size: 0.84rem;
+  color: var(--color-on-surface-variant, #64748b);
+  font-weight: 600;
+}
+
+/* Controls Row: Segmented Control + Filter Button */
+.pe-toolbar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Primary Segmented Control (Todos | Organizo | Participo) */
+.pe-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f1f5f9;
+  padding: 3px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  user-select: none;
+}
+
+.pe-segmented-btn {
+  background: transparent;
+  border: none;
+  border-radius: 11px;
+  padding: 7px 16px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pe-segmented-btn:hover:not(.pe-segmented-btn--active) {
+  color: #0f172a;
+}
+
+.pe-segmented-btn--active {
+  background: #ffffff;
+  color: var(--color-primary, #059669);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pe-segmented-badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background-color: rgba(15, 23, 42, 0.06);
+  color: #64748b;
+  font-weight: 700;
+}
+
+.pe-segmented-btn--active .pe-segmented-badge {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+/* Filter Button */
+.pe-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 14px;
+  background-color: #ffffff;
+  border: 1.5px solid rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.pe-filter-btn:hover {
+  background-color: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #0f172a;
+}
+
+.pe-filter-btn--active {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+  font-weight: 700;
+}
+
+.pe-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background-color: #059669;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-sizing: border-box;
+}

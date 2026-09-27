@@ -50,6 +50,14 @@ import {
 } from '@/components/home';
 import type { HomeVisualVariant } from '@/components/home';
 import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
+import { HomeOpenEncounters } from '@/components/home/openEncounters/HomeOpenEncounters';
+import { HomeEncountersToolbar } from '@/components/home/yourEncounters/HomeEncountersToolbar';
+import {
+  HomeEncountersFilterSheet,
+  DEFAULT_FILTER_VALUES,
+  countActiveSecondaryFilters,
+  type EncountersFilterValues,
+} from '@/components/home/yourEncounters/HomeEncountersFilterSheet';
 
 const HomeDynamicCanvasGsap = React.lazy(() => import('@/components/home/HomeDynamicCanvasGsap'));
 
@@ -265,9 +273,10 @@ const PastCard: React.FC<{
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
+  enableOpenDiscovery?: boolean;
 }
 
-const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
+const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
@@ -280,6 +289,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
 
+  const isGsapPreview = forcedVariant === 'gsap' || enableOpenDiscovery;
+
   // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
   const [loading, setLoading] = useState(
     !validCache && staleOrganized.length === 0 && staleParticipated.length === 0
@@ -289,8 +300,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
-  const [activeScope, setActiveScope] = useState<'organizo' | 'participo'>('organizo');
+  const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
   const [imgError, setImgError] = useState(false);
+
+  // Filtros secundarios simplificados para Preview GSAP
+  const [secondaryFilters, setSecondaryFilters] = useState<EncountersFilterValues>(DEFAULT_FILTER_VALUES);
+  const [isSecondaryFilterOpen, setIsSecondaryFilterOpen] = useState(false);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
@@ -299,6 +314,81 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
 
   // Los encuentros "visibles" dependen del scope activo
   const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
+
+  // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
+  const rawEncuentros = React.useMemo(() => {
+    if (activeScope === 'organizo') {
+      return (organizedEncuentros || []).map(e => ({ ...e, _isHost: true }));
+    }
+    if (activeScope === 'participo') {
+      return (participatedEncuentros || []).map(e => ({ ...e, _isHost: false }));
+    }
+    const seen = new Set<string>();
+    const list: any[] = [];
+    for (const enc of organizedEncuentros || []) {
+      if (enc && enc.id && !seen.has(enc.id)) {
+        seen.add(enc.id);
+        list.push({ ...enc, _isHost: true });
+      }
+    }
+    for (const enc of participatedEncuentros || []) {
+      if (enc && enc.id && !seen.has(enc.id)) {
+        seen.add(enc.id);
+        list.push({ ...enc, _isHost: false });
+      }
+    }
+    return list;
+  }, [activeScope, organizedEncuentros, participatedEncuentros]);
+
+  // Lista filtrada para Preview GSAP según momento, tipo, estado y orden
+  const filteredGsap = React.useMemo(() => {
+    return (rawEncuentros || []).filter(enc => {
+      if (!enc) return false;
+
+      // 1. Momento (timeFilter)
+      const bucket = getEncounterListBucket(enc);
+      const isActive = bucket !== 'cancelled' && bucket !== 'past';
+      if (secondaryFilters.timeFilter === 'upcoming' && !isActive) return false;
+      if (secondaryFilters.timeFilter === 'past' && isActive) return false;
+
+      // 2. Tipo
+      const isCoord = isCoordinationEncounter(enc);
+      if (secondaryFilters.filterType === 'fixed' && isCoord) return false;
+      if (secondaryFilters.filterType === 'coordination' && !isCoord) return false;
+
+      // 3. Estado de coordinación
+      if (secondaryFilters.filterType === 'coordination' && isCoord && secondaryFilters.filterCoordinationState !== 'all') {
+        const isExpired = enc.coordination_status === 'open' && enc.response_deadline && new Date(enc.response_deadline) < new Date();
+        if (secondaryFilters.filterCoordinationState === 'open' && (enc.coordination_status !== 'open' || isExpired)) return false;
+        if (secondaryFilters.filterCoordinationState === 'expired' && !isExpired) return false;
+        if (secondaryFilters.filterCoordinationState === 'closed' && enc.coordination_status !== 'closed') return false;
+      }
+
+      return true;
+    }).sort((a, b) => {
+      const getVal = (enc: any) => {
+        const d = new Date(`${enc.fecha || ''}T${enc.hora || ''}`).getTime();
+        if (!isNaN(d)) return d;
+        if (enc.response_deadline) return new Date(enc.response_deadline).getTime();
+        if (enc.creado_en) return new Date(enc.creado_en).getTime();
+        return 0;
+      };
+
+      if (secondaryFilters.sortBy === 'date_upcoming') {
+        return getVal(a) - getVal(b);
+      }
+      if (secondaryFilters.sortBy === 'date_distant') {
+        return getVal(b) - getVal(a);
+      }
+      if (secondaryFilters.sortBy === 'name_asc') {
+        return (a.titulo || '').localeCompare(b.titulo || '');
+      }
+      if (secondaryFilters.sortBy === 'name_desc') {
+        return (b.titulo || '').localeCompare(a.titulo || '');
+      }
+      return 0;
+    });
+  }, [rawEncuentros, secondaryFilters]);
 
 
 
@@ -768,6 +858,134 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
     );
   };
 
+  const renderGsapContent = () => {
+    if (loading) {
+      return (
+        <div className="home-loading">
+          <p className="home-loading-text">Cargando encuentros…</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="home-error">
+          <p className="home-error-text">{error}</p>
+          <Button variant="outline" onClick={loadData}>Reintentar</Button>
+        </div>
+      );
+    }
+
+    if (rawEncuentros.length === 0) {
+      const isOrganizo = activeScope === 'organizo';
+      return (
+        <div className="home-empty">
+          <div className="home-empty-icon">
+            <Calendar size={40} color="var(--color-primary)" />
+          </div>
+          <h2 className="home-empty-title">
+            {isOrganizo
+              ? 'Todavía no organizaste encuentros'
+              : activeScope === 'participo'
+              ? 'Todavía no tenés invitaciones confirmadas'
+              : 'Todavía no tenés encuentros programados'}
+          </h2>
+          <p className="home-empty-desc">
+            {isOrganizo || activeScope === 'todos'
+              ? 'Creá uno nuevo para coordinar con otros o sumate a un plan abierto.'
+              : 'Cuando confirmes asistencia, aparecerán acá.'}
+          </p>
+          <Button
+            variant="primary"
+            fullWidth
+            style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
+            onClick={handleCreateClick}
+          >
+            + Crear encuentro
+          </Button>
+        </div>
+      );
+    }
+
+    if (filteredGsap.length === 0) {
+      return (
+        <div className="home-empty" style={{ padding: '2rem 1rem' }}>
+          <div className="home-empty-icon">
+            <Calendar size={32} color="var(--color-primary)" />
+          </div>
+          <h2 className="home-empty-title">No hay encuentros para los filtros aplicados</h2>
+          <p className="home-empty-desc">Probá cambiando el momento o el tipo seleccionado.</p>
+          <Button
+            variant="outline"
+            onClick={() => setSecondaryFilters(DEFAULT_FILTER_VALUES)}
+            style={{ marginTop: 12 }}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="home-card-list">
+        {filteredGsap.map(enc => {
+          const isHost = enc._isHost ?? (activeScope === 'organizo');
+          const bucket = getEncounterListBucket(enc);
+          const isPast = bucket === 'past' || bucket === 'cancelled';
+          if (isPast) {
+            return (
+              <PastCard
+                key={enc.id}
+                enc={enc}
+                onClick={() => {
+                  if (!isHost && enc._mi_token_invitacion) {
+                    if (isCoordinationEncounter(enc)) {
+                      navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
+                    } else {
+                      navigate(`/invite/${enc._mi_token_invitacion}`);
+                    }
+                  } else if (isCoordinationEncounter(enc)) {
+                    navigate(`/coordination/${enc.id}`);
+                  } else {
+                    navigate(`/meet/${enc.id}`);
+                  }
+                }}
+                onRepeat={(e) => handleRepeat(enc, e)}
+                participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
+                miEstado={!isHost ? (enc._mi_estado ?? null) : null}
+                counts={counts[enc.id] ?? null}
+              />
+            );
+          }
+
+          return (
+            <ActiveCard
+              key={enc.id}
+              enc={enc}
+              onClick={() => {
+                if (!isHost && enc._mi_token_invitacion) {
+                  if (isCoordinationEncounter(enc)) {
+                    navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
+                  } else {
+                    navigate(`/invite/${enc._mi_token_invitacion}`);
+                  }
+                } else if (isCoordinationEncounter(enc)) {
+                  navigate(`/coordination/${enc.id}`);
+                } else {
+                  navigate(`/meet/${enc.id}`);
+                }
+              }}
+              participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
+              miEstado={!isHost ? (enc._mi_estado ?? null) : null}
+              counts={counts[enc.id] ?? null}
+              isHost={isHost}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <ScreenContainer style={{ background: 'var(--color-background)' }} className="home-screen-container">
       <header className="home-header">
@@ -890,127 +1108,174 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
         </div>
       )}
 
-      {/* Modalidades de encuentro (Los 3 Pilares V2 / 2 Pilares en Lanzamiento Variante D) */}
-      <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
+      {isGsapPreview ? (
+        <>
+          {/* 2. ENCUENTROS ABIERTOS (Discovery Carrousel inmediatamente debajo del Hero) */}
+          <HomeOpenEncounters
+            onOpenCreate={handleCreateClick}
+          />
 
-      {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
-      {!loading && (!encuentros || encuentros.length === 0) && !user && (
-        <HomeValueProposition />
-      )}
+          {/* 3. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
+          <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
 
-      {/* Sección "Tus encuentros" para usuarios con encuentros o logueados */}
-      {(user || (encuentros && encuentros.length > 0)) && (
-        <div className="home-encounters-section">
-          <div className="home-encounters-header">
-            <h2 className="home-encounters-title">Tus encuentros</h2>
-            <span className="home-encounters-count">
-              {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
-            </span>
+          {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
+          {!loading && rawEncuentros.length === 0 && !user && (
+            <HomeValueProposition />
+          )}
+
+          {/* 4. TUS ENCUENTROS (Toolbar simplificada + listado) */}
+          <div className="home-encounters-section">
+            <HomeEncountersToolbar
+              activeScope={activeScope}
+              onScopeChange={setActiveScope}
+              isLoggedIn={Boolean(user)}
+              totalTodosCount={rawEncuentros.length}
+              totalOrganizedCount={organizedEncuentros.length}
+              totalParticipatedCount={participatedEncuentros.length}
+              totalProximosCount={totalProximos}
+              totalPasadosCount={totalPasados}
+              activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
+              onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+            />
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 1rem', maxWidth: '1100px', width: '100%', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden' }}>
+              {renderGsapContent()}
+            </div>
           </div>
 
-      {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
-      {user && (
-        <div className="home-scope-container">
-          <div className="home-scope-toggle">
-            <button
-              onClick={() => setActiveScope('organizo')}
-              className={`home-scope-btn ${activeScope === 'organizo' ? 'home-scope-btn--active' : ''}`}
-            >
-              Organizo
-            </button>
-            <button
-              onClick={() => setActiveScope('participo')}
-              className={`home-scope-btn ${activeScope === 'participo' ? 'home-scope-btn--active' : ''}`}
-            >
-              Participo
-            </button>
-          </div>
-        </div>
-      )}
+          {/* Panel de filtros secundarios para Tus Encuentros */}
+          <HomeEncountersFilterSheet
+            isOpen={isSecondaryFilterOpen}
+            filters={secondaryFilters}
+            onApply={setSecondaryFilters}
+            onClose={() => setIsSecondaryFilterOpen(false)}
+          />
+        </>
+      ) : (
+        <>
+          {/* Modalidades de encuentro (Los 3 Pilares V2 / 2 Pilares en Lanzamiento Variante D) */}
+          <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
 
-      {/* Chips de filtrado por Tipo */}
-      {!loading && (encuentros.length > 0 || filterType !== 'all') && (
-        <div style={{ padding: '8px 20px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`pe-sheet-chip ${filterType === 'all' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
-            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
-          >
-            Todos
-          </button>
-          <button
-            onClick={() => setFilterType('fixed')}
-            className={`pe-sheet-chip ${filterType === 'fixed' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
-            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
-          >
-            Fecha definida
-          </button>
-          <button
-            onClick={() => setFilterType('coordination')}
-            className={`pe-sheet-chip ${filterType === 'coordination' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
-            style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
-          >
-            Coordinados
-          </button>
-        </div>
-      )}
+          {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
+          {!loading && (!encuentros || encuentros.length === 0) && !user && (
+            <HomeValueProposition />
+          )}
 
-      {/* Sub-filtros para Coordinados */}
-      {!loading && filterType === 'coordination' && (
-        <div style={{ padding: '0px 20px 8px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
-          <button
-            onClick={() => setFilterCoordinationState('all')}
-            style={{ background: filterCoordinationState === 'all' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'all' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'all' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Todos
-          </button>
-          <button
-            onClick={() => setFilterCoordinationState('open')}
-            style={{ background: filterCoordinationState === 'open' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'open' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'open' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            A coordinar
-          </button>
-          <button
-            onClick={() => setFilterCoordinationState('expired')}
-            style={{ background: filterCoordinationState === 'expired' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'expired' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'expired' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Plazo vencido
-          </button>
-          <button
-            onClick={() => setFilterCoordinationState('closed')}
-            style={{ background: filterCoordinationState === 'closed' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'closed' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'closed' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Fecha confirmada
-          </button>
-        </div>
-      )}
+          {/* Sección "Tus encuentros" para usuarios con encuentros o logueados */}
+          {(user || (encuentros && encuentros.length > 0)) && (
+            <div className="home-encounters-section">
+              <div className="home-encounters-header">
+                <h2 className="home-encounters-title">Tus encuentros</h2>
+                <span className="home-encounters-count">
+                  {totalProximos} próximo{totalProximos !== 1 ? 's' : ''} • {totalPasados} anterior{totalPasados !== 1 ? 'es' : ''}
+                </span>
+              </div>
 
-      {/* B. Segmented Control Toggle (Próximos / Anteriores) */}
-      {!loading && (encuentros.length > 0 || filterStatus !== 'all') && (
-        <div className="home-tabs-container">
-          <div className="home-tabs">
-            <button
-              onClick={() => setActiveTab('upcoming')}
-              className={`home-tab ${activeTab === 'upcoming' ? 'home-tab--active' : ''}`}
-            >
-              <span>Próximos</span>
-              <span className="home-tab-badge">{totalProximos}</span>
-            </button>
+              {/* A. Selector de Scope: Organizo / Participo (solo si logueado) */}
+              {user && (
+                <div className="home-scope-container">
+                  <div className="home-scope-toggle">
+                    <button
+                      onClick={() => setActiveScope('organizo')}
+                      className={`home-scope-btn ${activeScope === 'organizo' ? 'home-scope-btn--active' : ''}`}
+                    >
+                      Organizo
+                    </button>
+                    <button
+                      onClick={() => setActiveScope('participo')}
+                      className={`home-scope-btn ${activeScope === 'participo' ? 'home-scope-btn--active' : ''}`}
+                    >
+                      Participo
+                    </button>
+                  </div>
+                </div>
+              )}
 
-            <button
-              onClick={() => setActiveTab('past')}
-              className={`home-tab ${activeTab === 'past' ? 'home-tab--active' : ''}`}
-            >
-              <span>Anteriores</span>
-              <span className="home-tab-badge">{totalPasados}</span>
-            </button>
-          </div>
-        </div>
-      )}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
-        {renderContent()}
-      </div>
-        </div>
+              {/* Chips de filtrado por Tipo */}
+              {!loading && (encuentros.length > 0 || filterType !== 'all') && (
+                <div style={{ padding: '8px 20px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
+                  <button
+                    onClick={() => setFilterType('all')}
+                    className={`pe-sheet-chip ${filterType === 'all' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+                    style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => setFilterType('fixed')}
+                    className={`pe-sheet-chip ${filterType === 'fixed' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+                    style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+                  >
+                    Fecha definida
+                  </button>
+                  <button
+                    onClick={() => setFilterType('coordination')}
+                    className={`pe-sheet-chip ${filterType === 'coordination' ? 'pe-sheet-chip--selected' : 'pe-sheet-chip--unselected'}`}
+                    style={{ padding: '6px 14px', fontSize: 13, borderRadius: 16, whiteSpace: 'nowrap' }}
+                  >
+                    Coordinados
+                  </button>
+                </div>
+              )}
+
+              {/* Sub-filtros para Coordinados */}
+              {!loading && filterType === 'coordination' && (
+                <div style={{ padding: '0px 20px 8px', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="hide-scrollbar">
+                  <button
+                    onClick={() => setFilterCoordinationState('all')}
+                    style={{ background: filterCoordinationState === 'all' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'all' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'all' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => setFilterCoordinationState('open')}
+                    style={{ background: filterCoordinationState === 'open' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'open' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'open' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    A coordinar
+                  </button>
+                  <button
+                    onClick={() => setFilterCoordinationState('expired')}
+                    style={{ background: filterCoordinationState === 'expired' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'expired' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'expired' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Plazo vencido
+                  </button>
+                  <button
+                    onClick={() => setFilterCoordinationState('closed')}
+                    style={{ background: filterCoordinationState === 'closed' ? 'var(--color-primary-container)' : 'transparent', color: filterCoordinationState === 'closed' ? 'var(--color-primary-dark)' : 'var(--color-on-surface-variant)', border: 'none', padding: '4px 10px', fontSize: 12, borderRadius: 12, fontWeight: filterCoordinationState === 'closed' ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Fecha confirmada
+                  </button>
+                </div>
+              )}
+
+              {/* B. Segmented Control Toggle (Próximos / Anteriores) */}
+              {!loading && (encuentros.length > 0 || filterStatus !== 'all') && (
+                <div className="home-tabs-container">
+                  <div className="home-tabs">
+                    <button
+                      onClick={() => setActiveTab('upcoming')}
+                      className={`home-tab ${activeTab === 'upcoming' ? 'home-tab--active' : ''}`}
+                    >
+                      <span>Próximos</span>
+                      <span className="home-tab-badge">{totalProximos}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('past')}
+                      className={`home-tab ${activeTab === 'past' ? 'home-tab--active' : ''}`}
+                    >
+                      <span>Anteriores</span>
+                      <span className="home-tab-badge">{totalPasados}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
+                {renderContent()}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Bottom Sheets */}
@@ -1068,7 +1333,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant }) => {
       {!loading && (
         <div className="home-build-info">
           <span>
-            Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}
+            {typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging' ? (
+              <>STAGING · {typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'local'} · {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
+            ) : (
+              <>Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
+            )}
           </span>
         </div>
       )}

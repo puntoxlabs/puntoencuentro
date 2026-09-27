@@ -39,6 +39,7 @@ import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
+import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -1395,6 +1396,17 @@ const DetailHost: React.FC = () => {
                 </p>
               )}
             </div>
+          )}
+
+          {/* ENCUENTROS ABIERTOS / DISCOVERY */}
+          {encuentro && (
+            <HostOpenEncounterSection
+              encuentro={encuentro}
+              hostId={hostIdRef.current || ''}
+              confirmedCount={confirmados.length}
+              onRefresh={() => loadData(hostIdRef.current!)}
+              onParticipantAdded={refreshParticipantes}
+            />
           )}
 
           {/* 6. PARTICIPANTES */}

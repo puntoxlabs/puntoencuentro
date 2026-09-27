@@ -1,0 +1,227 @@
+/* HomeEncountersFilterSheet.css - Panel de Filtros Secundarios */
+
+.pe-filter-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  animation: peFadeIn 0.2s ease;
+}
+
+.pe-filter-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 16px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 1001;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.2);
+  animation: peSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .pe-filter-sheet {
+    bottom: auto;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 460px;
+    border-radius: 24px;
+    animation: peModalZoom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 24px;
+  }
+}
+
+.pe-filter-sheet__handle {
+  width: 40px;
+  height: 4px;
+  background-color: rgba(15, 23, 42, 0.15);
+  border-radius: 9999px;
+  margin: 0 auto 14px;
+}
+
+@media (min-width: 768px) {
+  .pe-filter-sheet__handle {
+    display: none;
+  }
+}
+
+.pe-filter-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.pe-filter-sheet__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pe-filter-sheet__close-btn {
+  background: rgba(15, 23, 42, 0.05);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pe-filter-sheet__close-btn:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+}
+
+/* Section */
+.pe-filter-section {
+  margin-bottom: 20px;
+}
+
+.pe-filter-section__title {
+  margin: 0 0 10px 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.pe-filter-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pe-filter-chip {
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.pe-filter-chip:hover {
+  border-color: rgba(15, 23, 42, 0.2);
+  background: #f8fafc;
+}
+
+.pe-filter-chip--selected {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+  font-weight: 700;
+}
+
+/* Sort Options */
+.pe-sort-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.pe-sort-option:hover {
+  background: #f8fafc;
+}
+
+.pe-sort-option--selected {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+  font-weight: 700;
+}
+
+.pe-sort-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pe-sort-option--selected .pe-sort-radio {
+  border-color: #059669;
+}
+
+.pe-sort-radio-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #059669;
+}
+
+/* Actions Row */
+.pe-filter-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.pe-filter-btn-clear {
+  flex: 1;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(15, 23, 42, 0.12);
+  background: transparent;
+  color: #475569;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pe-filter-btn-clear:hover {
+  background-color: #f1f5f9;
+}
+
+.pe-filter-btn-apply {
+  flex: 2;
+  padding: 12px;
+  border-radius: 14px;
+  border: none;
+  background: var(--color-primary, #059669);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pe-filter-btn-apply:hover {
+  background: #047857;
+}

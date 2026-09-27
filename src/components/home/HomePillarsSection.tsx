@@ -30,7 +30,7 @@ export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
             <div className="home-pillar-body">
               <h3 className="home-pillar-title">Organizar un encuentro</h3>
               <p className="home-pillar-desc">
-                Ya sabés con quién. Te ayudamos a coordinar fechas, elegir lugar, invitar y concretar.
+                Ya sabés con quién. Coordiná fecha, lugar, invitá y hacé que suceda.
               </p>
             </div>
 
@@ -58,7 +58,7 @@ export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
             <div className="home-pillar-body">
               <h3 className="home-pillar-title">Abrir encuentros</h3>
               <p className="home-pillar-desc">
-                ¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tus planes, o descubrí propuestas abiertas.
+                ¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tu plan.
               </p>
             </div>
 
