@@ -461,36 +461,65 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isSpeechListening, setIsSpeechListening] = useState(false);
   const [isHeroCtaVisible, setIsHeroCtaVisible] = useState(true);
+  // true cuando hay un CTA de creación equivalente visible en viewport (evita duplicación con FAB)
+  const [isCreateCtaVisible, setIsCreateCtaVisible] = useState(false);
 
-  // Observador de visibilidad del CTA principal ("Hacer que pase") para activar FAB flotante en Mobile
-  // Usa IntersectionObserver para timing inmediato (sin setTimeout artificial)
+  // Observer dual: CTA Hero + CTAs de creación en el cuerpo de la página
+  // El FAB se oculta cuando hay un CTA de creación visible para evitar redundancia visual
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     // Detectar VariantSwitcher y aplicar offset al FAB para evitar colisión
-    const applyVariantSwitcherOffset = () => {
-      const switcher = document.querySelector('.home-variant-floating-bar, .home-variant-minimized-badge');
-      const offset = switcher ? '56px' : '0px';
-      document.documentElement.style.setProperty('--pe-fab-switcher-offset', offset);
-    };
-    applyVariantSwitcherOffset();
+    const switcher = document.querySelector('.home-variant-floating-bar, .home-variant-minimized-badge');
+    document.documentElement.style.setProperty(
+      '--pe-fab-switcher-offset',
+      switcher ? '56px' : '0px'
+    );
 
-    const target = document.querySelector('.home-intent-submit-btn');
-    if (!target) {
+    // Observer 1: CTA Hero "Hacer que pase"
+    const heroTarget = document.querySelector('.home-intent-submit-btn');
+    if (!heroTarget) {
       setIsHeroCtaVisible(false);
-      return;
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsHeroCtaVisible(entry.isIntersecting);
-      },
+    const heroObserver = new IntersectionObserver(
+      ([entry]) => setIsHeroCtaVisible(entry.isIntersecting),
       { root: null, threshold: 0, rootMargin: '0px 0px -1px 0px' }
     );
-    observer.observe(target);
+    if (heroTarget) heroObserver.observe(heroTarget);
+
+    // Observer 2: CTAs equivalentes de creación en el cuerpo de la página
+    // Observa: botón "Crear encuentro" en empty state y en pillars card (Organizar)
+    // NO observa "Abrir lugares" (acción diferente)
+    const createCtaSelectors = [
+      '.home-empty button', // CTA del empty state "+ Crear encuentro"
+      '.home-pillar-card--active .home-pillar-cta--primary', // CTA de la card Organizar
+      '.home-pillar-card:first-child .home-pillar-cta', // fallback card 1
+    ].join(', ');
+
+    const createCtaTargets = Array.from(document.querySelectorAll(createCtaSelectors))
+      .filter(el => {
+        const text = (el as HTMLElement).textContent?.toLowerCase() || '';
+        // Solo observar CTAs que tengan texto de "crear" — no "abrir"
+        return text.includes('crear') && !text.includes('abrir');
+      });
+
+    const intersectingMap = new Map<Element, boolean>();
+    const createObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(e => {
+          intersectingMap.set(e.target, e.isIntersecting);
+        });
+        const hasVisible = Array.from(intersectingMap.values()).some(Boolean);
+        setIsCreateCtaVisible(hasVisible);
+      },
+      { root: null, threshold: 0.15 }
+    );
+    createCtaTargets.forEach(el => createObserver.observe(el));
 
     return () => {
-      observer.disconnect();
+      heroObserver.disconnect();
+      createObserver.disconnect();
     };
   }, [loading]);
 
@@ -503,7 +532,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     isOverwriteSheetOpen ||
     Boolean(coordinationWarningProps.open);
 
-  const showMobileFab = !loading && !isHeroCtaVisible && !isAnySheetOpen && !isInputFocused;
+  // FAB contextual (Mobile + Desktop):
+  // Aparece cuando el CTA del Hero "Hacer que pase" ya no está visible,
+  // y se oculta si entra en viewport cualquier CTA de creación equivalente ("+ Crear encuentro", "Crear encuentro").
+  const showFab =
+    !loading &&
+    !isHeroCtaVisible &&
+    !isCreateCtaVisible &&
+    !isAnySheetOpen &&
+    !isInputFocused;
 
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);
@@ -1384,8 +1421,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         }}
       />
 
-      {/* FAB Botón Crear Móvil (aparece suavemente al scrollear pasado el Hero) */}
-      {showMobileFab && (
+      {/* FAB Botón Crear Contextual (Mobile + Desktop, aparece al alejarte del Hero cuando no hay otro CTA de crear visible) */}
+      {showFab && (
         <div className="home-fab-container">
           <div className="home-fab-wrapper">
             <button
@@ -1393,7 +1430,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
               className="home-fab"
               aria-label="Crear encuentro"
             >
-              <Plus size={20} strokeWidth={2.5} />
+              <Plus size={18} strokeWidth={2.5} />
               <span className="home-fab-text">Crear</span>
             </button>
           </div>

@@ -653,54 +653,52 @@ html, body {
 .home-fab-container {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  left: 0;
-  right: 0;
+  right: 18px;
+  left: auto;
   z-index: 100;
   display: flex;
-  justify-content: center;
   pointer-events: none;
   animation: fadeInFab 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @media (min-width: 768px) {
   .home-fab-container {
-    display: none !important;
+    bottom: 28px;
+    right: 28px;
   }
 }
 
 .home-fab-wrapper {
-  width: 100%;
-  max-width: 480px;
   display: flex;
   justify-content: flex-end;
-  padding: 0 16px;
 }
 
 .home-fab {
   pointer-events: auto;
-  height: 52px;
-  border-radius: 26px;
-  padding: 0 18px 0 14px;
+  height: 48px;
+  border-radius: 24px;
+  padding: 0 16px 0 13px;
   background: var(--color-primary);
   color: #fff;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(24, 76, 212, 0.28), 0 2px 6px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  gap: 6px;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 .home-fab:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 20px rgba(24, 76, 212, 0.38);
+  background: var(--color-primary-hover, #1d4ed8);
 }
 .home-fab:active {
   transform: scale(0.96);
 }
 .home-fab-text {
-  font-size: 0.9375rem;
+  font-size: 0.90rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -763,8 +761,35 @@ html, body {
   .pe-encounters-inner {
     background: var(--color-surface-variant, #f9fafb);
     border: 1px solid var(--color-outline-variant, #e0e0e0);
-    border-radius: 10px;
-    padding: var(--pe-inner-gap, 24px);
+    border-radius: 12px;
+    padding: 16px 20px 20px;
+  }
+
+  .pe-encounters-inner .pe-toolbar-container {
+    margin: 0 auto 0.4rem;
+    padding: 0 0.25rem;
+  }
+
+  .pe-gsap-encounters-container .home-empty {
+    padding: 18px 20px 16px;
+    min-height: 180px;
+  }
+
+  .pe-gsap-encounters-container .home-empty-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 10px;
+  }
+
+  .pe-gsap-encounters-container .home-empty-title {
+    font-size: 1.15rem;
+    margin-bottom: 6px;
+  }
+
+  .pe-gsap-encounters-container .home-empty-desc {
+    font-size: 0.875rem;
+    margin-bottom: 14px;
+    max-width: 420px;
   }
 }
 
@@ -784,23 +809,10 @@ html, body {
   }
 }
 
-/* ── FAB MOBILE: correcciones de timing y offset del VariantSwitcher ── */
-/*
-  La lógica del observer en Home.tsx usa IntersectionObserver.
-  El CSS sólo posiciona el FAB y aplica el offset via --switcher-offset.
-*/
-.home-fab-container {
-  /* Offset del VariantSwitcher (calculado en JS y inyectado como CSS var) */
-  bottom: calc(
-    env(safe-area-inset-bottom, 0px) +
-    20px +
-    var(--pe-fab-switcher-offset, 0px)
-  );
-}
-
-/* Asegurar que en desktop el FAB nunca aparezca */
-@media (min-width: 768px) {
-  .home-fab-container {
-    display: none !important;
+/* Mobile: reducción moderada del aire entre Stepper y Tus Encuentros (aprox. 16-20px menos) */
+@media (max-width: 767px) {
+  .home-gsap-layout .home-encounters-section {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
   }
 }

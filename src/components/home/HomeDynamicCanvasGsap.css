@@ -65,6 +65,7 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  /* overflow:hidden contiene las fotos dentro del Hero, evita sangrado a secciones inferiores */
   overflow: hidden;
 }
 
@@ -135,9 +136,10 @@
 .home-gsap-photo--right-bottom {
   left: calc(50% + 340px + clamp(48px, 3.6vw, 70px) + 36px);
   right: auto;
-  top: clamp(380px, 48vh, 460px);
-  width: clamp(180px, 13.5vw, 215px);
-  height: clamp(180px, 22vh, 220px);
+  /* Contenida holgadamente dentro del Hero desktop (1366x768 a 1920x1080) */
+  top: clamp(275px, 33vh, 335px);
+  width: clamp(165px, 11.5vw, 195px);
+  height: clamp(150px, 18vh, 185px);
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.95);
   box-shadow: 0 16px 36px -8px rgba(17, 24, 39, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.04);

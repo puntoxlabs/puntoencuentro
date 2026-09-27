@@ -5,20 +5,21 @@
 .home-variant-floating-bar {
   position: fixed;
   bottom: 20px;
-  right: 20px;
-  z-index: 9999;
-  background: rgba(16, 29, 61, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 16px;
-  padding: 10px 12px;
-  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
+  left: 20px;
+  right: auto;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 620px;
-  animation: fadeInVariantBar 0.3s ease-out;
+  gap: 6px;
+  max-width: 480px;
+  animation: fadeInVariantBar 0.25s ease-out;
 }
 
 
@@ -53,10 +54,10 @@
 }
 
 .home-variant-title {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #f1f5f9;
 }
 
@@ -65,8 +66,8 @@
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  padding: 3px;
-  border-radius: 6px;
+  padding: 2px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,27 +81,28 @@
 
 .home-variant-options {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .home-variant-btn {
   flex: 1;
+  min-width: 76px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  padding: 8px 10px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  padding: 5px 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
 }
 
 .home-variant-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
 }
 
 .home-variant-btn.is-active {
@@ -147,9 +149,8 @@
 }
 
 .home-variant-btn-dot {
-
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 9999px;
   background: #64748b;
   flex-shrink: 0;
@@ -167,16 +168,16 @@
 }
 
 .home-variant-btn-name {
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #ffffff;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .home-variant-btn-desc {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   color: #94a3b8;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .home-variant-btn.is-active .home-variant-btn-desc {
@@ -187,27 +188,28 @@
 .home-variant-minimized-badge {
   position: fixed;
   bottom: 20px;
-  right: 20px;
-  z-index: 9999;
-  background: rgba(16, 29, 61, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  left: 20px;
+  right: auto;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 9999px;
-  padding: 8px 14px;
+  padding: 5px 12px;
   color: #ffffff;
-  font-size: 0.76rem;
+  font-size: 0.70rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  gap: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
 }
 
 .home-variant-minimized-badge:hover {
-  background: rgba(16, 29, 61, 1);
+  background: rgba(15, 23, 42, 0.98);
   border-color: #38bdf8;
   transform: translateY(-2px);
 }
@@ -216,12 +218,12 @@
   color: #38bdf8;
 }
 
-/* En mobile, ajustar posición para no tapar contenido crítico */
+/* En mobile, ajustar posición a bottom-left discreto */
 @media (max-width: 640px) {
   .home-variant-floating-bar {
-    bottom: 12px;
-    right: 12px;
-    left: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 10px;
+    right: 10px;
     max-width: none;
   }
 
@@ -229,7 +231,8 @@
     bottom: calc(14px + env(safe-area-inset-bottom, 0px));
     left: 14px;
     right: auto;
-    padding: 6px 12px;
-    font-size: 0.72rem;
+    padding: 5px 10px;
+    font-size: 0.68rem;
   }
 }
+
