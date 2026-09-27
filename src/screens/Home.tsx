@@ -1335,6 +1335,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           <span>
             {typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging' ? (
               <>STAGING · {typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'local'} · {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
+            ) : typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'preview' ? (
+              <>PREVIEW · {typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'local'} · {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
             ) : (
               <>Build: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
             )}

@@ -18,11 +18,15 @@ function getAppEnv(): string {
   if (process.env.VITE_APP_ENV) {
     return process.env.VITE_APP_ENV;
   }
-  if (process.env.VERCEL_ENV === 'production') {
+  const branch = process.env.VERCEL_GIT_COMMIT_REF;
+  if (branch === 'staging') {
+    return 'staging';
+  }
+  if (branch === 'main' || process.env.VERCEL_ENV === 'production') {
     return 'production';
   }
   if (process.env.VERCEL_ENV === 'preview') {
-    return 'staging';
+    return 'preview';
   }
   return 'development';
 }

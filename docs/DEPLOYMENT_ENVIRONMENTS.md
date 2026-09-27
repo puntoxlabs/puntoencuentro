@@ -1,16 +1,18 @@
 # Arquitectura de Despliegue y Entornos
 
-Este documento describe la topología de 3 capas de PuntoEncuentro, el flujo de ramas Git, la aplicación de migraciones y la configuración de variables de entorno.
+Este documento describe la topología de PuntoEncuentro, el flujo de ramas Git, la aplicación de migraciones y la configuración de variables de entorno.
 
 ```
-Producción
-puntoencuentro.com.ar  ──→  Rama: main     ──→  Supabase Producción
+main
+  → puntoencuentro.com.ar
+  → Supabase Producción
 
-Staging
-staging.puntoencuentro.com.ar  ──→  Rama: staging  ──→  Supabase Staging
+staging
+  → staging.puntoencuentro.com.ar
+  → Supabase Staging
 
-Local
-localhost:5173 / 4173  ──→  Rama de trabajo ──→  Supabase Staging / PGlite / Local
+feature/*
+  → previews Vercel protegidos (Deployment Protection activo)
 ```
 
 ---
@@ -26,16 +28,25 @@ localhost:5173 / 4173  ──→  Rama de trabajo ──→  Supabase Staging / 
 
 ## 2. Staging
 - **Dominio:** `https://staging.puntoencuentro.com.ar`
-- **Hosting:** Vercel (Preview / Branch Deployment asignado a `staging`).
+- **Hosting:** Vercel (Preview Deployment asociado al branch `staging`).
 - **Rama Git:** `staging`.
 - **Backend:** Supabase Staging (proyecto independiente).
 - **Datos:** Datos de prueba/demo, validaciones QA de producto y pruebas de integración.
+- **Acceso:** Público para QA (sin Vercel login requerido en este subdominio).
 - **Indexación:** Bloqueada con `<meta name="robots" content="noindex, nofollow" />`.
 - **Identificador visual:** Pie de página muestra `STAGING · {commit} · {fecha/hora build}`.
 
 ---
 
-## 3. Local
+## 3. Previews de Features (`feature/*`)
+- **Dominio:** `https://puntoencuentro-git-*.vercel.app` (URLs efímeras por PR/branch).
+- **Hosting:** Vercel Preview Deployments.
+- **Seguridad:** Vercel Deployment Protection activo (requiere login en equipo Vercel).
+- **Identificador visual:** Pie de página muestra `PREVIEW · {commit} · {fecha/hora build}`.
+
+---
+
+## 4. Local
 - **URL:** `http://localhost:5173` (dev) o `http://localhost:4173` (preview).
 - **Backend:**
   - Tests unitarios y de componentes: Ejecutan sobre motor PostgreSQL en memoria (`@electric-sql/pglite`), 100% aislados y sin red.
@@ -43,7 +54,7 @@ localhost:5173 / 4173  ──→  Rama de trabajo ──→  Supabase Staging / 
 
 ---
 
-## 4. Supabase por Entorno
+## 5. Supabase por Entorno
 | Entorno | Proyecto Supabase | Propósito |
 | :--- | :--- | :--- |
 | **Producción** | `aurbicjwftjhwryhyjiq` | Base de datos real de usuarios |
@@ -52,9 +63,9 @@ localhost:5173 / 4173  ──→  Rama de trabajo ──→  Supabase Staging / 
 
 ---
 
-## 5. Mapeo de Ramas Git
+## 6. Mapeo de Ramas Git
 ```text
-feature/* (desarrollo local)
+feature/* (desarrollo local / previews protegidos)
     ↓ PR / merge
 staging (despliegue automático a staging.puntoencuentro.com.ar)
     ↓ QA y validación externa
@@ -63,7 +74,7 @@ main (despliegue a puntoencuentro.com.ar)
 
 ---
 
-## 6. Cómo Probar una Feature
+## 7. Cómo Probar una Feature
 1. Desarrollar en la rama `feature/<nombre>`.
 2. Validar que la suite pase al 100%:
    ```bash
@@ -81,15 +92,15 @@ main (despliegue a puntoencuentro.com.ar)
 
 ---
 
-## 7. Cómo Promover de Staging a Producción
+## 8. Cómo Promover de Staging a Producción
 1. Validar que la instancia de Staging haya sido aprobada funcional y visualmente.
-2. Aplicar las nuevas migraciones SQL en Supabase Producción (ver sección 8).
+2. Aplicar las nuevas migraciones SQL en Supabase Producción (ver sección 9).
 3. Crear Pull Request de `staging` hacia `main`.
 4. Una vez mergeado en `main`, Vercel desplegará automáticamente la nueva versión en `https://puntoencuentro.com.ar`.
 
 ---
 
-## 8. Cómo Aplicar Migraciones
+## 9. Cómo Aplicar Migraciones
 Las migraciones residen en `supabase/migrations/` ordenadas cronológicamente por timestamp.
 
 ### En Staging:
@@ -105,7 +116,7 @@ npx supabase db push --project-ref aurbicjwftjhwryhyjiq
 
 ---
 
-## 9. Configuración de Variables de Entorno
+## 10. Configuración de Variables de Entorno
 El repositorio solo versiona `.env.example`. Los secretos reales nunca se commitean.
 
 ### En Vercel:
@@ -128,7 +139,7 @@ VITE_APP_ENV=development
 
 ---
 
-## 10. Cómo Verificar qué Build se está Viendo
+## 11. Cómo Verificar qué Build se está Viendo
 En la esquina inferior de la pantalla principal (Home):
 - **En Staging:** Se lee `STAGING · <hash-corto> · <timestamp>`, por ejemplo:
   `STAGING · b3c1a8f · 27/9/2026, 14:30:15`
