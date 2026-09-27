@@ -39,6 +39,26 @@
   opacity: 0.26 !important;
 }
 
+/* Chips refinados en preview GSAP para mayor aire visual y balance en mobile */
+.home-hero-wrapper--gsap .home-suggestion-chip {
+  gap: 0.32rem;
+  min-height: 30px;
+  padding: 0.28rem 0.72rem;
+  background-color: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  font-size: 0.78rem;
+  font-weight: 550;
+  box-shadow: 0 1px 2px rgba(16, 29, 61, 0.03);
+}
+
+@media (min-width: 640px) {
+  .home-hero-wrapper--gsap .home-suggestion-chip {
+    min-height: 36px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.84rem;
+  }
+}
+
 /* Capas */
 .home-gsap-photos-layer {
   position: absolute;
@@ -244,21 +264,21 @@
   left: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.46rem 1.15rem;
-  border-radius: 9999px;
+  gap: 0.65rem;
+  padding: 0.62rem 1.55rem;
+  border-radius: 12px;
   font-family: inherit;
-  font-size: clamp(0.88rem, 0.94vw, 0.96rem);
-  font-weight: 600;
-  letter-spacing: -0.012em;
+  font-size: clamp(1.05rem, 1.15vw, 1.22rem);
+  font-weight: 650;
+  letter-spacing: -0.015em;
   line-height: 1.2;
   white-space: nowrap;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   pointer-events: none;
   user-select: none;
   will-change: transform, opacity;
-  box-shadow: 0 8px 22px -3px rgba(15, 23, 42, 0.1), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 28px -4px rgba(15, 23, 42, 0.12), 0 3px 8px -1px rgba(15, 23, 42, 0.05);
   border: 1.5px solid transparent;
   /* GSAP maneja la opacidad y visibilidad de forma absoluta */
   opacity: 0;
@@ -269,118 +289,211 @@
 }
 
 .home-gsap-tag .home-gsap-tag-emoji {
-  font-size: clamp(1.12rem, 1.18vw, 1.22rem);
+  font-size: clamp(1.35rem, 1.5vw, 1.65rem);
   line-height: 1;
   display: inline-block;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.10));
 }
 
 .home-gsap-tag .home-gsap-tag-text {
   font-size: inherit;
-  font-weight: 600;
+  font-weight: inherit;
   display: inline-block;
 }
 
-/* ── JERARQUÍA DE TAMAÑOS (100% Determinística F5 / Ctrl+F5) ── */
-.home-gsap-tag--size-large {
-  font-size: clamp(1.24rem, 1.36vw, 1.45rem);
-  padding: 0.68rem 1.65rem;
+/* ── JERARQUÍA DE TAMAÑOS DESKTOP (Presencia Expresiva y Visible) ── */
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-large {
+  font-size: clamp(1.42rem, 1.55vw, 1.68rem);
+  font-weight: 700;
+  padding: 0.85rem 2.2rem;
+  gap: 0.80rem;
   z-index: 7;
-  box-shadow: 0 14px 34px -4px rgba(15, 23, 42, 0.16), 0 4px 12px -1px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 42px -6px rgba(15, 23, 42, 0.18), 0 6px 16px -2px rgba(15, 23, 42, 0.08);
 }
-.home-gsap-tag--size-large .home-gsap-tag-emoji {
-  font-size: clamp(1.55rem, 1.75vw, 1.9rem);
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-large .home-gsap-tag-emoji {
+  font-size: clamp(1.85rem, 2.1vw, 2.3rem);
 }
 
-.home-gsap-tag--size-medium {
-  font-size: clamp(0.96rem, 1.04vw, 1.08rem);
-  padding: 0.5rem 1.25rem;
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-medium {
+  font-size: clamp(1.12rem, 1.22vw, 1.30rem);
+  font-weight: 650;
+  padding: 0.62rem 1.65rem;
+  gap: 0.65rem;
   z-index: 5;
-  box-shadow: 0 8px 22px -3px rgba(15, 23, 42, 0.11), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.13), 0 4px 10px -1px rgba(15, 23, 42, 0.06);
 }
-.home-gsap-tag--size-medium .home-gsap-tag-emoji {
-  font-size: clamp(1.22rem, 1.3vw, 1.38rem);
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-medium .home-gsap-tag-emoji {
+  font-size: clamp(1.45rem, 1.6vw, 1.75rem);
 }
 
-.home-gsap-tag--size-small {
-  font-size: clamp(0.82rem, 0.88vw, 0.92rem);
-  padding: 0.38rem 0.95rem;
-  gap: 0.42rem;
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-small {
+  font-size: clamp(0.98rem, 1.04vw, 1.12rem);
+  font-weight: 600;
+  padding: 0.50rem 1.30rem;
+  gap: 0.52rem;
   z-index: 4;
-  box-shadow: 0 5px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 5px -1px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 8px 20px -3px rgba(15, 23, 42, 0.10), 0 3px 6px -1px rgba(15, 23, 42, 0.04);
 }
-.home-gsap-tag--size-small .home-gsap-tag-emoji {
-  font-size: 1.08rem;
+.home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-small .home-gsap-tag-emoji {
+  font-size: 1.32rem;
 }
 
-/* Adaptación Mobile de Tamaños */
+/* ── 6 MORFOLOGÍAS VISUALES AUTÉNTICAS (Diferenciadas a Simple Vista) ── */
+
+/* 1. Pill clásica canónica pura */
+.home-gsap-tag--shape-pill {
+  border-radius: 9999px;
+  border-width: 1.5px;
+}
+
+/* 2. Ribbon / Banderín Heráldico con cola recortada tipo gallardete y pliegue */
+.home-gsap-tag--shape-ribbon {
+  border-radius: 8px 0 0 8px;
+  padding-right: 2.4rem;
+  clip-path: polygon(0% 0%, 100% 0%, calc(100% - 24px) 50%, 100% 100%, 0% 100%);
+  border-left: 5px solid currentColor;
+  background-image: linear-gradient(105deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.03) 70%, rgba(255, 255, 255, 0.25) 100%);
+  box-shadow: none;
+  filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.15));
+}
+
+/* 3. Ticket de admisión con perforación punteada y muescas circulares */
+.home-gsap-tag--shape-ticket {
+  border-radius: 8px;
+  border-left: 3.5px dashed currentColor;
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% calc(50% - 10px),
+    calc(100% - 10px) 50%,
+    100% calc(50% + 10px),
+    100% 100%,
+    0% 100%,
+    0% calc(50% + 10px),
+    10px 50%,
+    0% calc(50% - 10px)
+  );
+  background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.035) 0%, transparent 16%);
+  box-shadow: none;
+  filter: drop-shadow(0 10px 26px rgba(15, 23, 42, 0.13));
+}
+
+/* 4. Blob orgánico fluido (guijarro blando asimétrico) */
+.home-gsap-tag--shape-blob {
+  border-radius: 48% 52% 64% 36% / 54% 38% 62% 46%;
+  background-image: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.5) 0%, transparent 60%);
+  box-shadow: 0 14px 36px -4px rgba(15, 23, 42, 0.16);
+}
+
+/* 5. Curved tape adhesiva táctil con extremos rasgados washi */
+.home-gsap-tag--shape-curved-tape {
+  border-radius: 2px;
+  clip-path: polygon(
+    4px 0%,
+    calc(100% - 4px) 0%,
+    100% 12%,
+    calc(100% - 3px) 24%,
+    100% 38%,
+    calc(100% - 4px) 50%,
+    100% 64%,
+    calc(100% - 3px) 78%,
+    100% 88%,
+    calc(100% - 2px) 100%,
+    4px 100%,
+    0% 88%,
+    3px 76%,
+    0% 62%,
+    4px 48%,
+    0% 34%,
+    3px 20%,
+    0% 10%
+  );
+  border-top: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-bottom: 1.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px -2px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* 6. Asymmetric plate editorial con doble chaflán a 45° */
+.home-gsap-tag--shape-asymmetric {
+  border-radius: 4px;
+  clip-path: polygon(22px 0%, 100% 0%, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0% 100%, 0% 22px);
+  box-shadow: 0 12px 30px -3px rgba(15, 23, 42, 0.15);
+}
+
+/* ── ADAPTACIÓN MOBILE DE TAMAÑOS Y FORMAS (< 768px) ── */
 @media (max-width: 767px) {
   .home-gsap-tag {
-    max-width: min(72vw, 175px);
-    gap: 0.25rem;
+    max-width: min(76vw, 240px);
+    gap: 0.36rem;
   }
 
-  /* Tags de la Cornisa Superior (Zona A): ancho optimizado para ventana entre fotos */
+  /* Tags de la Cornisa Superior (Zona A): ancho optimizado entre fotos */
   #gt-pizza,
   #gt-mates,
   #gt-caminar,
   #gt-bici {
-    max-width: min(54vw, 172px);
+    max-width: min(62vw, 220px);
   }
 
-  .home-gsap-tag--size-large {
-    font-size: 0.74rem;
-    padding: 0.26rem 0.55rem;
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-large {
+    font-size: 0.90rem;
+    font-weight: 700;
+    padding: 0.38rem 0.82rem;
+    gap: 0.40rem;
   }
-  .home-gsap-tag--size-large .home-gsap-tag-emoji {
-    font-size: 0.98rem;
-  }
-
-  .home-gsap-tag--size-medium {
-    font-size: 0.72rem;
-    padding: 0.24rem 0.50rem;
-  }
-  .home-gsap-tag--size-medium .home-gsap-tag-emoji {
-    font-size: 0.92rem;
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-large .home-gsap-tag-emoji {
+    font-size: 1.20rem;
   }
 
-  .home-gsap-tag--size-small {
-    font-size: 0.68rem;
-    padding: 0.20rem 0.45rem;
-  }
-  .home-gsap-tag--size-small .home-gsap-tag-emoji {
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-medium {
     font-size: 0.86rem;
+    font-weight: 650;
+    padding: 0.35rem 0.75rem;
+    gap: 0.36rem;
+  }
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-medium .home-gsap-tag-emoji {
+    font-size: 1.12rem;
+  }
+
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-small {
+    font-size: 0.80rem;
+    font-weight: 600;
+    padding: 0.30rem 0.65rem;
+    gap: 0.32rem;
+  }
+  .home-dynamic-canvas--gsap .home-gsap-tag.home-gsap-tag--size-small .home-gsap-tag-emoji {
+    font-size: 1.02rem;
   }
 
   .home-gsap-tag--shape-ribbon {
-    padding-right: 0.85rem;
-    clip-path: polygon(0% 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 0% 100%);
-    border-left-width: 3.5px;
+    padding-right: 0.95rem;
+    clip-path: polygon(0% 0%, 100% 0%, calc(100% - 10px) 50%, 100% 100%, 0% 100%);
+    border-left-width: 4px;
   }
 
   .home-gsap-tag--shape-ticket {
     clip-path: polygon(
       0% 0%,
       100% 0%,
-      100% calc(50% - 4.5px),
-      calc(100% - 4.5px) 50%,
-      100% calc(50% + 4.5px),
+      100% calc(50% - 6.5px),
+      calc(100% - 6.5px) 50%,
+      100% calc(50% + 6.5px),
       100% 100%,
       0% 100%,
-      0% calc(50% + 4.5px),
-      4.5px 50%,
-      0% calc(50% - 4.5px)
+      0% calc(50% + 6.5px),
+      6.5px 50%,
+      0% calc(50% - 6.5px)
     );
-    border-left-width: 2.5px;
+    border-left-width: 3px;
   }
 
   .home-gsap-tag--shape-blob {
-    border-radius: 20px 8px 18px 10px / 10px 18px 8px 20px;
+    border-radius: 46% 54% 62% 38% / 52% 40% 60% 48%;
   }
 
   .home-gsap-tag--shape-asymmetric {
-    border-radius: 16px 4px 14px 4px;
+    clip-path: polygon(14px 0%, 100% 0%, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0% 100%, 0% 14px);
   }
 
   .home-gsap-tag .home-gsap-tag-text {
@@ -388,65 +501,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-}
-
-/* ── 6 MORFOLOGÍAS VISUALES TÁCTILES ── */
-
-/* 1. Pill clásica pura */
-.home-gsap-tag--shape-pill {
-  border-radius: 9999px;
-}
-
-/* 2. Ribbon / Banderín con corte pennant y pliegue de luz */
-.home-gsap-tag--shape-ribbon {
-  border-radius: 12px 3px 3px 12px;
-  padding-right: 1.85rem;
-  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
-  border-left: 4.5px solid currentColor;
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 65%);
-  box-shadow: none;
-  filter: drop-shadow(0 8px 22px rgba(15, 23, 42, 0.12));
-}
-
-/* 3. Ticket troquelado con perforación punteada y muescas semicirculares */
-.home-gsap-tag--shape-ticket {
-  border-radius: 10px;
-  border-left: 3px dashed currentColor;
-  clip-path: polygon(
-    0% 0%,
-    100% 0%,
-    100% calc(50% - 6px),
-    calc(100% - 6px) 50%,
-    100% calc(50% + 6px),
-    100% 100%,
-    0% 100%,
-    0% calc(50% + 6px),
-    6px 50%,
-    0% calc(50% - 6px)
-  );
-  background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.02) 0%, transparent 15%);
-  box-shadow: none;
-  filter: drop-shadow(0 8px 22px rgba(15, 23, 42, 0.11));
-}
-
-/* 4. Blob orgánico fluido con radios asimétricos suaves */
-.home-gsap-tag--shape-blob {
-  border-radius: 32px 14px 28px 16px / 16px 28px 14px 30px;
-  box-shadow: 0 10px 26px -4px rgba(15, 23, 42, 0.12);
-}
-
-/* 5. Curved-tape adhesiva táctil (washi tape con brillo sutil) */
-.home-gsap-tag--shape-curved-tape {
-  border-radius: 4px;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.9);
-  border-bottom: 1.5px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 6px 18px -2px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
-}
-
-/* 6. Asymmetric editorial con radios diagonales contrastados */
-.home-gsap-tag--shape-asymmetric {
-  border-radius: 26px 6px 24px 6px;
-  box-shadow: 0 8px 24px -3px rgba(15, 23, 42, 0.12);
 }
 
 /* ── 8 FAMILIAS DE COLOR ── */
