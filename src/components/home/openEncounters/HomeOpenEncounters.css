@@ -112,11 +112,13 @@
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scroll-padding-left: 2px;
+  /* scroll-padding-left: 0 para que la primera card quede flush izquierda */
+  scroll-padding-left: 0;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none; /* Firefox */
-  padding: 6px 2px 10px 2px;
+  /* padding vertical + padding-right para peek solo hacia la derecha */
+  padding: 6px 40px 10px 0;
 }
 
 .pe-discovery-track::-webkit-scrollbar {

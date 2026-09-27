@@ -453,7 +453,8 @@ html, body {
   padding-top: 1.25rem;
   border-top: 1px solid var(--color-outline-variant);
   width: 100%;
-  max-width: 1100px;
+  /* Alineado con content rail ≈1060px */
+  max-width: 1060px;
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
@@ -461,7 +462,8 @@ html, body {
 
 .pe-encounters-inner {
   width: 100%;
-  max-width: 920px;
+  /* Módulo interior compacto: 900-960px */
+  max-width: 960px;
   margin-inline: auto;
   box-sizing: border-box;
 }
@@ -605,19 +607,21 @@ html, body {
 
 @media (min-width: 768px) {
   .home-empty {
-    padding: 36px 20px 28px;
+    /* Reducir espacio vertical en desktop */
+    padding: 24px 20px 20px;
+    min-height: 220px;
   }
   .home-empty-icon {
-    width: 72px;
-    height: 72px;
-    margin-bottom: 20px;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
   }
   .home-empty-title {
     font-size: var(--text-xl);
   }
   .home-empty-desc {
     font-size: var(--text-base);
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     max-width: 440px;
   }
 }
@@ -726,4 +730,77 @@ html, body {
   font-size: 11px;
   color: var(--color-outline);
   font-weight: 500;
+}
+
+/* ── GSAP HOME: tokens scoped + content rail ── */
+/*
+  Las variables de espaciado están scoped a .home-gsap-layout
+  (aplicado al wrapper de la vista preview/home-gsap).
+  NO se usan en :root para no contaminar otras variantes.
+*/
+.home-gsap-layout {
+  --pe-rail-width: 1060px;
+  --pe-section-gap: clamp(40px, 4.5vw, 52px);
+  --pe-section-gap-mobile: clamp(28px, 4vw, 36px);
+  --pe-inner-gap: clamp(20px, 2.5vw, 28px);
+  --pe-inner-gap-mobile: clamp(16px, 2vw, 22px);
+}
+
+/* Rail común: alinea visualmente todas las secciones al mismo ancho */
+.home-content-rail {
+  max-width: var(--pe-rail-width, 1060px);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--pe-inner-gap, 24px);
+  padding-right: var(--pe-inner-gap, 24px);
+  box-sizing: border-box;
+}
+
+/* Módulo "Tus Encuentros" con fondo/borde sutiles (desktop) */
+/* El fondo y borde siempre existen — NO dependen de prefers-reduced-motion */
+/* prefers-reduced-motion sólo debe usarse para animaciones/transiciones */
+@media (min-width: 768px) {
+  .pe-encounters-inner {
+    background: var(--color-surface-variant, #f9fafb);
+    border: 1px solid var(--color-outline-variant, #e0e0e0);
+    border-radius: 10px;
+    padding: var(--pe-inner-gap, 24px);
+  }
+}
+
+/* forced-colors: garantizar legibilidad en modo alto contraste */
+@media (forced-colors: active) {
+  .pe-encounters-inner {
+    background: transparent;
+    border-color: CanvasText;
+  }
+}
+
+/* Ritmo vertical entre secciones principales de la home GSAP */
+@media (min-width: 768px) {
+  .home-gsap-layout .pe-discovery-section,
+  .home-gsap-layout .home-encounters-section {
+    margin-top: var(--pe-section-gap, 48px);
+  }
+}
+
+/* ── FAB MOBILE: correcciones de timing y offset del VariantSwitcher ── */
+/*
+  La lógica del observer en Home.tsx usa IntersectionObserver.
+  El CSS sólo posiciona el FAB y aplica el offset via --switcher-offset.
+*/
+.home-fab-container {
+  /* Offset del VariantSwitcher (calculado en JS y inyectado como CSS var) */
+  bottom: calc(
+    env(safe-area-inset-bottom, 0px) +
+    20px +
+    var(--pe-fab-switcher-offset, 0px)
+  );
+}
+
+/* Asegurar que en desktop el FAB nunca aparezca */
+@media (min-width: 768px) {
+  .home-fab-container {
+    display: none !important;
+  }
 }

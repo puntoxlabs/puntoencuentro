@@ -463,23 +463,34 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isHeroCtaVisible, setIsHeroCtaVisible] = useState(true);
 
   // Observador de visibilidad del CTA principal ("Hacer que pase") para activar FAB flotante en Mobile
+  // Usa IntersectionObserver para timing inmediato (sin setTimeout artificial)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const checkVisibility = () => {
-      const target = document.querySelector('.home-intent-submit-btn');
-      if (!target) return;
-      const rect = target.getBoundingClientRect();
-      const visible = rect.bottom > 20 && rect.top < window.innerHeight;
-      setIsHeroCtaVisible(visible);
+    // Detectar VariantSwitcher y aplicar offset al FAB para evitar colisión
+    const applyVariantSwitcherOffset = () => {
+      const switcher = document.querySelector('.home-variant-floating-bar, .home-variant-minimized-badge');
+      const offset = switcher ? '56px' : '0px';
+      document.documentElement.style.setProperty('--pe-fab-switcher-offset', offset);
     };
+    applyVariantSwitcherOffset();
 
-    window.addEventListener('scroll', checkVisibility, { passive: true });
-    const timer = setTimeout(checkVisibility, 200);
+    const target = document.querySelector('.home-intent-submit-btn');
+    if (!target) {
+      setIsHeroCtaVisible(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsHeroCtaVisible(entry.isIntersecting);
+      },
+      { root: null, threshold: 0, rootMargin: '0px 0px -1px 0px' }
+    );
+    observer.observe(target);
 
     return () => {
-      window.removeEventListener('scroll', checkVisibility);
-      clearTimeout(timer);
+      observer.disconnect();
     };
   }, [loading]);
 
@@ -1039,7 +1050,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   };
 
   return (
-    <ScreenContainer style={{ background: 'var(--color-background)' }} className="home-screen-container">
+    <ScreenContainer
+      style={{ background: 'var(--color-background)' }}
+      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}`}
+    >
       <header className="home-header">
         <div className="home-header-brand" onClick={handleTap}>
           <span className="home-header-logo-text">PuntoEncuentro</span>
