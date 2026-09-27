@@ -52,7 +52,7 @@ export const GSAP_TAGS_CATALOG: GsapTagItem[] = [
   // 4. Fútbol abierto en Blob (Protagonista 2 - Teal)
   {
     id: 'gt-futbol',
-    text: 'Partido sábado · quedan 2',
+    text: 'Partido sábado · faltan 2',
     emoji: '⚽',
     semanticGroup: 'futbol',
     colorTheme: 'teal',
@@ -84,7 +84,7 @@ export const GSAP_TAGS_CATALOG: GsapTagItem[] = [
   // 7. Bici abierta en Ribbon (Protagonista 3 - Mint)
   {
     id: 'gt-bici',
-    text: 'Salida en bici · quedan 3',
+    text: 'Salida en bici · faltan 3',
     emoji: '🚴',
     semanticGroup: 'bici',
     colorTheme: 'mint',
@@ -462,13 +462,21 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
                 ease: 'power2.out',
               }
             )
-            // Protagonismo sostenido + drift lento hacia la derecha
+            // Protagonismo sostenido con dual-wave floating orgánico
+            .to('#gt-pizza', {
+              x: 138,
+              y: 50,
+              rotation: 0.3,
+              scale: 1.055,
+              duration: 2.8,
+              ease: 'sine.inOut',
+            })
             .to('#gt-pizza', {
               x: 175,
               y: 65,
               rotation: 0.8,
               scale: 1.04,
-              duration: 5.5,
+              duration: 2.7,
               ease: 'sine.inOut',
             })
             // Transición a actor secundario y salida curvada
@@ -515,10 +523,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-padel', {
+              x: 1145,
+              y: 57,
+              rotation: 0.1,
+              scale: 1.015,
+              duration: 3.0,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-padel', {
               x: 1130,
               y: 70,
               rotation: -0.4,
-              duration: 6.0,
+              scale: 1.0,
+              duration: 3.0,
               ease: 'sine.inOut',
             })
             .to('#gt-padel', {
@@ -558,10 +575,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-mates', {
+              x: 128,
+              y: 379,
+              rotation: 0.2,
+              scale: 1.01,
+              duration: 3.3,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-mates', {
               x: 160,
               y: 375,
               rotation: 0.6,
-              duration: 6.5,
+              scale: 0.99,
+              duration: 3.2,
               ease: 'sine.inOut',
             })
             .to('#gt-mates', {
@@ -576,7 +602,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           3.0
         );
 
-        // Actor 4: Fútbol abierto · quedan 2 (Protagonista 2 - Large en ala derecha media)
+        // Actor 4: Fútbol abierto · faltan 2 (Protagonista 2 - Large en ala derecha media)
         // Entra a t=8.0s mientras Pizza sale y toma el relevo protagónico
         masterTl.add(
           gsap
@@ -584,12 +610,12 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             .set('#gt-futbol', { visibility: 'visible' })
             .fromTo(
               '#gt-futbol',
-              { x: 1320, y: 330, opacity: 0, scale: 0.92, rotation: 2 },
+              { x: 1280, y: 300, opacity: 0, scale: 0.92, rotation: 2 },
               {
                 motionPath: {
                   path: [
-                    { x: 1220, y: 320 },
-                    { x: 1150, y: 335 },
+                    { x: 1180, y: 290 },
+                    { x: 1130, y: 305 },
                   ],
                   curviness: 1.3,
                 },
@@ -601,16 +627,24 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-futbol', {
-              x: 1120,
-              y: 350,
-              rotation: -0.6,
-              scale: 1.05,
-              duration: 6.2,
+              x: 1105,
+              y: 300,
+              rotation: -0.2,
+              scale: 1.075,
+              duration: 3.1,
               ease: 'sine.inOut',
             })
             .to('#gt-futbol', {
-              x: 1100,
-              y: 365,
+              x: 1090,
+              y: 310,
+              rotation: -0.5,
+              scale: 1.05,
+              duration: 3.1,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-futbol', {
+              x: 1075,
+              y: 325,
               opacity: 0,
               scale: 0.94,
               duration: 3.5,
@@ -640,10 +674,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-cafe', {
+              x: 155,
+              y: 51,
+              rotation: 0.2,
+              scale: 0.96,
+              duration: 2.8,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-cafe', {
               x: 190,
               y: 54,
               rotation: 0.5,
-              duration: 5.5,
+              scale: 0.94,
+              duration: 2.7,
               ease: 'sine.inOut',
             })
             .to('#gt-cafe', {
@@ -678,10 +721,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-caminar', {
+              x: 120,
+              y: 554,
+              rotation: -0.1,
+              scale: 1.0,
+              duration: 3.0,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-caminar', {
               x: 160,
               y: 550,
               rotation: -0.4,
-              duration: 6.0,
+              scale: 0.98,
+              duration: 3.0,
               ease: 'sine.inOut',
             })
             .to('#gt-caminar', {
@@ -696,7 +748,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           13.0
         );
 
-        // Actor 7: Bici abierta · quedan 3 (Protagonista 3 - Large en cielo superior izquierdo)
+        // Actor 7: Bici abierta · faltan 3 (Protagonista 3 - Large en cielo superior izquierdo)
         // Entra a t=17.5s
         masterTl.add(
           gsap
@@ -721,11 +773,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-bici', {
+              x: 65,
+              y: 43,
+              rotation: -0.1,
+              scale: 1.06,
+              duration: 3.0,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-bici', {
               x: 85,
               y: 42,
               rotation: -0.5,
               scale: 1.04,
-              duration: 6.0,
+              duration: 3.0,
               ease: 'sine.inOut',
             })
             .to('#gt-bici', {
@@ -760,14 +820,23 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-cena', {
-              x: 1020,
-              y: 86,
-              rotation: 0.4,
-              duration: 5.5,
+              x: 1060,
+              y: 88,
+              rotation: 0.1,
+              scale: 0.96,
+              duration: 2.8,
               ease: 'sine.inOut',
             })
             .to('#gt-cena', {
-              x: 940,
+              x: 1020,
+              y: 86,
+              rotation: 0.4,
+              scale: 0.94,
+              duration: 2.7,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-cena', {
+              x: 980,
               y: 95,
               opacity: 0,
               scale: 0.88,
@@ -798,10 +867,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-playa', {
+              x: 1145,
+              y: 672,
+              rotation: -0.2,
+              scale: 0.96,
+              duration: 2.8,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-playa', {
               x: 1130,
               y: 675,
               rotation: -0.5,
-              duration: 5.5,
+              scale: 0.94,
+              duration: 2.7,
               ease: 'sine.inOut',
             })
             .to('#gt-playa', {
@@ -836,10 +914,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-cumple', {
+              x: 90,
+              y: 401,
+              rotation: 0.1,
+              scale: 1.0,
+              duration: 2.5,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-cumple', {
               x: 130,
               y: 395,
               rotation: 0.4,
-              duration: 5.0,
+              scale: 0.98,
+              duration: 2.5,
               ease: 'sine.inOut',
             })
             .to('#gt-cumple', {
@@ -874,10 +961,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               }
             )
             .to('#gt-asado', {
+              x: 1145,
+              y: 456,
+              rotation: 0.1,
+              scale: 1.02,
+              duration: 2.4,
+              ease: 'sine.inOut',
+            })
+            .to('#gt-asado', {
               x: 1130,
               y: 460,
               rotation: -0.3,
-              duration: 4.8,
+              scale: 1.0,
+              duration: 2.4,
               ease: 'sine.inOut',
             })
             .to('#gt-asado', {
@@ -926,15 +1022,11 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         // Cornisa bounds relativos al container (considerando amplitud de balanceo de las fotos de +/-4px)
         const photoLeftEnd = photoLeftRect ? Math.round(photoLeftRect.right - containerRect.left + 4) : 76;
         const photoRightStart = photoRightRect ? Math.round(photoRightRect.left - containerRect.left - 4) : Math.round(containerWidth - 76);
-        const tagAWidthApprox = 150;
+        const tagAWidthApprox = 164;
         const cornisaCenter = Math.round((photoLeftEnd + photoRightStart) / 2);
         const centerA_X = Math.round(cornisaCenter - tagAWidthApprox / 2);
 
         // Posicionamiento en el centro de la cornisa entre fotos (0 colisiones garantizadas)
-        const slotA1_x1 = centerA_X;
-        const slotA1_x2 = centerA_X;
-        const slotA2_x1 = centerA_X;
-        const slotA2_x2 = centerA_X;
 
         // Zone C (Flanco Inferior bajo chips)
         const tagCWidthApprox = 145;
@@ -961,62 +1053,122 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         const mobileMasterTl = gsap.timeline({ repeat: -1 });
         masterTlRef.current = mobileMasterTl;
 
-        // Micro-respiración de fragmentos fotográficos mobile
-        const mobPhotoTl = gsap.timeline({ repeat: -1, yoyo: true });
-        mobPhotoTl
-          .to('.home-gsap-mobile-frag--left', {
-            rotation: -1.5,
-            x: 4,
-            y: 2,
-            scale: 1.02,
-            duration: 6,
-            ease: 'sine.inOut',
-          })
-          .to('.home-gsap-mobile-frag--right', {
-            rotation: 1.5,
-            x: -4,
-            y: -2,
-            scale: 1.02,
-            duration: 6.5,
-            ease: 'sine.inOut',
-          });
+        // Micro-respiración de fragmentos fotográficos mobile (independientes y desfasados)
+        const mobPhotoLeftTl = gsap.timeline({ repeat: -1, yoyo: true });
+        mobPhotoLeftTl.to('.home-gsap-mobile-frag--left', {
+          rotation: -1.6,
+          x: 3.5,
+          y: 2,
+          scale: 1.02,
+          duration: 7.2,
+          ease: 'sine.inOut',
+        });
+
+        const mobPhotoRightTl = gsap.timeline({ repeat: -1, yoyo: true });
+        mobPhotoRightTl.to('.home-gsap-mobile-frag--right', {
+          rotation: 1.6,
+          x: -3.5,
+          y: -2,
+          scale: 1.02,
+          duration: 8.0,
+          ease: 'sine.inOut',
+        });
 
         gsap.set('.home-gsap-tag', { visibility: 'hidden', opacity: 0, scale: 0.92 });
 
-        // Helper para crear la timeline fluida de un tag (6.5s de presencia)
-        const createTagTl = (
+        // Zone A (Cornisa superior entre fotos): micro-flotado vivo con micro-drift de +-2.5px y respiración
+        const createZoneATagTl = (
           tagId: string,
-          xStart: number,
-          xDrift: number,
-          yPos: number,
+          centerX: number,
+          baseY: number,
           rotStart: number,
           rotDrift: number
         ) => {
+          const xStart = Math.round(centerX - 2.5);
+          const xDrift1 = Math.round(centerX + 1.8);
+          const xDrift2 = Math.round(centerX - 1.2);
           return gsap
             .timeline()
             .set(tagId, { visibility: 'visible' })
             .fromTo(
               tagId,
-              { x: xStart, y: yPos, opacity: 0, scale: 0.94, rotation: rotStart },
+              { x: xStart, y: baseY, opacity: 0, scale: 0.94, rotation: rotStart },
               {
-                x: xStart + Math.round((xDrift - xStart) * 0.4),
-                y: yPos,
+                x: centerX,
+                y: baseY - 1.5,
                 opacity: 0.96,
                 scale: 1.0,
                 rotation: (rotStart + rotDrift) / 2,
-                duration: 1.2,
+                duration: 1.3,
                 ease: 'power2.out',
               }
             )
             .to(tagId, {
-              x: xDrift,
-              y: yPos + (xDrift > xStart ? 1.5 : -1.5),
+              x: xDrift1,
+              y: baseY + 1.2,
               rotation: rotDrift,
-              scale: 1.01,
-              duration: 3.8,
+              scale: 1.015,
+              duration: 2.0,
               ease: 'sine.inOut',
             })
             .to(tagId, {
+              x: xDrift2,
+              y: baseY - 0.8,
+              rotation: rotDrift * 0.6,
+              scale: 1.0,
+              duration: 1.8,
+              ease: 'sine.inOut',
+            })
+            .to(tagId, {
+              opacity: 0,
+              scale: 0.94,
+              duration: 1.4,
+              ease: 'power1.in',
+            })
+            .set(tagId, { visibility: 'hidden' });
+        };
+
+        // Zone C (Flanco inferior bajo chips): desplazamiento suave con ligera curva parabólica natural
+        const createZoneCTagTl = (
+          tagId: string,
+          xStart: number,
+          xEnd: number,
+          baseY: number,
+          rotStart: number,
+          rotEnd: number
+        ) => {
+          const isMovingRight = xEnd > xStart;
+          const xMid1 = Math.round(xStart + (xEnd - xStart) * 0.45);
+          const xMid2 = Math.round(xStart + (xEnd - xStart) * 0.85);
+          const yArc = isMovingRight ? -3 : 3;
+
+          return gsap
+            .timeline()
+            .set(tagId, { visibility: 'visible' })
+            .fromTo(
+              tagId,
+              { x: xStart, y: baseY, opacity: 0, scale: 0.94, rotation: rotStart },
+              {
+                x: xMid1,
+                y: baseY + yArc,
+                opacity: 0.96,
+                scale: 1.0,
+                rotation: (rotStart + rotEnd) * 0.4,
+                duration: 1.4,
+                ease: 'power2.out',
+              }
+            )
+            .to(tagId, {
+              x: xMid2,
+              y: baseY - Math.round(yArc * 0.5),
+              rotation: rotEnd,
+              scale: 1.015,
+              duration: 2.2,
+              ease: 'sine.inOut',
+            })
+            .to(tagId, {
+              x: xEnd,
+              y: baseY,
               opacity: 0,
               scale: 0.94,
               duration: 1.5,
@@ -1030,16 +1182,16 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           tagId: string,
           xMid: number,
           xEnd: number,
-          yPos: number,
+          baseY: number,
           rotMid: number,
           rotEnd: number
         ) => {
           return gsap
             .timeline()
-            .set(tagId, { visibility: 'visible', opacity: 0.96, scale: 1.01, x: xMid, y: yPos, rotation: rotMid })
+            .set(tagId, { visibility: 'visible', opacity: 0.96, scale: 1.015, x: xMid, y: baseY + 1.5, rotation: rotMid })
             .to(tagId, {
               x: xEnd,
-              y: yPos - 1,
+              y: baseY,
               rotation: rotEnd,
               duration: 2.0,
               ease: 'sine.inOut',
@@ -1063,49 +1215,49 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 
         // 1. Zone A: Pizza (Coral / Ribbon / Large) - t=0.0s a 6.5s
         mobileMasterTl.add(
-          createTagTl('#gt-pizza', slotA1_x1, slotA1_x2, zoneAY, -1.2, 0.4),
+          createZoneATagTl('#gt-pizza', centerA_X, zoneAY, -1.2, 0.4),
           0
         );
 
-        // 2. Zone C: Pádel (Sky / Ticket / Medium) - t=3.0s a 9.5s
+        // 2. Zone C: Pádel (Sky / Ticket / Medium) - t=3.0s a 8.1s
         mobileMasterTl.add(
-          createTagTl('#gt-padel', slotC1_x1, slotC1_x2, zoneCY, 0.8, -0.3),
+          createZoneCTagTl('#gt-padel', slotC1_x1, slotC1_x2, zoneCY, 0.8, -0.3),
           3.0
         );
 
         // 3. Zone A: Mates (Warm / Curved-tape / Medium) - t=6.0s a 12.5s
         mobileMasterTl.add(
-          createTagTl('#gt-mates', slotA2_x1, slotA2_x2, zoneAY, 1.0, -0.4),
+          createZoneATagTl('#gt-mates', centerA_X, zoneAY, 1.0, -0.4),
           6.0
         );
 
-        // 4. Zone C: Fútbol (Teal / Blob / Large) - t=9.0s a 15.5s
+        // 4. Zone C: Fútbol (Teal / Blob / Large) - t=9.0s a 14.1s
         mobileMasterTl.add(
-          createTagTl('#gt-futbol', slotC2_x1, slotC2_x2, zoneCY, -0.8, 0.4),
+          createZoneCTagTl('#gt-futbol', slotC2_x1, slotC2_x2, zoneCY, -0.8, 0.4),
           9.0
         );
 
         // 5. Zone A: Caminar (Mint / Pill / Medium) - t=12.0s a 18.5s
         mobileMasterTl.add(
-          createTagTl('#gt-caminar', slotA1_x1, slotA1_x2, zoneAY, -0.6, 0.3),
+          createZoneATagTl('#gt-caminar', centerA_X, zoneAY, -0.6, 0.3),
           12.0
         );
 
-        // 6. Zone C: Café (Yellow / Asymmetric / Small) - t=15.0s a 21.5s
+        // 6. Zone C: Café (Yellow / Asymmetric / Small) - t=15.0s a 20.1s
         mobileMasterTl.add(
-          createTagTl('#gt-cafe', slotC1_x1, slotC1_x2, zoneCY, 0.6, -0.2),
+          createZoneCTagTl('#gt-cafe', slotC1_x1, slotC1_x2, zoneCY, 0.6, -0.2),
           15.0
         );
 
         // 7. Zone A: Bici (Mint / Ribbon / Large) - t=18.0s a 24.5s
         mobileMasterTl.add(
-          createTagTl('#gt-bici', slotA2_x1, slotA2_x2, zoneAY, 0.8, -0.3),
+          createZoneATagTl('#gt-bici', centerA_X, zoneAY, 0.8, -0.3),
           18.0
         );
 
-        // 8. Zone C: Cumple (Rose / Asymmetric / Medium) - t=21.0s a 27.5s (conecta con el wrap en t=0)
+        // 8. Zone C: Cumple (Rose / Asymmetric / Medium) - t=21.0s a 26.1s (conecta con el wrap en t=0)
         mobileMasterTl.add(
-          createTagTl('#gt-cumple', slotC2_x1, slotC2_x2, zoneCY, -0.6, 0.2),
+          createZoneCTagTl('#gt-cumple', slotC2_x1, slotC2_x2, zoneCY, -0.6, 0.2),
           21.0
         );
       });

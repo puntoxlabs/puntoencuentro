@@ -326,7 +326,7 @@
   #gt-mates,
   #gt-caminar,
   #gt-bici {
-    max-width: min(48vw, 150px);
+    max-width: min(54vw, 172px);
   }
 
   .home-gsap-tag--size-large {
@@ -354,7 +354,33 @@
   }
 
   .home-gsap-tag--shape-ribbon {
-    padding-right: 0.72rem;
+    padding-right: 0.85rem;
+    clip-path: polygon(0% 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 0% 100%);
+    border-left-width: 3.5px;
+  }
+
+  .home-gsap-tag--shape-ticket {
+    clip-path: polygon(
+      0% 0%,
+      100% 0%,
+      100% calc(50% - 4.5px),
+      calc(100% - 4.5px) 50%,
+      100% calc(50% + 4.5px),
+      100% 100%,
+      0% 100%,
+      0% calc(50% + 4.5px),
+      4.5px 50%,
+      0% calc(50% - 4.5px)
+    );
+    border-left-width: 2.5px;
+  }
+
+  .home-gsap-tag--shape-blob {
+    border-radius: 20px 8px 18px 10px / 10px 18px 8px 20px;
+  }
+
+  .home-gsap-tag--shape-asymmetric {
+    border-radius: 16px 4px 14px 4px;
   }
 
   .home-gsap-tag .home-gsap-tag-text {
@@ -364,60 +390,62 @@
   }
 }
 
-/* ── 6 MORFOLOGÍAS VISUALES ── */
+/* ── 6 MORFOLOGÍAS VISUALES TÁCTILES ── */
 
 /* 1. Pill clásica pura */
 .home-gsap-tag--shape-pill {
   border-radius: 9999px;
 }
 
-/* 2. Ribbon / Banderín con corte pennant */
+/* 2. Ribbon / Banderín con corte pennant y pliegue de luz */
 .home-gsap-tag--shape-ribbon {
-  border-radius: 14px 4px 4px 14px;
+  border-radius: 12px 3px 3px 12px;
   padding-right: 1.85rem;
-  clip-path: polygon(0% 0%, calc(100% - 15px) 0%, 100% 50%, calc(100% - 15px) 100%, 0% 100%);
+  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
   border-left: 4.5px solid currentColor;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 65%);
   box-shadow: none;
   filter: drop-shadow(0 8px 22px rgba(15, 23, 42, 0.12));
 }
 
-/* 3. Ticket troquelado con perforación punteada */
+/* 3. Ticket troquelado con perforación punteada y muescas semicirculares */
 .home-gsap-tag--shape-ticket {
-  border-radius: 12px;
+  border-radius: 10px;
   border-left: 3px dashed currentColor;
   clip-path: polygon(
     0% 0%,
     100% 0%,
-    100% calc(50% - 7px),
-    calc(100% - 7px) 50%,
-    100% calc(50% + 7px),
+    100% calc(50% - 6px),
+    calc(100% - 6px) 50%,
+    100% calc(50% + 6px),
     100% 100%,
     0% 100%,
-    0% calc(50% + 7px),
-    7px 50%,
-    0% calc(50% - 7px)
+    0% calc(50% + 6px),
+    6px 50%,
+    0% calc(50% - 6px)
   );
+  background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.02) 0%, transparent 15%);
   box-shadow: none;
   filter: drop-shadow(0 8px 22px rgba(15, 23, 42, 0.11));
 }
 
-/* 4. Blob orgánico fluido */
+/* 4. Blob orgánico fluido con radios asimétricos suaves */
 .home-gsap-tag--shape-blob {
-  border-radius: 36px 14px 28px 16px / 18px 30px 16px 34px;
+  border-radius: 32px 14px 28px 16px / 16px 28px 14px 30px;
   box-shadow: 0 10px 26px -4px rgba(15, 23, 42, 0.12);
 }
 
-/* 5. Curved-tape adhesiva táctil */
+/* 5. Curved-tape adhesiva táctil (washi tape con brillo sutil) */
 .home-gsap-tag--shape-curved-tape {
-  border-radius: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 4px;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.9);
   border-bottom: 1.5px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 6px 18px -2px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: 0 6px 18px -2px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
 }
 
-/* 6. Asymmetric editorial */
+/* 6. Asymmetric editorial con radios diagonales contrastados */
 .home-gsap-tag--shape-asymmetric {
-  border-radius: 28px 6px 26px 4px;
+  border-radius: 26px 6px 24px 6px;
   box-shadow: 0 8px 24px -3px rgba(15, 23, 42, 0.12);
 }
 
