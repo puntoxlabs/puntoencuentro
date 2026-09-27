@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Actualiza get_respuestas_visibles_invitado para incluir
 -- participantes con estado 'pendiente' ademas de confirmado/rechazado.
 --

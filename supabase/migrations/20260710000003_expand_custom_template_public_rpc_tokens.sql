@@ -1,4 +1,4 @@
-﻿-- 1. Actualizar get_custom_invitation_template_public para aceptar token general o individual
+-- 1. Actualizar get_custom_invitation_template_public para aceptar token general o individual
 
 CREATE OR REPLACE FUNCTION public.get_custom_invitation_template_public(p_public_token text)
  RETURNS json

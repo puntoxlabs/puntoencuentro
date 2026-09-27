@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- RPCs para visibilidad de respuestas a invitados
 -- ============================================================
 -- 1. set_visibilidad_respuestas_invitados  — host activa/desactiva
