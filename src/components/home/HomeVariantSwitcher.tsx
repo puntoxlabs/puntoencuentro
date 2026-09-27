@@ -37,7 +37,7 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
       >
         <Sparkles size={14} className="home-variant-badge-icon" />
         <span>
-          Variante {currentVariant === 'stitch' ? 'D (Stitch)' : currentVariant === 'refinado' ? 'C (Refinado)' : currentVariant === 'visor' ? 'B (Visor)' : 'A (Envolvente)'}
+          Variante {currentVariant === 'gsap' ? 'GSAP ⚡' : currentVariant === 'stitch' ? 'D (Stitch)' : currentVariant === 'refinado' ? 'C (Refinado)' : currentVariant === 'visor' ? 'B (Visor)' : 'A (Envolvente)'}
         </span>
       </button>
 
@@ -114,6 +114,19 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
           <div className="home-variant-btn-info">
             <span className="home-variant-btn-name">Variante D ✨</span>
             <span className="home-variant-btn-desc">Mundo Vivo Stitch</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleVariantSelect('gsap')}
+          className={`home-variant-btn home-variant-btn--gsap ${currentVariant === 'gsap' ? 'is-active' : ''}`}
+          aria-pressed={currentVariant === 'gsap'}
+        >
+          <div className="home-variant-btn-dot" />
+          <div className="home-variant-btn-info">
+            <span className="home-variant-btn-name">Variante GSAP ⚡</span>
+            <span className="home-variant-btn-desc">Cinemática + Discovery</span>
           </div>
         </button>
       </div>

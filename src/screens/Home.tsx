@@ -289,7 +289,54 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
 
-  const isGsapPreview = forcedVariant === 'gsap' || enableOpenDiscovery;
+  // Variante de diseño visual de la Home ('envolvente' | 'visor' | 'refinado' | 'stitch' | 'gsap')
+  const [visualVariant, setVisualVariant] = useState<HomeVisualVariant>(() => {
+    if (forcedVariant) return forcedVariant;
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const paramVariant = params.get('variant') || params.get('v');
+        if (paramVariant === 'gsap') return 'gsap';
+        if (paramVariant === 'd' || paramVariant === 'stitch') return 'stitch';
+        if (paramVariant === 'c' || paramVariant === 'refinado') return 'refinado';
+        if (paramVariant === 'b' || paramVariant === 'visor') return 'visor';
+        if (paramVariant === 'a' || paramVariant === 'envolvente') return 'envolvente';
+        const saved = localStorage.getItem('puntoencuentro_home_variant');
+        if (saved === 'gsap' || saved === 'stitch' || saved === 'refinado' || saved === 'visor' || saved === 'envolvente') return saved as HomeVisualVariant;
+      } catch (e) {
+        // Fallback seguro
+      }
+    }
+    return 'refinado';
+  });
+
+  const effectiveVariant: HomeVisualVariant = forcedVariant || visualVariant;
+
+  const handleVariantChange = (newVariant: HomeVisualVariant) => {
+    if (newVariant === 'gsap') {
+      navigate('/preview/home-gsap');
+      return;
+    }
+    if (forcedVariant === 'gsap') {
+      const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
+      navigate(`/?variant=${vParam}`);
+      return;
+    }
+    setVisualVariant(newVariant);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('puntoencuentro_home_variant', newVariant);
+        const url = new URL(window.location.href);
+        const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
+        url.searchParams.set('variant', vParam);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        // Ignorar fallos de storage
+      }
+    }
+  };
+
+  const isGsapPreview = effectiveVariant === 'gsap' || forcedVariant === 'gsap' || enableOpenDiscovery;
 
   // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
   const [loading, setLoading] = useState(
@@ -300,7 +347,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
-  const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
+  const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
   const [imgError, setImgError] = useState(false);
 
   // Filtros secundarios simplificados para Preview GSAP
@@ -312,8 +359,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>(validCache?.participated || staleParticipated || []);
   const [counts, setCounts] = useState<Record<string, { total: number; confirmados: number }>>({});
 
-  // Los encuentros "visibles" dependen del scope activo
-  const encuentros = activeScope === 'organizo' ? organizedEncuentros : participatedEncuentros;
+  // Conteo total de encuentros únicos combinando organizados y participados sin duplicaciones
+  const allUniqueTodosCount = React.useMemo(() => {
+    const seen = new Set<string>();
+    for (const enc of organizedEncuentros || []) {
+      if (enc?.id) seen.add(enc.id);
+    }
+    for (const enc of participatedEncuentros || []) {
+      if (enc?.id) seen.add(enc.id);
+    }
+    return seen.size;
+  }, [organizedEncuentros, participatedEncuentros]);
 
   // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
   const rawEncuentros = React.useMemo(() => {
@@ -339,6 +395,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     }
     return list;
   }, [activeScope, organizedEncuentros, participatedEncuentros]);
+
+  // Los encuentros "visibles" dependen del scope activo
+  const encuentros = activeScope === 'organizo' ? organizedEncuentros : activeScope === 'participo' ? participatedEncuentros : rawEncuentros;
 
   // Lista filtrada para Preview GSAP según momento, tipo, estado y orden
   const filteredGsap = React.useMemo(() => {
@@ -402,43 +461,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isSpeechListening, setIsSpeechListening] = useState(false);
   const [isOverwriteSheetOpen, setIsOverwriteSheetOpen] = useState(false);
 
-  // Variante de diseño visual de la Home ('envolvente' | 'visor' | 'refinado' | 'stitch')
-  const [visualVariant, setVisualVariant] = useState<HomeVisualVariant>(() => {
-    if (forcedVariant) return forcedVariant;
-    if (typeof window !== 'undefined') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const paramVariant = params.get('variant') || params.get('v');
-        if (paramVariant === 'd' || paramVariant === 'stitch') return 'stitch';
-        if (paramVariant === 'c' || paramVariant === 'refinado') return 'refinado';
-        if (paramVariant === 'b' || paramVariant === 'visor') return 'visor';
-        if (paramVariant === 'a' || paramVariant === 'envolvente') return 'envolvente';
-        const saved = localStorage.getItem('puntoencuentro_home_variant');
-        if (saved === 'stitch' || saved === 'refinado' || saved === 'visor' || saved === 'envolvente') return saved as HomeVisualVariant;
-      } catch (e) {
-        // Fallback seguro
-      }
-    }
-    return 'refinado';
-  });
 
-  const effectiveVariant: HomeVisualVariant = forcedVariant || visualVariant;
-
-  const handleVariantChange = (newVariant: HomeVisualVariant) => {
-    if (forcedVariant) return; // Si la variante está forzada externamente, no alterar preferencia
-    setVisualVariant(newVariant);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('puntoencuentro_home_variant', newVariant);
-        const url = new URL(window.location.href);
-        const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
-        url.searchParams.set('variant', vParam);
-        window.history.replaceState({}, '', url.toString());
-      } catch (e) {
-        // Ignorar fallos de storage
-      }
-    }
-  };
 
 
   const aiDraft = useAiWizardStore(s => s.draft);
@@ -897,8 +920,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           </p>
           <Button
             variant="primary"
-            fullWidth
-            style={{ height: 56, fontSize: 16, fontWeight: 700, marginTop: 12 }}
+            style={{ minWidth: 200, maxWidth: 260, height: 48, fontSize: 15, fontWeight: 700, marginTop: 14, alignSelf: 'center' }}
             onClick={handleCreateClick}
           >
             + Crear encuentro
@@ -1129,7 +1151,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
               activeScope={activeScope}
               onScopeChange={setActiveScope}
               isLoggedIn={Boolean(user)}
-              totalTodosCount={rawEncuentros.length}
+              totalTodosCount={allUniqueTodosCount}
               totalOrganizedCount={organizedEncuentros.length}
               totalParticipatedCount={participatedEncuentros.length}
               totalProximosCount={totalProximos}
@@ -1138,7 +1160,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
               onOpenFilters={() => setIsSecondaryFilterOpen(true)}
             />
 
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 1rem', maxWidth: '1100px', width: '100%', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden' }}>
+            <div className="pe-gsap-encounters-container">
               {renderGsapContent()}
             </div>
           </div>
@@ -1345,7 +1367,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
       )}
 
       {/* Selector Flotante de Variantes para Evaluación Local */}
-      {!forcedVariant && (
+      {(!forcedVariant || forcedVariant === 'gsap') && (
         <HomeVariantSwitcher
           currentVariant={effectiveVariant}
           onVariantChange={handleVariantChange}

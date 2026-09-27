@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 480px;
+  max-width: 620px;
   animation: fadeInVariantBar 0.3s ease-out;
 }
 
@@ -81,6 +81,7 @@
 .home-variant-options {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .home-variant-btn {
@@ -128,6 +129,21 @@
 .home-variant-btn--d.is-active .home-variant-btn-dot {
   background: #2F6BFF;
   box-shadow: 0 0 6px #2F6BFF;
+}
+
+.home-variant-btn--gsap.is-active {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #f59e0b;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
+}
+
+.home-variant-btn--gsap.is-active .home-variant-btn-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+.home-variant-btn--gsap.is-active .home-variant-btn-desc {
+  color: #fcd34d;
 }
 
 .home-variant-btn-dot {

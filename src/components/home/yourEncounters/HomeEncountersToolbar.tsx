@@ -19,7 +19,7 @@ export interface HomeEncountersToolbarProps {
 export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
   activeScope,
   onScopeChange,
-  isLoggedIn,
+  isLoggedIn: _isLoggedIn,
   totalTodosCount,
   totalOrganizedCount,
   totalParticipatedCount,
@@ -76,20 +76,18 @@ export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
             )}
           </button>
 
-          {isLoggedIn && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeScope === 'participo'}
-              className={`pe-segmented-btn ${activeScope === 'participo' ? 'pe-segmented-btn--active' : ''}`}
-              onClick={() => onScopeChange('participo')}
-            >
-              <span>{t('your_encounters.tab_participating', { defaultValue: 'Participo' })}</span>
-              {typeof totalParticipatedCount === 'number' && totalParticipatedCount > 0 && (
-                <span className="pe-segmented-badge">{totalParticipatedCount}</span>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeScope === 'participo'}
+            className={`pe-segmented-btn ${activeScope === 'participo' ? 'pe-segmented-btn--active' : ''}`}
+            onClick={() => onScopeChange('participo')}
+          >
+            <span>{t('your_encounters.tab_participating', { defaultValue: 'Participo' })}</span>
+            {typeof totalParticipatedCount === 'number' && totalParticipatedCount > 0 && (
+              <span className="pe-segmented-badge">{totalParticipatedCount}</span>
+            )}
+          </button>
         </div>
 
         {/* Botón Filtrar con badge discreto si hay filtros secundarios activos */}

@@ -1097,19 +1097,26 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         // Cornisa bounds relativos al container (considerando amplitud de balanceo de las fotos de +/-4px)
         const photoLeftEnd = photoLeftRect ? Math.round(photoLeftRect.right - containerRect.left + 4) : 76;
         const photoRightStart = photoRightRect ? Math.round(photoRightRect.left - containerRect.left - 4) : Math.round(containerWidth - 76);
-        const tagAWidthApprox = 175;
+        const tagAWidthApprox = 160;
         const cornisaCenter = Math.round((photoLeftEnd + photoRightStart) / 2);
-        const centerA_X = Math.round(cornisaCenter - tagAWidthApprox / 2);
+        let centerA_X = Math.round(cornisaCenter - tagAWidthApprox / 2);
+        const minA_X = photoLeftEnd + 6;
+        const maxA_X = photoRightStart - tagAWidthApprox - 6;
+        if (maxA_X >= minA_X) {
+          centerA_X = Math.max(minA_X, Math.min(maxA_X, centerA_X));
+        }
 
         // Zone C (Flanco Inferior centrado armónicamente bajo chips):
-        // Confinado al centro de la pantalla para evitar colisión con el botón Preview GSAP (a la izquierda)
-        // y con el botón FAB Crear (a la derecha)
-        const tagCWidthApprox = 168;
-        const centerC_X = Math.round((containerWidth - tagCWidthApprox) / 2);
-        const slotC1_x1 = centerC_X - 12;
-        const slotC1_x2 = centerC_X + 10;
-        const slotC2_x1 = centerC_X + 12;
-        const slotC2_x2 = centerC_X - 10;
+        const tagCWidthApprox = 160;
+        const minC_X = 12;
+        const maxC_X = Math.max(minC_X, containerWidth - tagCWidthApprox - 12);
+        let centerC_X = Math.round((containerWidth - tagCWidthApprox) / 2);
+        centerC_X = Math.max(minC_X, Math.min(maxC_X, centerC_X));
+
+        const slotC1_x1 = Math.max(minC_X, centerC_X - 10);
+        const slotC1_x2 = Math.min(maxC_X, centerC_X + 10);
+        const slotC2_x1 = Math.min(maxC_X, centerC_X + 10);
+        const slotC2_x2 = Math.max(minC_X, centerC_X - 10);
 
         if (debugState.enabled && typeof window !== 'undefined') {
           const vv = window.visualViewport;

@@ -38,16 +38,20 @@ const PreviewHomeGsap: React.FC = () => {
     <>
       <Home forcedVariant="gsap" />
 
-      {/* Identificación mínima y colapsable en esquina inferior izquierda para evaluación sin invadir controles */}
+      {/* Identificación mínima y colapsable en esquina superior derecha para evaluación sin invadir controles */}
       <div
         style={{
           position: 'fixed',
-          bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
-          left: '14px',
-          zIndex: 9999,
+          top: 'calc(10px + env(safe-area-inset-top, 0px))',
+          right: '12px',
+          zIndex: 1000,
           pointerEvents: 'auto',
           userSelect: 'none',
+          opacity: 0.70,
+          transition: 'opacity 0.2s ease',
         }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '0.70'; }}
       >
         {isMinimized ? (
           <button
@@ -56,22 +60,22 @@ const PreviewHomeGsap: React.FC = () => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
+              gap: '5px',
+              padding: '4px 10px',
               borderRadius: '9999px',
               background: 'rgba(15, 23, 42, 0.88)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               color: '#38bdf8',
-              fontSize: '0.74rem',
+              fontSize: '0.70rem',
               fontWeight: 600,
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               cursor: 'pointer',
             }}
             title="Ver información del experimento GSAP"
           >
-            <Eye size={12} />
+            <Eye size={11} />
             <span>Preview GSAP</span>
           </button>
         ) : (
