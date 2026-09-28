@@ -460,82 +460,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isSubmittingIntent, setIsSubmittingIntent] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isSpeechListening, setIsSpeechListening] = useState(false);
-  const [isHeroCtaVisible, setIsHeroCtaVisible] = useState(true);
-  // true cuando hay un CTA de creación equivalente visible en viewport (evita duplicación con FAB)
-  const [isCreateCtaVisible, setIsCreateCtaVisible] = useState(false);
-
-  // isDesktop: se declara antes del observer FAB para estar disponible en sus deps
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 768;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Observer dual: CTA Hero + CTA del empty state (único que suprime el FAB en ambas plataformas)
-  // Se reconstruye cuando cambia `loading` O `isDesktop` (resize/orientación que cruce 768px)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // Detectar VariantSwitcher y aplicar offset al FAB para evitar colisión
-    const switcher = document.querySelector('.home-variant-floating-bar, .home-variant-minimized-badge');
-    document.documentElement.style.setProperty(
-      '--pe-fab-switcher-offset',
-      switcher ? '56px' : '0px'
-    );
-
-    // Observer 1: CTA Hero "Hacer que pase"
-    const heroTarget = document.querySelector('.home-intent-submit-btn');
-    if (!heroTarget) {
-      setIsHeroCtaVisible(false);
-    }
-
-    const heroObserver = new IntersectionObserver(
-      ([entry]) => setIsHeroCtaVisible(entry.isIntersecting),
-      { root: null, threshold: 0, rootMargin: '0px 0px -1px 0px' }
-    );
-    if (heroTarget) heroObserver.observe(heroTarget);
-
-    // Observer 2: ÚNICO CTA que suprime el FAB en AMBAS plataformas:
-    // el botón grande "+ Crear encuentro" del empty state de "Tus encuentros".
-    // Los CTAs de Pilares ya NO suprimen el FAB (ni en mobile ni en desktop).
-    // Objetivo UX: el FAB aparece en cuanto el Hero CTA sale del viewport
-    // y permanece visible a través de Pilares y Stepper hasta llegar al empty state.
-    const emptyStateBtns = Array.from(document.querySelectorAll('.home-empty button'))
-      .filter(el => {
-        const text = (el as HTMLElement).textContent?.toLowerCase() || '';
-        return text.includes('crear') && !text.includes('abrir');
-      });
-
-    const intersectingMap = new Map<Element, boolean>();
-    const createObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(e => {
-          intersectingMap.set(e.target, e.isIntersecting);
-        });
-        const hasVisible = Array.from(intersectingMap.values()).some(Boolean);
-        setIsCreateCtaVisible(hasVisible);
-      },
-      { root: null, threshold: 0.2 }
-    );
-    emptyStateBtns.forEach(el => createObserver.observe(el));
-
-    return () => {
-      heroObserver.disconnect();
-      createObserver.disconnect();
-    };
-  // isDesktop en deps → el observer se reconstruye si el viewport cruza 768px por resize/orientación
-  }, [loading, isDesktop]);
-
+  // ── FAB persistente global ──────────────────────────────────────────────────
+  // El FAB "+ Crear" es un acceso rápido GLOBAL visible durante todo el recorrido de la Home.
+  // No se oculta por la presencia de otros CTAs de creación (Hero, Pilares, empty state):
+  // esos son CTAs contextuales; el FAB es una utilidad de acceso rápido para usuarios recurrentes.
+  //
+  // Se oculta únicamente cuando existe una razón funcional real:
+  //   • loading (acción de creación imposible)
+  //   • modal / bottom-sheet abierto (FAB quedaría bajo el overlay)
+  //   • teclado/input activo en mobile (interfiere con la escritura)
+  //
+  // En desktop el input enfocado no oculta el FAB salvo interferencia real (layout fijo).
   const isAnySheetOpen =
     isFilterOpen ||
     isAccountOpen ||
@@ -545,27 +480,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     isOverwriteSheetOpen ||
     Boolean(coordinationWarningProps.open);
 
-  // Mobile < 768px: FAB contextual que se oculta si hay un CTA de creación equivalente visible en viewport
-  const showMobileFab =
-    !isDesktop &&
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  const showFab =
     !loading &&
-    !isHeroCtaVisible &&
-    !isCreateCtaVisible &&
     !isAnySheetOpen &&
-    !isInputFocused;
+    !(isInputFocused && isMobileViewport);
 
-  // Desktop >= 768px: FAB persistente una vez que el Hero CTA sale del viewport
-  // Se oculta únicamente si el botón grande del empty state está visible en pantalla
-  // (evitar duplicación de dos CTAs de "Crear" azules simultáneos)
-  // NO se oculta por CTAs de Pilares (acción global persistente en desktop)
-  const showDesktopFab =
-    isDesktop &&
-    !loading &&
-    !isHeroCtaVisible &&
-    !isCreateCtaVisible &&
-    !isAnySheetOpen;
-
-  const showFab = showMobileFab || showDesktopFab;
 
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);
