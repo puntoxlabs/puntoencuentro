@@ -170,18 +170,22 @@ export const openEncountersService = {
 
   /**
    * Solicita sumarse a un encuentro abierto.
+   *
+   * SEGURIDAD: la identidad del solicitante se deriva exclusivamente del JWT (auth.uid()).
+   * No se envía p_usuario_id — el backend lo ignora y usa solo auth.uid().
+   * Requiere usuario permanente (no anónimo) autenticado.
    */
   async solicitarSumarse(
     encuentroId: string,
     nombre: string,
-    mensaje?: string,
-    usuarioId?: string
+    mensaje?: string
+    // DEPRECATED: usuarioId eliminado. El backend deriva identidad de auth.uid().
   ): Promise<{ ok: boolean; request_id?: string; error?: string }> {
     const { data, error } = await supabase.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encuentroId,
       p_nombre: nombre,
       p_mensaje: mensaje ?? null,
-      p_usuario_id: usuarioId ?? null,
+      // p_usuario_id: no se envía — identidad via JWT únicamente
     });
 
     if (error) {

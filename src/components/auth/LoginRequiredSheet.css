@@ -1,0 +1,232 @@
+/* ============================================================
+   LoginRequiredSheet — Hoja contextual de login obligatorio
+   Mobile-first. Aparece desde abajo como bottom sheet en mobile,
+   como modal centrado en desktop.
+   ============================================================ */
+
+.login-required-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.48);
+  z-index: 200;
+  animation: login-required-fade-in 0.18s ease;
+}
+
+.login-required-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 201;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.14);
+  animation: login-required-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .login-required-overlay {
+    backdrop-filter: blur(2px);
+  }
+
+  .login-required-sheet {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    border-radius: 16px;
+    animation: login-required-scale-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    max-height: 80vh;
+  }
+}
+
+/* ── Header ── */
+.login-required-sheet__header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.875rem 1rem 0;
+}
+
+.login-required-sheet__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #6b7280;
+  transition: background 0.15s, color 0.15s;
+}
+
+.login-required-sheet__close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.login-required-sheet__close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Body ── */
+.login-required-sheet__body {
+  padding: 0.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.login-required-sheet__icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.login-required-sheet__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.35;
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .login-required-sheet__title {
+    font-size: 1.125rem;
+  }
+}
+
+.login-required-sheet__body-text {
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Benefits ── */
+.login-required-sheet__benefits {
+  list-style: none;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  width: 100%;
+}
+
+.login-required-sheet__benefit-item {
+  font-size: 0.8125rem;
+  color: #374151;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.login-required-sheet__benefit-dot {
+  color: #2563eb;
+  font-size: 1rem;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+/* ── Actions ── */
+.login-required-sheet__actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+}
+
+.login-required-sheet__cta-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  height: 48px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  letter-spacing: -0.01em;
+}
+
+.login-required-sheet__cta-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.login-required-sheet__cta-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-required-sheet__google-icon {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.login-required-sheet__cta-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  background: transparent;
+  color: #6b7280;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.login-required-sheet__cta-secondary:hover:not(:disabled) {
+  color: #111827;
+  background: #f9fafb;
+}
+
+.login-required-sheet__cta-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Animations ── */
+@keyframes login-required-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes login-required-slide-up {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes login-required-scale-in {
+  from { transform: translate(-50%, -45%); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}

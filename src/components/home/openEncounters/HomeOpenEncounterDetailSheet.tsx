@@ -6,9 +6,12 @@ import type { OpenEncounterSummary } from './types';
 import { getSlotLabel } from './types';
 import { openEncountersService } from '@/services/openEncountersService';
 import { getHostAlias } from '@/lib/hostAliasStorage';
-import { getHostId } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import './HomeOpenEncounterDetailSheet.css';
+
+// Clave de sessionStorage para persistir contexto de solicitud entre redirect OAuth
+const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
 
 export interface HomeOpenEncounterDetailSheetProps {
   isOpen: boolean;
@@ -29,7 +32,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   } catch {
     /* Safe fallback when rendered outside Router in tests */
   }
-  const { user } = useAuth();
+  const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   // Estados de solicitud
@@ -39,24 +42,29 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     tokenParticipante?: string;
   }>({ hasRequest: false });
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoginRequired, setIsLoginRequired] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [applicantName, setApplicantName] = useState('');
   const [applicantMessage, setApplicantMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const userId = user?.id ?? getHostId();
   const isDemo = encounter?.id?.startsWith('demo-') ?? false;
+
+  // userId solo para consultar estado de solicitud propio — SOLO si es permanente
+  const userId = isPermanentUser ? user?.id ?? null : null;
 
   useEffect(() => {
     if (!isOpen || !encounter) return;
 
-    // Resetear formulario
+    // Resetear formulario y estado de login
     setIsFormOpen(false);
+    setIsLoginRequired(false);
     setErrorMsg(null);
     setApplicantName(getHostAlias() || '');
     setApplicantMessage('');
 
-    // Consultar estado de solicitud previa si no es demo
+    // Consultar estado de solicitud previa — solo si usuario permanente
     if (!isDemo && userId) {
       openEncountersService
         .getMiSolicitud(encounter.id, userId)
@@ -77,14 +85,39 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     } else {
       setRequestState({ hasRequest: false });
     }
-  }, [isOpen, encounter?.id, isDemo, userId]);
+
+    // Recuperar contexto de solicitud pendiente post-OAuth
+    // Si el usuario acaba de loguearse y hay un pending_open_request para ESTE encuentro,
+    // abrimos automáticamente el formulario de solicitud.
+    if (isPermanentUser && !isDemo) {
+      try {
+        const raw = sessionStorage.getItem(PENDING_OPEN_REQUEST_KEY);
+        if (raw) {
+          const pending = JSON.parse(raw) as { encounterId: string; applicantName?: string; applicantMessage?: string; action: string };
+          if (pending.action === 'request_join' && pending.encounterId === encounter.id) {
+            // Recuperar nombre y mensaje del contexto guardado
+            if (pending.applicantName) setApplicantName(pending.applicantName);
+            if (pending.applicantMessage) setApplicantMessage(pending.applicantMessage);
+            setIsFormOpen(true);
+            sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+          }
+        }
+      } catch {
+        sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+      }
+    }
+  }, [isOpen, encounter?.id, isDemo, userId, isPermanentUser]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isLoginRequired) {
+          setIsLoginRequired(false);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -96,7 +129,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isLoginRequired]);
 
   if (!isOpen || !encounter) return null;
 
@@ -115,7 +148,50 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       setRequestState({ hasRequest: true, status: 'pending' });
       return;
     }
+
+    // Verificación de identidad: requiere cuenta permanente
+    if (!isPermanentUser) {
+      setIsLoginRequired(true);
+      return;
+    }
+
     setIsFormOpen(true);
+  };
+
+  const handleLoginWithGoogle = async () => {
+    if (!encounter) return;
+
+    setLoginLoading(true);
+
+    // Guardar contexto antes del redirect OAuth
+    try {
+      const pendingRequest = {
+        encounterId: encounter.id,
+        applicantName: applicantName || undefined,
+        applicantMessage: applicantMessage || undefined,
+        action: 'request_join' as const,
+      };
+      sessionStorage.setItem(PENDING_OPEN_REQUEST_KEY, JSON.stringify(pendingRequest));
+    } catch {
+      // Si falla sessionStorage (modo privado), continuar igual
+    }
+
+    const result = await signInWithGoogleForDiscovery();
+
+    if (!result.ok) {
+      setLoginLoading(false);
+      sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+
+      if (result.error === 'anonymous_has_critical_resources') {
+        setErrorMsg(
+          'Tu cuenta tiene encuentros activos. Por favor contactá soporte para hacer el cambio sin perder datos.'
+        );
+      } else {
+        setErrorMsg('No pudimos iniciar el login. Intentá nuevamente.');
+      }
+      setIsLoginRequired(false);
+    }
+    // Si ok: el redirect OAuth ocurrirá — no hacemos nada más (la página cambia)
   };
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
@@ -129,11 +205,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setErrorMsg(null);
 
     try {
+      // SEGURIDAD: solo se envía el nombre y mensaje — la identidad la provee el JWT en el backend
       const res = await openEncountersService.solicitarSumarse(
         encounter.id,
         applicantName.trim(),
-        applicantMessage.trim(),
-        userId
+        applicantMessage.trim()
       );
 
       if (res.ok) {
@@ -147,6 +223,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           setErrorMsg('El cupo para este encuentro ya se encuentra completo.');
         } else if (res.error === 'already_participant') {
           setErrorMsg('Ya estás registrado como participante de este encuentro.');
+        } else if (res.error === 'permanent_account_required') {
+          // El backend rechazó el JWT anónimo — forzar logout local (no debería ocurrir)
+          setErrorMsg('Se requiere una cuenta permanente para solicitar sumarte.');
+          setIsFormOpen(false);
+          setIsLoginRequired(true);
         } else {
           setErrorMsg('No pudimos enviar tu solicitud. Intentá nuevamente.');
         }
@@ -260,6 +341,13 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         <p className="pe-detail-sheet__privacy-note">
           📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
         </p>
+
+        {/* Error global (fuera del form) */}
+        {errorMsg && !isFormOpen && (
+          <div className="pe-detail-sheet__form-error" style={{ margin: '0 1rem 0.75rem' }}>
+            {errorMsg}
+          </div>
+        )}
 
         {/* Acciones y Formulario */}
         <div className="pe-detail-sheet__actions">
@@ -390,6 +478,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           )}
         </div>
       </div>
+
+      {/* LoginRequiredSheet — aparece por encima del DetailSheet cuando corresponde */}
+      <LoginRequiredSheet
+        isOpen={isLoginRequired}
+        onClose={() => setIsLoginRequired(false)}
+        onContinueWithGoogle={handleLoginWithGoogle}
+        loading={loginLoading}
+        action="request_join"
+      />
     </>
   );
 };

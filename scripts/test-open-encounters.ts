@@ -14,6 +14,7 @@ import i18n from '../src/i18n/i18n';
 
 // UI components for SSR tests
 import { HomeOpenEncounterDetailSheet } from '../src/components/home/openEncounters/HomeOpenEncounterDetailSheet';
+import { LoginRequiredSheet } from '../src/components/auth/LoginRequiredSheet';
 import type { OpenEncounterSummary } from '../src/components/home/openEncounters/types';
 
 describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abiertos 1.5', () => {
@@ -54,6 +55,13 @@ describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abierto
       );
       CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
         SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+      $$ LANGUAGE SQL STABLE;
+
+      CREATE OR REPLACE FUNCTION auth.jwt() RETURNS JSONB AS $$
+        SELECT json_build_object(
+          'sub', NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+          'is_anonymous', NULLIF(current_setting('request.jwt.claim.is_anonymous', true), '')::boolean
+        )::jsonb;
       $$ LANGUAGE SQL STABLE;
 
       CREATE TABLE IF NOT EXISTS public.encuentros (
@@ -105,6 +113,13 @@ describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abierto
     const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
     await db.exec(migrationSql);
 
+    // 2b. Execute hardening migration
+    const hardeningPath = path.resolve(process.cwd(), 'supabase/migrations/20260928150000_harden_open_encounters_identity.sql');
+    if (fs.existsSync(hardeningPath)) {
+      const hardeningSql = fs.readFileSync(hardeningPath, 'utf-8');
+      await db.exec(hardeningSql);
+    }
+
     // 3. Crear encuentro base privado de prueba con dirección secreta
     const encRes = await db.query<{ id: string }>(`
       INSERT INTO public.encuentros (
@@ -134,11 +149,13 @@ describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abierto
     testEncounterId = encRes.rows[0].id;
   });
 
-  async function setAuth(userId: string | null) {
+  async function setAuth(userId: string | null, isAnonymous: boolean = false) {
     if (userId) {
       await db.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
+      await db.query(`SELECT set_config('request.jwt.claim.is_anonymous', '${isAnonymous ? 'true' : 'false'}', false);`);
     } else {
       await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+      await db.query(`SELECT set_config('request.jwt.claim.is_anonymous', '', false);`);
     }
   }
 
@@ -697,5 +714,139 @@ describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abierto
     const caba = locs.some((l: any) => l.ciudad === 'Buenos Aires');
     assert.equal(mdp, true, 'Mar del Plata debe estar presente');
     assert.equal(caba, true, 'Buenos Aires debe estar presente');
+  });
+
+  // ── SEGURIDAD P0: IDENTITY & HARDENING TESTS ──
+
+  test('29. P0: solicitar_sumarse rechaza llamadas sin JWT con authentication_required', async () => {
+    await setAuth(null);
+    const res = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto(
+        '${testEncounterId}',
+        'Sin Sesión',
+        'Quiero entrar',
+        '${applicant1}'
+      );
+    `);
+    const r = res.rows[0].solicitar_sumarse_encuentro_abierto;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'authentication_required', 'Debe rechazar llamadas sin JWT');
+  });
+
+  test('30. P0: solicitar_sumarse rechaza usuarios anónimos de Supabase con permanent_account_required', async () => {
+    const anonUser = '99999999-9999-9999-9999-999999999999';
+    await setAuth(anonUser, true);
+    const res = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto(
+        '${testEncounterId}',
+        'Usuario Anónimo',
+        'Soy anónimo',
+        '${anonUser}'
+      );
+    `);
+    const r = res.rows[0].solicitar_sumarse_encuentro_abierto;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'permanent_account_required', 'Debe rechazar usuarios anónimos de Supabase');
+  });
+
+  test('31. P0: solicitar_sumarse ignora p_usuario_id falsificado y usa exclusivamente auth.uid()', async () => {
+    const freshRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (titulo, modalidad, host_id, estado, is_open, max_participants, locality_id)
+      VALUES ('Encuentro para Spoofing Test', 'presencial', '${hostUser}', 'activo', true, 10, 'guemes')
+      RETURNING id;
+    `);
+    const freshId = freshRes.rows[0].id;
+
+    const victimUser = '88888888-8888-8888-8888-888888888888';
+    const attackerUser = '77777777-7777-7777-7777-777777777777';
+    await setAuth(attackerUser, false);
+    const res = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto(
+        '${freshId}',
+        'Atacante Disfrazado',
+        'Intento spoofing',
+        '${victimUser}'
+      );
+    `);
+    const r = res.rows[0].solicitar_sumarse_encuentro_abierto;
+    assert.equal(r.ok, true, 'Solicitud se crea con la identidad real del atacante');
+    const check = await db.query<{ usuario_id: string }>(`
+      SELECT usuario_id FROM public.solicitudes_encuentro_abierto WHERE id = '${r.request_id}';
+    `);
+    assert.equal(check.rows[0].usuario_id, attackerUser, 'El backend debe usar auth.uid(), no el parámetro del cliente');
+  });
+
+  test('32. P0: Host RPCs rechazan llamadas sin JWT con authentication_required', async () => {
+    await setAuth(null);
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${testEncounterId}',
+        '${hostUser}',
+        'Abrir sin auth',
+        4,
+        'guemes'
+      );
+    `);
+    assert.equal(res.rows[0].abrir_encuentro_seguro.ok, false);
+    assert.equal(res.rows[0].abrir_encuentro_seguro.error, 'authentication_required');
+  });
+
+  test('33. P0: Host RPCs rechazan usuarios anónimos de Supabase con permanent_account_required', async () => {
+    await setAuth(hostUser, true);
+    const res = await db.query<{ cerrar_encuentro_abierto_seguro: any }>(`
+      SELECT public.cerrar_encuentro_abierto_seguro('${testEncounterId}', '${hostUser}');
+    `);
+    assert.equal(res.rows[0].cerrar_encuentro_abierto_seguro.ok, false);
+    assert.equal(res.rows[0].cerrar_encuentro_abierto_seguro.error, 'permanent_account_required');
+  });
+
+  test('34. P0: Host RPCs ignoran p_host_id de cliente y validan ownership contra auth.uid()', async () => {
+    await setAuth(otherUser, false);
+    const res = await db.query<{ cerrar_encuentro_abierto_seguro: any }>(`
+      SELECT public.cerrar_encuentro_abierto_seguro('${testEncounterId}', '${hostUser}');
+    `);
+    assert.equal(res.rows[0].cerrar_encuentro_abierto_seguro.ok, false);
+    assert.equal(res.rows[0].cerrar_encuentro_abierto_seguro.error, 'unauthorized');
+  });
+
+  test('35. get_anonymous_upgrade_state verifica server-side recursos sin exponer datos sensibles', async () => {
+    await setAuth(null);
+    const resNull = await db.query<{ get_anonymous_upgrade_state: any }>(`SELECT public.get_anonymous_upgrade_state();`);
+    assert.equal(resNull.rows[0].get_anonymous_upgrade_state.ok, false);
+    assert.equal(resNull.rows[0].get_anonymous_upgrade_state.error, 'not_authenticated');
+
+    await setAuth(hostUser, false);
+    const resPerm = await db.query<{ get_anonymous_upgrade_state: any }>(`SELECT public.get_anonymous_upgrade_state();`);
+    assert.equal(resPerm.rows[0].get_anonymous_upgrade_state.ok, true);
+    assert.equal(resPerm.rows[0].get_anonymous_upgrade_state.is_anonymous, false);
+
+    await setAuth(hostUser, true);
+    const resAnonHost = await db.query<{ get_anonymous_upgrade_state: any }>(`SELECT public.get_anonymous_upgrade_state();`);
+    assert.equal(resAnonHost.rows[0].get_anonymous_upgrade_state.ok, true);
+    assert.equal(resAnonHost.rows[0].get_anonymous_upgrade_state.is_anonymous, true);
+    assert.equal(resAnonHost.rows[0].get_anonymous_upgrade_state.has_owned_encounters, true);
+
+    const freshAnon = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    await setAuth(freshAnon, true);
+    const resFresh = await db.query<{ get_anonymous_upgrade_state: any }>(`SELECT public.get_anonymous_upgrade_state();`);
+    assert.equal(resFresh.rows[0].get_anonymous_upgrade_state.ok, true);
+    assert.equal(resFresh.rows[0].get_anonymous_upgrade_state.is_anonymous, true);
+    assert.equal(resFresh.rows[0].get_anonymous_upgrade_state.has_owned_encounters, false);
+  });
+
+  test('36. Frontend: LoginRequiredSheet renderiza diálogo accesible con copy contextual y beneficios', () => {
+    const html = renderToString(
+      React.createElement(LoginRequiredSheet, {
+        isOpen: true,
+        onClose: () => {},
+        onContinueWithGoogle: () => {},
+        action: 'request_join',
+      })
+    );
+    assert.ok(html.includes('Para solicitar sumarte necesit'), 'Debe incluir título contextual');
+    assert.ok(html.includes('Continuar con Google'), 'Debe incluir CTA de Google');
+    assert.ok(html.includes('Ahora no'), 'Debe incluir CTA secundario Ahora no');
+    assert.ok(html.includes('Seguir el estado de tu solicitud'), 'Debe listar beneficios');
+    assert.ok(html.includes('role="dialog"'), 'Debe tener role dialog accesible');
   });
 });
