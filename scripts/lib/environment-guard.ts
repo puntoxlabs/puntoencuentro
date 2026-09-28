@@ -32,29 +32,72 @@ export function assertStagingEnvironment(targetUrlOrRef?: string): void {
   }
 }
 
-export function getStagingServiceRoleKey(): string {
-  if (process.env.SUPABASE_STAGING_SERVICE_ROLE_KEY) {
-    return process.env.SUPABASE_STAGING_SERVICE_ROLE_KEY;
+/**
+ * Reads a named variable from process.env or .env.local (not versioned).
+ * Aborts with a clear security error if the variable is absent.
+ */
+function requireEnvVar(name: string, description: string): string {
+  if (process.env[name]) {
+    return process.env[name] as string;
   }
 
-  // Fallback: leer de .env.local no versionado si existe
+  // Fallback: read from .env.local if it exists
   try {
     const envPath = path.resolve(process.cwd(), '.env.local');
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf8');
-      const match = content.match(/SUPABASE_STAGING_SERVICE_ROLE_KEY\s*=\s*([^\r\n]+)/);
+      const match = content.match(new RegExp(name + '\\s*=\\s*([^\\r\\n]+)'));
       if (match && match[1]) {
         return match[1].trim().replace(/^['"]|['"]$/g, '');
       }
     }
   } catch {
-    // Silently continue to error exit below
+    // Silently continue to error below
   }
 
   console.error('\n==========================================================');
-  console.error('[CRITICAL SECURITY ERROR] SUPABASE_STAGING_SERVICE_ROLE_KEY no encontrada.');
-  console.error('Para ejecutar scripts E2E en Staging, defina la variable en su entorno o en .env.local (no versionado).');
-  console.error('El script se aborta inmediatamente sin exponer credenciales.');
+  console.error(`[CRITICAL SECURITY ERROR] ${name} not found.`);
+  console.error(`Required for: ${description}`);
+  console.error('Define it in your environment or in .env.local (not versioned).');
+  console.error('Script aborted. No credentials are printed.');
   console.error('==========================================================\n');
-  throw new Error('Execution aborted: SUPABASE_STAGING_SERVICE_ROLE_KEY is required and missing.');
+  throw new Error(`Execution aborted: ${name} is required and missing.`);
+}
+
+/**
+ * Returns the Staging publishable key (sb_publishable_...) for use in
+ * Supabase JS client calls within QA scripts (replaces legacy anon key).
+ */
+export function getStagingPublishableKey(): string {
+  return requireEnvVar(
+    'VITE_SUPABASE_PUBLISHABLE_KEY',
+    'Supabase JS client in staging E2E scripts'
+  );
+}
+
+/**
+ * Returns the Staging secret key (sb_secret_...) for use in admin
+ * service-role calls within QA scripts (replaces legacy service_role key).
+ */
+export function getStagingSecretKey(): string {
+  return requireEnvVar(
+    'SUPABASE_STAGING_SECRET_KEY',
+    'Supabase admin client in staging E2E scripts'
+  );
+}
+
+/**
+ * @deprecated Use getStagingSecretKey() instead.
+ * Kept as alias for backward compatibility while migrating scripts.
+ */
+export function getStagingServiceRoleKey(): string {
+  // Try new secret key first, then fall back to old variable name
+  try {
+    return getStagingSecretKey();
+  } catch {
+    return requireEnvVar(
+      'SUPABASE_STAGING_SERVICE_ROLE_KEY',
+      'Legacy service_role key (migrate to SUPABASE_STAGING_SECRET_KEY)'
+    );
+  }
 }

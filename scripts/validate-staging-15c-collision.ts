@@ -7,17 +7,17 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { assertStagingEnvironment, STAGING_PROJECT_REF, getStagingServiceRoleKey } from './lib/environment-guard';
+import { assertStagingEnvironment, STAGING_PROJECT_REF, getStagingPublishableKey, getStagingSecretKey } from './lib/environment-guard';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const url = 'https://wougfhfwqgmxhgvjqoua.supabase.co';
-const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWdmaGZ3cWdteGhndmpxb3VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTk0MjEsImV4cCI6MjEwNjA5NTQyMX0.oUgTzIFlZrjnKcnqgdXDtI1cq4Mp0zO4N_I58MIIra4';
 
 assertStagingEnvironment(url);
 
-const serviceKey = getStagingServiceRoleKey();
+const serviceKey = getStagingSecretKey();
+const anonKey = getStagingPublishableKey();
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
 // Helper para crear clientes autenticados
