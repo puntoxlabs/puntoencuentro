@@ -16,6 +16,12 @@ export interface HomeOpenEncountersProps {
   onOpenCreate?: () => void;
   onConfigureZones?: () => void;
   onSeeAll?: () => void;
+  /**
+   * Forzar modo demo o modo real explícitamente.
+   * Si no se define, se permite fallback a demo sólo en rutas /preview.
+   * En rutas normales (Home, Staging real, Prod) se muestran datos reales y empty states reales.
+   */
+  isDemoMode?: boolean;
 }
 
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
@@ -25,6 +31,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onOpenCreate,
   onConfigureZones,
   onSeeAll,
+  isDemoMode,
 }) => {
   const { t } = useTranslation();
   const trackRef = useRef<HTMLDivElement>(null);
@@ -33,6 +40,15 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
   const resumeTimerRef = useRef<number | null>(null);
+
+  // Determinar si se permite fallback demo de diseño
+  const allowDemoFallback = useMemo(() => {
+    if (typeof isDemoMode === 'boolean') return isDemoMode;
+    if (typeof window !== 'undefined') {
+      return window.location.pathname.startsWith('/preview');
+    }
+    return false;
+  }, [isDemoMode]);
 
   // Zonas del usuario (prop o cargadas de service)
   const [userZones, setUserZones] = useState<string[]>(propLocalityIds || []);
@@ -64,19 +80,28 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         if (!mounted) return;
         if (data && data.length > 0) {
           setLiveEncounters(data);
-        } else {
-          // Fallback a demo data si no hay encuentros en BD todavía
+        } else if (allowDemoFallback) {
+          // Fallback a demo data sólo en preview de diseño
           setLiveEncounters(OPEN_ENCOUNTERS_DEMO);
+        } else {
+          // En modo real sin encuentros: array vacío real -> muestra empty state real
+          setLiveEncounters([]);
         }
       })
-      .catch(() => {
-        if (mounted) setLiveEncounters(OPEN_ENCOUNTERS_DEMO);
+      .catch((err) => {
+        if (!mounted) return;
+        console.error('[HomeOpenEncounters] Error cargando discovery:', err);
+        if (allowDemoFallback) {
+          setLiveEncounters(OPEN_ENCOUNTERS_DEMO);
+        } else {
+          setLiveEncounters([]);
+        }
       });
 
     return () => {
       mounted = false;
     };
-  }, [propEncounters, userZones]);
+  }, [propEncounters, userZones, allowDemoFallback]);
 
   // Filtrado por zonas seleccionadas
   const visibleEncounters = useMemo(() => {

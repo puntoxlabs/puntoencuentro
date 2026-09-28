@@ -13,6 +13,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
 import { openEncountersService } from '@/services/openEncountersService';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
 import './HostOpenEncounterSection.css';
 
@@ -32,7 +34,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   onParticipantAdded,
 }) => {
   const { t } = useTranslation();
+  const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [isLoginRequired, setIsLoginRequired] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [solicitudes, setSolicitudes] = useState<OpenEncounterRequest[]>([]);
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -117,6 +122,24 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   const pendingRequests = solicitudes.filter((s) => s.estado === 'pending');
   const resolvedRequests = solicitudes.filter((s) => s.estado !== 'pending');
 
+  const handleStartPublish = () => {
+    if (!isPermanentUser) {
+      setIsLoginRequired(true);
+      return;
+    }
+    setIsPublishModalOpen(true);
+  };
+
+  const handleLoginWithGoogle = async () => {
+    setLoginLoading(true);
+    const result = await signInWithGoogleForDiscovery();
+    if (!result.ok) {
+      setLoginLoading(false);
+      alert('No se pudo iniciar sesión. Por favor reintentá.');
+      setIsLoginRequired(false);
+    }
+  };
+
   if (!isOpen) {
     return (
       <div className="pe-host-open-banner pe-host-open-banner--inactive">
@@ -134,7 +157,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         <button
           type="button"
           className="pe-host-open-banner__btn"
-          onClick={() => setIsPublishModalOpen(true)}
+          onClick={handleStartPublish}
         >
           {t('open_encounters.open_encounter_action', { defaultValue: 'Abrir este encuentro' })}
         </button>
@@ -149,6 +172,14 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           onPublished={() => {
             onRefresh();
           }}
+        />
+
+        <LoginRequiredSheet
+          isOpen={isLoginRequired}
+          onClose={() => setIsLoginRequired(false)}
+          onContinueWithGoogle={handleLoginWithGoogle}
+          loading={loginLoading}
+          action="open_encounter"
         />
       </div>
     );
