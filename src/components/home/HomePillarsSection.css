@@ -224,3 +224,10 @@
     padding: 1.35rem 1.25rem 1.1rem;
   }
 }
+
+@media (min-width: 768px) {
+  .home-pillars-grid--stitch {
+    max-width: 960px;
+    gap: 20px;
+  }
+}

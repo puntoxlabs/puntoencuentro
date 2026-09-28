@@ -120,14 +120,30 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         const track = trackRef.current;
         if (!track) return;
 
-        const maxScrollLeft = track.scrollWidth - track.clientWidth;
-        const cardWidth = track.firstElementChild?.clientWidth || 280;
-        const scrollStep = cardWidth + 12;
+        const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
+        if (cards.length <= 1) return;
 
-        if (track.scrollLeft >= maxScrollLeft - 10) {
+        // Encontrar la card que está actualmente al inicio útil del track
+        const currentScroll = track.scrollLeft;
+        let currentIndex = 0;
+        let minDiff = Infinity;
+        cards.forEach((card, idx) => {
+          const diff = Math.abs(card.offsetLeft - currentScroll);
+          if (diff < minDiff) {
+            minDiff = diff;
+            currentIndex = idx;
+          }
+        });
+
+        const maxScrollLeft = track.scrollWidth - track.clientWidth;
+        const nextIndex = currentIndex + 1;
+
+        // Si el siguiente índice excede las tarjetas o su offsetLeft supera el límite de scroll
+        // (lo que provocaría cortar la tarjeta anterior en desktop), volver de forma fluida a Card 0 flush.
+        if (nextIndex >= cards.length || cards[nextIndex].offsetLeft > maxScrollLeft + 2) {
           track.scrollTo({ left: 0, behavior: 'smooth' });
         } else {
-          track.scrollBy({ left: scrollStep, behavior: 'smooth' });
+          track.scrollTo({ left: cards[nextIndex].offsetLeft, behavior: 'smooth' });
         }
       }, 7000);
     }, 10000);

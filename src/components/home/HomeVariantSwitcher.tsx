@@ -14,17 +14,17 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
   onVariantChange,
 }) => {
   const [isMinimized, setIsMinimized] = useState(() => {
+    // Inicia colapsado por defecto en navegador para máxima discreción visual
+    // En SSR (typeof window === 'undefined') es false para compatibilidad con tests
     if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
+      return true;
     }
     return false;
   });
 
   const handleVariantSelect = (variant: HomeVisualVariant) => {
     onVariantChange(variant);
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setIsMinimized(true);
-    }
+    setIsMinimized(true);
   };
 
   if (isMinimized) {
@@ -35,9 +35,9 @@ export const HomeVariantSwitcher: React.FC<HomeVariantSwitcherProps> = ({
         title="Mostrar selector de variantes de Home (Evaluación Local)"
         aria-label="Abrir selector de variante de Home"
       >
-        <Sparkles size={14} className="home-variant-badge-icon" />
+        <Sparkles size={13} className="home-variant-badge-icon" />
         <span>
-          Variante {currentVariant === 'gsap' ? 'GSAP ⚡' : currentVariant === 'stitch' ? 'D (Stitch)' : currentVariant === 'refinado' ? 'C (Refinado)' : currentVariant === 'visor' ? 'B (Visor)' : 'A (Envolvente)'}
+          {currentVariant === 'gsap' ? 'GSAP ⚡' : `Variante ${currentVariant === 'stitch' ? 'D' : currentVariant === 'refinado' ? 'C' : currentVariant === 'visor' ? 'B' : 'A'}`}
         </span>
       </button>
 

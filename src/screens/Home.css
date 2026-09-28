@@ -383,8 +383,8 @@ html, body {
   .home-hero-wrapper--stitch,
   .home-hero-wrapper--gsap {
     padding-top: 2.25rem;
-    padding-bottom: 5.25rem;
-    min-height: 530px;
+    padding-bottom: 3.5rem;
+    min-height: 480px;
   }
 }
 
@@ -393,8 +393,8 @@ html, body {
   .home-hero-wrapper--stitch,
   .home-hero-wrapper--gsap {
     padding-top: 0.85rem;
-    padding-bottom: 5.1rem;
-    min-height: 440px;
+    padding-bottom: 3.25rem;
+    min-height: 420px;
   }
 
   .home-hero-wrapper--stitch .home-hero,
@@ -759,14 +759,14 @@ html, body {
 /* prefers-reduced-motion sólo debe usarse para animaciones/transiciones */
 @media (min-width: 768px) {
   .pe-encounters-inner {
-    background: var(--color-surface-variant, #f9fafb);
-    border: 1px solid var(--color-outline-variant, #e0e0e0);
+    background: rgba(248, 250, 252, 0.8);
+    border: 1px solid rgba(226, 232, 240, 0.85);
     border-radius: 12px;
     padding: 16px 20px 20px;
   }
 
   .pe-encounters-inner .pe-toolbar-container {
-    margin: 0 auto 0.4rem;
+    margin: 0 auto 0.25rem;
     padding: 0 0.25rem;
   }
 
@@ -803,9 +803,13 @@ html, body {
 
 /* Ritmo vertical entre secciones principales de la home GSAP */
 @media (min-width: 768px) {
-  .home-gsap-layout .pe-discovery-section,
-  .home-gsap-layout .home-encounters-section {
+  .home-gsap-layout .pe-discovery-section {
     margin-top: var(--pe-section-gap, 48px);
+  }
+  /* Reducción de 12-18px en aire visual entre Stepper y Tus Encuentros en Desktop */
+  .home-gsap-layout .home-encounters-section {
+    margin-top: clamp(28px, 3.2vw, 34px);
+    padding-top: 0.85rem;
   }
 }
 
@@ -816,3 +820,4 @@ html, body {
     padding-top: 0.85rem;
   }
 }
+

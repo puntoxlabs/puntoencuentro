@@ -523,6 +523,22 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     };
   }, [loading]);
 
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const isAnySheetOpen =
     isFilterOpen ||
     isAccountOpen ||
@@ -532,15 +548,24 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     isOverwriteSheetOpen ||
     Boolean(coordinationWarningProps.open);
 
-  // FAB contextual (Mobile + Desktop):
-  // Aparece cuando el CTA del Hero "Hacer que pase" ya no está visible,
-  // y se oculta si entra en viewport cualquier CTA de creación equivalente ("+ Crear encuentro", "Crear encuentro").
-  const showFab =
+  // Mobile < 768px: FAB contextual que se oculta si hay un CTA de creación equivalente visible en viewport
+  const showMobileFab =
+    !isDesktop &&
     !loading &&
     !isHeroCtaVisible &&
     !isCreateCtaVisible &&
     !isAnySheetOpen &&
     !isInputFocused;
+
+  // Desktop >= 768px: FAB persistente una vez que el Hero CTA sale del viewport
+  // NO se oculta por CTAs de creación en Pillars o Empty State (acción global permanente)
+  const showDesktopFab =
+    isDesktop &&
+    !loading &&
+    !isHeroCtaVisible &&
+    !isAnySheetOpen;
+
+  const showFab = showMobileFab || showDesktopFab;
 
   const aiDraft = useAiWizardStore(s => s.draft);
   const aiConfig = useAiWizardStore(s => s.config);

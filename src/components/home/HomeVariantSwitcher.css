@@ -187,29 +187,29 @@
 /* Badge Minimizado */
 .home-variant-minimized-badge {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
+  bottom: 18px;
+  left: 18px;
   right: auto;
   z-index: 999;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 9999px;
-  padding: 5px 12px;
-  color: #ffffff;
-  font-size: 0.70rem;
+  padding: 4px 10px;
+  color: #f1f5f9;
+  font-size: 0.68rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 5px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   transition: all 0.2s ease;
 }
 
 .home-variant-minimized-badge:hover {
-  background: rgba(15, 23, 42, 0.98);
+  background: rgba(15, 23, 42, 0.95);
   border-color: #38bdf8;
   transform: translateY(-2px);
 }

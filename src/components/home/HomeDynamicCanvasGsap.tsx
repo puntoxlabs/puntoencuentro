@@ -454,7 +454,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         const rightFlankBaseX = rightHeroBoundary + 35;
 
         // Wrap-tails en Desktop para presencia continua desde el segundo 0 (>= 2 tags visibles, 0 gaps)
-        // Wrap-tail 1: Asado (Flanco derecho medio-inferior)
+        // Wrap-tail 1: Asado (Flanco derecho medio, junto al clúster de fotos)
         masterTl.add(
           gsap
             .timeline()
@@ -463,19 +463,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
               opacity: 0.94,
               scale: 1.0,
               x: rightFlankBaseX + 45,
-              y: 430,
+              y: 260,
               rotation: 0.1,
             })
             .to('#gt-asado', {
               x: rightFlankBaseX + 30,
-              y: 435,
+              y: 265,
               rotation: -0.3,
               duration: 2.2,
               ease: 'sine.inOut',
             })
             .to('#gt-asado', {
               x: rightFlankBaseX + 15,
-              y: 440,
+              y: 270,
               opacity: 0,
               scale: 0.92,
               duration: 1.5,
@@ -777,17 +777,17 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           9.5
         );
 
-        // Actor 6: Salir a caminar (Medium en flanco inferior izquierdo)
+        // Actor 6: Salir a caminar (Medium en flanco izquierdo, nivel foto Asado)
         masterTl.add(
           gsap
             .timeline()
             .set('#gt-caminar', { visibility: 'visible' })
             .fromTo(
               '#gt-caminar',
-              { x: -80, y: 470, opacity: 0, scale: 0.9, rotation: -1.5 },
+              { x: -80, y: 285, opacity: 0, scale: 0.9, rotation: -1.5 },
               {
                 x: Math.round(maxLeftX_Med * 0.4),
-                y: 465,
+                y: 280,
                 opacity: 0.92,
                 scale: 0.98,
                 rotation: 0.3,
@@ -797,7 +797,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             )
             .to('#gt-caminar', {
               x: Math.round(maxLeftX_Med * 0.7),
-              y: 462,
+              y: 278,
               rotation: -0.1,
               scale: 1.0,
               duration: 3.0,
@@ -805,7 +805,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-caminar', {
               x: Math.round(maxLeftX_Med * 0.85),
-              y: 466,
+              y: 282,
               rotation: -0.4,
               scale: 0.98,
               duration: 3.0,
@@ -813,7 +813,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-caminar', {
               x: Math.round(maxLeftX_Med * 0.5),
-              y: 458,
+              y: 275,
               opacity: 0,
               scale: 0.9,
               duration: 3.2,
@@ -923,17 +923,17 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           19.0
         );
 
-        // Actor 9: Escapada a la playa (Medium en flanco derecho inferior)
+        // Actor 9: Escapada a la playa (Medium en flanco derecho medio, junto a foto Café)
         masterTl.add(
           gsap
             .timeline()
             .set('#gt-playa', { visibility: 'visible' })
             .fromTo(
               '#gt-playa',
-              { x: rightFlankBaseX + 180, y: 495, opacity: 0, scale: 0.88, rotation: -1.2 },
+              { x: rightFlankBaseX + 180, y: 320, opacity: 0, scale: 0.88, rotation: -1.2 },
               {
                 x: rightFlankBaseX + 65,
-                y: 505,
+                y: 330,
                 opacity: 0.88,
                 scale: 0.94,
                 rotation: 0.3,
@@ -943,7 +943,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             )
             .to('#gt-playa', {
               x: rightFlankBaseX + 50,
-              y: 508,
+              y: 334,
               rotation: -0.2,
               scaleX: 1.02,
               scaleY: 0.96,
@@ -952,7 +952,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-playa', {
               x: rightFlankBaseX + 35,
-              y: 512,
+              y: 338,
               rotation: -0.5,
               scaleX: 0.96,
               scaleY: 1.02,
@@ -961,7 +961,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-playa', {
               x: rightFlankBaseX + 15,
-              y: 500,
+              y: 325,
               opacity: 0,
               scale: 0.88,
               duration: 3.0,
@@ -971,17 +971,17 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           22.0
         );
 
-        // Actor 10: Festejo de cumple (Medium en flanco izquierdo)
+        // Actor 10: Festejo de cumple (Medium en flanco izquierdo medio)
         masterTl.add(
           gsap
             .timeline()
             .set('#gt-cumple', { visibility: 'visible' })
             .fromTo(
               '#gt-cumple',
-              { x: -80, y: 360, opacity: 0, scale: 0.9, rotation: 1.5 },
+              { x: -80, y: 325, opacity: 0, scale: 0.9, rotation: 1.5 },
               {
                 x: 20,
-                y: 365,
+                y: 330,
                 opacity: 0.92,
                 scale: 0.98,
                 rotation: -0.3,
@@ -991,7 +991,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             )
             .to('#gt-cumple', {
               x: 35,
-              y: 362,
+              y: 328,
               rotation: 0.1,
               scale: 1.0,
               duration: 2.5,
@@ -999,7 +999,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-cumple', {
               x: 40,
-              y: 358,
+              y: 324,
               rotation: 0.4,
               scale: 0.98,
               duration: 2.5,
@@ -1007,7 +1007,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-cumple', {
               x: 15,
-              y: 350,
+              y: 318,
               opacity: 0,
               scale: 0.9,
               duration: 3.0,
@@ -1017,17 +1017,17 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           24.5
         );
 
-        // Actor 11: Asado entre amigos (Medium en ala derecha media)
+        // Actor 11: Asado entre amigos (Medium en ala derecha media, entre fotos)
         masterTl.add(
           gsap
             .timeline()
             .set('#gt-asado', { visibility: 'visible' })
             .fromTo(
               '#gt-asado',
-              { x: rightFlankBaseX + 180, y: 425, opacity: 0, scale: 0.9, rotation: -1.5 },
+              { x: rightFlankBaseX + 180, y: 260, opacity: 0, scale: 0.9, rotation: -1.5 },
               {
                 x: rightFlankBaseX + 60,
-                y: 430,
+                y: 265,
                 opacity: 0.94,
                 scale: 1.0,
                 rotation: 0.4,
@@ -1037,7 +1037,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             )
             .to('#gt-asado', {
               x: rightFlankBaseX + 45,
-              y: 432,
+              y: 268,
               rotation: 0.1,
               scale: 1.02,
               duration: 2.4,
@@ -1045,7 +1045,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-asado', {
               x: rightFlankBaseX + 30,
-              y: 436,
+              y: 272,
               rotation: -0.3,
               scale: 1.0,
               duration: 2.4,
@@ -1053,7 +1053,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             })
             .to('#gt-asado', {
               x: rightFlankBaseX + 15,
-              y: 430,
+              y: 265,
               opacity: 0,
               scale: 0.9,
               duration: 3.4,
