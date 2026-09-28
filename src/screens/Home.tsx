@@ -464,8 +464,25 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   // true cuando hay un CTA de creación equivalente visible en viewport (evita duplicación con FAB)
   const [isCreateCtaVisible, setIsCreateCtaVisible] = useState(false);
 
-  // Observer dual: CTA Hero + CTAs de creación en el cuerpo de la página
-  // El FAB se oculta cuando hay un CTA de creación visible para evitar redundancia visual
+  // isDesktop: se declara antes del observer FAB para estar disponible en sus deps
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Observer dual: CTA Hero + CTA del empty state (único que suprime el FAB en ambas plataformas)
+  // Se reconstruye cuando cambia `loading` O `isDesktop` (resize/orientación que cruce 768px)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -488,25 +505,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     );
     if (heroTarget) heroObserver.observe(heroTarget);
 
-    // Observer 2: CTAs equivalentes de creación en el cuerpo de la página
-    // Desktop y Mobile: observar únicamente el botón grande del empty state ("+ Crear encuentro")
-    // En desktop NO se oculta por los CTAs de Pilares — sólo por el botón del empty state.
-    // El selector de pilares se excluye para desktop; en mobile el comportamiento estricto
-    // se maneja combinando isCreateCtaVisible con la lógica de showMobileFab/showDesktopFab.
-    const emptyStateCtaSelector = '.home-empty button';
-    const pillarCtaSelector = '.home-pillar-card--active .home-pillar-cta--primary, .home-pillar-card:first-child .home-pillar-cta';
-
-    // Para mobile: también incluir pilares; para desktop: solo empty state
-    // Construimos la lista filtrada en runtime según isDesktop en el momento del effect
-    const currentIsDesktop = window.innerWidth >= 768;
-    const combinedSelector = currentIsDesktop
-      ? emptyStateCtaSelector
-      : [emptyStateCtaSelector, pillarCtaSelector].join(', ');
-
-    const createCtaTargets = Array.from(document.querySelectorAll(combinedSelector))
+    // Observer 2: ÚNICO CTA que suprime el FAB en AMBAS plataformas:
+    // el botón grande "+ Crear encuentro" del empty state de "Tus encuentros".
+    // Los CTAs de Pilares ya NO suprimen el FAB (ni en mobile ni en desktop).
+    // Objetivo UX: el FAB aparece en cuanto el Hero CTA sale del viewport
+    // y permanece visible a través de Pilares y Stepper hasta llegar al empty state.
+    const emptyStateBtns = Array.from(document.querySelectorAll('.home-empty button'))
       .filter(el => {
         const text = (el as HTMLElement).textContent?.toLowerCase() || '';
-        // Solo observar CTAs que tengan texto de "crear" — no "abrir"
         return text.includes('crear') && !text.includes('abrir');
       });
 
@@ -521,29 +527,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
       },
       { root: null, threshold: 0.2 }
     );
-    createCtaTargets.forEach(el => createObserver.observe(el));
+    emptyStateBtns.forEach(el => createObserver.observe(el));
 
     return () => {
       heroObserver.disconnect();
       createObserver.disconnect();
     };
-  }, [loading]);
-
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 768;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // isDesktop en deps → el observer se reconstruye si el viewport cruza 768px por resize/orientación
+  }, [loading, isDesktop]);
 
   const isAnySheetOpen =
     isFilterOpen ||
