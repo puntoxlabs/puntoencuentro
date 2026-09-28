@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LogIn, X } from 'lucide-react';
+import { useAuth, type AnonymousUpgradeState } from '@/contexts/AuthContext';
+import { AccountCollisionModal } from './AccountCollisionModal';
 import './LoginRequiredSheet.css';
 
 export interface LoginRequiredSheetProps {
@@ -37,9 +39,36 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
   loading = false,
   action = 'request_join',
 }) => {
+  const { user, checkAnonymousUpgradeState } = useAuth();
+  const [showCollisionModal, setShowCollisionModal] = useState(false);
+  const [collisionUpgradeState, setCollisionUpgradeState] = useState<AnonymousUpgradeState | null>(null);
+  const [checkingState, setCheckingState] = useState(false);
+
   if (!isOpen) return null;
 
   const copy = COPIES[action];
+
+  const handleContinueClick = async () => {
+    if (loading || checkingState) return;
+
+    if (user?.is_anonymous) {
+      setCheckingState(true);
+      try {
+        const state = await checkAnonymousUpgradeState();
+        if (state?.hasTransferableResources) {
+          setCollisionUpgradeState(state);
+          setShowCollisionModal(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('[LoginRequiredSheet] checkAnonymousUpgradeState error:', err);
+      } finally {
+        setCheckingState(false);
+      }
+    }
+
+    onContinueWithGoogle();
+  };
 
   return (
     <>
@@ -93,10 +122,10 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
             <button
               type="button"
               className="login-required-sheet__cta-primary"
-              onClick={onContinueWithGoogle}
-              disabled={loading}
+              onClick={handleContinueClick}
+              disabled={loading || checkingState}
             >
-              {loading ? (
+              {loading || checkingState ? (
                 'Redirigiendo...'
               ) : (
                 <>
@@ -134,13 +163,29 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
               type="button"
               className="login-required-sheet__cta-secondary"
               onClick={onClose}
-              disabled={loading}
+              disabled={loading || checkingState}
             >
               Ahora no
             </button>
           </div>
         </div>
       </div>
+
+      {/* Modal de colisión de cuenta y transferencia de recursos */}
+      <AccountCollisionModal
+        isOpen={showCollisionModal}
+        onClose={() => {
+          setShowCollisionModal(false);
+        }}
+        onConfirm={async () => {
+          setShowCollisionModal(false);
+          onContinueWithGoogle();
+        }}
+        upgradeState={collisionUpgradeState}
+        title="Ya tenés contenido creado en PuntoEncuentro"
+        description="Podemos vincularlo a tu cuenta de Google para que no pierdas nada."
+        confirmLabel="Continuar y conservar mis encuentros"
+      />
     </>
   );
 };

@@ -6,10 +6,11 @@ import './AccountCollisionModal.css';
 export interface AccountCollisionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => Promise<void> | void;
   upgradeState?: AnonymousUpgradeState | null;
   title?: string;
   description?: string;
+  confirmLabel?: string;
 }
 
 export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
@@ -17,8 +18,9 @@ export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
   onClose,
   onConfirm,
   upgradeState,
-  title = 'Unificar recursos con tu cuenta de Google',
-  description = 'Detectamos que tenés encuentros o contenido creados en tu sesión actual. Al conectar tu cuenta de Google, unificaremos todo automáticamente sin perder datos.',
+  title = 'Ya tenés contenido creado en PuntoEncuentro',
+  description = 'Podemos vincularlo a tu cuenta de Google para que no pierdas nada.',
+  confirmLabel = 'Continuar y conservar mis encuentros',
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -103,7 +105,7 @@ export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
               onClick={handleConfirm}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Iniciando unificación...' : 'Continuar con Google'}
+              {isSubmitting ? 'Iniciando unificación...' : confirmLabel}
             </button>
             <button
               type="button"

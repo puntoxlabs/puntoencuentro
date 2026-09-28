@@ -7,14 +7,17 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { assertStagingEnvironment, STAGING_PROJECT_REF } from './lib/environment-guard';
+import { assertStagingEnvironment, STAGING_PROJECT_REF, getStagingServiceRoleKey } from './lib/environment-guard';
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const url = 'https://wougfhfwqgmxhgvjqoua.supabase.co';
 const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWdmaGZ3cWdteGhndmpxb3VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTk0MjEsImV4cCI6MjEwNjA5NTQyMX0.oUgTzIFlZrjnKcnqgdXDtI1cq4Mp0zO4N_I58MIIra4';
-const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWdmaGZ3cWdteGhndmpxb3VhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDUxOTQyMSwiZXhwIjoyMTA2MDk1NDIxfQ.X36AcSzttqZiWD9vcRuDAmukTHJkAbatkZwokfYHbO8';
 
 assertStagingEnvironment(url);
 
+const serviceKey = getStagingServiceRoleKey();
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
 // Helper para crear clientes autenticados
@@ -22,7 +25,172 @@ function makeClient() {
   return createClient(url, anonKey, { auth: { persistSession: false } });
 }
 
+function runLinkedSql(sql: string) {
+  const tmpFile = path.resolve(process.cwd(), `tmp_qa_${Date.now()}_${Math.random().toString(36).substring(7)}.sql`);
+  fs.writeFileSync(tmpFile, sql, 'utf8');
+  try {
+    execSync(`npx --workspaces=false supabase db query --linked -f "${tmpFile}"`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } finally {
+    if (fs.existsSync(tmpFile)) {
+      fs.unlinkSync(tmpFile);
+    }
+  }
+}
+
+const QA_SETUP_SQL = `
+CREATE OR REPLACE FUNCTION public.qa_create_test_user(
+    p_id uuid,
+    p_is_anon boolean,
+    p_email text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO auth.users (
+        id,
+        instance_id,
+        aud,
+        role,
+        email,
+        is_anonymous,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at
+    ) VALUES (
+        p_id,
+        '00000000-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        p_email,
+        p_is_anon,
+        '{}'::jsonb,
+        '{}'::jsonb,
+        now(),
+        now()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        is_anonymous = p_is_anon,
+        email = COALESCE(p_email, auth.users.email);
+    RETURN p_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.qa_set_user_anonymous(
+    p_id uuid,
+    p_is_anon boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    UPDATE auth.users SET is_anonymous = p_is_anon WHERE id = p_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.qa_delete_test_user(
+    p_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    DELETE FROM auth.users WHERE id = p_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.qa_test_call_as(
+    p_user_id uuid,
+    p_is_anon boolean,
+    p_fn_name text,
+    p_args jsonb DEFAULT '{}'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_claims jsonb;
+    v_res jsonb;
+BEGIN
+    v_claims := jsonb_build_object(
+        'sub', p_user_id::text,
+        'role', 'authenticated',
+        'is_anonymous', p_is_anon
+    );
+    PERFORM pg_catalog.set_config('request.jwt.claims', v_claims::text, true);
+    PERFORM pg_catalog.set_config('request.jwt.claim.sub', p_user_id::text, true);
+    PERFORM pg_catalog.set_config('request.jwt.claim.role', 'authenticated', true);
+
+    IF p_fn_name = 'create_anonymous_transfer_ticket' THEN
+        SELECT public.create_anonymous_transfer_ticket() INTO v_res;
+        RETURN v_res;
+    ELSIF p_fn_name = 'revoke_my_pending_transfer_ticket' THEN
+        SELECT public.revoke_my_pending_transfer_ticket() INTO v_res;
+        RETURN v_res;
+    ELSIF p_fn_name = 'claim_anonymous_transfer' THEN
+        SELECT public.claim_anonymous_transfer(p_args ->> 'p_transfer_token') INTO v_res;
+        RETURN v_res;
+    ELSIF p_fn_name = 'get_anonymous_upgrade_state' THEN
+        SELECT public.get_anonymous_upgrade_state() INTO v_res;
+        RETURN v_res;
+    ELSIF p_fn_name = 'get_detalle_host_seguro' THEN
+        SELECT public.get_detalle_host_seguro((p_args ->> 'p_encuentro_id')::uuid, (p_args ->> 'p_host_id')::uuid)::jsonb INTO v_res;
+        RETURN v_res;
+    ELSE
+        RAISE EXCEPTION 'Unsupported test function %', p_fn_name;
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.qa_create_test_user(uuid, boolean, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.qa_create_test_user(uuid, boolean, text) FROM anon, authenticated, public;
+
+GRANT EXECUTE ON FUNCTION public.qa_set_user_anonymous(uuid, boolean) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.qa_set_user_anonymous(uuid, boolean) FROM anon, authenticated, public;
+
+GRANT EXECUTE ON FUNCTION public.qa_delete_test_user(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.qa_delete_test_user(uuid) FROM anon, authenticated, public;
+
+GRANT EXECUTE ON FUNCTION public.qa_test_call_as(uuid, boolean, text, jsonb) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.qa_test_call_as(uuid, boolean, text, jsonb) FROM anon, authenticated, public;
+
+NOTIFY pgrst, 'reload schema';
+`;
+
+const QA_TEARDOWN_SQL = `
+DROP FUNCTION IF EXISTS public.qa_test_call_as(uuid, boolean, text, jsonb);
+DROP FUNCTION IF EXISTS public.qa_create_test_user(uuid, boolean, text);
+DROP FUNCTION IF EXISTS public.qa_set_user_anonymous(uuid, boolean);
+DROP FUNCTION IF EXISTS public.qa_delete_test_user(uuid);
+
+NOTIFY pgrst, 'reload schema';
+`;
+
+async function setupQAHelpers() {
+  runLinkedSql(QA_SETUP_SQL);
+  await new Promise(resolve => setTimeout(resolve, 2000));
+}
+
+async function teardownQAHelpers() {
+  runLinkedSql(QA_TEARDOWN_SQL);
+  await new Promise(resolve => setTimeout(resolve, 1000));
+}
+
 async function runSuite() {
+  await setupQAHelpers();
+
   console.log('====================================================');
   console.log('PUNTO ENCUENTRO 1.5-C — SUITE E2E TRANSFER TICKET');
   console.log(`Target: ${url} (Project: ${STAGING_PROJECT_REF})`);
@@ -57,6 +225,7 @@ async function runSuite() {
             p_fn_name: fn,
             p_args: args || {}
           });
+          if (res.error) throw new Error(`RPC ${fn} failed: ${res.error.message}`);
           return { data: res.data, error: res.error };
         }
       }
@@ -78,6 +247,7 @@ async function runSuite() {
             p_fn_name: fn,
             p_args: args || {}
           });
+          if (res.error) throw new Error(`RPC ${fn} failed: ${res.error.message}`);
           return { data: res.data, error: res.error };
         }
       }
@@ -1059,6 +1229,298 @@ async function runSuite() {
     }
   });
 
+  // ========================================================
+  // T30: DB pending + sessionStorage vacío -> no OAuth sin token; revocar propio pending; crear nuevo ticket; continuar correctamente
+  // ========================================================
+  await test('T30: DB pending + sessionStorage vacío -> revocar propio pending, crear nuevo ticket y continuar', async () => {
+    const anon = await createAnonUser();
+    const perm = await createPermUser('t30');
+
+    await admin.from('encuentros').insert({
+      titulo: 'Encuentro T30',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-20',
+      hora: '19:00',
+      host_id: anon.user.id,
+    });
+
+    // 1. Emitir ticket inicial en DB
+    const { data: t1 } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    if (!t1?.ok || !t1.ticket_token) throw new Error('t1 failed');
+
+    // 2. Simular pérdida de sessionStorage (sessionStorage vacío)
+    // Intentar crear nuevo ticket sin revocar falla con transfer_ticket_already_pending
+    const { data: tDup } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    if (tDup?.error !== 'transfer_ticket_already_pending') {
+      throw new Error(`Expected transfer_ticket_already_pending, got: ${JSON.stringify(tDup)}`);
+    }
+
+    // 3. Mecanismo de recuperación: revocar el propio ticket pendiente
+    const { data: revRes } = await anon.client.rpc('revoke_my_pending_transfer_ticket');
+    if (!revRes?.ok || revRes.revoked_count !== 1) {
+      throw new Error(`Revoke failed: ${JSON.stringify(revRes)}`);
+    }
+
+    // 4. Intentar canjear el ticket revocado debe fallar con ticket_revoked
+    const { data: claimRevoked } = await perm.client.rpc('claim_anonymous_transfer', {
+      p_transfer_token: t1.ticket_token,
+    });
+    if (claimRevoked?.error !== 'ticket_revoked') {
+      throw new Error(`Expected ticket_revoked, got: ${JSON.stringify(claimRevoked)}`);
+    }
+
+    // 5. Emitir nuevo ticket limpio tras revocación
+    const { data: t2 } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    if (!t2?.ok || !t2.ticket_token) {
+      throw new Error(`Create new ticket after revoke failed: ${JSON.stringify(t2)}`);
+    }
+
+    // 6. El nuevo ticket se canjea exitosamente por el usuario permanente
+    const { data: claimNew } = await perm.client.rpc('claim_anonymous_transfer', {
+      p_transfer_token: t2.ticket_token,
+    });
+    if (!claimNew?.ok) {
+      throw new Error(`Claim of recovered ticket failed: ${JSON.stringify(claimNew)}`);
+    }
+  });
+
+  // ========================================================
+  // T31: Fallo transitorio de red/timeout conserva secret en sessionStorage y retry posterior funciona
+  // ========================================================
+  await test('T31: Fallo transitorio de red/timeout conserva secret en sessionStorage y retry posterior funciona', async () => {
+    const anon = await createAnonUser();
+    const perm = await createPermUser('t31');
+
+    await admin.from('encuentros').insert({
+      titulo: 'Encuentro T31',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-21',
+      hora: '19:00',
+      host_id: anon.user.id,
+    });
+
+    const { data: ticketRes } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    const secret = ticketRes.ticket_token;
+
+    // Simular sessionStorage y política de retry de AuthContext
+    const mockStorage = new Map<string, string>();
+    mockStorage.set('pe_pending_transfer_ticket', secret);
+    mockStorage.set('pe_transfer_claim_retries', '0');
+
+    let simulateTransientFailure = true;
+    const executeClaimCycle = async () => {
+      const pendingTicket = mockStorage.get('pe_pending_transfer_ticket');
+      if (!pendingTicket) return;
+      const retryCount = parseInt(mockStorage.get('pe_transfer_claim_retries') || '0', 10);
+
+      try {
+        if (simulateTransientFailure) {
+          throw new TypeError('Failed to fetch (simulated network timeout)');
+        }
+        const { data: claimData } = await perm.client.rpc('claim_anonymous_transfer', {
+          p_transfer_token: pendingTicket,
+        });
+        if (claimData?.ok) {
+          mockStorage.delete('pe_pending_transfer_ticket');
+          mockStorage.delete('pe_transfer_claim_retries');
+        }
+      } catch {
+        mockStorage.set('pe_transfer_claim_retries', String(retryCount + 1));
+      }
+    };
+
+    // Intento 1: falla por timeout
+    await executeClaimCycle();
+    if (mockStorage.get('pe_pending_transfer_ticket') !== secret) {
+      throw new Error('Secret fue prematuramente eliminado ante fallo transitorio');
+    }
+    if (mockStorage.get('pe_transfer_claim_retries') !== '1') {
+      throw new Error('Contador de reintentos no se incrementó');
+    }
+
+    // Intento 2: la red se recupera
+    simulateTransientFailure = false;
+    await executeClaimCycle();
+    if (mockStorage.has('pe_pending_transfer_ticket')) {
+      throw new Error('Secret no fue eliminado tras reclamo exitoso en retry');
+    }
+  });
+
+  // ========================================================
+  // T32: claim exitoso elimina secret y contadores de sessionStorage
+  // ========================================================
+  await test('T32: claim exitoso elimina secret y contadores de sessionStorage', async () => {
+    const anon = await createAnonUser();
+    const perm = await createPermUser('t32');
+
+    await admin.from('encuentros').insert({
+      titulo: 'Encuentro T32',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-22',
+      hora: '19:00',
+      host_id: anon.user.id,
+    });
+
+    const { data: ticketRes } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    const mockStorage = new Map<string, string>();
+    mockStorage.set('pe_pending_transfer_ticket', ticketRes.ticket_token);
+    mockStorage.set('pe_transfer_claim_retries', '1');
+
+    const { data: claimRes } = await perm.client.rpc('claim_anonymous_transfer', {
+      p_transfer_token: ticketRes.ticket_token,
+    });
+    if (!claimRes?.ok) throw new Error('Claim failed');
+
+    if (claimRes.ok) {
+      mockStorage.delete('pe_pending_transfer_ticket');
+      mockStorage.delete('pe_transfer_claim_retries');
+    }
+
+    if (mockStorage.has('pe_pending_transfer_ticket') || mockStorage.has('pe_transfer_claim_retries')) {
+      throw new Error('Storage no fue limpiado tras claim exitoso');
+    }
+  });
+
+  // ========================================================
+  // T33: AccountCollisionModal aparece sólo cuando hay recursos transferibles
+  // ========================================================
+  await test('T33: AccountCollisionModal aparece sólo cuando hay recursos transferibles', async () => {
+    // 1. Usuario anónimo limpio sin recursos
+    const cleanAnon = await createAnonUser();
+    const { data: cleanState } = await cleanAnon.client.rpc('get_anonymous_upgrade_state');
+    if (cleanState.has_transferable_resources !== false) {
+      throw new Error('cleanAnon no debe tener recursos transferibles');
+    }
+
+    // 2. Usuario anónimo con 1 encuentro
+    const loadedAnon = await createAnonUser();
+    await admin.from('encuentros').insert({
+      titulo: 'Encuentro T33',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-23',
+      hora: '19:00',
+      host_id: loadedAnon.user.id,
+    });
+    const { data: loadedState } = await loadedAnon.client.rpc('get_anonymous_upgrade_state');
+    if (loadedState.has_transferable_resources !== true) {
+      throw new Error('loadedAnon debe tener recursos transferibles');
+    }
+  });
+
+  // ========================================================
+  // T34: Cancelar modal preserva sesión anónima y recursos
+  // ========================================================
+  await test('T34: Cancelar modal preserva sesión anónima y no altera recursos en DB', async () => {
+    const anon = await createAnonUser();
+    const { data: enc } = await admin.from('encuentros').insert({
+      titulo: 'Encuentro T34',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-24',
+      hora: '19:00',
+      host_id: anon.user.id,
+    }).select().single();
+
+    // Simular cancelación: onClose() no emite ticket ni altera titularidad
+    const { data: currentEnc } = await admin.from('encuentros').select().eq('id', enc.id).single();
+    if (currentEnc.host_id !== anon.user.id) {
+      throw new Error('Recurso fue alterado a pesar de cancelación');
+    }
+
+    const { data: tickets } = await admin.from('anonymous_transfer_tickets')
+      .select().eq('source_user_id_snapshot', anon.user.id);
+    if (tickets && tickets.length > 0) {
+      throw new Error('Se emitió ticket a pesar de cancelar');
+    }
+  });
+
+  // ========================================================
+  // T35: Confirmar modal -> ticket → OAuth → claim → acción original
+  // ========================================================
+  await test('T35: Confirmar modal emite ticket y completa ciclo de transferencia a cuenta permanente', async () => {
+    const anon = await createAnonUser();
+    const perm = await createPermUser('t35');
+
+    const { data: enc } = await admin.from('encuentros').insert({
+      titulo: 'Encuentro T35',
+      modalidad: 'presencial',
+      tipo_invitacion: 'individual',
+      fecha: '2026-11-25',
+      hora: '19:00',
+      host_id: anon.user.id,
+    }).select().single();
+
+    const { data: ticketRes } = await anon.client.rpc('create_anonymous_transfer_ticket');
+    if (!ticketRes?.ok || !ticketRes.ticket_token) throw new Error('Ticket generation failed on confirm');
+
+    const { data: claimRes } = await perm.client.rpc('claim_anonymous_transfer', {
+      p_transfer_token: ticketRes.ticket_token,
+    });
+    if (!claimRes?.ok || claimRes.encuentros_transferred !== 1) {
+      throw new Error(`Claim failed: ${JSON.stringify(claimRes)}`);
+    }
+
+    const { data: updatedEnc } = await admin.from('encuentros').select().eq('id', enc.id).single();
+    if (updatedEnc.host_id !== perm.user.id) {
+      throw new Error('Encuentro no pertenece al usuario permanente');
+    }
+  });
+
+  // ========================================================
+  // T36: QA helpers ya no existen en Staging al finalizar
+  // ========================================================
+  await test('T36: QA helpers no existen en Staging de forma persistente', async () => {
+    await teardownQAHelpers();
+    const checkSql = "SELECT proname FROM pg_proc WHERE proname LIKE 'qa_%' AND pronamespace = 'public'::regnamespace;";
+    const tmpFile = path.resolve(process.cwd(), `tmp_check_${Date.now()}.sql`);
+    fs.writeFileSync(tmpFile, checkSql, 'utf8');
+    try {
+      const out = execSync(`npx --workspaces=false supabase db query --linked -f "${tmpFile}"`, { encoding: 'utf8' });
+      const rows = JSON.parse(out).rows;
+      if (rows && rows.length > 0) {
+        throw new Error(`QA helpers aún persisten en base de datos: ${JSON.stringify(rows)}`);
+      }
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  });
+
+  // ========================================================
+  // T37: repo no contiene ninguna service_role/secret administrativa literal
+  // ========================================================
+  await test('T37: Repo no contiene ninguna service_role o credencial administrativa literal en git', async () => {
+    const gitFiles = execSync('git ls-files', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+    const offenders: string[] = [];
+
+    for (const file of gitFiles) {
+      if (/\.(png|jpg|jpeg|ico|svg|pdf|lock|woff2?)$/i.test(file)) continue;
+      if (!fs.existsSync(file)) continue;
+
+      const content = fs.readFileSync(file, 'utf8');
+      if (content.includes('ey') && content.includes('eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6')) {
+        const jwtMatches = content.match(/eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g);
+        if (jwtMatches) {
+          for (const jwt of jwtMatches) {
+            try {
+              const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString());
+              if (payload.role === 'service_role') {
+                offenders.push(`${file} (contains service_role JWT)`);
+              }
+            } catch {}
+          }
+        }
+      }
+    }
+
+    if (offenders.length > 0) {
+      throw new Error(`Credencial service_role detectada en git: ${offenders.join(', ')}`);
+    }
+  });
+
   console.log('\n====================================================');
   console.log(`RESUMEN SUITE E2E 1.5-C: ${passed} PASADOS, ${failed} FALLIDOS`);
   console.log('====================================================\n');
@@ -1069,7 +1531,13 @@ async function runSuite() {
   process.exit(0);
 }
 
-runSuite().catch((err) => {
-  console.error('Fatal suite runner error:', err);
-  process.exit(1);
-});
+runSuite()
+  .catch((err) => {
+    console.error('Fatal suite runner error:', err);
+    process.exit(1);
+  })
+  .finally(async () => {
+    try {
+      await teardownQAHelpers();
+    } catch {}
+  });

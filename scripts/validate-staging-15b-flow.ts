@@ -6,15 +6,15 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { assertStagingEnvironment, STAGING_PROJECT_REF } from './lib/environment-guard';
+import { assertStagingEnvironment, STAGING_PROJECT_REF, getStagingServiceRoleKey } from './lib/environment-guard';
 
 const url = 'https://wougfhfwqgmxhgvjqoua.supabase.co';
 const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWdmaGZ3cWdteGhndmpxb3VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTk0MjEsImV4cCI6MjEwNjA5NTQyMX0.oUgTzIFlZrjnKcnqgdXDtI1cq4Mp0zO4N_I58MIIra4';
-const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWdmaGZ3cWdteGhndmpxb3VhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDUxOTQyMSwiZXhwIjoyMTA2MDk1NDIxfQ.X36AcSzttqZiWD9vcRuDAmukTHJkAbatkZwokfYHbO8';
 
 // 1. Guard estricto de entorno
 assertStagingEnvironment(url);
 
+const serviceKey = getStagingServiceRoleKey();
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 const anon = createClient(url, anonKey, { auth: { persistSession: false } });
 

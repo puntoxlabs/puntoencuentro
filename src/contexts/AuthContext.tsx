@@ -16,10 +16,25 @@ export type GoogleSignInResult =
       error:
         | 'anonymous_account_linking_pending'
         | 'oauth_start_failed'
-        | 'anonymous_has_critical_resources';
+        | 'anonymous_has_critical_resources'
+        | 'ticket_creation_failed'
+        | string;
     };
 
 const PENDING_TRANSFER_TICKET_KEY = 'pe_pending_transfer_ticket';
+const TRANSFER_CLAIM_RETRIES_KEY = 'pe_transfer_claim_retries';
+const MAX_CLAIM_RETRIES = 3;
+
+const TERMINAL_CLAIM_ERRORS = new Set([
+  'ticket_expired',
+  'ticket_revoked',
+  'ticket_already_used',
+  'source_no_longer_anonymous',
+  'source_user_not_found',
+  'invalid_token_format',
+  'permanent_account_required',
+  'cannot_transfer_to_same_user',
+]);
 
 /**
  * Contexto del estado de recursos de un usuario anónimo antes del upgrade.
@@ -126,19 +141,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // 0. Canjear Transfer Ticket si el usuario unificó cuenta anónima con Google
             const pendingTransferTicket = sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY);
             if (pendingTransferTicket) {
-              try {
-                const { data: claimData, error: claimErr } = await supabase.rpc('claim_anonymous_transfer', {
-                  p_transfer_token: pendingTransferTicket,
-                });
-                if (claimErr || (claimData && !claimData.ok)) {
-                  console.warn('[Auth] claim_anonymous_transfer result:', claimData || claimErr);
-                } else if (import.meta.env.DEV) {
-                  console.log('[Auth] Recursos transferidos con éxito a la cuenta permanente:', claimData);
+              const retryCount = parseInt(sessionStorage.getItem(TRANSFER_CLAIM_RETRIES_KEY) || '0', 10);
+              if (retryCount < MAX_CLAIM_RETRIES) {
+                try {
+                  const { data: claimData, error: claimErr } = await supabase.rpc('claim_anonymous_transfer', {
+                    p_transfer_token: pendingTransferTicket,
+                  });
+
+                  if (claimData?.ok === true) {
+                    if (import.meta.env.DEV) {
+                      console.log('[Auth] Recursos transferidos con éxito a la cuenta permanente:', claimData);
+                    }
+                    sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+                    sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+                  } else {
+                    const errCode = claimData?.error || claimErr?.message;
+                    console.warn('[Auth] claim_anonymous_transfer error:', errCode);
+
+                    if (errCode && TERMINAL_CLAIM_ERRORS.has(errCode)) {
+                      // Error terminal irreversible: limpiar storage local
+                      sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+                      sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+                    } else {
+                      // Error transitorio/recuperable: incrementar reintentos y conservar secret
+                      sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+                    }
+                  }
+                } catch (err) {
+                  console.error('[Auth] Error claiming anonymous transfer ticket (transient):', err);
+                  // En fallo de red/5xx/timeout: conservar secret para reintentar
+                  sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
                 }
-              } catch (err) {
-                console.error('[Auth] Error claiming anonymous transfer ticket:', err);
-              } finally {
-                sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+              } else if (import.meta.env.DEV) {
+                console.warn('[Auth] Máximo de reintentos alcanzado para el transfer ticket en esta sesión');
               }
             }
 
@@ -253,15 +288,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { ok: false, error: 'anonymous_user_required' };
     }
     try {
-      const { data, error } = await supabase.rpc('create_anonymous_transfer_ticket');
+      let { data, error } = await supabase.rpc('create_anonymous_transfer_ticket');
+      let res = data as any;
+
+      // Si ya hay un ticket pendiente en DB:
+      if (res?.error === 'transfer_ticket_already_pending') {
+        const localSecret = sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY);
+        if (localSecret) {
+          // Caso A: sessionStorage ya posee el secret del ticket vigente
+          return { ok: true, ticket_token: localSecret };
+        }
+
+        // Caso B: DB tiene pending pero sessionStorage está vacío (pérdida local).
+        // Recuperación segura: revocar el propio ticket pendiente en DB y reintentar creación limpia.
+        if (import.meta.env.DEV) console.log('[Auth] Pending ticket sin secret local. Revocando para emitir nuevo...');
+        const { data: revokeData } = await supabase.rpc('revoke_my_pending_transfer_ticket');
+        const revokeRes = revokeData as any;
+        if (!revokeRes?.ok) {
+          return { ok: false, error: revokeRes?.error || 'revoke_pending_failed' };
+        }
+
+        // Reintentar creación de ticket nuevo
+        const retryRes = await supabase.rpc('create_anonymous_transfer_ticket');
+        res = retryRes.data as any;
+        error = retryRes.error;
+      }
+
       if (error) {
         return { ok: false, error: error.message };
       }
-      const res = data as any;
+
       if (res?.ok && res.ticket_token) {
         sessionStorage.setItem(PENDING_TRANSFER_TICKET_KEY, res.ticket_token);
+        sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
       }
-      return res;
+      return res || { ok: false, error: 'unknown_creation_error' };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
     }
@@ -274,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    *   - Ya permanente: no hace nada (retorna alreadyLoggedIn).
    *   - Anónimo CON recursos transferibles: emite Transfer Ticket y procede a OAuth SIN signOut
    *     destructivo (si el usuario cancela en Google, conserva su sesión anónima en localStorage).
+   *     Si falla la creación o no se dispone del secret local: ABORTA OAuth.
    *   - Anónimo SIN recursos transferibles: signOut limpio seguro + OAuth directo.
    */
   const signInWithGoogleForDiscovery = async (): Promise<GoogleSignInResult> => {
@@ -285,14 +347,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const upgradeState = await checkAnonymousUpgradeState();
 
       if (upgradeState?.hasTransferableResources) {
-        if (import.meta.env.DEV) console.log('[Auth] Anónimo con recursos transferibles — emitiendo ticket');
-        try {
-          const res = await createTransferTicket();
-          if (!res.ok && res.error !== 'transfer_ticket_already_pending') {
-            console.warn('[Auth] Transfer ticket warning:', res.error);
-          }
-        } catch (err) {
-          console.error('[Auth] Error generating transfer ticket:', err);
+        if (import.meta.env.DEV) console.log('[Auth] Anónimo con recursos transferibles — verificando ticket');
+        const res = await createTransferTicket();
+        const hasSecret = Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
+
+        if (!res.ok || !hasSecret) {
+          console.error('[Auth] Abortando OAuth: no se pudo asegurar el ticket de transferencia local:', res.error);
+          return { ok: false, error: res.error || 'ticket_creation_failed' };
         }
         // IMPORTANTE: NO hacer signOut(); preserva la sesión anónima en localStorage
         // en caso de que el usuario cierre o cancele el consentimiento en Google.
