@@ -352,7 +352,7 @@ html, body {
 .home-hero-wrapper--stitch,
 .home-hero-wrapper--gsap {
   padding-top: 5.75rem;
-  padding-bottom: 4.5rem;
+  padding-bottom: 3rem;
   min-height: 460px;
 }
 
@@ -383,7 +383,7 @@ html, body {
   .home-hero-wrapper--stitch,
   .home-hero-wrapper--gsap {
     padding-top: 2.25rem;
-    padding-bottom: 3.5rem;
+    padding-bottom: 2.5rem;
     min-height: 480px;
   }
 }

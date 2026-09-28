@@ -489,15 +489,21 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     if (heroTarget) heroObserver.observe(heroTarget);
 
     // Observer 2: CTAs equivalentes de creación en el cuerpo de la página
-    // Observa: botón "Crear encuentro" en empty state y en pillars card (Organizar)
-    // NO observa "Abrir lugares" (acción diferente)
-    const createCtaSelectors = [
-      '.home-empty button', // CTA del empty state "+ Crear encuentro"
-      '.home-pillar-card--active .home-pillar-cta--primary', // CTA de la card Organizar
-      '.home-pillar-card:first-child .home-pillar-cta', // fallback card 1
-    ].join(', ');
+    // Desktop y Mobile: observar únicamente el botón grande del empty state ("+ Crear encuentro")
+    // En desktop NO se oculta por los CTAs de Pilares — sólo por el botón del empty state.
+    // El selector de pilares se excluye para desktop; en mobile el comportamiento estricto
+    // se maneja combinando isCreateCtaVisible con la lógica de showMobileFab/showDesktopFab.
+    const emptyStateCtaSelector = '.home-empty button';
+    const pillarCtaSelector = '.home-pillar-card--active .home-pillar-cta--primary, .home-pillar-card:first-child .home-pillar-cta';
 
-    const createCtaTargets = Array.from(document.querySelectorAll(createCtaSelectors))
+    // Para mobile: también incluir pilares; para desktop: solo empty state
+    // Construimos la lista filtrada en runtime según isDesktop en el momento del effect
+    const currentIsDesktop = window.innerWidth >= 768;
+    const combinedSelector = currentIsDesktop
+      ? emptyStateCtaSelector
+      : [emptyStateCtaSelector, pillarCtaSelector].join(', ');
+
+    const createCtaTargets = Array.from(document.querySelectorAll(combinedSelector))
       .filter(el => {
         const text = (el as HTMLElement).textContent?.toLowerCase() || '';
         // Solo observar CTAs que tengan texto de "crear" — no "abrir"
@@ -513,7 +519,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         const hasVisible = Array.from(intersectingMap.values()).some(Boolean);
         setIsCreateCtaVisible(hasVisible);
       },
-      { root: null, threshold: 0.15 }
+      { root: null, threshold: 0.2 }
     );
     createCtaTargets.forEach(el => createObserver.observe(el));
 
@@ -558,11 +564,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     !isInputFocused;
 
   // Desktop >= 768px: FAB persistente una vez que el Hero CTA sale del viewport
-  // NO se oculta por CTAs de creación en Pillars o Empty State (acción global permanente)
+  // Se oculta únicamente si el botón grande del empty state está visible en pantalla
+  // (evitar duplicación de dos CTAs de "Crear" azules simultáneos)
+  // NO se oculta por CTAs de Pilares (acción global persistente en desktop)
   const showDesktopFab =
     isDesktop &&
     !loading &&
     !isHeroCtaVisible &&
+    !isCreateCtaVisible &&
     !isAnySheetOpen;
 
   const showFab = showMobileFab || showDesktopFab;

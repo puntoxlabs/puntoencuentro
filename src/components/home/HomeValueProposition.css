@@ -139,3 +139,52 @@
     line-height: 1.35;
   }
 }
+
+/* ── MOBILE COMPACT STEPPER (<= 767px) ── */
+/* Reduce ~25% altura percibida sin rediseñar la sección */
+@media (max-width: 767px) {
+  .home-value-prop {
+    padding: 0.85rem 0.9rem;
+    margin-top: 0.75rem;
+    gap: 0.65rem;
+  }
+
+  .home-value-prop-header {
+    gap: 0.15rem;
+  }
+
+  .home-value-prop-title {
+    font-size: 0.875rem;
+  }
+
+  .home-value-prop-subtitle {
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+
+  .home-value-prop-steps {
+    gap: 0.6rem;
+  }
+
+  .home-value-prop-step {
+    gap: 0.6rem;
+  }
+
+  .home-value-prop-step-num {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .home-value-prop-step-title {
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+
+  .home-value-prop-step-desc {
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+}
