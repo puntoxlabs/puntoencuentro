@@ -19,6 +19,8 @@ export type GoogleSignInResult =
         | 'anonymous_has_critical_resources';
     };
 
+const PENDING_TRANSFER_TICKET_KEY = 'pe_pending_transfer_ticket';
+
 /**
  * Contexto del estado de recursos de un usuario anónimo antes del upgrade.
  * Devuelto por checkAnonymousUpgradeState.
@@ -27,6 +29,13 @@ export interface AnonymousUpgradeState {
   isAnonymous: boolean;
   hasOwnedEncounters: boolean;
   hasServerZones: boolean;
+  hasParticipantLinks: boolean;
+  hasOpenRequests: boolean;
+  hasCustomTemplates: boolean;
+  hasAiSessions: boolean;
+  hasCreationSessions: boolean;
+  hasOtherTransferableResources: boolean;
+  hasTransferableResources: boolean;
 }
 
 /**
@@ -54,19 +63,19 @@ interface AuthContextValue {
    *
    * Estrategia según estado del usuario anónimo:
    *   - Sin sesión: OAuth directo.
-   *   - Anónimo SIN recursos críticos: signOut seguro + OAuth.
-   *   - Anónimo CON encuentros propios: linkIdentity (preserva UUID).
+   *   - Anónimo SIN recursos transferibles: signOut seguro + OAuth.
+   *   - Anónimo CON recursos transferibles: emite Transfer Ticket y procede a OAuth SIN signOut destructivo.
    *   - Ya permanente: no hace nada (retorna alreadyLoggedIn).
-   *
-   * El llamador debe guardar el pendingOpenRequest en sessionStorage
-   * ANTES de llamar a este método.
    */
   signInWithGoogleForDiscovery: () => Promise<GoogleSignInResult>;
   /**
-   * Verifica server-side si el usuario anónimo actual tiene recursos
-   * que deben preservarse antes de hacer signOut.
+   * Verifica server-side si el usuario anónimo actual tiene recursos transferibles.
    */
   checkAnonymousUpgradeState: () => Promise<AnonymousUpgradeState | null>;
+  /**
+   * Genera un ticket de transferencia seguro para la sesión anónima actual.
+   */
+  createTransferTicket: () => Promise<{ ok: boolean; ticket_token?: string; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -81,6 +90,7 @@ const AuthContext = createContext<AuthContextValue>({
   signInWithGoogleForCoordination: async () => ({ ok: false, error: 'oauth_start_failed' }),
   signInWithGoogleForDiscovery: async () => ({ ok: false, error: 'oauth_start_failed' }),
   checkAnonymousUpgradeState: async () => null,
+  createTransferTicket: async () => ({ ok: false, error: 'not_initialized' }),
   signOut: async () => {},
 });
 
@@ -112,6 +122,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           void (async () => {
             const newUser = newSession?.user;
             if (!newUser || newUser.is_anonymous) return;
+
+            // 0. Canjear Transfer Ticket si el usuario unificó cuenta anónima con Google
+            const pendingTransferTicket = sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY);
+            if (pendingTransferTicket) {
+              try {
+                const { data: claimData, error: claimErr } = await supabase.rpc('claim_anonymous_transfer', {
+                  p_transfer_token: pendingTransferTicket,
+                });
+                if (claimErr || (claimData && !claimData.ok)) {
+                  console.warn('[Auth] claim_anonymous_transfer result:', claimData || claimErr);
+                } else if (import.meta.env.DEV) {
+                  console.log('[Auth] Recursos transferidos con éxito a la cuenta permanente:', claimData);
+                }
+              } catch (err) {
+                console.error('[Auth] Error claiming anonymous transfer ticket:', err);
+              } finally {
+                sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+              }
+            }
 
             // 1. Vincular token de participante pendiente (invitaciones privadas)
             const pendingToken = sessionStorage.getItem(RECENT_PARTICIPANT_KEY);
@@ -189,8 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Verifica server-side si el usuario anónimo tiene recursos críticos.
-   * Llama a get_anonymous_upgrade_state() que solo devuelve booleanos de existencia.
+   * Verifica server-side si el usuario anónimo tiene recursos transferibles.
+   * Llama a get_anonymous_upgrade_state() con el inventario completo.
    */
   const checkAnonymousUpgradeState = async (): Promise<AnonymousUpgradeState | null> => {
     if (!user?.is_anonymous) return null;
@@ -202,6 +231,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAnonymous: Boolean(d.is_anonymous),
         hasOwnedEncounters: Boolean(d.has_owned_encounters),
         hasServerZones: Boolean(d.has_server_zones),
+        hasParticipantLinks: Boolean(d.has_participant_links),
+        hasOpenRequests: Boolean(d.has_open_requests),
+        hasCustomTemplates: Boolean(d.has_custom_templates),
+        hasAiSessions: Boolean(d.has_ai_sessions),
+        hasCreationSessions: Boolean(d.has_creation_sessions),
+        hasOtherTransferableResources: Boolean(d.has_other_transferable_resources),
+        hasTransferableResources: Boolean(d.has_transferable_resources),
       };
     } catch {
       return null;
@@ -209,52 +245,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
+   * Genera un ticket de transferencia criptográfico para la sesión anónima actual.
+   * Guarda el token resultante en sessionStorage (nunca en URL o logs).
+   */
+  const createTransferTicket = async (): Promise<{ ok: boolean; ticket_token?: string; error?: string }> => {
+    if (!user?.is_anonymous) {
+      return { ok: false, error: 'anonymous_user_required' };
+    }
+    try {
+      const { data, error } = await supabase.rpc('create_anonymous_transfer_ticket');
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      const res = data as any;
+      if (res?.ok && res.ticket_token) {
+        sessionStorage.setItem(PENDING_TRANSFER_TICKET_KEY, res.ticket_token);
+      }
+      return res;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  };
+
+  /**
    * Flujo de login para Discovery (solicitar sumarse a un encuentro abierto).
    *
-   * Estrategia:
-   *   - Ya permanente: no hace nada.
-   *   - Sin sesión: OAuth directo.
-   *   - Anónimo SIN encuentros propios: signOut + OAuth (caso A — simple).
-   *     Las zonas vienen de localStorage y se re-sincronizan post-login.
-   *   - Anónimo CON encuentros propios: linkIdentity (caso B — preserva UUID).
-   *     Requiere que "Manual Linking" esté habilitado en el proyecto Supabase.
-   *     Si linkIdentity falla, retorna 'anonymous_has_critical_resources' para
-   *     que la UI muestre un mensaje de error sin perder datos.
+   * Estrategia de seguridad e identidad:
+   *   - Ya permanente: no hace nada (retorna alreadyLoggedIn).
+   *   - Anónimo CON recursos transferibles: emite Transfer Ticket y procede a OAuth SIN signOut
+   *     destructivo (si el usuario cancela en Google, conserva su sesión anónima en localStorage).
+   *   - Anónimo SIN recursos transferibles: signOut limpio seguro + OAuth directo.
    */
   const signInWithGoogleForDiscovery = async (): Promise<GoogleSignInResult> => {
-    // Ya autenticado permanente
     if (user && !user.is_anonymous) {
       return { ok: true, alreadyLoggedIn: true };
     }
 
     if (user?.is_anonymous) {
-      // Verificar recursos server-side
       const upgradeState = await checkAnonymousUpgradeState();
 
-      if (upgradeState?.hasOwnedEncounters) {
-        // Caso B: tiene encuentros propios — intentar linking para preservar UUID
-        if (import.meta.env.DEV) console.log('[Auth] Anónimo con encuentros propios — usando linkIdentity');
-        const { error } = await supabase.auth.linkIdentity({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-          },
-        });
-        if (error) {
-          console.error('[Auth] linkIdentity falló:', error.message);
-          // No hacer signOut destructivo — retornar error para que la UI informe
-          return { ok: false, error: 'anonymous_has_critical_resources' };
+      if (upgradeState?.hasTransferableResources) {
+        if (import.meta.env.DEV) console.log('[Auth] Anónimo con recursos transferibles — emitiendo ticket');
+        try {
+          const res = await createTransferTicket();
+          if (!res.ok && res.error !== 'transfer_ticket_already_pending') {
+            console.warn('[Auth] Transfer ticket warning:', res.error);
+          }
+        } catch (err) {
+          console.error('[Auth] Error generating transfer ticket:', err);
         }
-        // linkIdentity inicia redirect OAuth — el usuario conservará su UUID
-        return { ok: true };
+        // IMPORTANTE: NO hacer signOut(); preserva la sesión anónima en localStorage
+        // en caso de que el usuario cierre o cancele el consentimiento en Google.
+      } else {
+        if (import.meta.env.DEV) console.log('[Auth] Anónimo sin recursos transferibles — signOut seguro');
+        await supabase.auth.signOut();
       }
-
-      // Caso A: anónimo sin encuentros propios — signOut seguro + OAuth
-      if (import.meta.env.DEV) console.log('[Auth] Anónimo sin encuentros críticos — signOut + OAuth');
-      await supabase.auth.signOut();
     }
 
-    // Sin sesión o después de signOut — OAuth directo
+    // Iniciar OAuth directo a Google
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -285,6 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signInWithGoogleForCoordination,
       signInWithGoogleForDiscovery,
       checkAnonymousUpgradeState,
+      createTransferTicket,
       signOut,
     }}>
       {children}
