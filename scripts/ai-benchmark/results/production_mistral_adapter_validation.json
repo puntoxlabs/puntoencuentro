@@ -1,0 +1,319 @@
+{
+  "results": [
+    {
+      "code": "A",
+      "input": "Cena en familia hoy a las 21",
+      "httpStatus": 200,
+      "requestedModel": "ministral-8b-2512",
+      "returnedModel": "ministral-8b-2512",
+      "schemaValid": true,
+      "schemaError": null,
+      "patch": {
+        "title": {
+          "value": "Cena en familia",
+          "confidence": "explicit",
+          "originalText": "Cena en familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this",
+            "description": "Hoy"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "A las 21:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "inferred_high"
+        }
+      },
+      "mergedDraft": {
+        "title": "Cena en familia",
+        "date": "2026-09-08",
+        "time": "21:00",
+        "modality": "presencial",
+        "locationText": null,
+        "virtualLink": null
+      },
+      "provider": "mistral",
+      "inputTokens": 1414,
+      "outputTokens": 323,
+      "latencyMs": 3946
+    },
+    {
+      "code": "B",
+      "input": "Reunión mañana a las 10",
+      "httpStatus": 200,
+      "requestedModel": "ministral-8b-2512",
+      "returnedModel": "ministral-8b-2512",
+      "schemaValid": true,
+      "schemaError": null,
+      "patch": {
+        "title": {
+          "value": "reunión",
+          "confidence": "inferred_low",
+          "originalText": "Reunión"
+        },
+        "description": {
+          "value": "reunión informal sin detalles específicos",
+          "confidence": "inferred_low"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "this",
+            "description": "mañana"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning",
+            "startHour": 10,
+            "startMinute": 0,
+            "description": "10hs"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "mergedDraft": {
+        "title": "reunión",
+        "date": "2026-09-09",
+        "time": "10:00",
+        "modality": null,
+        "locationText": null,
+        "virtualLink": null
+      },
+      "provider": "mistral",
+      "inputTokens": 1413,
+      "outputTokens": 286,
+      "latencyMs": 7152
+    },
+    {
+      "code": "C",
+      "input": "Cena por Zoom con la familia",
+      "httpStatus": 200,
+      "requestedModel": "ministral-8b-2512",
+      "returnedModel": "ministral-8b-2512",
+      "schemaValid": true,
+      "schemaError": null,
+      "patch": {
+        "title": {
+          "value": "Cena con la familia",
+          "confidence": "explicit",
+          "originalText": "Cena por Zoom con la familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar mediante videollamada.",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "vague",
+            "value": "today",
+            "modifier": "this",
+            "description": "Sin fecha específica mencionada"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "value": "evening",
+            "description": "Hora típica de cena por la noche"
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "Zoom",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "explicit"
+        }
+      },
+      "mergedDraft": {
+        "title": "Cena con la familia",
+        "date": null,
+        "time": null,
+        "modality": "virtual",
+        "locationText": null,
+        "virtualLink": "Zoom"
+      },
+      "provider": "mistral",
+      "inputTokens": 1411,
+      "outputTokens": 350,
+      "latencyMs": 4460
+    },
+    {
+      "code": "D",
+      "input": "Cena en restaurante https://restaurante.com",
+      "httpStatus": 200,
+      "requestedModel": "ministral-8b-2512",
+      "returnedModel": "ministral-8b-2512",
+      "schemaValid": true,
+      "schemaError": null,
+      "patch": {
+        "title": {
+          "value": "Cena en restaurante",
+          "confidence": "inferred_low",
+          "originalText": "Cena en restaurante"
+        },
+        "description": {
+          "value": "Actividad de cena en un restaurante",
+          "confidence": "inferred_low"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "restaurante",
+          "confidence": "inferred_low"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "mergedDraft": {
+        "title": "Cena en restaurante",
+        "date": null,
+        "time": null,
+        "modality": "presencial",
+        "locationText": "restaurante",
+        "virtualLink": null
+      },
+      "provider": "mistral",
+      "inputTokens": 1414,
+      "outputTokens": 177,
+      "latencyMs": 2226
+    },
+    {
+      "code": "E",
+      "input": "El viernes a las 9",
+      "httpStatus": 200,
+      "requestedModel": "ministral-8b-2512",
+      "returnedModel": "ministral-8b-2512",
+      "schemaValid": true,
+      "schemaError": null,
+      "patch": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this",
+            "description": "viernes próximo"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 9,
+            "minute": 0,
+            "value": "morning",
+            "description": "9hs"
+          },
+          "confidence": "explicit"
+        }
+      },
+      "mergedDraft": {
+        "title": null,
+        "date": "2026-09-11",
+        "time": "09:00",
+        "modality": null,
+        "locationText": null,
+        "virtualLink": null
+      },
+      "provider": "mistral",
+      "inputTokens": 1411,
+      "outputTokens": 232,
+      "latencyMs": 27631
+    }
+  ],
+  "sentinelTest": {
+    "raw": {
+      "title": {
+        "value": "null",
+        "confidence": "ambiguous"
+      },
+      "description": {
+        "value": "undefined",
+        "confidence": "inferred_low"
+      },
+      "modality": {
+        "value": "null",
+        "confidence": "ambiguous"
+      },
+      "dateIntent": {
+        "value": {
+          "type": "weekday",
+          "weekday": "viernes",
+          "modifier": "this"
+        },
+        "confidence": "explicit"
+      },
+      "timeIntent": {
+        "value": {
+          "type": "exact",
+          "hour": 21,
+          "minute": 0
+        },
+        "confidence": "explicit"
+      }
+    },
+    "cleaned": {
+      "dateIntent": {
+        "value": {
+          "type": "weekday",
+          "weekday": "viernes",
+          "modifier": "this"
+        },
+        "confidence": "explicit"
+      },
+      "timeIntent": {
+        "value": {
+          "type": "exact",
+          "hour": 21,
+          "minute": 0
+        },
+        "confidence": "explicit"
+      }
+    },
+    "schemaValid": true,
+    "mergedDraftTitle": null,
+    "mergedDraftModality": null,
+    "isTitleAbsentOrNull": true,
+    "neverLiteralNullString": true
+  }
+}

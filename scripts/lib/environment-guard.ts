@@ -86,18 +86,3 @@ export function getStagingSecretKey(): string {
   );
 }
 
-/**
- * @deprecated Use getStagingSecretKey() instead.
- * Kept as alias for backward compatibility while migrating scripts.
- */
-export function getStagingServiceRoleKey(): string {
-  // Try new secret key first, then fall back to old variable name
-  try {
-    return getStagingSecretKey();
-  } catch {
-    return requireEnvVar(
-      'SUPABASE_STAGING_SERVICE_ROLE_KEY',
-      'Legacy service_role key (migrate to SUPABASE_STAGING_SECRET_KEY)'
-    );
-  }
-}

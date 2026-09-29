@@ -11,8 +11,8 @@ export interface LoginRequiredSheetProps {
   onContinueWithGoogle: () => void;
   /** Cargando la operación OAuth */
   loading?: boolean;
-  /** Contexto de acción: 'request_join' | 'open_encounter' */
-  action?: 'request_join' | 'open_encounter';
+  /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' */
+  action?: 'request_join' | 'open_encounter' | 'create_ai';
 }
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
@@ -23,6 +23,10 @@ const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: st
   open_encounter: {
     title: 'Para abrir tu encuentro necesitás una cuenta',
     body: 'Una cuenta nos permite vincular el encuentro a tu identidad y notificarte sobre las solicitudes.',
+  },
+  create_ai: {
+    title: 'Para crear con IA necesitás una cuenta',
+    body: 'Una cuenta nos permite recordar tus preferencias y guardar el historial de tus creaciones.',
   },
 };
 

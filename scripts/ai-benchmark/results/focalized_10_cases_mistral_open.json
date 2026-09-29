@@ -1,0 +1,640 @@
+{
+  "summary": {
+    "avgLatency": 3675,
+    "p50": 3780,
+    "p95": 7534,
+    "maxLatency": 7534,
+    "modalityAcc": 10,
+    "schemaPass": 10,
+    "totalHallucinations": 0
+  },
+  "cases": [
+    {
+      "caseId": 1,
+      "text": "Cena en familia hoy a las 21",
+      "patch": {
+        "title": {
+          "value": "Cena en familia",
+          "confidence": "explicit",
+          "originalText": "Cena en familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this",
+            "description": "Hoy"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "21:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena en familia",
+      "dateIntent": {
+        "type": "relative",
+        "value": "today",
+        "modifier": "this",
+        "description": "Hoy"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "night",
+        "description": "21:00"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 4251,
+      "latencyMs": 4253,
+      "usage": {
+        "promptTokens": 1414,
+        "visibleOutputTokens": 321,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 321,
+        "totalBilledTokens": 1735,
+        "inputTokens": 1414,
+        "outputTokens": 321
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "patch": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        },
+        "description": {
+          "value": "Reunión social para cenar con amigos",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this",
+            "description": "viernes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "21hs"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "social",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena con amigos",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "viernes",
+        "modifier": "this",
+        "description": "viernes"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "night",
+        "description": "21hs"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 3720,
+      "latencyMs": 3720,
+      "usage": {
+        "promptTokens": 1415,
+        "visibleOutputTokens": 326,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 326,
+        "totalBilledTokens": 1741,
+        "inputTokens": 1415,
+        "outputTokens": 326
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "patch": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit",
+          "originalText": "Cumpleaños de Sofi"
+        },
+        "description": {
+          "value": "Celebración de cumpleaños",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "day_after_tomorrow",
+            "weekday": "sábado",
+            "modifier": "next",
+            "description": "Próximo sábado"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0,
+            "value": "afternoon",
+            "description": "16:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cumpleaños de Sofi",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "day_after_tomorrow",
+        "weekday": "sábado",
+        "modifier": "next",
+        "description": "Próximo sábado"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 16,
+        "minute": 0,
+        "value": "afternoon",
+        "description": "16:00"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 4753,
+      "latencyMs": 4754,
+      "usage": {
+        "promptTokens": 1420,
+        "visibleOutputTokens": 343,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 343,
+        "totalBilledTokens": 1763,
+        "inputTokens": 1420,
+        "outputTokens": 343
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "patch": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit",
+          "originalText": "Pizzas con el equipo de producto"
+        },
+        "description": {
+          "value": "Reunión informal para comer pizzas con el equipo de producto",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "next",
+            "description": "Mañana"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 30,
+            "value": "evening",
+            "description": "20:30"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Pizzas con el equipo de producto",
+      "dateIntent": {
+        "type": "relative",
+        "value": "tomorrow",
+        "modifier": "next",
+        "description": "Mañana"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 20,
+        "minute": 30,
+        "value": "evening",
+        "description": "20:30"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 3779,
+      "latencyMs": 3780,
+      "usage": {
+        "promptTokens": 1421,
+        "visibleOutputTokens": 340,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 340,
+        "totalBilledTokens": 1761,
+        "inputTokens": 1421,
+        "outputTokens": 340
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "patch": {
+        "title": {
+          "value": "Reunión de planificación Q3",
+          "confidence": "explicit",
+          "originalText": "Reunión de planificación Q3"
+        },
+        "description": {
+          "value": "Planificación del tercer trimestre",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "martes",
+            "modifier": "this",
+            "description": "Próximo martes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning",
+            "startHour": 10,
+            "startMinute": 0,
+            "description": "10:00 AM"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Reunión de planificación Q3",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "martes",
+        "modifier": "this",
+        "description": "Próximo martes"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 10,
+        "minute": 0,
+        "value": "morning",
+        "startHour": 10,
+        "startMinute": 0,
+        "description": "10:00 AM"
+      },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "ttfbMs": 4335,
+      "latencyMs": 4337,
+      "usage": {
+        "promptTokens": 1420,
+        "visibleOutputTokens": 323,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 323,
+        "totalBilledTokens": 1743,
+        "inputTokens": 1420,
+        "outputTokens": 323
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 6,
+      "text": "Charla de arquitectura",
+      "patch": {
+        "title": {
+          "value": "Charla de arquitectura",
+          "confidence": "explicit",
+          "originalText": "Charla de arquitectura"
+        },
+        "description": {
+          "value": "Evento sobre arquitectura",
+          "confidence": "inferred_low"
+        },
+        "themeHint": {
+          "value": "academic",
+          "confidence": "inferred_low"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Charla de arquitectura",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "ttfbMs": 1557,
+      "latencyMs": 1558,
+      "usage": {
+        "promptTokens": 1408,
+        "visibleOutputTokens": 137,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 137,
+        "totalBilledTokens": 1545,
+        "inputTokens": 1408,
+        "outputTokens": 137
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 7,
+      "text": "Cena por Zoom con la familia",
+      "patch": {
+        "title": {
+          "value": "Cena con la familia",
+          "confidence": "explicit",
+          "originalText": "Cena por Zoom con la familia"
+        },
+        "description": {
+          "value": "Evento de comida familiar organizado por videollamada",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "Zoom",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "family_dinner",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena con la familia",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": "Zoom",
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "ttfbMs": 2420,
+      "latencyMs": 2421,
+      "usage": {
+        "promptTokens": 1411,
+        "visibleOutputTokens": 181,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 181,
+        "totalBilledTokens": 1592,
+        "inputTokens": 1411,
+        "outputTokens": 181
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 8,
+      "text": "Partido de pádel por videollamada",
+      "patch": {
+        "title": {
+          "value": "Partido de pádel",
+          "confidence": "explicit",
+          "originalText": "Partido de pádel por videollamada"
+        },
+        "description": {
+          "value": "Partido de pádel realizado mediante videollamada interactiva.",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "vague",
+            "value": "today",
+            "modifier": "this",
+            "description": "Fecha no especificada, se asume como hoy o en un momento cercano."
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "value": "morning",
+            "description": "Hora no especificada."
+          },
+          "confidence": "ambiguous"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Partido de pádel",
+      "dateIntent": {
+        "type": "vague",
+        "value": "today",
+        "modifier": "this",
+        "description": "Fecha no especificada, se asume como hoy o en un momento cercano."
+      },
+      "timeIntent": {
+        "type": "vague",
+        "value": "morning",
+        "description": "Hora no especificada."
+      },
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "ttfbMs": 7533,
+      "latencyMs": 7534,
+      "usage": {
+        "promptTokens": 1414,
+        "visibleOutputTokens": 344,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 344,
+        "totalBilledTokens": 1758,
+        "inputTokens": 1414,
+        "outputTokens": 344
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "patch": {
+        "title": {
+          "value": "Cena en restaurante",
+          "confidence": "inferred_low",
+          "originalText": "Cena en restaurante"
+        },
+        "description": {
+          "value": "Actividad de cena en un restaurante",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "restaurante",
+          "confidence": "inferred_low"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena en restaurante",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "restaurante",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 2781,
+      "latencyMs": 2782,
+      "usage": {
+        "promptTokens": 1414,
+        "visibleOutputTokens": 177,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 177,
+        "totalBilledTokens": 1591,
+        "inputTokens": 1414,
+        "outputTokens": 177
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "patch": {
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "https://maps.google.com/?q=bar",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "https://maps.google.com/?q=bar",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 1605,
+      "latencyMs": 1606,
+      "usage": {
+        "promptTokens": 1418,
+        "visibleOutputTokens": 108,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 108,
+        "totalBilledTokens": 1526,
+        "inputTokens": 1418,
+        "outputTokens": 108
+      },
+      "hallucinations": []
+    }
+  ]
+}

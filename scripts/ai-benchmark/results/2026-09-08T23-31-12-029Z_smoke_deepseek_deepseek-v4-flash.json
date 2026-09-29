@@ -1,0 +1,236 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "executionTimestamp": "2026-09-08T23:31:12.029Z",
+  "totalCases": 3,
+  "successfulCases": 3,
+  "failedCases": 0,
+  "apiSuccessRate": 100,
+  "apiFailureRate": 0,
+  "failureReasons": [],
+  "aggregatedScore": {
+    "totalCases": 3,
+    "successfulCases": 3,
+    "failedCases": 0,
+    "apiSuccessRate": 100,
+    "apiFailureRate": 0,
+    "failureReasons": [],
+    "evaluableCases": 3,
+    "validSchemaPercentage": 100,
+    "exactExtractionRate": 86.7,
+    "omissionRate": 13.3,
+    "hallucinationRate": 0,
+    "ambiguityDetectionRate": 100
+  },
+  "performance": {
+    "avgLatencyMs": 520,
+    "p50LatencyMs": 484,
+    "p95LatencyMs": 595,
+    "avgInputTokens": 2387,
+    "avgOutputTokens": 5706,
+    "avgPromptTokens": 2387,
+    "avgVisibleOutputTokens": 197,
+    "avgReasoningTokens": 5510,
+    "avgBilledCompletionTokens": 5706,
+    "avgTotalBilledTokens": 8094,
+    "totalTokensProcessed": 24281,
+    "calculatedCostPer1000Usd": null
+  },
+  "cases": [
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 1,
+      "category": "simple",
+      "inputText": "Cena con amigos el viernes a las 21 en casa",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 595,
+      "usage": {
+        "promptTokens": 2386,
+        "visibleOutputTokens": 218,
+        "reasoningTokens": 8037,
+        "billedCompletionTokens": 8255,
+        "totalBilledTokens": 10641,
+        "inputTokens": 2386,
+        "outputTokens": 8255
+      },
+      "output": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "inferred_high",
+          "originalText": "Cena con amigos"
+        },
+        "description": {
+          "value": "Cena con amigos el viernes a las 21 en casa",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "friday",
+            "modifier": "next"
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "en casa",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 1,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 2,
+      "category": "simple",
+      "inputText": "Almuerzo el domingo a las 13 en lo de mamá",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 484,
+      "usage": {
+        "promptTokens": 2389,
+        "visibleOutputTokens": 151,
+        "reasoningTokens": 4349,
+        "billedCompletionTokens": 4500,
+        "totalBilledTokens": 6889,
+        "inputTokens": 2389,
+        "outputTokens": 4500
+      },
+      "output": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "domingo",
+            "modifier": "this"
+          },
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 13,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "lo de mamá",
+          "confidence": "explicit"
+        }
+      },
+      "score": {
+        "caseId": 2,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 5,
+        "exactExtractionRate": 80,
+        "omissions": 1,
+        "omissionRate": 20,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "inputId": 3,
+      "category": "simple",
+      "inputText": "Reunión de equipo mañana a las 10 por Google Meet",
+      "status": "success",
+      "httpStatus": 200,
+      "latencyMs": 482,
+      "usage": {
+        "promptTokens": 2387,
+        "visibleOutputTokens": 221,
+        "reasoningTokens": 4143,
+        "billedCompletionTokens": 4364,
+        "totalBilledTokens": 6751,
+        "inputTokens": 2387,
+        "outputTokens": 4364
+      },
+      "output": {
+        "title": {
+          "value": "Reunión de equipo",
+          "confidence": "explicit",
+          "originalText": "Reunión de equipo"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "Google Meet",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "score": {
+        "caseId": 3,
+        "status": "success",
+        "schemaCompliant": true,
+        "exactMatches": 4,
+        "expectedTotal": 4,
+        "exactExtractionRate": 100,
+        "omissions": 0,
+        "omissionRate": 0,
+        "hallucinations": 0,
+        "hallucinationDetails": [],
+        "ambiguityCorrect": null
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 // Supabase Edge Function: ai-interpret
 // Interprets user natural language input into an EncounterDraftPatch.
-// Thin semantic interpreter only: no database mutations, no business rules resolution.
+// Thin semantic interpreter with server-side entitlement reservation and leak-free metering.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SYSTEM_PROMPT } from "./prompt.ts";
@@ -27,6 +27,36 @@ declare const Deno: {
 
 import { resolveProviders, interpretWithFallback } from "./fallback.ts";
 
+function getPublishableKey(): string {
+  const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.default) return parsed.default;
+      const first = Object.values(parsed)[0];
+      if (typeof first === "string") return first;
+    } catch {
+      // ignore
+    }
+  }
+  return Deno.env.get("SUPABASE_ANON_KEY") || "";
+}
+
+function getSecretKey(): string {
+  const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.default) return parsed.default;
+      const first = Object.values(parsed)[0];
+      if (typeof first === "string") return first;
+    } catch {
+      // ignore
+    }
+  }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -50,10 +80,11 @@ Deno.serve(async (req: Request) => {
 
     const token = authHeader.replace("Bearer ", "").trim();
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const publishableKey = getPublishableKey();
+    const secretKey = getSecretKey();
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error("[ai-interpret] Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment");
+    if (!supabaseUrl || !publishableKey) {
+      console.error("[ai-interpret] Missing SUPABASE_URL or publishable key in environment");
       return new Response(
         JSON.stringify({
           ok: false,
@@ -64,13 +95,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Official Supabase client instantiation with user Bearer token (no service_role)
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    // Client A: userClient with user JWT (preserves auth.uid() inside RPCs)
+    const userClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    // Client B: internalAdminClient with secret key for privileged finalize/release
+    const internalAdminClient = secretKey
+      ? createClient(supabaseUrl, secretKey, { auth: { persistSession: false } })
+      : null;
+
+    const { data: { user }, error: authError } = await userClient.auth.getUser(token);
     if (authError || !user) {
       return new Response(
         JSON.stringify({
@@ -79,6 +115,18 @@ Deno.serve(async (req: Request) => {
           message: "Token de autenticación inválido o expirado."
         }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Rule: Crear con IA requires permanent account
+    if (user.is_anonymous) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "permanent_account_required",
+          message: "Crear con IA requiere una cuenta permanente. Iniciá sesión con Google para continuar."
+        }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -106,10 +154,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Server-side abuse limiter check (session turns, consecutive off-topic, hourly user limits)
-    const effectiveSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : verifiedUserId;
+    // Validate UUID format of sessionId or generate fallback
+    const effectiveSessionId =
+      typeof sessionId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId.trim())
+        ? sessionId.trim()
+        : crypto.randomUUID();
+
+    // 3. Technical hourly anti-abuse limiter check
     const limiterConfig = resolveLimiterConfig(Deno.env);
-    const limitCheck = await checkAbuseLimits(verifiedUserId, effectiveSessionId, limiterConfig, supabaseClient);
+    const limitCheck = await checkAbuseLimits(verifiedUserId, effectiveSessionId, limiterConfig, userClient);
 
     if (!limitCheck.allowed) {
       const statusCode = limitCheck.error === "rate_limit_unavailable" ? 503 : 429;
@@ -117,16 +170,51 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           ok: false,
           error: limitCheck.error || "rate_limit_exceeded",
-          message: limitCheck.message || "Alcanzaste el límite de consultas permitidas. Podés continuar manualmente."
+          message: limitCheck.message || "Alcanzaste el límite de consultas permitidas por hora. Podés continuar manualmente."
         }),
         { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 4. Resolve providers (PRIMARY + FALLBACK)
+    // 4. Entitlement & In-flight lease reservation via PostgreSQL RPC
+    const leaseId = crypto.randomUUID();
+    const { data: reserveData, error: reserveErr } = await userClient.rpc("check_and_reserve_ai_session", {
+      p_session_id: effectiveSessionId,
+      p_lease_id: leaseId,
+    });
+
+    if (reserveErr || !reserveData?.allowed) {
+      const errCode = reserveData?.error || reserveErr?.message || "ai_reservation_failed";
+      let status = 403;
+      let msg = "Alcanzaste el límite de creaciones con IA de este mes. Podés continuar manualmente.";
+
+      if (errCode === "ai_session_busy") {
+        status = 409;
+        msg = "Hay una consulta en proceso para este borrador. Por favor esperá un instante.";
+      } else if (errCode === "session_already_terminal") {
+        status = 400;
+        msg = "Esta sesión ya fue completada o cancelada. Podés iniciar una nueva creación.";
+      } else if (errCode === "session_limit_reached") {
+        status = 400;
+        msg = "Alcanzaste el límite de mensajes para este borrador. Podés continuar manualmente.";
+      } else if (errCode === "entitlements_config_unavailable") {
+        status = 503;
+        msg = "Configuración de plan temporalmente no disponible. Podés continuar creando manualmente.";
+      } else if (errCode === "ai_creation_not_available") {
+        status = 403;
+        msg = "Crear con IA no está habilitado en tu plan actual.";
+      }
+
+      return new Response(
+        JSON.stringify({ ok: false, error: errCode, message: msg }),
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 5. Resolve providers (PRIMARY + FALLBACK)
     const { primaryProvider, fallbackProvider, primaryTimeoutMs, fallbackTimeoutMs } = resolveProviders(Deno.env);
 
-    // 5. Interpret using Primary -> Fallback execution pipeline
+    // 6. Interpret using Primary -> Fallback execution pipeline
     const fallbackResult = await interpretWithFallback(
       message.trim(),
       currentDraft,
@@ -140,7 +228,18 @@ Deno.serve(async (req: Request) => {
       }
     );
 
+    // 7. Post-Provider Resolution (Release or Finalize consumption)
     if (!fallbackResult.ok || !fallbackResult.patch) {
+      // Technical provider failure: release monthly reservation and clear lease
+      if (internalAdminClient) {
+        await internalAdminClient.rpc("internal_release_ai_session_reservation", {
+          p_user_id: verifiedUserId,
+          p_session_id: effectiveSessionId,
+          p_lease_id: leaseId,
+          p_reason: "provider_failure",
+        });
+      }
+
       const isSafety = fallbackResult.error === "safety_refusal";
       const statusCode = isSafety ? 400 : 503;
       return new Response(
@@ -167,11 +266,37 @@ Deno.serve(async (req: Request) => {
     const scope = fallbackResult.scope || ((fallbackResult.patch as any)?.scope as any) || "encounter";
     recordInteraction(verifiedUserId, effectiveSessionId, scope);
 
+    // Finalize or Release according to domain scope
+    if (internalAdminClient) {
+      if (scope === "off_topic") {
+        // Off-topic: release monthly quota reservation, but record durable turn and clear lease
+        await internalAdminClient.rpc("internal_release_ai_session_reservation", {
+          p_user_id: verifiedUserId,
+          p_session_id: effectiveSessionId,
+          p_lease_id: leaseId,
+          p_reason: "off_topic",
+        });
+        await internalAdminClient.rpc("internal_record_ai_session_turn", {
+          p_user_id: verifiedUserId,
+          p_session_id: effectiveSessionId,
+          p_lease_id: leaseId,
+        });
+      } else {
+        // In-domain ('encounter' or 'unclear'): finalize consumption, increment turns and clear lease
+        await internalAdminClient.rpc("internal_finalize_ai_session_consumption", {
+          p_user_id: verifiedUserId,
+          p_session_id: effectiveSessionId,
+          p_lease_id: leaseId,
+        });
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
         scope,
         patch: fallbackResult.patch,
+        sessionId: effectiveSessionId,
         usage: {
           inputTokens: fallbackResult.usage?.inputTokens || 0,
           outputTokens: fallbackResult.usage?.outputTokens || 0,
@@ -186,25 +311,21 @@ Deno.serve(async (req: Request) => {
         primaryModel: fallbackResult.primaryModel,
         fallbackProvider: fallbackResult.fallbackProvider,
         fallbackModel: fallbackResult.fallbackModel,
+        primaryFailureType: fallbackResult.primaryFailureType,
+        fallbackFailureType: fallbackResult.fallbackFailureType,
         primaryLatencyMs: fallbackResult.primaryLatencyMs,
         fallbackLatencyMs: fallbackResult.fallbackLatencyMs,
         totalLatencyMs: fallbackResult.totalLatencyMs,
-        primaryFailureType: fallbackResult.primaryFailureType,
-        fallbackFailureType: fallbackResult.fallbackFailureType,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
-  } catch (error) {
-    const latencyMs = Date.now() - startTime;
-    console.error("[ai-interpret error]", error);
-
+  } catch (err: any) {
+    console.error("[ai-interpret] Uncaught exception:", err);
     return new Response(
       JSON.stringify({
         ok: false,
-        error: "interpretation_failed",
-        message: "No pudimos interpretar el encuentro en este momento. Podés continuar manualmente.",
-        latencyMs
+        error: "internal_error",
+        message: "Ocurrió un error inesperado al interpretar el mensaje. Podés continuar manualmente."
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

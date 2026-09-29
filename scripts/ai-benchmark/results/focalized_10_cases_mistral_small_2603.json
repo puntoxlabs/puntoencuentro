@@ -1,0 +1,78 @@
+{
+  "summary": {
+    "total": 10,
+    "success": 0
+  },
+  "cases": [
+    {
+      "caseId": 1,
+      "text": "Cena en familia hoy a las 21",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 6,
+      "text": "Charla de arquitectura",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 7,
+      "text": "Cena por Zoom con la familia",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 8,
+      "text": "Partido de pádel por videollamada",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    },
+    {
+      "caseId": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "apiSuccess": false,
+      "schemaCompliant": false,
+      "error": "Mistral API error HTTP 429: {\"object\":\"error\",\"message\":\"Rate limit exceeded\",\"type\":\"rate_limited\",\"param\":null,\"code\":\"1300\",\"raw_status_code\":429}"
+    }
+  ]
+}

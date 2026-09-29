@@ -13,7 +13,10 @@ import { encuentrosService } from '@/services/encuentrosService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useCreateEncounter } from '@/hooks/useCreateEncounter';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { getEncounterListBucket } from '@/lib/encounterListBucket';
 import {
@@ -48,6 +51,7 @@ import {
   HomeDynamicCanvas,
   HomeVariantSwitcher,
 } from '@/components/home';
+import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
 import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
 import { HomeOpenEncounters } from '@/components/home/openEncounters/HomeOpenEncounters';
@@ -460,6 +464,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isSubmittingIntent, setIsSubmittingIntent] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isSpeechListening, setIsSpeechListening] = useState(false);
+  
+  const [isLoginRequiredForAiOpen, setIsLoginRequiredForAiOpen] = useState(false);
+  const [pendingAiIntent, setPendingAiIntent] = useState<string | null>(null);
+  const [isAiLimitReachedOpen, setIsAiLimitReachedOpen] = useState(false);
+  
+  const { data: entitlements } = useEntitlements();
   // ── FAB persistente global ──────────────────────────────────────────────────
   // El FAB "+ Crear" es un acceso rápido GLOBAL visible durante todo el recorrido de la Home.
   // No se oculta por la presencia de otros CTAs de creación (Hero, Pilares, empty state):
@@ -478,6 +488,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     isSecondaryFilterOpen ||
     isModeChoiceOpen ||
     isOverwriteSheetOpen ||
+    isLoginRequiredForAiOpen ||
+    isAiLimitReachedOpen ||
     Boolean(coordinationWarningProps.open);
 
   const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -510,6 +522,22 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     const text = homeIntent.trim();
     if (!text || isSubmittingIntent) return;
 
+    // 1. Check if user is anonymous (requires permanent account for AI)
+    if (isAnonymousUser) {
+      setPendingAiIntent(text);
+      setIsLoginRequiredForAiOpen(true);
+      return;
+    }
+
+    // 2. Check entitlements and limit
+    if (entitlements && entitlements.limits.enforcement_enabled && entitlements.usage.remaining_effective !== null) {
+      if (entitlements.usage.remaining_effective <= 0) {
+        setIsAiLimitReachedOpen(true);
+        return;
+      }
+    }
+
+    // 3. Check for existing active draft
     if (hasActiveDraft) {
       setIsOverwriteSheetOpen(true);
       return;
@@ -604,6 +632,19 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         setCounts({});
         setEncuentros([], []);
         return;
+      }
+
+      // ── RECOVER PENDING AI INTENT AFTER LOGIN ──
+      if (!user.is_anonymous) {
+        const pendingAi = localStorage.getItem('puntoencuentro_pending_ai_intent');
+        if (pendingAi) {
+          localStorage.removeItem('puntoencuentro_pending_ai_intent');
+          // Give it a tiny delay to allow the layout to settle before redirecting
+          setTimeout(() => {
+            useAiWizardStore.getState().startNewWithPrompt(pendingAi);
+            navigate('/create/ai');
+          }, 100);
+        }
       }
 
       console.log('[Home] before getEncuentros');
@@ -1363,6 +1404,40 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         {...coordinationWarningProps}
         onSelectFixed={() => {
           coordinationWarningProps.onClose();
+          startFixedEncounter();
+        }}
+      />
+
+      <LoginRequiredSheet
+        isOpen={isLoginRequiredForAiOpen}
+        action="create_ai"
+        onClose={() => {
+          setIsLoginRequiredForAiOpen(false);
+          setPendingAiIntent(null);
+        }}
+        onContinueWithGoogle={() => {
+          if (pendingAiIntent) {
+            localStorage.setItem('puntoencuentro_pending_ai_intent', pendingAiIntent);
+          }
+          // Usamos la redirección nativa con prompt='select_account' para forzar login
+          supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: `${window.location.origin}/`,
+              queryParams: {
+                access_type: 'offline',
+                prompt: 'select_account',
+              },
+            },
+          });
+        }}
+      />
+
+      <AiLimitReachedSheet
+        isOpen={isAiLimitReachedOpen}
+        onClose={() => setIsAiLimitReachedOpen(false)}
+        onManualCreate={() => {
+          setIsAiLimitReachedOpen(false);
           startFixedEncounter();
         }}
       />

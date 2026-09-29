@@ -341,6 +341,19 @@ export const aiService = {
    * Minimum-privilege RPC to record AI session completion, fallback, or error.
    */
   async finishSession(params: FinishAiSessionParams): Promise<void> {
+    // 1. Durably complete the session on the backend
+    if (params.status === 'completed' && params.encounterId) {
+      supabase.rpc('complete_ai_creation_session', {
+        p_session_id: params.sessionId,
+        p_encounter_id: params.encounterId,
+      }).then(({ error }) => {
+        if (error) {
+          console.warn('[aiService] Failed to complete session on backend:', error);
+        }
+      });
+    }
+
+    // 2. Track telemetry
     import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
       let eventType: 'encounter_created' | 'session_cancelled' | 'technical_error' | 'turn_resolved' | 'provider_fallback' = 'turn_resolved';
       if (params.status === 'completed') eventType = 'encounter_created';

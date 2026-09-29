@@ -1,0 +1,405 @@
+{
+  "summary": {
+    "avgTtfb": 3710,
+    "avgLatency": 3713,
+    "p50": 3796,
+    "p95": 4941,
+    "maxLatency": 4941,
+    "modalityAcc": 3,
+    "schemaPass": 10,
+    "totalHallucinations": 1
+  },
+  "cases": [
+    {
+      "caseId": 1,
+      "text": "Cena en familia hoy a las 21",
+      "patch": {
+        "title": {
+          "value": "Cena en familia",
+          "confidence": "explicit",
+          "originalText": "Cena en familia"
+        },
+        "virtualLink": {
+          "value": "",
+          "confidence": "ambiguous"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena en familia",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "",
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "ttfbMs": 3794,
+      "latencyMs": 3796,
+      "usage": {
+        "promptTokens": 1403,
+        "visibleOutputTokens": 40,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 40,
+        "totalBilledTokens": 2169,
+        "inputTokens": 1403,
+        "outputTokens": 40
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "patch": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        },
+        "virtualLink": {
+          "value": "",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena con amigos",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "",
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "ttfbMs": 3391,
+      "latencyMs": 3396,
+      "usage": {
+        "promptTokens": 1403,
+        "visibleOutputTokens": 70,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 70,
+        "totalBilledTokens": 2245,
+        "inputTokens": 1403,
+        "outputTokens": 70
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "patch": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "meet.google.com/abc-defg-hij",
+          "confidence": "inferred_low"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cumpleaños de Sofi",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "meet.google.com/abc-defg-hij",
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "ttfbMs": 2898,
+      "latencyMs": 2899,
+      "usage": {
+        "promptTokens": 1407,
+        "visibleOutputTokens": 73,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 73,
+        "totalBilledTokens": 1871,
+        "inputTokens": 1407,
+        "outputTokens": 73
+      },
+      "hallucinations": [
+        "Invented virtualLink: meet.google.com/abc-defg-hij"
+      ]
+    },
+    {
+      "caseId": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "patch": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "",
+          "confidence": "inferred_high"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Pizzas con el equipo de producto",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "",
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "ttfbMs": 2902,
+      "latencyMs": 2903,
+      "usage": {
+        "promptTokens": 1410,
+        "visibleOutputTokens": 62,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 62,
+        "totalBilledTokens": 2159,
+        "inputTokens": 1410,
+        "outputTokens": 62
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "patch": {
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "weekday": "martes",
+            "year": 0
+          },
+          "confidence": "explicit"
+        },
+        "dateModeSignal": {
+          "value": "fixed",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0
+          },
+          "confidence": "explicit"
+        },
+        "title": {
+          "value": "Reunión de planificación Q3",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Reunión de planificación Q3",
+      "dateIntent": {
+        "type": "weekday",
+        "weekday": "martes",
+        "year": 0
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 10,
+        "minute": 0
+      },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "ttfbMs": 3164,
+      "latencyMs": 3166,
+      "usage": {
+        "promptTokens": 1407,
+        "visibleOutputTokens": 91,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 91,
+        "totalBilledTokens": 2250,
+        "inputTokens": 1407,
+        "outputTokens": 91
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 6,
+      "text": "Charla de arquitectura",
+      "patch": {
+        "title": {
+          "value": "Charla de arquitectura",
+          "confidence": "explicit",
+          "originalText": "Charla de arquitectura"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Charla de arquitectura",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "ttfbMs": 3070,
+      "latencyMs": 3071,
+      "usage": {
+        "promptTokens": 1397,
+        "visibleOutputTokens": 43,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 43,
+        "totalBilledTokens": 1831,
+        "inputTokens": 1397,
+        "outputTokens": 43
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 7,
+      "text": "Cena por Zoom con la familia",
+      "patch": {
+        "title": {
+          "value": "Cena por Zoom con la familia",
+          "confidence": "explicit",
+          "originalText": "Cena por Zoom con la familia"
+        },
+        "virtualLink": {
+          "value": "Zoom",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena por Zoom con la familia",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "Zoom",
+      "expectedModality": "virtual",
+      "modalityPass": false,
+      "ttfbMs": 4939,
+      "latencyMs": 4941,
+      "usage": {
+        "promptTokens": 1400,
+        "visibleOutputTokens": 75,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 75,
+        "totalBilledTokens": 2601,
+        "inputTokens": 1400,
+        "outputTokens": 75
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 8,
+      "text": "Partido de pádel por videollamada",
+      "patch": {
+        "title": {
+          "value": "Partido de pádel",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "videollamada",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Partido de pádel",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "videollamada",
+      "expectedModality": "virtual",
+      "modalityPass": false,
+      "ttfbMs": 4663,
+      "latencyMs": 4664,
+      "usage": {
+        "promptTokens": 1402,
+        "visibleOutputTokens": 60,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 60,
+        "totalBilledTokens": 2124,
+        "inputTokens": 1402,
+        "outputTokens": 60
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "patch": {
+        "title": {
+          "value": "Cena en restaurante",
+          "confidence": "explicit",
+          "originalText": "Cena en restaurante https://restaurante.com"
+        },
+        "virtualLink": {
+          "value": "",
+          "confidence": "ambiguous"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": "Cena en restaurante",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": "",
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "ttfbMs": 4471,
+      "latencyMs": 4480,
+      "usage": {
+        "promptTokens": 1404,
+        "visibleOutputTokens": 75,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 75,
+        "totalBilledTokens": 2496,
+        "inputTokens": 1404,
+        "outputTokens": 75
+      },
+      "hallucinations": []
+    },
+    {
+      "caseId": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "patch": {
+        "locationText": {
+          "value": "https://maps.google.com/?q=bar",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        }
+      },
+      "apiSuccess": true,
+      "schemaCompliant": true,
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "https://maps.google.com/?q=bar",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "ttfbMs": 3804,
+      "latencyMs": 3813,
+      "usage": {
+        "promptTokens": 1407,
+        "visibleOutputTokens": 66,
+        "reasoningTokens": 0,
+        "billedCompletionTokens": 66,
+        "totalBilledTokens": 2375,
+        "inputTokens": 1407,
+        "outputTokens": 66
+      },
+      "hallucinations": []
+    }
+  ]
+}

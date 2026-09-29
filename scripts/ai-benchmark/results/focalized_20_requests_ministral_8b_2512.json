@@ -1,0 +1,1267 @@
+{
+  "summary": {
+    "avg": 2898,
+    "p50": 3130,
+    "p90": 3835,
+    "p95": 3847,
+    "max": 5057,
+    "countOver6000": 0,
+    "countOver8000": 0
+  },
+  "requests": [
+    {
+      "reqNum": 1,
+      "pass": 1,
+      "caseId": 1,
+      "text": "Cena en familia hoy a las 21",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena en familia",
+          "confidence": "explicit",
+          "originalText": "Cena en familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this",
+            "description": "Hoy"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "21:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena en familia",
+      "dateIntent": {
+        "type": "relative",
+        "value": "today",
+        "modifier": "this",
+        "description": "Hoy"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "night",
+        "description": "21:00"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 5055,
+      "latencyMs": 5057,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 321,
+        "totalTokens": 1735,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 2,
+      "pass": 1,
+      "caseId": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        },
+        "description": {
+          "value": "Reunión social para cenar con amigos",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this",
+            "description": "Este viernes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "21hs"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "social",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena con amigos",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "viernes",
+        "modifier": "this",
+        "description": "Este viernes"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "night",
+        "description": "21hs"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3147,
+      "latencyMs": 3148,
+      "usage": {
+        "promptTokens": 1415,
+        "outputTokens": 327,
+        "totalTokens": 1742,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 3,
+      "pass": 1,
+      "caseId": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit",
+          "originalText": "Cumpleaños de Sofi"
+        },
+        "description": {
+          "value": "Celebración de cumpleaños",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "day_after_tomorrow",
+            "weekday": "sábado",
+            "modifier": "next",
+            "description": "Próximo sábado"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0,
+            "value": "afternoon",
+            "startHour": 16,
+            "startMinute": 0,
+            "description": "16:00"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cumpleaños de Sofi",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "day_after_tomorrow",
+        "weekday": "sábado",
+        "modifier": "next",
+        "description": "Próximo sábado"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 16,
+        "minute": 0,
+        "value": "afternoon",
+        "startHour": 16,
+        "startMinute": 0,
+        "description": "16:00"
+      },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": false,
+      "hallucinations": [],
+      "ttfbMs": 3460,
+      "latencyMs": 3461,
+      "usage": {
+        "promptTokens": 1420,
+        "outputTokens": 327,
+        "totalTokens": 1747,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 4,
+      "pass": 1,
+      "caseId": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit",
+          "originalText": "Pizzas con el equipo de producto"
+        },
+        "description": {
+          "value": "Reunión informal para comer pizzas con el equipo de producto.",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "next",
+            "description": "Mañana"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 30,
+            "value": "evening",
+            "description": "20:30"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Pizzas con el equipo de producto",
+      "dateIntent": {
+        "type": "relative",
+        "value": "tomorrow",
+        "modifier": "next",
+        "description": "Mañana"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 20,
+        "minute": 30,
+        "value": "evening",
+        "description": "20:30"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3672,
+      "latencyMs": 3673,
+      "usage": {
+        "promptTokens": 1421,
+        "outputTokens": 340,
+        "totalTokens": 1761,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 5,
+      "pass": 1,
+      "caseId": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Reunión de planificación Q3",
+          "confidence": "explicit",
+          "originalText": "Reunión de planificación Q3"
+        },
+        "description": {
+          "value": "Planificación del tercer trimestre",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "martes",
+            "modifier": "this",
+            "description": "Próximo martes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning",
+            "startHour": 10,
+            "startMinute": 0,
+            "description": "10:00 AM"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Reunión de planificación Q3",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "martes",
+        "modifier": "this",
+        "description": "Próximo martes"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 10,
+        "minute": 0,
+        "value": "morning",
+        "startHour": 10,
+        "startMinute": 0,
+        "description": "10:00 AM"
+      },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3129,
+      "latencyMs": 3130,
+      "usage": {
+        "promptTokens": 1420,
+        "outputTokens": 323,
+        "totalTokens": 1743,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 6,
+      "pass": 1,
+      "caseId": 6,
+      "text": "Charla de arquitectura",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Charla de arquitectura",
+          "confidence": "explicit",
+          "originalText": "Charla de arquitectura"
+        },
+        "description": {
+          "value": "Evento sobre arquitectura",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "academic",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Charla de arquitectura",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 1773,
+      "latencyMs": 1774,
+      "usage": {
+        "promptTokens": 1408,
+        "outputTokens": 137,
+        "totalTokens": 1545,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 7,
+      "pass": 1,
+      "caseId": 7,
+      "text": "Cena por Zoom con la familia",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena con la familia",
+          "confidence": "explicit",
+          "originalText": "Cena por Zoom con la familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar por videollamada.",
+          "confidence": "explicit"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "vague",
+            "value": "today",
+            "modifier": "this",
+            "description": "No se especifica fecha exacta, pero se asume que podría ser hoy o en un futuro cercano."
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "vague",
+            "value": "evening",
+            "description": "Se infiere que la cena es por la noche, pero no se especifica hora exacta."
+          },
+          "confidence": "inferred_low"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "Zoom",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "explicit"
+        }
+      },
+      "title": "Cena con la familia",
+      "dateIntent": {
+        "type": "vague",
+        "value": "today",
+        "modifier": "this",
+        "description": "No se especifica fecha exacta, pero se asume que podría ser hoy o en un futuro cercano."
+      },
+      "timeIntent": {
+        "type": "vague",
+        "value": "evening",
+        "description": "Se infiere que la cena es por la noche, pero no se especifica hora exacta."
+      },
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": "Zoom",
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3417,
+      "latencyMs": 3418,
+      "usage": {
+        "promptTokens": 1411,
+        "outputTokens": 376,
+        "totalTokens": 1787,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 8,
+      "pass": 1,
+      "caseId": 8,
+      "text": "Partido de pádel por videollamada",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Partido de pádel",
+          "confidence": "explicit",
+          "originalText": "Partido de pádel"
+        },
+        "description": {
+          "value": "Partido de pádel realizado por videollamada",
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Partido de pádel",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 1668,
+      "latencyMs": 1669,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 161,
+        "totalTokens": 1575,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 9,
+      "pass": 1,
+      "caseId": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena",
+          "confidence": "inferred_high",
+          "originalText": "Cena"
+        },
+        "description": {
+          "value": "Reunión para cenar en restaurante",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "locationText": {
+          "value": "restaurante",
+          "confidence": "inferred_low"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "restaurante",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 2354,
+      "latencyMs": 2355,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 175,
+        "totalTokens": 1589,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 10,
+      "pass": 1,
+      "caseId": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "https://maps.google.com/?q=bar",
+          "confidence": "explicit"
+        }
+      },
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "https://maps.google.com/?q=bar",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 1471,
+      "latencyMs": 1472,
+      "usage": {
+        "promptTokens": 1418,
+        "outputTokens": 108,
+        "totalTokens": 1526,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 11,
+      "pass": 2,
+      "caseId": 1,
+      "text": "Cena en familia hoy a las 21",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena en familia",
+          "confidence": "explicit",
+          "originalText": "Cena en familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "today",
+            "modifier": "this",
+            "description": "Hoy"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "night",
+            "description": "21:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena en familia",
+      "dateIntent": {
+        "type": "relative",
+        "value": "today",
+        "modifier": "this",
+        "description": "Hoy"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "night",
+        "description": "21:00"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3373,
+      "latencyMs": 3373,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 321,
+        "totalTokens": 1735,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 12,
+      "pass": 2,
+      "caseId": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena con amigos",
+          "confidence": "explicit",
+          "originalText": "Cena con amigos"
+        },
+        "description": {
+          "value": "Reunión social para cenar con amigos",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "viernes",
+            "modifier": "this",
+            "description": "Este viernes"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 21,
+            "minute": 0,
+            "value": "evening",
+            "description": "21hs"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "social",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena con amigos",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "viernes",
+        "modifier": "this",
+        "description": "Este viernes"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 21,
+        "minute": 0,
+        "value": "evening",
+        "description": "21hs"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3847,
+      "latencyMs": 3847,
+      "usage": {
+        "promptTokens": 1415,
+        "outputTokens": 328,
+        "totalTokens": 1743,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 13,
+      "pass": 2,
+      "caseId": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cumpleaños de Sofi",
+          "confidence": "explicit",
+          "originalText": "Cumpleaños de Sofi"
+        },
+        "description": {
+          "value": "Celebración de cumpleaños",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "day_after_tomorrow",
+            "weekday": "sábado",
+            "modifier": "next",
+            "description": "Próximo sábado"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 16,
+            "minute": 0,
+            "value": "afternoon",
+            "description": "16:00"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "celebration",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cumpleaños de Sofi",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "day_after_tomorrow",
+        "weekday": "sábado",
+        "modifier": "next",
+        "description": "Próximo sábado"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 16,
+        "minute": 0,
+        "value": "afternoon",
+        "description": "16:00"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3430,
+      "latencyMs": 3430,
+      "usage": {
+        "promptTokens": 1420,
+        "outputTokens": 343,
+        "totalTokens": 1763,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 14,
+      "pass": 2,
+      "caseId": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Pizzas con el equipo de producto",
+          "confidence": "explicit",
+          "originalText": "Pizzas con el equipo de producto"
+        },
+        "description": {
+          "value": "Reunión informal para comer pizzas con el equipo de producto",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "relative",
+            "value": "tomorrow",
+            "modifier": "next",
+            "description": "Mañana"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 20,
+            "minute": 30,
+            "value": "evening",
+            "description": "20:30"
+          },
+          "confidence": "explicit"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Pizzas con el equipo de producto",
+      "dateIntent": {
+        "type": "relative",
+        "value": "tomorrow",
+        "modifier": "next",
+        "description": "Mañana"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 20,
+        "minute": 30,
+        "value": "evening",
+        "description": "20:30"
+      },
+      "modality": "presencial",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3432,
+      "latencyMs": 3432,
+      "usage": {
+        "promptTokens": 1421,
+        "outputTokens": 340,
+        "totalTokens": 1761,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 15,
+      "pass": 2,
+      "caseId": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Reunión de planificación Q3",
+          "confidence": "explicit",
+          "originalText": "Reunión de planificación Q3"
+        },
+        "description": {
+          "value": "Planificación del tercer trimestre",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "weekday",
+            "value": "this_weekend",
+            "weekday": "martes",
+            "modifier": "this",
+            "description": "Martes próximo"
+          },
+          "confidence": "explicit"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "exact",
+            "hour": 10,
+            "minute": 0,
+            "value": "morning",
+            "startHour": 10,
+            "startMinute": 0,
+            "description": "10:00 AM"
+          },
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "formal",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Reunión de planificación Q3",
+      "dateIntent": {
+        "type": "weekday",
+        "value": "this_weekend",
+        "weekday": "martes",
+        "modifier": "this",
+        "description": "Martes próximo"
+      },
+      "timeIntent": {
+        "type": "exact",
+        "hour": 10,
+        "minute": 0,
+        "value": "morning",
+        "startHour": 10,
+        "startMinute": 0,
+        "description": "10:00 AM"
+      },
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 2823,
+      "latencyMs": 2824,
+      "usage": {
+        "promptTokens": 1420,
+        "outputTokens": 321,
+        "totalTokens": 1741,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 16,
+      "pass": 2,
+      "caseId": 6,
+      "text": "Charla de arquitectura",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Charla de arquitectura",
+          "confidence": "explicit",
+          "originalText": "Charla de arquitectura"
+        },
+        "description": {
+          "value": "Evento sobre arquitectura",
+          "confidence": "inferred_high"
+        },
+        "themeHint": {
+          "value": "academic",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Charla de arquitectura",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": null,
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": null,
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 1603,
+      "latencyMs": 1604,
+      "usage": {
+        "promptTokens": 1408,
+        "outputTokens": 137,
+        "totalTokens": 1545,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 17,
+      "pass": 2,
+      "caseId": 7,
+      "text": "Cena por Zoom con la familia",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena con la familia",
+          "confidence": "explicit",
+          "originalText": "Cena por Zoom con la familia"
+        },
+        "description": {
+          "value": "Reunión familiar para cenar mediante videollamada.",
+          "confidence": "inferred_high"
+        },
+        "dateIntent": {
+          "value": {
+            "type": "vague",
+            "value": "today",
+            "modifier": "this",
+            "description": "Fecha no especificada, inferida como hoy por falta de contexto temporal."
+          },
+          "confidence": "ambiguous"
+        },
+        "timeIntent": {
+          "value": {
+            "type": "period",
+            "value": "evening",
+            "description": "Hora inferida como noche por ser una cena."
+          },
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "virtualLink": {
+          "value": "Zoom",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "family",
+          "confidence": "explicit"
+        }
+      },
+      "title": "Cena con la familia",
+      "dateIntent": {
+        "type": "vague",
+        "value": "today",
+        "modifier": "this",
+        "description": "Fecha no especificada, inferida como hoy por falta de contexto temporal."
+      },
+      "timeIntent": {
+        "type": "period",
+        "value": "evening",
+        "description": "Hora inferida como noche por ser una cena."
+      },
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": "Zoom",
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 3835,
+      "latencyMs": 3835,
+      "usage": {
+        "promptTokens": 1411,
+        "outputTokens": 360,
+        "totalTokens": 1771,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 18,
+      "pass": 2,
+      "caseId": 8,
+      "text": "Partido de pádel por videollamada",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Partido de pádel",
+          "confidence": "explicit",
+          "originalText": "Partido de pádel por videollamada"
+        },
+        "description": {
+          "value": "Partido de pádel realizado mediante videollamada interactiva.",
+          "confidence": "inferred_high"
+        },
+        "modality": {
+          "value": "virtual",
+          "confidence": "explicit"
+        },
+        "themeHint": {
+          "value": "sports",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Partido de pádel",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "virtual",
+      "locationText": null,
+      "virtualLink": null,
+      "expectedModality": "virtual",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 2487,
+      "latencyMs": 2488,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 169,
+        "totalTokens": 1583,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 19,
+      "pass": 2,
+      "caseId": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "title": {
+          "value": "Cena en restaurante",
+          "confidence": "inferred_low",
+          "originalText": "Cena en restaurante"
+        },
+        "description": {
+          "value": "Invitación a una cena en un restaurante",
+          "confidence": "inferred_low"
+        },
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "restaurante",
+          "confidence": "inferred_low"
+        },
+        "themeHint": {
+          "value": "food",
+          "confidence": "inferred_high"
+        }
+      },
+      "title": "Cena en restaurante",
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "restaurante",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 2368,
+      "latencyMs": 2369,
+      "usage": {
+        "promptTokens": 1414,
+        "outputTokens": 178,
+        "totalTokens": 1592,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "reqNum": 20,
+      "pass": 2,
+      "caseId": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "success": true,
+      "returnedModel": "ministral-8b-2512",
+      "schemaPass": true,
+      "patch": {
+        "modality": {
+          "value": "presencial",
+          "confidence": "explicit"
+        },
+        "locationText": {
+          "value": "https://maps.google.com/?q=bar",
+          "confidence": "explicit"
+        }
+      },
+      "title": null,
+      "dateIntent": null,
+      "timeIntent": null,
+      "modality": "presencial",
+      "locationText": "https://maps.google.com/?q=bar",
+      "virtualLink": null,
+      "expectedModality": "presencial",
+      "modalityPass": true,
+      "hallucinations": [],
+      "ttfbMs": 1596,
+      "latencyMs": 1596,
+      "usage": {
+        "promptTokens": 1418,
+        "outputTokens": 108,
+        "totalTokens": 1526,
+        "reasoningTokens": 0
+      }
+    }
+  ]
+}

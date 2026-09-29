@@ -1,0 +1,1098 @@
+{
+  "openai": [
+    {
+      "id": 1,
+      "text": "Cena en familia hoy a las 21",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 4983,
+        "patch": {
+          "title": {
+            "value": "Cena en familia",
+            "confidence": "explicit",
+            "originalText": "Cena en familia"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "relative",
+              "value": "today",
+              "modifier": "this"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 21,
+              "minute": 0,
+              "value": "night"
+            },
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1980,
+          "completion_tokens": 313,
+          "total_tokens": 2293,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 1977,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 138,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cena en familia"
+      }
+    },
+    {
+      "id": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 2253,
+        "patch": {
+          "title": {
+            "value": "Cena con amigos",
+            "confidence": "explicit",
+            "originalText": "Cena con amigos"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "value": "this_weekend",
+              "weekday": "viernes",
+              "modifier": "this"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 21,
+              "minute": 0,
+              "value": "night"
+            },
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1980,
+          "completion_tokens": 171,
+          "total_tokens": 2151,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 18,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cena con amigos"
+      }
+    },
+    {
+      "id": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 6084,
+        "patch": {
+          "title": {
+            "value": "Cumpleaños de Sofi",
+            "confidence": "explicit",
+            "originalText": "Cumpleaños de Sofi"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "value": "next_week",
+              "weekday": "sábado",
+              "modifier": "next"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 16,
+              "minute": 0,
+              "value": "afternoon"
+            },
+            "confidence": "explicit"
+          },
+          "dateModeSignal": {
+            "value": "fixed",
+            "confidence": "inferred_high"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          },
+          "themeHint": {
+            "value": "celebration",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1985,
+          "completion_tokens": 331,
+          "total_tokens": 2316,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 23,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 131,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cumpleaños de Sofi"
+      }
+    },
+    {
+      "id": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 3578,
+        "patch": {
+          "title": {
+            "value": "Pizzas con el equipo de producto",
+            "confidence": "explicit",
+            "originalText": "Pizzas con el equipo de producto"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "relative",
+              "value": "tomorrow",
+              "modifier": "this"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 20,
+              "minute": 30,
+              "value": "night"
+            },
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1987,
+          "completion_tokens": 300,
+          "total_tokens": 2287,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 25,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 114,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Pizzas con el equipo de producto"
+      }
+    },
+    {
+      "id": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "expectedModality": null,
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 4235,
+        "patch": {
+          "title": {
+            "value": "Reunión de planificación Q3",
+            "confidence": "explicit",
+            "originalText": "Reunión de planificación Q3"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "value": "this_weekend",
+              "weekday": "martes",
+              "modifier": "this"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 10,
+              "minute": 0,
+              "value": "morning"
+            },
+            "confidence": "ambiguous"
+          },
+          "themeHint": {
+            "value": "formal",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1985,
+          "completion_tokens": 323,
+          "total_tokens": 2308,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 23,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 134,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": null,
+        "loc": null,
+        "vLink": null,
+        "title": "Reunión de planificación Q3"
+      }
+    },
+    {
+      "id": 6,
+      "text": "Charla de arquitectura",
+      "expectedModality": null,
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 2851,
+        "patch": {
+          "title": {
+            "value": "Charla de arquitectura",
+            "confidence": "explicit",
+            "originalText": "Charla de arquitectura"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1976,
+          "completion_tokens": 162,
+          "total_tokens": 2138,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 14,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 83,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": null,
+        "loc": null,
+        "vLink": null,
+        "title": "Charla de arquitectura"
+      }
+    },
+    {
+      "id": 7,
+      "text": "Cena por Zoom con la familia",
+      "expectedModality": "virtual",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": true,
+      "result": {
+        "status": "success",
+        "latency": 2052,
+        "patch": {
+          "title": {
+            "value": "Cena con la familia",
+            "confidence": "inferred_high",
+            "originalText": "Cena por Zoom con la familia"
+          },
+          "description": {
+            "value": "Cena por Zoom con la familia",
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "virtual",
+            "confidence": "explicit"
+          },
+          "virtualLink": {
+            "value": "Zoom",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1978,
+          "completion_tokens": 103,
+          "total_tokens": 2081,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 16,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "virtual",
+        "loc": null,
+        "vLink": "Zoom",
+        "title": "Cena con la familia"
+      }
+    },
+    {
+      "id": 8,
+      "text": "Partido de pádel por videollamada",
+      "expectedModality": "virtual",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": true,
+      "result": {
+        "status": "success",
+        "latency": 1957,
+        "patch": {
+          "title": {
+            "value": "Partido de pádel",
+            "confidence": "explicit",
+            "originalText": "Partido de pádel"
+          },
+          "description": {
+            "value": "Partido de pádel por videollamada",
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "virtual",
+            "confidence": "explicit"
+          },
+          "virtualLink": {
+            "value": "videollamada",
+            "confidence": "explicit"
+          },
+          "themeHint": {
+            "value": "sports",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1981,
+          "completion_tokens": 112,
+          "total_tokens": 2093,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 19,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "virtual",
+        "loc": null,
+        "vLink": "videollamada",
+        "title": "Partido de pádel"
+      }
+    },
+    {
+      "id": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": true,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 1564,
+        "patch": {
+          "title": {
+            "value": "Cena",
+            "confidence": "explicit",
+            "originalText": "Cena"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          },
+          "locationText": {
+            "value": "restaurante",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1980,
+          "completion_tokens": 85,
+          "total_tokens": 2065,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 18,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": "restaurante",
+        "vLink": null,
+        "title": "Cena"
+      }
+    },
+    {
+      "id": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "expectedModality": "presencial",
+      "expectedLocation": "maps",
+      "allowLocation": true,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 1825,
+        "patch": {
+          "modality": {
+            "value": "presencial",
+            "confidence": "explicit"
+          },
+          "locationText": {
+            "value": "https://maps.google.com/?q=bar",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 1984,
+          "completion_tokens": 78,
+          "total_tokens": 2062,
+          "prompt_tokens_details": {
+            "cached_tokens": 1959,
+            "cache_write_tokens": 22,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": "https://maps.google.com/?q=bar",
+        "vLink": null,
+        "title": null
+      }
+    }
+  ],
+  "deepseek": [
+    {
+      "id": 1,
+      "text": "Cena en familia hoy a las 21",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 558,
+        "patch": {
+          "title": {
+            "value": "Cena en familia",
+            "confidence": "explicit"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "relative",
+              "value": "today"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 21,
+              "minute": 0
+            },
+            "confidence": "explicit"
+          },
+          "dateModeSignal": {
+            "value": "fixed",
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2382,
+          "completion_tokens": 2162,
+          "total_tokens": 4544,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2001
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 2382
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cena en familia"
+      }
+    },
+    {
+      "id": 2,
+      "text": "Cena con amigos este viernes 21hs",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 506,
+        "patch": {
+          "title": {
+            "value": "Cena con amigos",
+            "confidence": "explicit",
+            "originalText": "Cena con amigos"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "weekday": "friday",
+              "modifier": "this"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 21,
+              "minute": 0
+            },
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2383,
+          "completion_tokens": 1999,
+          "total_tokens": 4382,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1840
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 79
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cena con amigos"
+      }
+    },
+    {
+      "id": 3,
+      "text": "Cumpleaños de Sofi el próximo sábado a las 16",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 513,
+        "patch": {
+          "title": {
+            "value": "Cumpleaños de Sofi",
+            "confidence": "explicit",
+            "originalText": "Cumpleaños de Sofi el próximo sábado a las 16"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "weekday": "saturday",
+              "modifier": "next"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 16,
+              "minute": 0
+            },
+            "confidence": "explicit"
+          },
+          "dateModeSignal": {
+            "value": "fixed",
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          },
+          "themeHint": {
+            "value": "celebration",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2390,
+          "completion_tokens": 1081,
+          "total_tokens": 3471,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 856
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 86
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": "Cumpleaños de Sofi"
+      }
+    },
+    {
+      "id": 4,
+      "text": "Pizzas con el equipo de producto mañana a las 20:30",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 503,
+        "patch": {
+          "dateIntent": {
+            "value": {
+              "type": "relative",
+              "value": "tomorrow"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 20,
+              "minute": 30
+            },
+            "confidence": "explicit"
+          },
+          "dateModeSignal": {
+            "value": "fixed",
+            "confidence": "explicit"
+          },
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2389,
+          "completion_tokens": 1964,
+          "total_tokens": 4353,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1827
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 85
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": null,
+        "vLink": null,
+        "title": null
+      }
+    },
+    {
+      "id": 5,
+      "text": "Reunión de planificación Q3 el martes a las 10",
+      "expectedModality": null,
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 515,
+        "patch": {
+          "title": {
+            "value": "Reunión de planificación Q3",
+            "confidence": "explicit"
+          },
+          "dateIntent": {
+            "value": {
+              "type": "weekday",
+              "weekday": "tuesday"
+            },
+            "confidence": "explicit"
+          },
+          "timeIntent": {
+            "value": {
+              "type": "exact",
+              "hour": 10,
+              "minute": 0
+            },
+            "confidence": "explicit"
+          },
+          "dateModeSignal": {
+            "value": "fixed",
+            "confidence": "explicit"
+          },
+          "themeHint": {
+            "value": "formal",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2388,
+          "completion_tokens": 3465,
+          "total_tokens": 5853,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 3298
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 84
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": null,
+        "loc": null,
+        "vLink": null,
+        "title": "Reunión de planificación Q3"
+      }
+    },
+    {
+      "id": 6,
+      "text": "Charla de arquitectura",
+      "expectedModality": null,
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 499,
+        "patch": {
+          "title": {
+            "value": "Charla de arquitectura",
+            "confidence": "explicit",
+            "originalText": "Charla de arquitectura"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2378,
+          "completion_tokens": 1846,
+          "total_tokens": 4224,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1805
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 74
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": null,
+        "loc": null,
+        "vLink": null,
+        "title": "Charla de arquitectura"
+      }
+    },
+    {
+      "id": 7,
+      "text": "Cena por Zoom con la familia",
+      "expectedModality": "virtual",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": true,
+      "result": {
+        "status": "success",
+        "latency": 471,
+        "patch": {
+          "title": {
+            "value": "Cena por Zoom",
+            "confidence": "explicit",
+            "originalText": "Cena por Zoom"
+          },
+          "modality": {
+            "value": "virtual",
+            "confidence": "explicit"
+          },
+          "virtualLink": {
+            "value": "Zoom",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2380,
+          "completion_tokens": 1238,
+          "total_tokens": 3618,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1153
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 76
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "virtual",
+        "loc": null,
+        "vLink": "Zoom",
+        "title": "Cena por Zoom"
+      }
+    },
+    {
+      "id": 8,
+      "text": "Partido de pádel por videollamada",
+      "expectedModality": "virtual",
+      "expectedLocation": null,
+      "allowLocation": false,
+      "expectVirtual": true,
+      "result": {
+        "status": "success",
+        "latency": 481,
+        "patch": {
+          "modality": {
+            "value": "virtual",
+            "confidence": "explicit"
+          },
+          "themeHint": {
+            "value": "sports",
+            "confidence": "inferred_high"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2383,
+          "completion_tokens": 1920,
+          "total_tokens": 4303,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1889
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 79
+        }
+      },
+      "pass": false,
+      "actual": {
+        "mod": "virtual",
+        "loc": null,
+        "vLink": null,
+        "title": null
+      }
+    },
+    {
+      "id": 9,
+      "text": "Cena en restaurante https://restaurante.com",
+      "expectedModality": "presencial",
+      "expectedLocation": null,
+      "allowLocation": true,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 482,
+        "patch": {
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          },
+          "locationText": {
+            "value": "restaurante",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2384,
+          "completion_tokens": 2368,
+          "total_tokens": 4752,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2314
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 80
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": "restaurante",
+        "vLink": null,
+        "title": null
+      }
+    },
+    {
+      "id": 10,
+      "text": "Nos vemos acá https://maps.google.com/?q=bar",
+      "expectedModality": "presencial",
+      "expectedLocation": "maps",
+      "allowLocation": true,
+      "expectVirtual": false,
+      "result": {
+        "status": "success",
+        "latency": 474,
+        "patch": {
+          "modality": {
+            "value": "presencial",
+            "confidence": "inferred_high"
+          },
+          "locationText": {
+            "value": "https://maps.google.com/?q=bar",
+            "confidence": "explicit"
+          }
+        },
+        "usage": {
+          "prompt_tokens": 2387,
+          "completion_tokens": 2737,
+          "total_tokens": 5124,
+          "prompt_tokens_details": {
+            "cached_tokens": 2304
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2677
+          },
+          "prompt_cache_hit_tokens": 2304,
+          "prompt_cache_miss_tokens": 83
+        }
+      },
+      "pass": true,
+      "actual": {
+        "mod": "presencial",
+        "loc": "https://maps.google.com/?q=bar",
+        "vLink": null,
+        "title": null
+      }
+    }
+  ]
+}
