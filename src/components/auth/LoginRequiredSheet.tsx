@@ -11,8 +11,8 @@ export interface LoginRequiredSheetProps {
   onContinueWithGoogle: () => void;
   /** Cargando la operación OAuth */
   loading?: boolean;
-  /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' */
-  action?: 'request_join' | 'open_encounter' | 'create_ai';
+  /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' */
+  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention';
 }
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
@@ -28,13 +28,34 @@ const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: st
     title: 'Para crear con IA necesitás una cuenta',
     body: 'Una cuenta nos permite recordar tus preferencias y guardar el historial de tus creaciones.',
   },
+  create_intention: {
+    title: 'Para expresar tu intención necesitás una cuenta',
+    body: 'Una cuenta te permite gestionar tus intenciones, pausarlas y convertirlas en encuentros más adelante.',
+  },
 };
 
-const BENEFITS = [
-  'Seguir el estado de tu solicitud',
-  'Recibir la confirmación del anfitrión',
-  'Conservar tus encuentros',
-];
+const BENEFITS_BY_ACTION: Record<NonNullable<LoginRequiredSheetProps['action']>, string[]> = {
+  request_join: [
+    'Seguir el estado de tu solicitud',
+    'Recibir la confirmación del anfitrión',
+    'Conservar tus encuentros',
+  ],
+  open_encounter: [
+    'Gestionar las solicitudes de participantes',
+    'Abrir y cerrar tu encuentro cuando quieras',
+    'Conservar tus encuentros',
+  ],
+  create_ai: [
+    'Recordar tus preferencias',
+    'Guardar el historial de tus creaciones',
+    'Conservar tus encuentros',
+  ],
+  create_intention: [
+    'Expresar tus intereses y planes',
+    'Pausar o editar tus intenciones',
+    'Conservar tus intenciones y encuentros',
+  ],
+};
 
 export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
   isOpen,
@@ -51,6 +72,7 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
   if (!isOpen) return null;
 
   const copy = COPIES[action];
+  const benefits = BENEFITS_BY_ACTION[action] || BENEFITS_BY_ACTION.request_join;
 
   const handleContinueClick = async () => {
     if (loading || checkingState) return;
@@ -114,7 +136,7 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
           <p className="login-required-sheet__body-text">{copy.body}</p>
 
           <ul className="login-required-sheet__benefits" aria-label="Beneficios de tener una cuenta">
-            {BENEFITS.map((b) => (
+            {benefits.map((b) => (
               <li key={b} className="login-required-sheet__benefit-item">
                 <span className="login-required-sheet__benefit-dot" aria-hidden="true">·</span>
                 {b}

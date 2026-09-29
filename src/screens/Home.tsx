@@ -61,6 +61,7 @@ import {
   countActiveSecondaryFilters,
   type EncountersFilterValues,
 } from '@/components/home/yourEncounters/HomeEncountersFilterSheet';
+import { HomeIntencionesSection } from '@/components/home/intentions/HomeIntencionesSection';
 
 const HomeDynamicCanvasGsap = React.lazy(() => import('@/components/home/HomeDynamicCanvasGsap'));
 
@@ -351,6 +352,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
+  const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones'>(() => {
+    if (typeof window !== 'undefined' && window.sessionStorage?.getItem('puntoencuentro_pending_intention')) {
+      return 'intenciones';
+    }
+    return 'encuentros';
+  });
   const [imgError, setImgError] = useState(false);
 
   // Filtros secundarios simplificados para Preview GSAP
@@ -1212,25 +1219,54 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
             <HomeValueProposition />
           )}
 
-          {/* 4. TUS ENCUENTROS (Toolbar simplificada + listado en contenedor centrado) */}
+          {/* 4. TUS ENCUENTROS & INTENCIONES */}
           <div className="home-encounters-section">
             <div className="pe-encounters-inner">
-              <HomeEncountersToolbar
-                activeScope={activeScope}
-                onScopeChange={setActiveScope}
-                isLoggedIn={Boolean(user)}
-                totalTodosCount={allUniqueTodosCount}
-                totalOrganizedCount={organizedEncuentros.length}
-                totalParticipatedCount={participatedEncuentros.length}
-                totalProximosCount={totalProximos}
-                totalPasadosCount={totalPasados}
-                activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
-                onOpenFilters={() => setIsSecondaryFilterOpen(true)}
-              />
-
-              <div className="pe-gsap-encounters-container">
-                {renderGsapContent()}
+              <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={userSectionTab === 'encuentros'}
+                  className={`home-user-tab ${userSectionTab === 'encuentros' ? 'home-user-tab--active' : ''}`}
+                  onClick={() => setUserSectionTab('encuentros')}
+                >
+                  Tus encuentros
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={userSectionTab === 'intenciones'}
+                  className={`home-user-tab ${userSectionTab === 'intenciones' ? 'home-user-tab--active' : ''}`}
+                  onClick={() => setUserSectionTab('intenciones')}
+                >
+                  Intenciones
+                </button>
               </div>
+
+              {userSectionTab === 'encuentros' ? (
+                <>
+                  <HomeEncountersToolbar
+                    activeScope={activeScope}
+                    onScopeChange={setActiveScope}
+                    isLoggedIn={Boolean(user)}
+                    totalTodosCount={allUniqueTodosCount}
+                    totalOrganizedCount={organizedEncuentros.length}
+                    totalParticipatedCount={participatedEncuentros.length}
+                    totalProximosCount={totalProximos}
+                    totalPasadosCount={totalPasados}
+                    activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
+                    onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+                  />
+
+                  <div className="pe-gsap-encounters-container">
+                    {renderGsapContent()}
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
+                  <HomeIntencionesSection />
+                </div>
+              )}
             </div>
           </div>
 
