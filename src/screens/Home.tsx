@@ -13,7 +13,6 @@ import { encuentrosService } from '@/services/encuentrosService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { useCreateEncounter } from '@/hooks/useCreateEncounter';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
@@ -282,7 +281,7 @@ export interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signInWithGoogleForDiscovery } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -636,9 +635,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
 
       // ── RECOVER PENDING AI INTENT AFTER LOGIN ──
       if (!user.is_anonymous) {
-        const pendingAi = localStorage.getItem('puntoencuentro_pending_ai_intent');
+        const pendingAi = sessionStorage.getItem('puntoencuentro_pending_ai_intent');
         if (pendingAi) {
-          localStorage.removeItem('puntoencuentro_pending_ai_intent');
+          sessionStorage.removeItem('puntoencuentro_pending_ai_intent');
           // Give it a tiny delay to allow the layout to settle before redirecting
           setTimeout(() => {
             useAiWizardStore.getState().startNewWithPrompt(pendingAi);
@@ -1415,21 +1414,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           setIsLoginRequiredForAiOpen(false);
           setPendingAiIntent(null);
         }}
-        onContinueWithGoogle={() => {
+        onContinueWithGoogle={async () => {
           if (pendingAiIntent) {
-            localStorage.setItem('puntoencuentro_pending_ai_intent', pendingAiIntent);
+            sessionStorage.setItem('puntoencuentro_pending_ai_intent', pendingAiIntent);
           }
-          // Usamos la redirección nativa con prompt='select_account' para forzar login
-          supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              redirectTo: `${window.location.origin}/`,
-              queryParams: {
-                access_type: 'offline',
-                prompt: 'select_account',
-              },
-            },
-          });
+          await signInWithGoogleForDiscovery();
         }}
       />
 

@@ -64,6 +64,11 @@ Deno.serve(async (req: Request) => {
 
   const startTime = Date.now();
 
+  let internalAdminClient: any = null;
+  let verifiedUserId: string | null = null;
+  let effectiveSessionId: string | null = null;
+  let activeLeaseId: string | null = null;
+
   try {
     // 1. Internal Cryptographic JWT Validation via Supabase Auth
     const authHeader = req.headers.get("Authorization");
@@ -102,7 +107,7 @@ Deno.serve(async (req: Request) => {
     });
 
     // Client B: internalAdminClient with secret key for privileged finalize/release
-    const internalAdminClient = secretKey
+    internalAdminClient = secretKey
       ? createClient(supabaseUrl, secretKey, { auth: { persistSession: false } })
       : null;
 
@@ -130,7 +135,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const verifiedUserId = user.id;
+    verifiedUserId = user.id;
 
     // 2. Parse input body
     const body = await req.json();
@@ -155,7 +160,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Validate UUID format of sessionId or generate fallback
-    const effectiveSessionId =
+    effectiveSessionId =
       typeof sessionId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId.trim())
         ? sessionId.trim()
         : crypto.randomUUID();
@@ -176,8 +181,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Entitlement & In-flight lease reservation via PostgreSQL RPC
+    let activeLeaseId: string | null = null;
+
+    // 4. Resolve providers (PRIMARY + FALLBACK) before database reservation
+    let providersConfig;
+    try {
+      providersConfig = resolveProviders(Deno.env);
+    } catch (err: any) {
+      console.error("[ai-interpret] Provider resolution failed:", err?.message || err);
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "service_unavailable",
+          message: "El servicio de IA no está disponible temporalmente. Podés continuar manualmente."
+        }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { primaryProvider, fallbackProvider, primaryTimeoutMs, fallbackTimeoutMs } = providersConfig;
+
+    // 5. Entitlement & In-flight lease reservation via PostgreSQL RPC
     const leaseId = crypto.randomUUID();
+    activeLeaseId = leaseId;
     const { data: reserveData, error: reserveErr } = await userClient.rpc("check_and_reserve_ai_session", {
       p_session_id: effectiveSessionId,
       p_lease_id: leaseId,
@@ -210,9 +236,6 @@ Deno.serve(async (req: Request) => {
         { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // 5. Resolve providers (PRIMARY + FALLBACK)
-    const { primaryProvider, fallbackProvider, primaryTimeoutMs, fallbackTimeoutMs } = resolveProviders(Deno.env);
 
     // 6. Interpret using Primary -> Fallback execution pipeline
     const fallbackResult = await interpretWithFallback(
@@ -321,6 +344,20 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err: any) {
     console.error("[ai-interpret] Uncaught exception:", err);
+
+    if (internalAdminClient && verifiedUserId && effectiveSessionId && activeLeaseId) {
+      try {
+        await internalAdminClient.rpc("internal_release_ai_session_reservation", {
+          p_user_id: verifiedUserId,
+          p_session_id: effectiveSessionId,
+          p_lease_id: activeLeaseId,
+          p_reason: "internal_error",
+        });
+      } catch (releaseErr) {
+        console.warn("[ai-interpret] Failed safety-net release on uncaught exception:", releaseErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: false,
