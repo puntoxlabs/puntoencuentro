@@ -5,6 +5,8 @@ import type {
   EditarIntencionPayload,
   EstadoIntencion,
   IntencionesServiceResult,
+  PublicIntencionSummary,
+  SetInteresResult,
 } from '../types/intenciones';
 
 export const intencionesService = {
@@ -166,6 +168,85 @@ export const intencionesService = {
           estado: res.estado,
           encuentro_id: res.encuentro_id,
           idempotent: res.idempotent,
+        },
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene las intenciones públicas activas para Discovery desde la RPC segura get_discovery_intenciones_activas.
+   * Filtra por localidades seleccionadas si se proporcionan.
+   * NUNCA expone user_id, encuentro_id, updated_at ni datos de contacto.
+   */
+  async getDiscoveryIntenciones(
+    localityIds?: string[]
+  ): Promise<IntencionesServiceResult<PublicIntencionSummary[]>> {
+    try {
+      const { data, error } = await supabase.rpc('get_discovery_intenciones_activas', {
+        p_locality_ids: localityIds && localityIds.length > 0 ? localityIds : null,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      if (!Array.isArray(data)) {
+        return { ok: true, data: [] };
+      }
+
+      const mapped: PublicIntencionSummary[] = data.map((item: any) => ({
+        id: item.id,
+        titulo: item.titulo,
+        descripcion: item.descripcion ?? null,
+        temporalidad_texto: item.temporalidad_texto ?? null,
+        fecha_desde: item.fecha_desde ?? null,
+        fecha_hasta: item.fecha_hasta ?? null,
+        modalidad: item.modalidad,
+        locality_id: item.locality_id ?? null,
+        approximate_zone: item.approximate_zone,
+        interested_count: Number(item.interested_count ?? 0),
+        created_at: item.created_at,
+        is_own: Boolean(item.is_own),
+        viewer_interested: Boolean(item.viewer_interested),
+      }));
+
+      return { ok: true, data: mapped };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Registra o retira interés sobre una intención ajena de forma idempotente vía RPC set_interes_intencion.
+   * NO implementa toggle en cliente: el valor 'interesado' debe enviarse explícitamente.
+   */
+  async setInteresIntencion(
+    intencionId: string,
+    interesado: boolean
+  ): Promise<IntencionesServiceResult<SetInteresResult>> {
+    try {
+      const { data, error } = await supabase.rpc('set_interes_intencion', {
+        p_intencion_id: intencionId,
+        p_interesado: interesado,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      const res = data as { ok: boolean; interesado?: boolean; interested_count?: number; error?: string };
+      if (!res?.ok || typeof res.interesado !== 'boolean' || typeof res.interested_count !== 'number') {
+        return { ok: false, error: res?.error || 'set_interest_failed' };
+      }
+
+      return {
+        ok: true,
+        data: {
+          ok: true,
+          interesado: res.interesado,
+          interested_count: res.interested_count,
         },
       };
     } catch (err: any) {

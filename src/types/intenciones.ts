@@ -51,3 +51,29 @@ export interface IntencionesServiceResult<T = void> {
   data?: T;
   error?: string;
 }
+
+/**
+ * DTO público sanitizado de Intenciones para Discovery (Fase 2.0-B).
+ * NUNCA expone user_id, encuentro_id, updated_at ni datos sensibles.
+ */
+export interface PublicIntencionSummary {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  temporalidad_texto: string | null;
+  fecha_desde: string | null;
+  fecha_hasta: string | null;
+  modalidad: ModalidadIntencion;
+  locality_id: string | null;
+  approximate_zone: string;
+  interested_count: number;
+  created_at: string;
+  is_own: boolean;
+  viewer_interested: boolean;
+}
+
+export interface SetInteresResult {
+  ok: boolean;
+  interesado: boolean;
+  interested_count: number;
+}

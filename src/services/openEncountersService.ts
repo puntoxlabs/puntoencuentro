@@ -83,26 +83,26 @@ export const openEncountersService = {
   },
 
   /**
-   * Obtiene los encuentros abiertos para Discovery desde el backend seguro.
-   * Filtra por localidades seleccionadas si se proporcionan.
-   * NUNCA expone dirección exacta ni tokens privados.
+   * Obtiene los encuentros abiertos para Discovery desde el backend seguro con estado detallado.
+   * Permite a capas compuestas (como useUnifiedDiscovery) diferenciar entre resultado vacío y error.
    */
-  async getDiscoveryEncuentros(localityIds?: string[]): Promise<OpenEncounterSummary[]> {
+  async getDiscoveryEncuentrosWithStatus(
+    localityIds?: string[]
+  ): Promise<{ ok: boolean; data: OpenEncounterSummary[]; error?: string }> {
     try {
       const { data, error } = await supabase.rpc('get_discovery_encuentros_abiertos', {
         p_locality_ids: localityIds && localityIds.length > 0 ? localityIds : null,
       });
 
       if (error) {
-        console.error('[openEncountersService] Error fetching discovery encuentros:', error);
-        return [];
+        return { ok: false, data: [], error: error.message };
       }
 
       if (!Array.isArray(data)) {
-        return [];
+        return { ok: true, data: [] };
       }
 
-      return data.map((item: any) => ({
+      const mapped: OpenEncounterSummary[] = data.map((item: any) => ({
         id: item.id,
         title: item.title,
         emoji: item.emoji,
@@ -117,10 +117,25 @@ export const openEncountersService = {
         description: item.description,
         hostName: item.host_name,
       }));
-    } catch (err) {
-      console.error('[openEncountersService] Exception fetching discovery:', err);
+
+      return { ok: true, data: mapped };
+    } catch (err: any) {
+      return { ok: false, data: [], error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene los encuentros abiertos para Discovery desde el backend seguro.
+   * Filtra por localidades seleccionadas si se proporcionan.
+   * NUNCA expone dirección exacta ni tokens privados.
+   */
+  async getDiscoveryEncuentros(localityIds?: string[]): Promise<OpenEncounterSummary[]> {
+    const res = await this.getDiscoveryEncuentrosWithStatus(localityIds);
+    if (!res.ok) {
+      console.error('[openEncountersService] Error fetching discovery encuentros:', res.error);
       return [];
     }
+    return res.data;
   },
 
   /**
