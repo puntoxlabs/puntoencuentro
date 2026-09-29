@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useIntenciones } from '../../../hooks/useIntenciones';
@@ -40,6 +40,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
   const [restoredDraft, setRestoredDraft] = useState<CrearIntencionPayload | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+  const hasRestoredDraftRef = useRef(false);
 
   // Auth Guard Sheet
   const [isLoginSheetOpen, setIsLoginSheetOpen] = useState(false);
@@ -61,17 +62,18 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
     const isPermanent = Boolean(user && !user.is_anonymous);
     if (!isPermanent) return;
 
+    // Evitar restauraciones repetidas durante el mismo mount/render
+    if (hasRestoredDraftRef.current) return;
+
     if (typeof sessionStorage === 'undefined') return;
 
     const rawDraft = sessionStorage.getItem(PENDING_INTENTION_STORAGE_KEY);
     if (!rawDraft) return;
 
-    // Consumir el draft UNA sola vez para evitar duplicaciones por refresh o re-render
-    sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);
-
     try {
       const parsed = JSON.parse(rawDraft) as CrearIntencionPayload;
       if (parsed && typeof parsed.titulo === 'string') {
+        hasRestoredDraftRef.current = true;
         setEditingIntencion(null);
         setRestoredDraft(parsed);
         setIsFormOpen(true);

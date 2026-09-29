@@ -262,33 +262,158 @@ describe('Fase 2.0-A — Intenciones: Bloque 3 UI & Auth Guard Tests', () => {
     });
   });
 
-  describe('7. Ciclo de preservación y restauración de draft sin duplicación', () => {
+  describe('7. Ciclo de vida y preservación de pending intention', () => {
     test('A. HomeIntencionesSection renderiza título y botón de acción en SSR', () => {
       const html = renderToString(React.createElement(HomeIntencionesSection));
       assert.ok(html.includes('Mis intenciones'), 'Debe incluir título de la sección');
       assert.ok(html.includes('+ Expresar intención'), 'Debe incluir botón para expresar intención');
     });
 
-    test('B. El draft pendiente se consume UNA sola vez previniendo duplicados', () => {
+    test('B. Restauración de OAuth NO elimina inmediatamente el pending draft de sessionStorage', () => {
       // Simular almacenamiento en memoria
+      const fakeStorage = new Map<string, string>();
+      const draftPayload = {
+        titulo: 'Ir a caminar por la costanera',
+        temporalidad_texto: 'Hoy',
+        modalidad: 'presencial',
+      };
+      fakeStorage.set(PENDING_INTENTION_STORAGE_KEY, JSON.stringify(draftPayload));
+
+      // Simular la lectura post-OAuth en HomeIntencionesSection:
+      const rawDraft = fakeStorage.get(PENDING_INTENTION_STORAGE_KEY);
+      assert.ok(rawDraft, 'Draft debe estar disponible');
+      const parsed = JSON.parse(rawDraft!);
+      assert.equal(parsed.titulo, 'Ir a caminar por la costanera');
+
+      // Invariante nuevo: la lectura NO debe llamar a removeItem en esta etapa
+      assert.ok(
+        fakeStorage.has(PENDING_INTENTION_STORAGE_KEY),
+        'El pending draft debe permanecer en sessionStorage tras restaurar'
+      );
+    });
+
+    test('C. Guard local (useRef) evita restauraciones múltiples durante el mismo mount', () => {
       const fakeStorage = new Map<string, string>();
       fakeStorage.set(
         PENDING_INTENTION_STORAGE_KEY,
-        JSON.stringify({
-          titulo: 'Ir a caminar por la costanera',
-          temporalidad_texto: 'Hoy',
-          modalidad: 'presencial',
-        })
+        JSON.stringify({ titulo: 'Jugar al ajedrez', modalidad: 'presencial' })
       );
 
-      // 1. Primera lectura recupera el draft
-      const firstRead = fakeStorage.get(PENDING_INTENTION_STORAGE_KEY);
-      assert.ok(firstRead !== undefined);
-      fakeStorage.delete(PENDING_INTENTION_STORAGE_KEY); // Invariante de consumo inmediato
+      let hasRestoredRef = false;
+      let restoreCount = 0;
 
-      // 2. Segunda lectura (simulando refresh o re-render) debe ser null
-      const secondRead = fakeStorage.get(PENDING_INTENTION_STORAGE_KEY);
-      assert.equal(secondRead, undefined, 'Debe haber sido eliminado para no duplicar intenciones');
+      const simulateEffectExecution = () => {
+        if (hasRestoredRef) return;
+        const raw = fakeStorage.get(PENDING_INTENTION_STORAGE_KEY);
+        if (raw) {
+          hasRestoredRef = true;
+          restoreCount++;
+        }
+      };
+
+      // Primer render/mount
+      simulateEffectExecution();
+      assert.equal(restoreCount, 1, 'Debe restaurar una vez');
+
+      // Segundo render (re-render dentro del mismo mount)
+      simulateEffectExecution();
+      assert.equal(restoreCount, 1, 'No debe restaurar nuevamente en el mismo mount');
+      assert.ok(fakeStorage.has(PENDING_INTENTION_STORAGE_KEY), 'Draft sigue en sessionStorage');
+    });
+
+    test('D. Refresh de página antes de guardar permite volver a recuperar el draft', () => {
+      const fakeStorage = new Map<string, string>();
+      fakeStorage.set(
+        PENDING_INTENTION_STORAGE_KEY,
+        JSON.stringify({ titulo: 'Ir al cine club', modalidad: 'presencial' })
+      );
+
+      // Simulación de mount 1
+      let hasRestoredRef1 = false;
+      if (!hasRestoredRef1 && fakeStorage.has(PENDING_INTENTION_STORAGE_KEY)) {
+        hasRestoredRef1 = true;
+      }
+      assert.equal(hasRestoredRef1, true);
+
+      // Usuario refresca la página (mount 2 con nuevo ciclo y nuevo ref en false)
+      let hasRestoredRef2 = false;
+      let restoredInMount2 = false;
+      if (!hasRestoredRef2 && fakeStorage.has(PENDING_INTENTION_STORAGE_KEY)) {
+        hasRestoredRef2 = true;
+        restoredInMount2 = true;
+      }
+      assert.equal(restoredInMount2, true, 'Debe recuperar el draft tras un refresh antes de guardar');
+    });
+
+    test('E. Guardado exitoso elimina el pending draft de sessionStorage', () => {
+      const fakeStorage = new Map<string, string>();
+      fakeStorage.set(
+        PENDING_INTENTION_STORAGE_KEY,
+        JSON.stringify({ titulo: 'Tocar música', modalidad: 'presencial' })
+      );
+
+      // Simular guardado exitoso
+      const saveSuccess = true;
+      if (saveSuccess) {
+        fakeStorage.delete(PENDING_INTENTION_STORAGE_KEY);
+      }
+
+      assert.equal(
+        fakeStorage.has(PENDING_INTENTION_STORAGE_KEY),
+        false,
+        'Debe eliminar el draft tras persistencia exitosa'
+      );
+    });
+
+    test('F. Guardado fallido conserva el pending draft en sessionStorage', () => {
+      const fakeStorage = new Map<string, string>();
+      fakeStorage.set(
+        PENDING_INTENTION_STORAGE_KEY,
+        JSON.stringify({ titulo: 'Tocar música', modalidad: 'presencial' })
+      );
+
+      // Simular guardado con error de backend/red
+      const saveSuccess = false;
+      if (saveSuccess) {
+        fakeStorage.delete(PENDING_INTENTION_STORAGE_KEY);
+      }
+
+      assert.equal(
+        fakeStorage.has(PENDING_INTENTION_STORAGE_KEY),
+        true,
+        'Debe conservar el draft si la llamada a crear falla'
+      );
+    });
+
+    test('G. Código fuente de HomeIntencionesSection usa hasRestoredDraftRef y no borra en efecto', () => {
+      const filePath = path.join(
+        process.cwd(),
+        'src/components/home/intentions/HomeIntencionesSection.tsx'
+      );
+      const content = fs.readFileSync(filePath, 'utf-8');
+
+      // Verificar uso de useRef
+      assert.ok(content.includes('hasRestoredDraftRef'), 'Debe utilizar hasRestoredDraftRef');
+      assert.ok(
+        content.includes('if (hasRestoredDraftRef.current) return;'),
+        'Debe chequear hasRestoredDraftRef antes de restaurar'
+      );
+
+      // Verificar que el efecto de restauración NO hace removeItem
+      const effectPart = content.slice(
+        content.indexOf('// ── RECUPERACIÓN DE DRAFT PENDIENTE TRAS OAUTH ──'),
+        content.indexOf('const handleOpenCreate')
+      );
+      assert.ok(
+        !effectPart.includes('sessionStorage.removeItem'),
+        'El efecto de restauración NO debe ejecutar removeItem'
+      );
+
+      // Verificar que handleSaveForm hace removeItem sólo tras crear exitosamente
+      assert.ok(
+        content.includes('sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY)'),
+        'handleSaveForm debe ejecutar removeItem tras crear'
+      );
     });
   });
 });
