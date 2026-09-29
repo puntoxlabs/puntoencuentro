@@ -104,6 +104,27 @@ export function useIntenciones() {
     [fetchIntenciones]
   );
 
+  const convertirIntencion = useCallback(
+    async (
+      id: string,
+      encuentroId: string
+    ): Promise<
+      IntencionesServiceResult<{
+        id: string;
+        estado: EstadoIntencion;
+        encuentro_id: string;
+        idempotent?: boolean;
+      }>
+    > => {
+      const res = await intencionesService.convertirIntencionAEncuentro(id, encuentroId);
+      if (res.ok) {
+        await fetchIntenciones();
+      }
+      return res;
+    },
+    [fetchIntenciones]
+  );
+
   return {
     intenciones,
     loading,
@@ -115,5 +136,6 @@ export function useIntenciones() {
     pausarIntencion,
     reactivarIntencion,
     cerrarIntencion,
+    convertirIntencion,
   };
 }

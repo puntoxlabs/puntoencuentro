@@ -8,6 +8,7 @@ import { resolveInvitationTemplateForTheme } from '@/lib/invitationThemes';
 import { supabase } from '@/lib/supabase';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { validateEncounterDate } from '@/lib/formatDate';
+import { intencionesService } from '@/services/intencionesService';
 import '../CreateWizard.css';
 
 interface Step4Props {
@@ -123,6 +124,23 @@ const Step4InviteType: React.FC<Step4Props> = () => {
             wizardData.invitation_template
           ),
         }, hostId);
+      }
+
+      // Bloque 4: Vincular intención si el encuentro se originó desde una intención
+      if (wizardData.sourceIntentionId && encuentroId) {
+        try {
+          const convRes = await intencionesService.convertirIntencionAEncuentro(
+            wizardData.sourceIntentionId,
+            encuentroId
+          );
+          if (convRes.ok) {
+            setField('sourceIntentionId', null);
+          } else {
+            console.warn('[CONVERSION WARNING] No se pudo vincular la intención:', convRes.error);
+          }
+        } catch (convErr) {
+          console.warn('[CONVERSION ERROR]', convErr);
+        }
       }
 
       if (tipo === 'individual') {

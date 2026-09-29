@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Sparkles } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useIntenciones } from '../../../hooks/useIntenciones';
 import { openEncountersService } from '../../../services/openEncountersService';
+import { preloadWizardFromIntencion } from '../../../lib/preloadWizardFromIntencion';
 import type {
   Intencion,
   CrearIntencionPayload,
@@ -16,11 +18,22 @@ import './HomeIntencionesSection.css';
 
 export const PENDING_INTENTION_STORAGE_KEY = 'puntoencuentro_pending_intention';
 
+function useSafeNavigate() {
+  try {
+    return useNavigate();
+  } catch {
+    return (to: string) => {
+      if (typeof window !== 'undefined') window.location.href = to;
+    };
+  }
+}
+
 export interface HomeIntencionesSectionProps {
   onOpenCreateTrigger?: () => void;
 }
 
 export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () => {
+  const navigate = useSafeNavigate();
   const { user, signInWithGoogleForDiscovery } = useAuth();
   const {
     intenciones,
@@ -93,6 +106,11 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
     setRestoredDraft(null);
     setEditingIntencion(intencion);
     setIsFormOpen(true);
+  };
+
+  const handleOrganizar = (intencion: Intencion) => {
+    preloadWizardFromIntencion(intencion);
+    navigate('/create');
   };
 
   const handlePausar = async (id: string) => {
@@ -252,6 +270,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
               onPausar={handlePausar}
               onReactivar={handleReactivar}
               onCerrar={handleCerrar}
+              onOrganizar={handleOrganizar}
               disabled={actionInProgressId === intencion.id}
             />
           ))}

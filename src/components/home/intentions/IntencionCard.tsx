@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, MapPin, Edit3, PauseCircle, PlayCircle, XCircle } from 'lucide-react';
+import { Calendar, MapPin, Edit3, PauseCircle, PlayCircle, XCircle, CalendarPlus } from 'lucide-react';
 import type { Intencion } from '../../../types/intenciones';
 import './IntencionCard.css';
 
@@ -9,6 +9,7 @@ export interface IntencionCardProps {
   onPausar: (id: string) => void;
   onReactivar: (id: string) => void;
   onCerrar: (id: string) => void;
+  onOrganizar?: (intencion: Intencion) => void;
   disabled?: boolean;
 }
 
@@ -18,10 +19,12 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
   onPausar,
   onReactivar,
   onCerrar,
+  onOrganizar,
   disabled = false,
 }) => {
   const isPausada = intencion.estado === 'pausada';
   const isActiva = intencion.estado === 'activa';
+  const canOrganizar = (isActiva || isPausada) && Boolean(onOrganizar);
 
   const formatModalidad = () => {
     switch (intencion.modalidad) {
@@ -78,6 +81,19 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
       </div>
 
       <div className="pe-intencion-card__actions">
+        {canOrganizar && (
+          <button
+            type="button"
+            onClick={() => onOrganizar!(intencion)}
+            disabled={disabled}
+            className="pe-intencion-card__btn pe-intencion-card__btn--organizar"
+            aria-label={`Organizar encuentro a partir de ${intencion.titulo}`}
+          >
+            <CalendarPlus size={14} aria-hidden="true" />
+            <span>Organizar encuentro</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => onEdit(intencion)}

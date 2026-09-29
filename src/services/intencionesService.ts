@@ -130,4 +130,46 @@ export const intencionesService = {
   async cerrarIntencion(id: string): Promise<IntencionesServiceResult<EstadoIntencion>> {
     return this.cambiarEstado(id, 'cerrada');
   },
+
+  /**
+   * Convierte una intención propia (activa o pausada) a un encuentro real existente
+   * perteneciente al mismo usuario, invocando la RPC convertir_intencion_a_encuentro.
+   */
+  async convertirIntencionAEncuentro(
+    intencionId: string,
+    encuentroId: string
+  ): Promise<IntencionesServiceResult<{ id: string; estado: EstadoIntencion; encuentro_id: string; idempotent?: boolean }>> {
+    try {
+      const { data, error } = await supabase.rpc('convertir_intencion_a_encuentro', {
+        p_intencion_id: intencionId,
+        p_encuentro_id: encuentroId,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      const res = data as {
+        ok: boolean;
+        id?: string;
+        estado?: EstadoIntencion;
+        encuentro_id?: string;
+        idempotent?: boolean;
+        error?: string;
+      };
+      if (!res?.ok || !res.id || !res.estado || !res.encuentro_id) {
+        return { ok: false, error: res?.error || 'conversion_failed' };
+      }
+      return {
+        ok: true,
+        data: {
+          id: res.id,
+          estado: res.estado,
+          encuentro_id: res.encuentro_id,
+          idempotent: res.idempotent,
+        },
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
 };

@@ -16,7 +16,9 @@ export interface WizardState {
   tema_invitacion: InvitationTheme;
   invitation_template: string | null;
   encuentro_id: string | null;
+  sourceIntentionId: string | null;
   setField: (field: string, value: any) => void;
+  setSourceIntentionId: (id: string | null) => void;
   nextStep: () => void;
   prevStep: () => void;
   reset: () => void;
@@ -38,7 +40,9 @@ export const useWizardStore = create<WizardState>()(
       tema_invitacion: 'classic',
       invitation_template: null,
       encuentro_id: null,
+      sourceIntentionId: null,
       setField: (field, value) => set({ [field]: value }),
+      setSourceIntentionId: (id) => set({ sourceIntentionId: id }),
       nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
       prevStep: () => set((state) => ({ step: state.step > 1 ? state.step - 1 : state.step })),
       reset: () => set({
@@ -55,6 +59,7 @@ export const useWizardStore = create<WizardState>()(
         tema_invitacion: 'classic',
         invitation_template: null,
         encuentro_id: null,
+        sourceIntentionId: null,
       }),
     }),
     {
@@ -63,6 +68,7 @@ export const useWizardStore = create<WizardState>()(
       storage: createJSONStorage(() => ({
         getItem: (name) => {
           try {
+            if (typeof localStorage === 'undefined') return null;
             const val = localStorage.getItem(name);
             if (!val) return null;
             // Validate it's at least an object with expected properties if needed,
@@ -100,7 +106,9 @@ export const useWizardStore = create<WizardState>()(
           tema_invitacion: 'classic',
           invitation_template: null,
           encuentro_id: null,
+          sourceIntentionId: null,
           setField: () => {},
+          setSourceIntentionId: () => {},
           nextStep: () => {},
           prevStep: () => {},
           reset: () => {},
@@ -128,6 +136,7 @@ export const useWizardStore = create<WizardState>()(
           tema_invitacion: typeof state.tema_invitacion === 'string' ? state.tema_invitacion : 'classic',
           invitation_template: typeof state.invitation_template === 'string' ? state.invitation_template : null,
           encuentro_id: typeof state.encuentro_id === 'string' ? state.encuentro_id : null,
+          sourceIntentionId: typeof state.sourceIntentionId === 'string' ? state.sourceIntentionId : null,
         };
       },
     }

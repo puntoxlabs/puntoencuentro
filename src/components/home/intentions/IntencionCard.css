@@ -124,6 +124,17 @@
   cursor: not-allowed;
 }
 
+.pe-intencion-card__btn--organizar {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.pe-intencion-card__btn--organizar:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
 .pe-intencion-card__btn--edit {
   color: var(--color-on-surface, #0f172a);
   border-color: var(--color-outline-variant, #cbd5e1);
