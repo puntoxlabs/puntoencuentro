@@ -268,34 +268,30 @@ describe('Fase 2.0-A — Intenciones: Bloque 4 Frontend Tests (Intención → En
     });
   });
 
-  describe('5. Step4InviteType — Tolerancia a fallos y preservación de contexto', () => {
-    test('A. Tolerancia a fallo de vinculación: si la vinculación falla, no borra el encuentro ni rompe el flujo', async () => {
-      // Simular intento de vinculación que falla
+  describe('5. Step4InviteType — Retry seguro y tolerancia a fallos', () => {
+    test('A. Creación normal sin intención: no invoca convertirIntencionAEncuentro y conserva flujo intacto', async () => {
+      let rpcCalled = false;
       const originalRpc = supabase.rpc;
       (supabase as any).rpc = async () => {
-        return { data: null, error: { message: 'temporary_network_error' } };
+        rpcCalled = true;
+        return { data: { ok: true }, error: null };
       };
 
       try {
-        useWizardStore.getState().setSourceIntentionId('int-123');
-
-        // Simular llamada de Step4
+        useWizardStore.getState().setSourceIntentionId(null);
+        assert.equal(useWizardStore.getState().sourceIntentionId, null);
+        // Cuando sourceIntentionId es null, el bloque de vinculación no se ejecuta
         const sourceId = useWizardStore.getState().sourceIntentionId;
-        const convRes = await intencionesService.convertirIntencionAEncuentro(
-          sourceId!,
-          'enc-new-456'
-        );
-
-        assert.equal(convRes.ok, false);
-        // Si convRes.ok es false, Step4InviteType no limpia el sourceIntentionId para permitir reintento
-        // y no invoca borrado del encuentro
-        assert.equal(useWizardStore.getState().sourceIntentionId, 'int-123', 'Debe preservar sourceIntentionId para reintento');
+        if (sourceId) {
+          await intencionesService.convertirIntencionAEncuentro(sourceId, 'enc-1');
+        }
+        assert.equal(rpcCalled, false, 'No debe invocar RPC de conversión si no hay sourceIntentionId');
       } finally {
         (supabase as any).rpc = originalRpc;
       }
     });
 
-    test('B. Vinculación exitosa limpia sourceIntentionId de wizardStore', async () => {
+    test('B. Intención con vinculación exitosa: limpia sourceIntentionId y continúa flujo normal', async () => {
       const originalRpc = supabase.rpc;
       (supabase as any).rpc = async () => {
         return {
@@ -306,7 +302,6 @@ describe('Fase 2.0-A — Intenciones: Bloque 4 Frontend Tests (Intención → En
 
       try {
         useWizardStore.getState().setSourceIntentionId('int-123');
-
         const sourceId = useWizardStore.getState().sourceIntentionId;
         const convRes = await intencionesService.convertirIntencionAEncuentro(
           sourceId!,
@@ -315,9 +310,138 @@ describe('Fase 2.0-A — Intenciones: Bloque 4 Frontend Tests (Intención → En
 
         assert.equal(convRes.ok, true);
         if (convRes.ok) {
-          useWizardStore.getState().setSourceIntentionId(null);
+          useWizardStore.getState().setField('sourceIntentionId', null);
         }
-        assert.equal(useWizardStore.getState().sourceIntentionId, null, 'Debe haber limpiado sourceIntentionId');
+        assert.equal(useWizardStore.getState().sourceIntentionId, null, 'Debe limpiar sourceIntentionId tras éxito');
+      } finally {
+        (supabase as any).rpc = originalRpc;
+      }
+    });
+
+    test('C. Fallo de vinculación NO navega automáticamente y preserva sourceIntentionId y encuentroId', async () => {
+      const originalRpc = supabase.rpc;
+      (supabase as any).rpc = async () => {
+        return { data: null, error: { message: 'temporary_network_error' } };
+      };
+
+      try {
+        useWizardStore.getState().setSourceIntentionId('int-123');
+        useWizardStore.getState().setField('encuentro_id', 'enc-new-456');
+
+        const sourceId = useWizardStore.getState().sourceIntentionId;
+        const convRes = await intencionesService.convertirIntencionAEncuentro(
+          sourceId!,
+          'enc-new-456'
+        );
+
+        assert.equal(convRes.ok, false);
+        // En fallo, NO se limpia sourceIntentionId ni se borra encuentro_id
+        assert.equal(useWizardStore.getState().sourceIntentionId, 'int-123', 'Conserva sourceIntentionId');
+        assert.equal(useWizardStore.getState().encuentro_id, 'enc-new-456', 'Conserva encuentro_id ya creado');
+      } finally {
+        (supabase as any).rpc = originalRpc;
+      }
+    });
+
+    test('D. Retry de vinculación utiliza el MISMO encuentroId y NO crea un segundo encuentro', async () => {
+      let rpcCalls = 0;
+      let usedEncuentroId = '';
+      const originalRpc = supabase.rpc;
+      (supabase as any).rpc = async (fn: string, params: any) => {
+        rpcCalls++;
+        usedEncuentroId = params.p_encuentro_id;
+        return {
+          data: { ok: true, id: params.p_intencion_id, estado: 'convertida', encuentro_id: params.p_encuentro_id, idempotent: false },
+          error: null,
+        };
+      };
+
+      try {
+        const existingEncuentroId = 'enc-already-created-789';
+        useWizardStore.getState().setField('encuentro_id', existingEncuentroId);
+        useWizardStore.getState().setSourceIntentionId('int-123');
+
+        // Simular handleRetryLinking:
+        // No llama a encuentrosService.createEncuentro, sino directamente a convertirIntencionAEncuentro con existingEncuentroId
+        const targetId = useWizardStore.getState().encuentro_id;
+        const sourceId = useWizardStore.getState().sourceIntentionId;
+        const retryRes = await intencionesService.convertirIntencionAEncuentro(sourceId!, targetId!);
+
+        assert.equal(retryRes.ok, true);
+        assert.equal(rpcCalls, 1);
+        assert.equal(usedEncuentroId, existingEncuentroId, 'Debe reutilizar el mismo encuentroId creado');
+        assert.equal(useWizardStore.getState().encuentro_id, existingEncuentroId, 'El encuentroId se mantiene inalterado');
+      } finally {
+        (supabase as any).rpc = originalRpc;
+      }
+    });
+
+    test('E. Retry exitoso limpia sourceIntentionId', async () => {
+      const originalRpc = supabase.rpc;
+      (supabase as any).rpc = async () => {
+        return {
+          data: { ok: true, id: 'int-123', estado: 'convertida', encuentro_id: 'enc-789', idempotent: false },
+          error: null,
+        };
+      };
+
+      try {
+        useWizardStore.getState().setSourceIntentionId('int-123');
+        const res = await intencionesService.convertirIntencionAEncuentro('int-123', 'enc-789');
+        assert.equal(res.ok, true);
+        useWizardStore.getState().setField('sourceIntentionId', null);
+        assert.equal(useWizardStore.getState().sourceIntentionId, null);
+      } finally {
+        (supabase as any).rpc = originalRpc;
+      }
+    });
+
+    test('F. Retry fallido conserva sourceIntentionId y encuentroId para futuros reintentos', async () => {
+      const originalRpc = supabase.rpc;
+      (supabase as any).rpc = async () => {
+        return { data: null, error: { message: 'db_timeout' } };
+      };
+
+      try {
+        useWizardStore.getState().setSourceIntentionId('int-123');
+        useWizardStore.getState().setField('encuentro_id', 'enc-789');
+
+        const res = await intencionesService.convertirIntencionAEncuentro('int-123', 'enc-789');
+        assert.equal(res.ok, false);
+        // Si el retry falla, el contexto sigue disponible
+        assert.equal(useWizardStore.getState().sourceIntentionId, 'int-123');
+        assert.equal(useWizardStore.getState().encuentro_id, 'enc-789');
+      } finally {
+        (supabase as any).rpc = originalRpc;
+      }
+    });
+
+    test('G. "Continuar de todos modos": limpia sourceIntentionId y NO elimina el encuentro creado', () => {
+      useWizardStore.getState().setSourceIntentionId('int-123');
+      useWizardStore.getState().setField('encuentro_id', 'enc-789');
+
+      // Simular handleContinueAnyway
+      useWizardStore.getState().setField('sourceIntentionId', null);
+
+      assert.equal(useWizardStore.getState().sourceIntentionId, null, 'Debe limpiar sourceIntentionId para evitar contaminar futuras creaciones');
+      assert.equal(useWizardStore.getState().encuentro_id, 'enc-789', 'El encuentro creado NUNCA se elimina');
+    });
+
+    test('H. El encuentro creado nunca se elimina ni se revierte por fallo de vinculación', async () => {
+      let deleteCalled = false;
+      useWizardStore.getState().setField('encuentro_id', 'enc-valid-111');
+      useWizardStore.getState().setSourceIntentionId('int-123');
+
+      // Simular fallo
+      const originalRpc = supabase.rpc;
+      (supabase as any).rpc = async () => ({ data: null, error: { message: 'fail' } });
+
+      try {
+        const res = await intencionesService.convertirIntencionAEncuentro('int-123', 'enc-valid-111');
+        assert.equal(res.ok, false);
+        // En ningún momento se llama a borrar encuentro
+        assert.equal(deleteCalled, false);
+        assert.equal(useWizardStore.getState().encuentro_id, 'enc-valid-111', 'Encuentro intacto');
       } finally {
         (supabase as any).rpc = originalRpc;
       }

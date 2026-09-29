@@ -21,10 +21,16 @@ const Step4InviteType: React.FC<Step4Props> = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Estados locales para manejo seguro de fallo y reintento de vinculación (Fase 2.0-A)
+  const [linkingError, setLinkingError] = useState<string | null>(null);
+  const [retryingLink, setRetryingLink] = useState(false);
+  const [createdEncuentroId, setCreatedEncuentroId] = useState<string | null>(null);
+  const [resolvedTipo, setResolvedTipo] = useState<'individual' | 'link_general' | null>(null);
+
   const hasInitialValue = !!wizardData.tipo_invitacion;
 
   const handleFinish = async (tipoOverride?: 'individual' | 'link_general') => {
-    if (loading) return;
+    if (loading || retryingLink || !!linkingError) return;
     const tipo: 'individual' | 'link_general' = tipoOverride || wizardData.tipo_invitacion as 'individual' | 'link_general';
     if (!tipo) {
       setError('Elegí un tipo de invitación');
@@ -38,6 +44,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
     try {
       setLoading(true);
       setError(null);
+      setLinkingError(null);
 
       let hostId: string;
       try {
@@ -55,7 +62,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         return;
       }
 
-      let encuentroId = wizardData.encuentro_id;
+      let encuentroId = createdEncuentroId || wizardData.encuentro_id;
 
       if (!encuentroId) {
         const payload = {
@@ -90,6 +97,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         const newEncuentro = await encuentrosService.createEncuentro(payload);
         encuentroId = newEncuentro.id;
         setField('encuentro_id', encuentroId);
+        setCreatedEncuentroId(encuentroId);
 
         // Persistir mapeo encuentroId → hostId antes de navegar.
         // Esto permite que DetailHost resuelva hostId al refrescar /meet/:id
@@ -126,7 +134,10 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         }, hostId);
       }
 
-      // Bloque 4: Vincular intención si el encuentro se originó desde una intención
+      setResolvedTipo(tipo);
+
+      // Bloque 4/5: Vincular intención si el encuentro se originó desde una intención
+      let linkFailed = false;
       if (wizardData.sourceIntentionId && encuentroId) {
         try {
           const convRes = await intencionesService.convertirIntencionAEncuentro(
@@ -137,10 +148,18 @@ const Step4InviteType: React.FC<Step4Props> = () => {
             setField('sourceIntentionId', null);
           } else {
             console.warn('[CONVERSION WARNING] No se pudo vincular la intención:', convRes.error);
+            linkFailed = true;
           }
         } catch (convErr) {
           console.warn('[CONVERSION ERROR]', convErr);
+          linkFailed = true;
         }
+      }
+
+      // Si falló la vinculación, NO navegar automáticamente: mantener contexto y mostrar UI de recuperación
+      if (linkFailed) {
+        setLinkingError('El encuentro se creó correctamente, pero no pudimos vincularlo con tu intención.');
+        return;
       }
 
       if (tipo === 'individual') {
@@ -173,6 +192,60 @@ const Step4InviteType: React.FC<Step4Props> = () => {
     } finally { setLoading(false); }
   };
 
+  const handleRetryLinking = async () => {
+    if (retryingLink || loading) return;
+    const targetEncuentroId = createdEncuentroId || wizardData.encuentro_id;
+    const sourceId = wizardData.sourceIntentionId;
+    const tipo = resolvedTipo || (wizardData.tipo_invitacion as 'individual' | 'link_general') || 'link_general';
+
+    if (!targetEncuentroId || !sourceId) {
+      handleContinueAnyway();
+      return;
+    }
+
+    try {
+      setRetryingLink(true);
+      const convRes = await intencionesService.convertirIntencionAEncuentro(
+        sourceId,
+        targetEncuentroId
+      );
+
+      if (convRes.ok) {
+        setField('sourceIntentionId', null);
+        setLinkingError(null);
+
+        if (tipo === 'individual') {
+          navigate(`/add-guests/${targetEncuentroId}`, { replace: true });
+        } else {
+          navigate(`/share/${targetEncuentroId}`, { replace: true });
+        }
+      } else {
+        console.warn('[RETRY CONVERSION WARNING] Falló reintento:', convRes.error);
+        setLinkingError('El encuentro se creó correctamente, pero no pudimos vincularlo con tu intención.');
+      }
+    } catch (err: any) {
+      console.warn('[RETRY CONVERSION ERROR]', err);
+      setLinkingError('El encuentro se creó correctamente, pero no pudimos vincularlo con tu intención.');
+    } finally {
+      setRetryingLink(false);
+    }
+  };
+
+  const handleContinueAnyway = () => {
+    const targetEncuentroId = createdEncuentroId || wizardData.encuentro_id;
+    const tipo = resolvedTipo || (wizardData.tipo_invitacion as 'individual' | 'link_general') || 'link_general';
+
+    // Limpiar sourceIntentionId explícitamente para evitar contaminar futuras creaciones
+    setField('sourceIntentionId', null);
+    setLinkingError(null);
+
+    if (tipo === 'individual') {
+      navigate(`/add-guests/${targetEncuentroId}`, { replace: true });
+    } else {
+      navigate(`/share/${targetEncuentroId}`, { replace: true });
+    }
+  };
+
   return (
     <div className="cw-container">
       <div className="cw-step-header cw-step-header--padded">
@@ -182,9 +255,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
 
       <div className="cw-options-grid">
         <div
-          className={`cw-option-card ${wizardData.tipo_invitacion === 'link_general' ? 'cw-option-card--selected' : ''} ${loading || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
+          className={`cw-option-card ${wizardData.tipo_invitacion === 'link_general' ? 'cw-option-card--selected' : ''} ${loading || retryingLink || !!linkingError || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
           onClick={async () => {
-            if (loading || !!wizardData.encuentro_id) return;
+            if (loading || retryingLink || !!linkingError || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'link_general');
             setError(null);
             await handleFinish('link_general');
@@ -196,9 +269,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         </div>
 
         <div
-          className={`cw-option-card ${wizardData.tipo_invitacion === 'individual' ? 'cw-option-card--selected' : ''} ${loading || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
+          className={`cw-option-card ${wizardData.tipo_invitacion === 'individual' ? 'cw-option-card--selected' : ''} ${loading || retryingLink || !!linkingError || !!wizardData.encuentro_id ? 'cw-option-card--disabled' : ''}`}
           onClick={async () => {
-            if (loading || !!wizardData.encuentro_id) return;
+            if (loading || retryingLink || !!linkingError || !!wizardData.encuentro_id) return;
             setField('tipo_invitacion', 'individual');
             setError(null);
             await handleFinish('individual');
@@ -210,15 +283,13 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         </div>
       </div>
 
-
-
-      {hasInitialValue && (
+      {hasInitialValue && !linkingError && (
         <div className="cw-bottom-actions">
           <Button
             fullWidth
-            disabled={loading}
+            disabled={loading || retryingLink}
             onClick={async () => {
-              if (loading) return;
+              if (loading || retryingLink) return;
               setError(null);
               await handleFinish();
             }}
@@ -228,7 +299,34 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         </div>
       )}
 
-      {error && (
+      {linkingError && (
+        <div className="cw-bottom-actions" style={{ marginTop: 16 }}>
+          <div className="cw-error-banner" role="alert" style={{ textAlign: 'center' }}>
+            <p style={{ margin: '0 0 12px 0', fontWeight: 600 }}>
+              {linkingError}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Button
+                fullWidth
+                disabled={retryingLink}
+                onClick={handleRetryLinking}
+              >
+                {retryingLink ? 'Reintentando vinculación…' : 'Reintentar vinculación'}
+              </Button>
+              <Button
+                fullWidth
+                variant="secondary"
+                disabled={retryingLink}
+                onClick={handleContinueAnyway}
+              >
+                Continuar de todos modos
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && !linkingError && (
         <div className="cw-bottom-actions">
           <div className="cw-error-banner">
             {error}
