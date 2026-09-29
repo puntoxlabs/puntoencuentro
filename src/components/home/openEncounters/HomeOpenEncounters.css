@@ -212,3 +212,123 @@
 .pe-discovery-empty-btn--outline:hover {
   background-color: #f1f5f9;
 }
+
+/* Selector Segmentado de Discovery */
+.pe-discovery-tabs {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f1f5f9;
+  padding: 3px;
+  border-radius: 12px;
+  gap: 2px;
+  margin-bottom: 0.85rem;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.pe-discovery-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pe-discovery-tab {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.pe-discovery-tab:hover:not(.pe-discovery-tab--active) {
+  color: #0f172a;
+}
+
+.pe-discovery-tab--active {
+  background-color: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+/* Subtítulos de grupo */
+.pe-discovery-subtitle {
+  margin: 1.1rem 0 0.55rem 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pe-discovery-subtitle:first-of-type {
+  margin-top: 0.25rem;
+}
+
+/* Grid de Intenciones */
+.pe-discovery-intentions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .pe-discovery-intentions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .pe-discovery-intentions-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Avisos y fail-soft */
+.pe-discovery-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+}
+
+.pe-discovery-notice--warning {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.pe-discovery-notice--error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.pe-discovery-notice-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pe-discovery-empty--subtle {
+  padding: 1rem 1.25rem;
+  background-color: #fafbfc;
+}

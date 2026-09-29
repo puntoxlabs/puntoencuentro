@@ -12,7 +12,7 @@ export interface LoginRequiredSheetProps {
   /** Cargando la operación OAuth */
   loading?: boolean;
   /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' */
-  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention';
+  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention';
 }
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
@@ -31,6 +31,10 @@ const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: st
   create_intention: {
     title: 'Para expresar tu intención necesitás una cuenta',
     body: 'Una cuenta te permite gestionar tus intenciones, pausarlas y convertirlas en encuentros más adelante.',
+  },
+  interest_intention: {
+    title: 'Para indicar tu interés necesitás una cuenta',
+    body: 'Una cuenta nos ayuda a cuidar la comunidad y avisarle a quien propuso la idea que hay interés.',
   },
 };
 
@@ -54,6 +58,11 @@ const BENEFITS_BY_ACTION: Record<NonNullable<LoginRequiredSheetProps['action']>,
     'Expresar tus intereses y planes',
     'Pausar o editar tus intenciones',
     'Conservar tus intenciones y encuentros',
+  ],
+  interest_intention: [
+    'Mostrar tu interés a quien propuso la idea',
+    'Seguir las ganas de hacer en tus zonas',
+    'Sin compromiso ni grupos obligatorios',
   ],
 };
 

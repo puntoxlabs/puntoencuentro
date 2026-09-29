@@ -1,16 +1,26 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ChevronRight, MapPin, Sparkles } from 'lucide-react';
+import { ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary } from './types';
+import type { PublicIntencionSummary } from '@/types/intenciones';
 import { OPEN_ENCOUNTERS_DEMO } from './demoData';
 import { HomeOpenEncounterCard } from './HomeOpenEncounterCard';
 import { HomeOpenEncounterDetailSheet } from './HomeOpenEncounterDetailSheet';
 import { ZoneSelectorModal } from './ZoneSelectorModal';
+import { PublicIntencionCard } from '../discovery/PublicIntencionCard';
+import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { openEncountersService } from '@/services/openEncountersService';
+import { useUnifiedDiscovery } from '@/hooks/useUnifiedDiscovery';
+import { useAuth } from '@/contexts/AuthContext';
 import './HomeOpenEncounters.css';
+
+export const PENDING_INTENTION_INTEREST_KEY = 'puntoencuentro_pending_intention_interest';
+
+export type DiscoveryTab = 'todo' | 'encuentros' | 'intenciones';
 
 export interface HomeOpenEncountersProps {
   encounters?: OpenEncounterSummary[];
+  intentions?: PublicIntencionSummary[];
   selectedLocalityIds?: string[];
   noZonesConfigured?: boolean;
   onOpenCreate?: () => void;
@@ -26,6 +36,7 @@ export interface HomeOpenEncountersProps {
 
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   encounters: propEncounters,
+  intentions: propIntentions,
   selectedLocalityIds: propLocalityIds,
   noZonesConfigured = false,
   onOpenCreate,
@@ -34,6 +45,10 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   isDemoMode,
 }) => {
   const { t } = useTranslation();
+  const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
+
+  const [discoveryTab, setDiscoveryTab] = useState<DiscoveryTab>('todo');
+
   const trackRef = useRef<HTMLDivElement>(null);
   const [selectedEncounter, setSelectedEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -41,18 +56,14 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [isInteracting, setIsInteracting] = useState(false);
   const resumeTimerRef = useRef<number | null>(null);
 
-  // Determinar si se permite fallback demo de diseño
-  const allowDemoFallback = useMemo(() => {
-    if (typeof isDemoMode === 'boolean') return isDemoMode;
-    if (typeof window !== 'undefined') {
-      return window.location.pathname.startsWith('/preview');
-    }
-    return false;
-  }, [isDemoMode]);
+  // Auth Guard Sheet & Pending Action
+  const [isLoginSheetOpen, setIsLoginSheetOpen] = useState(false);
+  const [isOAuthStarting, setIsOAuthStarting] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const hasProcessedPendingInterestRef = useRef(false);
 
   // Zonas del usuario (prop o cargadas de service)
   const [userZones, setUserZones] = useState<string[]>(propLocalityIds || []);
-  const [liveEncounters, setLiveEncounters] = useState<OpenEncounterSummary[]>(propEncounters || []);
 
   useEffect(() => {
     if (propLocalityIds) {
@@ -66,42 +77,42 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   }, [propLocalityIds]);
 
-  // Si propEncounters viene provisto, usarlo; sino buscar de Supabase
-  useEffect(() => {
-    if (propEncounters) {
-      setLiveEncounters(propEncounters);
-      return;
+  // Hook central de Discovery Unificado
+  const {
+    encounters: hookEncounters,
+    intentions: hookIntentions,
+    loading: hookLoading,
+    error: hookError,
+    encountersError,
+    intentionsError,
+    refresh,
+    setIntentionInterest,
+  } = useUnifiedDiscovery({
+    localityIds: userZones.length > 0 ? userZones : undefined,
+    enabled: propEncounters === undefined && propIntentions === undefined,
+  });
+
+  // Determinar si se permite fallback demo de diseño
+  const allowDemoFallback = useMemo(() => {
+    if (typeof isDemoMode === 'boolean') return isDemoMode;
+    if (typeof window !== 'undefined') {
+      return window.location.pathname.startsWith('/preview');
     }
+    return false;
+  }, [isDemoMode]);
 
-    let mounted = true;
-    openEncountersService
-      .getDiscoveryEncuentros(userZones.length > 0 ? userZones : undefined)
-      .then((data) => {
-        if (!mounted) return;
-        if (data && data.length > 0) {
-          setLiveEncounters(data);
-        } else if (allowDemoFallback) {
-          // Fallback a demo data sólo en preview de diseño
-          setLiveEncounters(OPEN_ENCOUNTERS_DEMO);
-        } else {
-          // En modo real sin encuentros: array vacío real -> muestra empty state real
-          setLiveEncounters([]);
-        }
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        console.error('[HomeOpenEncounters] Error cargando discovery:', err);
-        if (allowDemoFallback) {
-          setLiveEncounters(OPEN_ENCOUNTERS_DEMO);
-        } else {
-          setLiveEncounters([]);
-        }
-      });
+  // Encuentros e intenciones efectivos
+  const liveEncounters = useMemo<OpenEncounterSummary[]>(() => {
+    if (propEncounters !== undefined) return propEncounters;
+    if (hookEncounters && hookEncounters.length > 0) return hookEncounters;
+    if (allowDemoFallback && !hookLoading) return OPEN_ENCOUNTERS_DEMO;
+    return hookEncounters || [];
+  }, [propEncounters, hookEncounters, allowDemoFallback, hookLoading]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [propEncounters, userZones, allowDemoFallback]);
+  const liveIntentions = useMemo<PublicIntencionSummary[]>(() => {
+    if (propIntentions !== undefined) return propIntentions;
+    return hookIntentions || [];
+  }, [propIntentions, hookIntentions]);
 
   // Filtrado por zonas seleccionadas
   const visibleEncounters = useMemo(() => {
@@ -109,6 +120,81 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     if (!userZones || userZones.length === 0) return liveEncounters;
     return liveEncounters.filter((e) => userZones.includes(e.localityId));
   }, [liveEncounters, userZones]);
+
+  const visibleIntentions = useMemo(() => {
+    if (!liveIntentions || liveIntentions.length === 0) return [];
+    if (!userZones || userZones.length === 0) return liveIntentions;
+    return liveIntentions.filter(
+      (i) => i.modalidad === 'virtual' || (i.locality_id && userZones.includes(i.locality_id))
+    );
+  }, [liveIntentions, userZones]);
+
+  // ── RECUPERACIÓN DE INTERÉS PENDIENTE POST-OAUTH ──
+  useEffect(() => {
+    if (!isPermanentUser) return;
+    if (hasProcessedPendingInterestRef.current) return;
+    if (typeof sessionStorage === 'undefined') return;
+
+    const raw = sessionStorage.getItem(PENDING_INTENTION_INTEREST_KEY);
+    if (!raw) return;
+
+    try {
+      const pending = JSON.parse(raw) as { intencionId: string; interesado: boolean };
+      if (pending && pending.intencionId && pending.interesado === true) {
+        hasProcessedPendingInterestRef.current = true;
+        setActionLoadingId(pending.intencionId);
+
+        setIntentionInterest(pending.intencionId, true)
+          .then((res) => {
+            if (res.ok) {
+              sessionStorage.removeItem(PENDING_INTENTION_INTEREST_KEY);
+            }
+          })
+          .catch((err) => {
+            console.warn('[HomeOpenEncounters] Error reintentando pending interest:', err);
+          })
+          .finally(() => {
+            setActionLoadingId(null);
+          });
+      }
+    } catch (err) {
+      console.warn('[HomeOpenEncounters] Error parseando pending interest:', err);
+    }
+  }, [isPermanentUser, setIntentionInterest]);
+
+  // Manejo de clicks en botón de interés
+  const handleInterestClick = async (intencionId: string, interesado: boolean) => {
+    if (interesado === true && !isPermanentUser) {
+      // Guardar pending action exclusivamente con intencionId e interesado: true
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(
+          PENDING_INTENTION_INTEREST_KEY,
+          JSON.stringify({ intencionId, interesado: true })
+        );
+      }
+      setIsLoginSheetOpen(true);
+      return;
+    }
+
+    setActionLoadingId(intencionId);
+    try {
+      await setIntentionInterest(intencionId, interesado);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleLoginWithGoogle = async () => {
+    setIsOAuthStarting(true);
+    try {
+      const res = await signInWithGoogleForDiscovery();
+      if (!res.ok) {
+        setIsOAuthStarting(false);
+      }
+    } catch {
+      setIsOAuthStarting(false);
+    }
+  };
 
   // Pausa de auto-avance
   const pauseAutoAdvance = useCallback((temporaryMs = 12000) => {
@@ -148,7 +234,6 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
         if (cards.length <= 1) return;
 
-        // Encontrar la card que está actualmente al inicio útil del track
         const currentScroll = track.scrollLeft;
         let currentIndex = 0;
         let minDiff = Infinity;
@@ -163,8 +248,6 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         const maxScrollLeft = track.scrollWidth - track.clientWidth;
         const nextIndex = currentIndex + 1;
 
-        // Si el siguiente índice excede las tarjetas o su offsetLeft supera el límite de scroll
-        // (lo que provocaría cortar la tarjeta anterior en desktop), volver de forma fluida a Card 0 flush.
         if (nextIndex >= cards.length || cards[nextIndex].offsetLeft > maxScrollLeft + 2) {
           track.scrollTo({ left: 0, behavior: 'smooth' });
         } else {
@@ -214,8 +297,135 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   };
 
+  // Renderizado del bloque de Encuentros
+  const renderEncountersGroup = () => {
+    if (encountersError && !propEncounters) {
+      return (
+        <div className="pe-discovery-notice pe-discovery-notice--warning" role="alert">
+          <span>No pudimos cargar los encuentros abiertos en este momento.</span>
+          <button type="button" className="pe-discovery-notice-btn" onClick={() => refresh()}>
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+
+    if (noZonesConfigured) {
+      return (
+        <div className="pe-discovery-empty">
+          <p className="pe-discovery-empty-title">
+            {t('open_encounters.no_zones_title', {
+              defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
+            })}
+          </p>
+          <button
+            type="button"
+            className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
+            onClick={handleOpenZoneModal}
+          >
+            {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
+          </button>
+        </div>
+      );
+    }
+
+    if (visibleEncounters.length === 0) {
+      return (
+        <div className="pe-discovery-empty">
+          <p className="pe-discovery-empty-title">
+            {t('open_encounters.empty_title', {
+              defaultValue: 'No hay encuentros abiertos ahora en tus zonas.',
+            })}
+          </p>
+          <p className="pe-discovery-empty-desc">
+            {t('open_encounters.empty_prompt', {
+              defaultValue: '¿Ya tenés un plan y te falta gente?',
+            })}
+          </p>
+          <button
+            type="button"
+            className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
+            onClick={onOpenCreate}
+          >
+            <Sparkles size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+            {t('open_encounters.empty_cta', { defaultValue: 'Abrir un encuentro' })}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="pe-discovery-carousel-wrapper"
+        onMouseEnter={() => setIsInteracting(true)}
+        onMouseLeave={() => pauseAutoAdvance(3000)}
+        onFocus={() => setIsInteracting(true)}
+        onBlur={() => pauseAutoAdvance(3000)}
+        onTouchStart={() => pauseAutoAdvance(15000)}
+        onScroll={() => pauseAutoAdvance(12000)}
+      >
+        <div
+          ref={trackRef}
+          className="pe-discovery-track"
+          role="region"
+          aria-label="Carrusel de encuentros abiertos"
+          tabIndex={0}
+        >
+          {visibleEncounters.map((encounter) => (
+            <div key={encounter.id} className="pe-discovery-item">
+              <HomeOpenEncounterCard encounter={encounter} onClick={handleCardClick} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizado del bloque de Intenciones
+  const renderIntentionsGroup = () => {
+    if (intentionsError && !propIntentions) {
+      return (
+        <div className="pe-discovery-notice pe-discovery-notice--warning" role="alert">
+          <span>No pudimos cargar las ganas de hacer en este momento.</span>
+          <button type="button" className="pe-discovery-notice-btn" onClick={() => refresh()}>
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+
+    if (visibleIntentions.length === 0) {
+      return (
+        <div className="pe-discovery-empty pe-discovery-empty--subtle">
+          <p className="pe-discovery-empty-title">
+            Por ahora no hay otras ganas de hacer por acá.
+          </p>
+          <p className="pe-discovery-empty-desc">
+            Podés proponer qué te gustaría hacer desde la sección Intenciones.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="pe-discovery-intentions-grid">
+        {visibleIntentions.map((intencion) => (
+          <PublicIntencionCard
+            key={intencion.id}
+            intencion={intencion}
+            onInterestClick={handleInterestClick}
+            isLoading={actionLoadingId === intencion.id}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Error general: ambas fuentes fallaron
+  const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
+
   return (
-    <section className="pe-discovery-section" aria-label="Encuentros abiertos para sumarte">
+    <section className="pe-discovery-section" aria-label="Encuentros abiertos y ganas de hacer para sumarte">
       {/* Cabecera de la Sección */}
       <div className="pe-discovery-header">
         <div className="pe-discovery-title-group">
@@ -247,72 +457,85 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         </button>
       </div>
 
-      {/* Caso A: Estado sin zonas configuradas */}
-      {noZonesConfigured ? (
-        <div className="pe-discovery-empty">
-          <p className="pe-discovery-empty-title">
-            {t('open_encounters.no_zones_title', {
-              defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
-            })}
-          </p>
+      {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de hacer ] */}
+      <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Discovery">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={discoveryTab === 'todo'}
+          className={`pe-discovery-tab ${discoveryTab === 'todo' ? 'pe-discovery-tab--active' : ''}`}
+          onClick={() => setDiscoveryTab('todo')}
+        >
+          Todo
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={discoveryTab === 'encuentros'}
+          className={`pe-discovery-tab ${discoveryTab === 'encuentros' ? 'pe-discovery-tab--active' : ''}`}
+          onClick={() => setDiscoveryTab('encuentros')}
+        >
+          Encuentros
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={discoveryTab === 'intenciones'}
+          className={`pe-discovery-tab ${discoveryTab === 'intenciones' ? 'pe-discovery-tab--active' : ''}`}
+          onClick={() => setDiscoveryTab('intenciones')}
+        >
+          Ganas de hacer
+        </button>
+      </div>
+
+      {/* Contenido según Tab y Estado de Error General */}
+      {isGeneralError ? (
+        <div className="pe-discovery-empty pe-discovery-notice--error" role="alert">
+          <AlertCircle size={20} aria-hidden="true" />
+          <p className="pe-discovery-empty-title">No pudimos cargar el contenido de Discovery.</p>
           <button
             type="button"
             className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
-            onClick={handleOpenZoneModal}
+            onClick={() => refresh()}
           >
-            {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
-          </button>
-        </div>
-      ) : visibleEncounters.length === 0 ? (
-        /* Caso B: Estado vacío (sin encuentros disponibles en la zona) */
-        <div className="pe-discovery-empty">
-          <p className="pe-discovery-empty-title">
-            {t('open_encounters.empty_title', {
-              defaultValue: 'No hay encuentros abiertos ahora en tus zonas.',
-            })}
-          </p>
-          <p className="pe-discovery-empty-desc">
-            {t('open_encounters.empty_prompt', {
-              defaultValue: '¿Ya tenés un plan y te falta gente?',
-            })}
-          </p>
-          <button
-            type="button"
-            className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
-            onClick={onOpenCreate}
-          >
-            <Sparkles size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
-            {t('open_encounters.empty_cta', { defaultValue: 'Abrir un encuentro' })}
+            <RefreshCw size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+            Reintentar
           </button>
         </div>
       ) : (
-        /* Caso C: Carrusel horizontal con scroll-snap nativo */
-        <div
-          className="pe-discovery-carousel-wrapper"
-          onMouseEnter={() => setIsInteracting(true)}
-          onMouseLeave={() => pauseAutoAdvance(3000)}
-          onFocus={() => setIsInteracting(true)}
-          onBlur={() => pauseAutoAdvance(3000)}
-          onTouchStart={() => pauseAutoAdvance(15000)}
-          onScroll={() => pauseAutoAdvance(12000)}
-        >
-          <div
-            ref={trackRef}
-            className="pe-discovery-track"
-            role="region"
-            aria-label="Carrusel de encuentros abiertos"
-            tabIndex={0}
-          >
-            {visibleEncounters.map((encounter) => (
-              <div key={encounter.id} className="pe-discovery-item">
-                <HomeOpenEncounterCard encounter={encounter} onClick={handleCardClick} />
+        <>
+          {/* Tab: Todo */}
+          {discoveryTab === 'todo' && (
+            <div className="pe-discovery-groups">
+              <div className="pe-discovery-group">
+                <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
+                {renderEncountersGroup()}
               </div>
-            ))}
-          </div>
-        </div>
+
+              <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
+                <h3 className="pe-discovery-subtitle">Ganas de hacer</h3>
+                {renderIntentionsGroup()}
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Encuentros */}
+          {discoveryTab === 'encuentros' && (
+            <div className="pe-discovery-group">
+              {renderEncountersGroup()}
+            </div>
+          )}
+
+          {/* Tab: Ganas de hacer */}
+          {discoveryTab === 'intenciones' && (
+            <div className="pe-discovery-group">
+              {renderIntentionsGroup()}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Detail Sheet / Modal */}
+      {/* Detail Sheet / Modal de Encuentro */}
       <HomeOpenEncounterDetailSheet
         isOpen={isDetailOpen}
         encounter={selectedEncounter}
@@ -325,6 +548,15 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         onClose={() => setIsZoneModalOpen(false)}
         selectedLocalityIds={userZones}
         onSave={handleSaveZones}
+      />
+
+      {/* LoginRequiredSheet para acción de Interés */}
+      <LoginRequiredSheet
+        isOpen={isLoginSheetOpen}
+        onClose={() => setIsLoginSheetOpen(false)}
+        onContinueWithGoogle={handleLoginWithGoogle}
+        loading={isOAuthStarting}
+        action="interest_intention"
       />
     </section>
   );
