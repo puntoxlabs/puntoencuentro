@@ -50,3 +50,22 @@ export interface CrearReporteResult {
   estado?: 'pending';
   error?: string;
 }
+
+/**
+ * Estado contextual de bloqueo para la UI (Fase 2.0-C1 T3-B).
+ * Exclusivamente refleja si el usuario autenticado bloqueó a la contraparte.
+ */
+export interface ContextualBlockState {
+  ok: boolean;
+  blockedByMe: boolean;
+  error?: string;
+}
+
+/**
+ * Resultado de acción de bloqueo o desbloqueo contextual.
+ */
+export interface ContextualBlockActionResult {
+  ok: boolean;
+  blocked: boolean;
+  error?: string;
+}

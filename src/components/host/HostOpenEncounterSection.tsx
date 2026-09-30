@@ -21,6 +21,7 @@ import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
 import { ApplicantTrustSignals } from './ApplicantTrustSignals';
 import { ReportRequestModal } from './ReportRequestModal';
+import { ContextualBlockAction } from '@/components/trust/ContextualBlockAction';
 import './HostOpenEncounterSection.css';
 
 export interface HostOpenEncounterSectionProps {
@@ -332,6 +333,15 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 </div>
 
                 <div className="pe-host-request-item__actions">
+                  <ContextualBlockAction
+                    solicitudId={req.id}
+                    applicantName={req.nombre_solicitante}
+                    variant="compact"
+                    onBlockStateChange={() => {
+                      loadSolicitudes();
+                      onRefresh();
+                    }}
+                  />
                   <button
                     type="button"
                     className="pe-host-request-item__btn-report"
@@ -393,24 +403,35 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                         {req.estado === 'approved' ? 'Aceptada' : req.estado === 'withdrawn' ? 'Retirada' : 'Rechazada'}
                       </span>
                     </div>
-                    {(!isPast || req.estado === 'approved') && (
-                      <button
-                        type="button"
-                        className="pe-host-resolved-item__btn-report"
-                        onClick={() =>
-                          setReportingRequest({
-                            id: req.id,
-                            name: req.nombre_solicitante,
-                            contexto: isPast ? 'post_encuentro' : 'pre_solicitud',
-                          })
-                        }
-                        title={isPast ? 'Reportar participante' : 'Reportar solicitud'}
-                        aria-label={`${isPast ? 'Reportar participante' : 'Reportar solicitud'} de ${req.nombre_solicitante}`}
-                      >
-                        <Flag size={12} />
-                        <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
-                      </button>
-                    )}
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <ContextualBlockAction
+                        solicitudId={req.id}
+                        applicantName={req.nombre_solicitante}
+                        variant="link"
+                        onBlockStateChange={() => {
+                          loadSolicitudes();
+                          onRefresh();
+                        }}
+                      />
+                      {(!isPast || req.estado === 'approved') && (
+                        <button
+                          type="button"
+                          className="pe-host-resolved-item__btn-report"
+                          onClick={() =>
+                            setReportingRequest({
+                              id: req.id,
+                              name: req.nombre_solicitante,
+                              contexto: isPast ? 'post_encuentro' : 'pre_solicitud',
+                            })
+                          }
+                          title={isPast ? 'Reportar participante' : 'Reportar solicitud'}
+                          aria-label={`${isPast ? 'Reportar participante' : 'Reportar solicitud'} de ${req.nombre_solicitante}`}
+                        >
+                          <Flag size={12} />
+                          <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

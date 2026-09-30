@@ -20,6 +20,7 @@ import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2, F
 import { supabase } from '@/lib/supabase';
 import { openEncountersService } from '@/services/openEncountersService';
 import { ReportRequestModal } from '@/components/host/ReportRequestModal';
+import { ContextualBlockAction } from '@/components/trust/ContextualBlockAction';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
@@ -74,6 +75,7 @@ const InviteGuest: React.FC = () => {
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [approvedRequestId, setApprovedRequestId] = useState<string | null>(null);
+  const [mySolicitudId, setMySolicitudId] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [hasReportedHost, setHasReportedHost] = useState(false);
 
@@ -85,24 +87,35 @@ const InviteGuest: React.FC = () => {
 
   useEffect(() => {
     let isCancelled = false;
-    const checkApprovedRequest = async () => {
-      if (!user || user.is_anonymous || !isEncuentroFinalizado || !encuentro?.id) {
+    const checkUserSolicitud = async () => {
+      if (!user || user.is_anonymous || !encuentro?.id) {
         setApprovedRequestId(null);
+        setMySolicitudId(null);
         return;
       }
       try {
         const res = await openEncountersService.getMiSolicitud(encuentro.id, user.id);
-        if (!isCancelled && res?.ok && res.has_request && res.estado === 'approved' && res.request_id) {
-          setApprovedRequestId(res.request_id);
-        } else if (!isCancelled) {
+        if (isCancelled) return;
+        if (res?.ok && res.has_request && res.request_id) {
+          setMySolicitudId(res.request_id);
+          if (isEncuentroFinalizado && res.estado === 'approved') {
+            setApprovedRequestId(res.request_id);
+          } else {
+            setApprovedRequestId(null);
+          }
+        } else {
+          setMySolicitudId(null);
           setApprovedRequestId(null);
         }
       } catch {
-        if (!isCancelled) setApprovedRequestId(null);
+        if (!isCancelled) {
+          setMySolicitudId(null);
+          setApprovedRequestId(null);
+        }
       }
     };
 
-    checkApprovedRequest();
+    checkUserSolicitud();
     return () => {
       isCancelled = true;
     };
@@ -696,6 +709,13 @@ const InviteGuest: React.FC = () => {
             <span>{hasReportedHost ? 'Reporte enviado' : 'Reportar anfitrión'}</span>
           </button>
         )}
+        {mySolicitudId && (
+          <ContextualBlockAction
+            solicitudId={mySolicitudId}
+            applicantName="Anfitrión"
+            variant="button"
+          />
+        )}
       </div>
 
       {approvedRequestId && (
@@ -918,35 +938,51 @@ const InviteGuest: React.FC = () => {
           >
             {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
           </button>
+          {mySolicitudId && (
+            <ContextualBlockAction
+              solicitudId={mySolicitudId}
+              applicantName="Anfitrión"
+              variant="button"
+            />
+          )}
         </div>
       )}
 
-      {isFinalizado && approvedRequestId && (
+      {isFinalizado && (approvedRequestId || mySolicitudId) && (
         <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
-          <button
-            type="button"
-            onClick={() => setIsReportModalOpen(true)}
-            className="guest-action-secondary guest-report-host-btn"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              minHeight: 44,
-              padding: '10px 16px',
-              fontSize: 13,
-              color: 'var(--color-on-surface-variant, #6b7280)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              marginTop: 8,
-              width: '100%',
-            }}
-            aria-label="Reportar anfitrión"
-          >
-            <Flag size={14} />
-            <span>{hasReportedHost ? 'Reporte enviado' : 'Reportar anfitrión'}</span>
-          </button>
+          {approvedRequestId && (
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="guest-action-secondary guest-report-host-btn"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                minHeight: 44,
+                padding: '10px 16px',
+                fontSize: 13,
+                color: 'var(--color-on-surface-variant, #6b7280)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                marginTop: 8,
+                width: '100%',
+              }}
+              aria-label="Reportar anfitrión"
+            >
+              <Flag size={14} />
+              <span>{hasReportedHost ? 'Reporte enviado' : 'Reportar anfitrión'}</span>
+            </button>
+          )}
+          {mySolicitudId && (
+            <ContextualBlockAction
+              solicitudId={mySolicitudId}
+              applicantName="Anfitrión"
+              variant="button"
+            />
+          )}
         </div>
       )}
 

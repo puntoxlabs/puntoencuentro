@@ -1,0 +1,101 @@
+/* ContextualBlockAction.css */
+.pe-contextual-block-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.pe-contextual-block-action:has(.pe-contextual-block-action__btn--button) {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pe-contextual-block-action__btn {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 44px;
+  min-width: 44px;
+  transition: all 0.15s ease;
+}
+
+.pe-contextual-block-action__btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #94a3b8;
+}
+
+/* Variant compact (para listas de solicitudes) */
+.pe-contextual-block-action__btn--compact {
+  padding: 5px 10px;
+  font-size: 0.76rem;
+}
+
+/* Variant button (para vistas principales como InviteGuest) */
+.pe-contextual-block-action__btn--button {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 10px 16px;
+  border-radius: 12px;
+}
+
+/* Variant link (para items secundarios en historial) */
+.pe-contextual-block-action__btn--link {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.pe-contextual-block-action__btn--link:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Estilos de diferenciación semántica */
+.pe-contextual-block-action__btn--block {
+  color: #64748b;
+}
+
+.pe-contextual-block-action__btn--block:hover:not(:disabled) {
+  color: #b91c1c;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.pe-contextual-block-action__btn--unblock {
+  color: #0284c7;
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
+.pe-contextual-block-action__btn--unblock:hover:not(:disabled) {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+
+.pe-contextual-block-action__feedback {
+  font-size: 0.75rem;
+  color: #059669;
+  font-weight: 600;
+  animation: pe-block-feedback-fade 0.2s ease-in;
+  white-space: nowrap;
+}
+
+@keyframes pe-block-feedback-fade {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
