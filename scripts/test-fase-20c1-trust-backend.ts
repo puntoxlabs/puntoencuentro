@@ -115,13 +115,18 @@ describe('Fase 2.0-C1 (T1): Ficha Factual de Actividad del Solicitante — Backe
       );
     `);
 
-    // 2. Aplicar la migración aditiva bajo prueba
-    const migrationPath = path.resolve(
+    // 2. Aplicar la migración aditiva original y la migración correctiva
+    const migrationPath1 = path.resolve(
       process.cwd(),
       'supabase/migrations/20260930120000_fase_20c1_trust_applicant_profile.sql'
     );
-    const sql = fs.readFileSync(migrationPath, 'utf-8');
-    await db.exec(sql);
+    await db.exec(fs.readFileSync(migrationPath1, 'utf-8'));
+
+    const migrationPath2 = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20260930123000_fix_fase_20c1_trust_no_prior_open_history.sql'
+    );
+    await db.exec(fs.readFileSync(migrationPath2, 'utf-8'));
 
     // 3. Crear fixtures
     // A. Encuentro abierto actual del host
@@ -198,7 +203,7 @@ describe('Fase 2.0-C1 (T1): Ficha Factual de Actividad del Solicitante — Backe
     assert.ok(res.data, 'Debe incluir data');
     assert.equal(res.data.member_since_month, '2026-07', 'Mes de alta correcto');
     assert.equal(res.data.approved_open_encounters_previous, 0, 'Sin admisiones pasadas aún');
-    assert.equal(res.data.no_prior_open_history, true, 'no_prior_open_history es true');
+    assert.equal(res.data.no_prior_open_history, false, 'no_prior_open_history es false porque hosted_open_encounters_previous es 1');
     assert.equal(res.data.hosted_open_encounters_previous, 1, 'Cuenta 1 abierto organizado previo');
   });
 
@@ -324,5 +329,71 @@ describe('Fase 2.0-C1 (T1): Ficha Factual de Actividad del Solicitante — Backe
     assert.equal((data as any).public_token, undefined);
     assert.equal((data as any).titulos, undefined);
     assert.equal((data as any).encuentros, undefined);
+  });
+
+  test('13. Verificación exhaustiva de la semántica de no_prior_open_history (Casos A, B, C, D)', async () => {
+    const userA = 'dddddddd-0000-0000-0000-000000000001';
+    await db.exec(`
+      INSERT INTO auth.users (id, email, created_at)
+      VALUES ('${userA}', 'usera@example.com', '2026-08-01 00:00:00+00');
+    `);
+
+    // Solicitud de userA para el encuentro actual del host
+    const resSolA = await db.query<{ id: string }>(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${currentEncuentroId}', '${userA}', 'Usuario A', 'pending')
+      RETURNING id;
+    `);
+    const solAId = resSolA.rows[0].id;
+
+    // Caso A: approved = 0, hosted = 0 => no_prior_open_history = true
+    const resA = await callAsUser(hostUser, false, solAId);
+    assert.equal(resA.ok, true);
+    assert.equal(resA.data.approved_open_encounters_previous, 0);
+    assert.equal(resA.data.hosted_open_encounters_previous, 0);
+    assert.equal(resA.data.no_prior_open_history, true, 'Caso A: 0 approved y 0 hosted => true');
+
+    // Caso B: approved = 1, hosted = 0 => no_prior_open_history = false
+    await db.exec(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${pastEncuentroId1}', '${userA}', 'Usuario A', 'approved');
+    `);
+    const resB = await callAsUser(hostUser, false, solAId);
+    assert.equal(resB.ok, true);
+    assert.equal(resB.data.approved_open_encounters_previous, 1);
+    assert.equal(resB.data.hosted_open_encounters_previous, 0);
+    assert.equal(resB.data.no_prior_open_history, false, 'Caso B: 1 approved y 0 hosted => false');
+
+    // Caso C: approved = 0, hosted = 1 => no_prior_open_history = false
+    const userC = 'dddddddd-0000-0000-0000-000000000002';
+    await db.exec(`
+      INSERT INTO auth.users (id, email, created_at)
+      VALUES ('${userC}', 'userc@example.com', '2026-08-01 00:00:00+00');
+      -- userC organiza un encuentro abierto pasado
+      INSERT INTO public.encuentros (host_id, titulo, is_open, opened_at, fecha, hora)
+      VALUES ('${userC}', 'Evento Pasado de C', false, now() - interval '15 days', '2026-08-05', '19:00');
+    `);
+    const resSolC = await db.query<{ id: string }>(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${currentEncuentroId}', '${userC}', 'Usuario C', 'pending')
+      RETURNING id;
+    `);
+    const solCId = resSolC.rows[0].id;
+    const resC = await callAsUser(hostUser, false, solCId);
+    assert.equal(resC.ok, true);
+    assert.equal(resC.data.approved_open_encounters_previous, 0);
+    assert.equal(resC.data.hosted_open_encounters_previous, 1);
+    assert.equal(resC.data.no_prior_open_history, false, 'Caso C: 0 approved y 1 hosted => false');
+
+    // Caso D: approved = 1, hosted = 1 => no_prior_open_history = false
+    await db.exec(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${pastEncuentroId1}', '${userC}', 'Usuario C', 'approved');
+    `);
+    const resD = await callAsUser(hostUser, false, solCId);
+    assert.equal(resD.ok, true);
+    assert.equal(resD.data.approved_open_encounters_previous, 1);
+    assert.equal(resD.data.hosted_open_encounters_previous, 1);
+    assert.equal(resD.data.no_prior_open_history, false, 'Caso D: 1 approved y 1 hosted => false');
   });
 });
