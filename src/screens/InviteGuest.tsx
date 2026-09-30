@@ -16,8 +16,10 @@ import { formatCount } from '@/lib/formatCount';
 import { useAuth } from '@/contexts/AuthContext';
 import { getThemeStyle } from '@/lib/themes';
 import { normalizeInvitationTheme, getThemeEyebrow } from '@/lib/invitationThemes';
-import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } from 'lucide-react';
+import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2, Flag } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { openEncountersService } from '@/services/openEncountersService';
+import { ReportRequestModal } from '@/components/host/ReportRequestModal';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
@@ -70,6 +72,41 @@ const InviteGuest: React.FC = () => {
   const [visibleEnabled, setVisibleEnabled] = useState(false);
   const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [approvedRequestId, setApprovedRequestId] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [hasReportedHost, setHasReportedHost] = useState(false);
+
+  const isEncuentroFinalizado = Boolean(
+    encuentro &&
+    encuentro.estado?.toLowerCase() !== 'cancelado' &&
+    isEncuentroPasado(encuentro.fecha, encuentro.hora)
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+    const checkApprovedRequest = async () => {
+      if (!user || user.is_anonymous || !isEncuentroFinalizado || !encuentro?.id) {
+        setApprovedRequestId(null);
+        return;
+      }
+      try {
+        const res = await openEncountersService.getMiSolicitud(encuentro.id, user.id);
+        if (!isCancelled && res?.ok && res.has_request && res.estado === 'approved' && res.request_id) {
+          setApprovedRequestId(res.request_id);
+        } else if (!isCancelled) {
+          setApprovedRequestId(null);
+        }
+      } catch {
+        if (!isCancelled) setApprovedRequestId(null);
+      }
+    };
+
+    checkApprovedRequest();
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id, user?.is_anonymous, isEncuentroFinalizado, encuentro?.id]);
 
   const getSuggestedName = (user: any) => {
     if (!user) return '';
@@ -443,7 +480,7 @@ const InviteGuest: React.FC = () => {
     </ScreenContainer>
   );
 
-  const isFinalizado = encuentro?.estado?.toLowerCase() !== 'cancelado' && isEncuentroPasado(encuentro.fecha, encuentro.hora);
+  const isFinalizado = isEncuentroFinalizado;
 
   if (step === 'done') return (
     <ScreenContainer className={`guest-page guest-theme guest-theme--${invitationTheme}`} style={getThemeStyle(encuentro?.tema)}>
@@ -633,7 +670,47 @@ const InviteGuest: React.FC = () => {
             {t('change_response', 'Cambiar respuesta')}
           </button>
         )}
+        {approvedRequestId && (
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="guest-action-secondary guest-report-host-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              minHeight: 44,
+              padding: '10px 16px',
+              fontSize: 13,
+              color: 'var(--color-on-surface-variant, #6b7280)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 8,
+              width: '100%',
+            }}
+            aria-label="Reportar anfitrión"
+          >
+            <Flag size={14} />
+            <span>{hasReportedHost ? 'Reporte enviado' : 'Reportar anfitrión'}</span>
+          </button>
+        )}
       </div>
+
+      {approvedRequestId && (
+        <ReportRequestModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          solicitudId={approvedRequestId}
+          applicantName={encuentro?.titulo || ''}
+          contexto="post_encuentro"
+          targetLabel="Anfitrión"
+          onReportSuccess={() => {
+            setHasReportedHost(true);
+          }}
+        />
+      )}
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
   );
@@ -842,6 +919,49 @@ const InviteGuest: React.FC = () => {
             {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
           </button>
         </div>
+      )}
+
+      {isFinalizado && approvedRequestId && (
+        <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="guest-action-secondary guest-report-host-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              minHeight: 44,
+              padding: '10px 16px',
+              fontSize: 13,
+              color: 'var(--color-on-surface-variant, #6b7280)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              marginTop: 8,
+              width: '100%',
+            }}
+            aria-label="Reportar anfitrión"
+          >
+            <Flag size={14} />
+            <span>{hasReportedHost ? 'Reporte enviado' : 'Reportar anfitrión'}</span>
+          </button>
+        </div>
+      )}
+
+      {approvedRequestId && (
+        <ReportRequestModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          solicitudId={approvedRequestId}
+          applicantName={encuentro?.titulo || ''}
+          contexto="post_encuentro"
+          targetLabel="Anfitrión"
+          onReportSuccess={() => {
+            setHasReportedHost(true);
+          }}
+        />
       )}
 
       <ScrollHint visible={showScrollHint} />

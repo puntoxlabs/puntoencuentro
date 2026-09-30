@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
+import type { ContextoReporte } from '@/types/trust';
 import { openEncountersService } from '@/services/openEncountersService';
 import { useAuth } from '@/contexts/AuthContext';
 import { isEncuentroPasado } from '@/lib/formatDate';
@@ -49,7 +50,11 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean | null>(null);
   const [closing, setClosing] = useState(false);
-  const [reportingRequest, setReportingRequest] = useState<{ id: string; name: string } | null>(null);
+  const [reportingRequest, setReportingRequest] = useState<{
+    id: string;
+    name: string;
+    contexto: ContextoReporte;
+  } | null>(null);
   const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
 
   const isOpen = Boolean(encuentro?.is_open);
@@ -330,7 +335,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                   <button
                     type="button"
                     className="pe-host-request-item__btn-report"
-                    onClick={() => setReportingRequest({ id: req.id, name: req.nombre_solicitante })}
+                    onClick={() => setReportingRequest({ id: req.id, name: req.nombre_solicitante, contexto: 'pre_solicitud' })}
                     title="Reportar solicitud"
                     aria-label={`Reportar solicitud de ${req.nombre_solicitante}`}
                   >
@@ -388,16 +393,24 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                         {req.estado === 'approved' ? 'Aceptada' : req.estado === 'withdrawn' ? 'Retirada' : 'Rechazada'}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="pe-host-resolved-item__btn-report"
-                      onClick={() => setReportingRequest({ id: req.id, name: req.nombre_solicitante })}
-                      title="Reportar solicitud"
-                      aria-label={`Reportar solicitud de ${req.nombre_solicitante}`}
-                    >
-                      <Flag size={12} />
-                      <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
-                    </button>
+                    {(!isPast || req.estado === 'approved') && (
+                      <button
+                        type="button"
+                        className="pe-host-resolved-item__btn-report"
+                        onClick={() =>
+                          setReportingRequest({
+                            id: req.id,
+                            name: req.nombre_solicitante,
+                            contexto: isPast ? 'post_encuentro' : 'pre_solicitud',
+                          })
+                        }
+                        title={isPast ? 'Reportar participante' : 'Reportar solicitud'}
+                        aria-label={`${isPast ? 'Reportar participante' : 'Reportar solicitud'} de ${req.nombre_solicitante}`}
+                      >
+                        <Flag size={12} />
+                        <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -432,6 +445,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           onClose={() => setReportingRequest(null)}
           solicitudId={reportingRequest.id}
           applicantName={reportingRequest.name}
+          contexto={reportingRequest.contexto}
+          targetLabel={reportingRequest.contexto === 'post_encuentro' ? 'Participante' : 'Solicitante'}
           onReportSuccess={() => {
             if (reportingRequest) {
               setReportedSolicitudIds((prev) => new Set([...prev, reportingRequest.id]));

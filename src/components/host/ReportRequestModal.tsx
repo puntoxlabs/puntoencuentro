@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
 import { trustService } from '@/services/trustService';
-import type { MotivoReportePre } from '@/types/trust';
+import type { ContextoReporte, MotivoReportePre, MotivoReportePost } from '@/types/trust';
 import './ReportRequestModal.css';
 
 export interface ReportRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   solicitudId: string;
-  applicantName: string;
+  applicantName?: string;
+  contexto?: ContextoReporte;
+  targetLabel?: string;
+  targetName?: string;
   onReportSuccess?: () => void;
 }
 
@@ -30,20 +33,54 @@ const MOTIVOS_PRE: Array<{ value: MotivoReportePre; label: string; description: 
   },
 ];
 
+const MOTIVOS_POST: Array<{ value: MotivoReportePost; label: string; description: string }> = [
+  {
+    value: 'inappropriate_behavior',
+    label: 'Comportamiento inapropiado',
+    description: 'Faltas de respeto, agresiones, acoso o conducta inapropiada durante el encuentro.',
+  },
+  {
+    value: 'commercial_spam',
+    label: 'Promoción o actividad comercial no acordada',
+    description: 'Ventas no acordadas, ofertas comerciales o actividades fuera de la propuesta.',
+  },
+  {
+    value: 'safety_concern',
+    label: 'Situación de seguridad',
+    description: 'Situaciones de riesgo físico, amenazas o incidentes graves.',
+  },
+  {
+    value: 'other',
+    label: 'Otro motivo',
+    description: 'Cualquier otra situación que requiera revisión del equipo.',
+  },
+];
+
 export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
   isOpen,
   onClose,
   solicitudId,
-  applicantName,
+  applicantName = '',
+  contexto = 'pre_solicitud',
+  targetLabel,
+  targetName,
   onReportSuccess,
 }) => {
-  const [motivo, setMotivo] = useState<MotivoReportePre | null>(null);
+  const [motivo, setMotivo] = useState<MotivoReportePre | MotivoReportePost | null>(null);
   const [detalle, setDetalle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Reset al abrir o cambiar de solicitud
+  const isPost = contexto === 'post_encuentro';
+  const motivosList = isPost ? MOTIVOS_POST : MOTIVOS_PRE;
+  const effectiveTargetName = targetName || applicantName;
+  const effectiveTargetLabel = targetLabel || (isPost ? 'Participante' : 'Solicitante');
+  const isDetailRequired = motivo === 'other';
+  const isDetailValid = !isDetailRequired || detalle.trim().length > 0;
+  const canSubmit = !submitting && Boolean(motivo) && isDetailValid;
+
+  // Reset al abrir o cambiar de solicitud o contexto
   useEffect(() => {
     if (isOpen) {
       setMotivo(null);
@@ -52,7 +89,7 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
       setErrorMessage(null);
       setIsSuccess(false);
     }
-  }, [isOpen, solicitudId]);
+  }, [isOpen, solicitudId, contexto]);
 
   // Manejo de tecla Escape
   useEffect(() => {
@@ -72,13 +109,18 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
     e.preventDefault();
     if (!motivo || submitting) return;
 
+    if (motivo === 'other' && !detalle.trim()) {
+      setErrorMessage('Por favor describí qué ocurrió para que podamos evaluar el reporte.');
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage(null);
 
     try {
       const res = await trustService.crearReporteSeguro({
         solicitudId,
-        contexto: 'pre_solicitud',
+        contexto,
         motivo,
         detalle: detalle.trim() ? detalle.trim() : null,
       });
@@ -91,13 +133,25 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
       } else {
         switch (res.error) {
           case 'report_already_exists':
-            setErrorMessage('Ya enviaste un reporte sobre esta solicitud.');
+            setErrorMessage(
+              isPost
+                ? 'Ya enviaste un reporte sobre este encuentro.'
+                : 'Ya enviaste un reporte sobre esta solicitud.'
+            );
             break;
           case 'report_window_closed':
-            setErrorMessage('Esta solicitud ya no puede reportarse desde esta instancia.');
+            setErrorMessage(
+              isPost
+                ? 'El período para reportar este encuentro ha finalizado.'
+                : 'Esta solicitud ya no puede reportarse desde esta instancia.'
+            );
             break;
           case 'report_relationship_invalid':
-            setErrorMessage('No fue posible asociar la solicitud para el reporte.');
+            setErrorMessage(
+              isPost
+                ? 'No fue posible asociar el encuentro para el reporte.'
+                : 'No fue posible asociar la solicitud para el reporte.'
+            );
             break;
           case 'permanent_account_required':
           case 'authentication_required':
@@ -133,7 +187,7 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
           <div className="pe-report-modal__title-row">
             <ShieldAlert size={20} className="pe-report-modal__icon" />
             <h3 id="pe-report-modal-title" className="pe-report-modal__title">
-              Reportar solicitud
+              {isPost ? 'Reportar este encuentro' : 'Reportar solicitud'}
             </h3>
           </div>
           <button
@@ -167,18 +221,26 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="pe-report-modal__form">
             <p className="pe-report-modal__copy">
-              Usá esta opción para informarnos sobre contenido inapropiado, promoción comercial o una situación de seguridad.
+              {isPost
+                ? 'Usá esta opción para informarnos sobre cualquier incidente o comportamiento indebido ocurrido durante o después del encuentro.'
+                : 'Usá esta opción para informarnos sobre contenido inapropiado, promoción comercial o una situación de seguridad.'}
             </p>
 
-            <div className="pe-report-modal__target">
-              <span className="pe-report-modal__target-label">Solicitante:</span>
-              <span className="pe-report-modal__target-name">{applicantName}</span>
-            </div>
+            {effectiveTargetName ? (
+              <div className="pe-report-modal__target">
+                <span className="pe-report-modal__target-label">{`${effectiveTargetLabel}:`}</span>
+                <span className="pe-report-modal__target-name">{effectiveTargetName}</span>
+              </div>
+            ) : targetLabel ? (
+              <div className="pe-report-modal__target">
+                <span className="pe-report-modal__target-label">{targetLabel}</span>
+              </div>
+            ) : null}
 
             <fieldset className="pe-report-modal__fieldset">
               <legend className="pe-report-modal__legend">Motivo del reporte:</legend>
               <div className="pe-report-modal__motivos-list">
-                {MOTIVOS_PRE.map((item) => {
+                {motivosList.map((item) => {
                   const isSelected = motivo === item.value;
                   return (
                     <label
@@ -206,7 +268,9 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
 
             <div className="pe-report-modal__field">
               <label htmlFor="pe-report-detalle" className="pe-report-modal__field-label">
-                Contanos brevemente qué ocurrió (opcional)
+                {isDetailRequired
+                  ? 'Contanos qué ocurrió (obligatorio)'
+                  : 'Contanos brevemente qué ocurrió (opcional)'}
               </label>
               <textarea
                 id="pe-report-detalle"
@@ -217,6 +281,7 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
                 placeholder="Detalles adicionales para el equipo de revisión..."
                 rows={3}
                 maxLength={1000}
+                required={isDetailRequired}
               />
               <div className="pe-report-modal__counter">
                 {`${detalle.length} / 1000`}
@@ -242,7 +307,7 @@ export const ReportRequestModal: React.FC<ReportRequestModalProps> = ({
               <button
                 type="submit"
                 className="pe-report-modal__btn-primary"
-                disabled={submitting || !motivo}
+                disabled={!canSubmit}
               >
                 {submitting ? 'Enviando…' : 'Enviar reporte'}
               </button>

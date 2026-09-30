@@ -242,6 +242,22 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
+.guest-report-host-btn {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin-top: 8px;
+  min-height: 44px;
+}
+.guest-report-host-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.03);
+  box-shadow: none;
+  color: var(--color-on-surface);
+}
+
 .guest-action-text {
   background: none;
   border: none;
