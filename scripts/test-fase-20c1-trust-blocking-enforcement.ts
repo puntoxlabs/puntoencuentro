@@ -158,9 +158,20 @@ describe('Fase 2.0-C1 (T3-A2): Enforcement Bilateral de Bloqueos — Backend Tes
         estado TEXT NOT NULL DEFAULT 'pending',
         created_at TIMESTAMPTZ DEFAULT now() NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS public.alertas_compatibilidad (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+        source_intencion_id UUID NOT NULL REFERENCES public.intenciones(id) ON DELETE CASCADE,
+        target_encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL DEFAULT 'compatibilidad_intencion',
+        leida BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT uq_alertas_compatibilidad UNIQUE (user_id, source_intencion_id, target_encuentro_id)
+      );
     `);
 
-    // 2. Aplicar migraciones T2-A, T3-A1 y T3-A2
+    // 2. Aplicar migraciones T2-A, T3-A1, T3-A2 y T3-A2.1
     const migrationT2Path = path.resolve(
       process.cwd(),
       'supabase/migrations/20260930133000_fix_fase_20c1_trust_report_context_and_temporal.sql'
@@ -178,6 +189,12 @@ describe('Fase 2.0-C1 (T3-A2): Enforcement Bilateral de Bloqueos — Backend Tes
       'supabase/migrations/20260930163000_fase_20c1_trust_enforce_bilateral_blocking.sql'
     );
     await db.exec(fs.readFileSync(migrationT3A2Path, 'utf-8'));
+
+    const migrationAlertsPath = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20260930170000_fase_20c1_trust_enforce_alerts_blocking.sql'
+    );
+    await db.exec(fs.readFileSync(migrationAlertsPath, 'utf-8'));
   });
 
   const setAuthContext = async (userId: string | null, isAnon: boolean = false) => {
@@ -197,6 +214,7 @@ describe('Fase 2.0-C1 (T3-A2): Enforcement Bilateral de Bloqueos — Backend Tes
   beforeEach(async () => {
     await db.exec(`
       DELETE FROM public.bloqueos_usuario;
+      DELETE FROM public.alertas_compatibilidad;
       DELETE FROM public.reportes_encuentro;
       DELETE FROM public.intencion_intereses;
       DELETE FROM public.intenciones;
@@ -487,6 +505,14 @@ describe('Fase 2.0-C1 (T3-A2): Enforcement Bilateral de Bloqueos — Backend Tes
       `SELECT count(*) FROM public.participantes WHERE encuentro_id = '${encounterAId}';`
     );
     assert.equal(parseInt(partCount.rows[0].count, 10), 0);
+
+    // 5. Verificar que la solicitud continúa estrictamente en estado 'pending'
+    const reqCheck = await db.query<{ estado: string; participante_id: string | null; token_participante: string | null }>(
+      `SELECT estado, participante_id, token_participante FROM public.solicitudes_encuentro_abierto WHERE id = '${reqId}';`
+    );
+    assert.equal(reqCheck.rows[0].estado, 'pending', 'Solicitud continúa pending tras el guard');
+    assert.equal(reqCheck.rows[0].participante_id, null, 'NO se creó participante');
+    assert.equal(reqCheck.rows[0].token_participante, null, 'NO se generó token');
   });
 
   test('8. Aprobar solicitud: normal preserva user_id del solicitante', async () => {
@@ -637,5 +663,107 @@ describe('Fase 2.0-C1 (T3-A2): Enforcement Bilateral de Bloqueos — Backend Tes
       ) AS solicitar_sumarse_encuentro_abierto;`
     );
     assert.equal(newSolRes.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+  });
+
+  // ============================================================
+  // TEST SUITE 7: Alertas In-App — Enforcement Bilateral de Bloqueos
+  // ============================================================
+  test('13. Alertas: visible sin bloqueo y filtrado bilateral (receptor bloquea o host bloquea)', async () => {
+    // 1. Insertar alerta de compatibilidad para User A sobre Encuentro de User B (host: userB)
+    const alertRes = await db.query<{ id: string; created_at: string }>(`
+      INSERT INTO public.alertas_compatibilidad (
+        user_id, source_intencion_id, target_encuentro_id, tipo, leida
+      ) VALUES (
+        '${userA}', '${intentionAId}', '${encounterBId}', 'interes_convertido', false
+      ) RETURNING id, created_at;
+    `);
+    const alertId = alertRes.rows[0].id;
+    const originalCreatedAt = alertRes.rows[0].created_at;
+
+    // A. Alerta válida sin bloqueo -> visible
+    await setAuthContext(userA);
+    const resInitial = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    const initialAlerts = resInitial.rows[0].get_mis_alertas_seguro.alertas;
+    assert.equal(initialAlerts.length, 1);
+    assert.equal(initialAlerts[0].id, alertId);
+
+    // H. DTO sigue sin exponer: public_token, host_id, lugar_texto, datos privados
+    const alertDto = initialAlerts[0];
+    assert.equal(alertDto.public_token, undefined, 'DTO no debe exponer public_token');
+    assert.equal(alertDto.host_id, undefined, 'DTO no debe exponer host_id');
+    assert.equal(alertDto.lugar_texto, undefined, 'DTO no debe exponer lugar_texto');
+    assert.equal(alertDto.encuentro.public_token, undefined, 'DTO anidado no debe exponer public_token');
+    assert.equal(alertDto.encuentro.host_id, undefined, 'DTO anidado no debe exponer host_id');
+    assert.equal(alertDto.encuentro.lugar_texto, undefined, 'DTO anidado no debe exponer lugar_texto');
+
+    // B. Receptor (userA) bloquea al host del encuentro objetivo (userB) -> alerta NO visible
+    await db.exec(`
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${userA}', '${userB}');
+    `);
+
+    const resBlockedByReceptor = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    assert.equal(resBlockedByReceptor.rows[0].get_mis_alertas_seguro.alertas.length, 0, 'Alerta oculta tras bloqueo de receptor');
+
+    // F & G. La fila en alertas_compatibilidad permanece intacta (no borrada, leida y created_at inalterados)
+    const checkRow1 = await db.query<{ count: string; leida: boolean; created_at: string }>(
+      `SELECT count(*) OVER() as count, leida, created_at FROM public.alertas_compatibilidad WHERE id = '${alertId}';`
+    );
+    assert.equal(parseInt(checkRow1.rows[0].count, 10), 1, 'Fila de alerta preservada');
+    assert.equal(checkRow1.rows[0].leida, false, 'leida inalterado');
+    assert.equal(new Date(checkRow1.rows[0].created_at).getTime(), new Date(originalCreatedAt).getTime(), 'created_at inalterado');
+
+    // C. Host (userB) bloquea al receptor (userA) -> alerta NO visible
+    await db.exec(`
+      DELETE FROM public.bloqueos_usuario;
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${userB}', '${userA}');
+    `);
+
+    const resBlockedByHost = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    assert.equal(resBlockedByHost.rows[0].get_mis_alertas_seguro.alertas.length, 0, 'Alerta oculta tras bloqueo de host');
+
+    // D. Tercero sin relación de bloqueo (userC) no afecta la alerta
+    await db.exec(`
+      DELETE FROM public.bloqueos_usuario;
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${userC}', '${userB}');
+    `);
+
+    // El bloqueo C -> B no debe afectar la alerta de A con B
+    const resThirdPartyBlock = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    assert.equal(resThirdPartyBlock.rows[0].get_mis_alertas_seguro.alertas.length, 1, 'Bloqueo de tercero no afecta la alerta de A');
+
+    // E. Desbloqueo -> alerta vuelve a ser visible si continúa siendo válida
+    await db.exec(`
+      DELETE FROM public.bloqueos_usuario;
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${userA}', '${userB}');
+    `);
+    // Primero confirmamos que bajo bloqueo está oculta
+    const resBlocked = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    assert.equal(resBlocked.rows[0].get_mis_alertas_seguro.alertas.length, 0);
+
+    // Desbloquear
+    await db.exec(`
+      DELETE FROM public.bloqueos_usuario
+      WHERE blocker_id = '${userA}' AND blocked_id = '${userB}';
+    `);
+
+    const resRestored = await db.query<{ get_mis_alertas_seguro: any }>(
+      `SELECT public.get_mis_alertas_seguro() AS get_mis_alertas_seguro;`
+    );
+    assert.equal(resRestored.rows[0].get_mis_alertas_seguro.alertas.length, 1, 'Alerta restaurada tras desbloqueo');
+    assert.equal(resRestored.rows[0].get_mis_alertas_seguro.alertas[0].id, alertId);
   });
 });
