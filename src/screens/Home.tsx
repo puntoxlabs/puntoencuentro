@@ -3,11 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Sliders, Plus, User, MoreVertical } from 'lucide-react';
+import { Calendar, Sliders, Plus, User, MoreVertical, Bell } from 'lucide-react';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { AlertasSheet } from '@/components/home/alerts';
+import { HomeOpenEncounterDetailSheet } from '@/components/home/openEncounters/HomeOpenEncounterDetailSheet';
+import type { OpenEncounterSummary } from '@/components/home/openEncounters/types';
+import { useAlertas } from '@/hooks/useAlertas';
+import type { AlertaCompatibilidadEncuentroPublico } from '@/types/alertas';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
 
@@ -363,6 +368,31 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   // Filtros secundarios simplificados para Preview GSAP
   const [secondaryFilters, setSecondaryFilters] = useState<EncountersFilterValues>(DEFAULT_FILTER_VALUES);
   const [isSecondaryFilterOpen, setIsSecondaryFilterOpen] = useState(false);
+
+  // Hook y estados de Alertas de Compatibilidad (Fase 2.0-C1)
+  const alertasHook = useAlertas();
+  const { unreadCount: alertasUnreadCount } = alertasHook;
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [selectedAlertOpenEncounter, setSelectedAlertOpenEncounter] = useState<OpenEncounterSummary | null>(null);
+  const [isAlertOpenEncounterDetailOpen, setIsAlertOpenEncounterDetailOpen] = useState(false);
+
+  const handleSelectEncuentroFromAlert = useCallback((enc: AlertaCompatibilidadEncuentroPublico) => {
+    const startsAt = enc.fecha && enc.hora ? `${enc.fecha}T${enc.hora}` : (enc.fecha || new Date().toISOString());
+    const dateLabel = formatFriendlyDate(enc.fecha || '', enc.hora || null) || 'Fecha por confirmar';
+    setSelectedAlertOpenEncounter({
+      id: enc.id,
+      title: enc.titulo,
+      description: enc.descripcion || undefined,
+      startsAt,
+      dateLabel,
+      approximateZone: enc.approximate_zone || 'Zona no especificada',
+      localityId: enc.locality_id || '',
+      openSlots: 1,
+      confirmedCount: 1,
+      language: 'es',
+    });
+    setIsAlertOpenEncounterDetailOpen(true);
+  }, []);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
@@ -1089,6 +1119,26 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           <span className="home-header-logo-text">PuntoEncuentro</span>
         </div>
         <div className="home-header-actions">
+          {/* Campana de alertas (solo cuentas permanentes) */}
+          {user && !user.is_anonymous && (
+            <button
+              type="button"
+              onClick={() => setIsAlertsOpen(true)}
+              className="home-header-icon-btn home-header-bell-btn"
+              aria-label={alertasUnreadCount > 0 ? `Alertas (${alertasUnreadCount} no leídas)` : 'Alertas'}
+              title="Alertas"
+            >
+              <div className="home-header-bell-wrapper">
+                <Bell size={20} />
+                {alertasUnreadCount > 0 && (
+                  <span className="home-header-bell-badge" aria-hidden="true">
+                    {alertasUnreadCount > 99 ? '99+' : alertasUnreadCount}
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
+
           {/* Botón de perfil/cuenta */}
           <button
             onClick={() => setIsAccountOpen(true)}
@@ -1503,6 +1553,24 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           onVariantChange={handleVariantChange}
         />
       )}
+
+      {/* Alertas de Compatibilidad (Fase 2.0-C1) */}
+      <AlertasSheet
+        isOpen={isAlertsOpen}
+        onClose={() => setIsAlertsOpen(false)}
+        alertasHook={alertasHook}
+        onSelectEncuentro={handleSelectEncuentroFromAlert}
+      />
+
+      {/* Detalle seguro de Encuentro Abierto abierto desde alerta */}
+      <HomeOpenEncounterDetailSheet
+        isOpen={isAlertOpenEncounterDetailOpen}
+        encounter={selectedAlertOpenEncounter}
+        onClose={() => {
+          setIsAlertOpenEncounterDetailOpen(false);
+          setSelectedAlertOpenEncounter(null);
+        }}
+      />
     </ScreenContainer>
 
   );
