@@ -1,5 +1,9 @@
 import { supabase } from '@/lib/supabase';
-import type { PerfilConfianzaResult } from '@/types/trust';
+import type {
+  PerfilConfianzaResult,
+  CrearReporteParams,
+  CrearReporteResult,
+} from '@/types/trust';
 
 export const trustService = {
   /**
@@ -29,6 +33,42 @@ export const trustService = {
       }
 
       return data as PerfilConfianzaResult;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'network_error' };
+    }
+  },
+
+  /**
+   * Crea un reporte contextual seguro mediante RPC.
+   *
+   * SEGURIDAD:
+   * - Solo envía solicitudId, contexto, motivo y detalle.
+   * - NO envía reporter_id, reported_id ni encuentro_id (se derivan server-side).
+   * - Acceso exclusivo RPC-only (sin SELECT ni INSERT directo a tablas).
+   */
+  async crearReporteSeguro(params: CrearReporteParams): Promise<CrearReporteResult> {
+    const { solicitudId, contexto, motivo, detalle } = params;
+    if (!solicitudId) {
+      return { ok: false, error: 'invalid_solicitud_id' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('crear_reporte_seguro', {
+        p_solicitud_id: solicitudId,
+        p_contexto: contexto,
+        p_motivo: motivo,
+        p_detalle: detalle ? detalle.trim() : null,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      if (!data || typeof data !== 'object') {
+        return { ok: false, error: 'invalid_response_format' };
+      }
+
+      return data as CrearReporteResult;
     } catch (err: any) {
       return { ok: false, error: err?.message || 'network_error' };
     }

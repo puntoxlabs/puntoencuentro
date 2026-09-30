@@ -15,3 +15,38 @@ export interface PerfilConfianzaResult {
   data?: PerfilConfianzaSolicitante;
   error?: string;
 }
+
+/**
+ * Contextos de reporte disponibles en la plataforma.
+ */
+export type ContextoReporte = 'pre_solicitud' | 'post_encuentro';
+
+/**
+ * Motivos permitidos en pre_solicitud (exclusivamente 3).
+ */
+export type MotivoReportePre =
+  | 'commercial_spam'
+  | 'inappropriate_behavior'
+  | 'safety_concern';
+
+/**
+ * Motivos permitidos en post_encuentro.
+ */
+export type MotivoReportePost =
+  | 'inappropriate_behavior'
+  | 'commercial_spam'
+  | 'safety_concern'
+  | 'other';
+
+export interface CrearReporteParams {
+  solicitudId: string;
+  contexto: ContextoReporte;
+  motivo: MotivoReportePre | MotivoReportePost;
+  detalle?: string | null;
+}
+
+export interface CrearReporteResult {
+  ok: boolean;
+  estado?: 'pending';
+  error?: string;
+}

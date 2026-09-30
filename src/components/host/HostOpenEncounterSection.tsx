@@ -9,6 +9,7 @@ import {
   DoorClosed,
   ChevronDown,
   ChevronUp,
+  Flag,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
@@ -17,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
 import { ApplicantTrustSignals } from './ApplicantTrustSignals';
+import { ReportRequestModal } from './ReportRequestModal';
 import './HostOpenEncounterSection.css';
 
 export interface HostOpenEncounterSectionProps {
@@ -44,6 +46,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [reportingRequest, setReportingRequest] = useState<{ id: string; name: string } | null>(null);
+  const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
 
   const isOpen = Boolean(encuentro?.is_open);
   const maxParticipants = encuentro?.max_participants || 0;
@@ -291,6 +295,16 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 <div className="pe-host-request-item__actions">
                   <button
                     type="button"
+                    className="pe-host-request-item__btn-report"
+                    onClick={() => setReportingRequest({ id: req.id, name: req.nombre_solicitante })}
+                    title="Reportar solicitud"
+                    aria-label={`Reportar solicitud de ${req.nombre_solicitante}`}
+                  >
+                    <Flag size={13} />
+                    <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
+                  </button>
+                  <button
+                    type="button"
                     className="pe-host-request-item__btn-reject"
                     onClick={() => handleRechazar(req.id)}
                     disabled={processingId === req.id}
@@ -330,14 +344,26 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
               <div className="pe-host-open-card__resolved-list">
                 {resolvedRequests.map((req) => (
                   <div key={req.id} className="pe-host-resolved-item">
-                    <span className="pe-host-resolved-item__name">
-                      {req.nombre_solicitante}
-                    </span>
-                    <span
-                      className={`pe-host-resolved-item__status pe-host-resolved-item__status--${req.estado}`}
+                    <div className="pe-host-resolved-item__info">
+                      <span className="pe-host-resolved-item__name">
+                        {req.nombre_solicitante}
+                      </span>
+                      <span
+                        className={`pe-host-resolved-item__status pe-host-resolved-item__status--${req.estado}`}
+                      >
+                        {req.estado === 'approved' ? 'Aceptada' : req.estado === 'withdrawn' ? 'Retirada' : 'Rechazada'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="pe-host-resolved-item__btn-report"
+                      onClick={() => setReportingRequest({ id: req.id, name: req.nombre_solicitante })}
+                      title="Reportar solicitud"
+                      aria-label={`Reportar solicitud de ${req.nombre_solicitante}`}
                     >
-                      {req.estado === 'approved' ? 'Aceptada' : 'Rechazada'}
-                    </span>
+                      <Flag size={12} />
+                      <span>{reportedSolicitudIds.has(req.id) ? 'Reportada' : 'Reportar'}</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -345,6 +371,20 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           </div>
         )}
       </div>
+
+      {reportingRequest && (
+        <ReportRequestModal
+          isOpen={Boolean(reportingRequest)}
+          onClose={() => setReportingRequest(null)}
+          solicitudId={reportingRequest.id}
+          applicantName={reportingRequest.name}
+          onReportSuccess={() => {
+            if (reportingRequest) {
+              setReportedSolicitudIds((prev) => new Set([...prev, reportingRequest.id]));
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
