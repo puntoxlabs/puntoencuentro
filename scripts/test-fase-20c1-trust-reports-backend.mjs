@@ -106,11 +106,16 @@ describe("Fase 2.0-C1 (T2-A): Almacenamiento seguro de reportes contextuales \u2
         resolved_at TIMESTAMPTZ
       );
     `);
-    const migrationPath = path.resolve(
+    const migrationPath1 = path.resolve(
       process.cwd(),
       "supabase/migrations/20260930130000_fase_20c1_trust_contextual_reports.sql"
     );
-    await db.exec(fs.readFileSync(migrationPath, "utf-8"));
+    await db.exec(fs.readFileSync(migrationPath1, "utf-8"));
+    const migrationPath2 = path.resolve(
+      process.cwd(),
+      "supabase/migrations/20260930133000_fix_fase_20c1_trust_report_context_and_temporal.sql"
+    );
+    await db.exec(fs.readFileSync(migrationPath2, "utf-8"));
     const resFut = await db.query(`
       INSERT INTO public.encuentros (host_id, titulo, is_open, opened_at, fecha, hora, duration_minutes)
       VALUES ('${hostUser}', 'Encuentro Futuro', true, now(), CURRENT_DATE + interval '5 days', '19:00', 90)
@@ -284,6 +289,63 @@ describe("Fase 2.0-C1 (T2-A): Almacenamiento seguro de reportes contextuales \u2
     assert.equal(res.ok, false);
     assert.equal(res.error, "report_already_exists");
   });
+  test('PRE 9. Solicitud "withdrawn" (retirada) sigue siendo reportable por el host antes del inicio', async () => {
+    const resWithdrawn = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${futureEncuentroId}', '${thirdPartyUser}', 'Third Party User', 'withdrawn')
+      RETURNING id;
+    `);
+    const withId = resWithdrawn.rows[0].id;
+    const res = await callCrearReporte(
+      hostUser,
+      false,
+      withId,
+      "pre_solicitud",
+      "commercial_spam",
+      "Envi\xF3 spam comercial y luego retir\xF3 la solicitud para intentar evitar el reporte"
+    );
+    assert.equal(res.ok, true);
+    assert.equal(res.estado, "pending");
+    const row = await db.query(`
+      SELECT * FROM public.reportes_encuentro WHERE solicitud_id = '${withId}';
+    `);
+    assert.equal(row.rows.length, 1);
+    assert.equal(row.rows[0].reported_id, thirdPartyUser);
+  });
+  test('PRE 10. Solicitud "approved" antes del inicio del encuentro es reportable por el host en pre_solicitud', async () => {
+    const freshApplicant = "66666666-6666-6666-6666-666666666666";
+    await db.exec(`
+      INSERT INTO auth.users (id, email) VALUES ('${freshApplicant}', 'freshapp@test.com')
+      ON CONFLICT DO NOTHING;
+    `);
+    const resApp = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${futureEncuentroId}', '${freshApplicant}', 'Fresh Applicant', 'approved')
+      RETURNING id;
+    `);
+    const appPreId = resApp.rows[0].id;
+    const res = await callCrearReporte(
+      hostUser,
+      false,
+      appPreId,
+      "pre_solicitud",
+      "safety_concern",
+      "Host detect\xF3 amenaza antes del inicio a pesar de haberlo aprobado previamente"
+    );
+    assert.equal(res.ok, true);
+    assert.equal(res.estado, "pending");
+  });
+  test("PRE 11. Encuentro ya iniciado rechaza pre_solicitud con report_window_closed", async () => {
+    const res = await callCrearReporte(
+      hostUser,
+      false,
+      pastSolicitudApprovedId,
+      "pre_solicitud",
+      "commercial_spam"
+    );
+    assert.equal(res.ok, false);
+    assert.equal(res.error, "report_window_closed");
+  });
   test('POST 1. Requiere solicitud "approved" (solicitud pending es rechazada)', async () => {
     const res = await callCrearReporte(
       hostUser,
@@ -447,6 +509,168 @@ describe("Fase 2.0-C1 (T2-A): Almacenamiento seguro de reportes contextuales \u2
     );
     assert.equal(res.ok, false);
     assert.equal(res.error, "report_detail_invalid");
+  });
+  test("POST 11. Ventana post con duraci\xF3n expl\xEDcita (duration_minutes = 120)", async () => {
+    const resRunning = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro En Curso 120m', true, now(), 120,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '60 minutes')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '60 minutes')::time
+      ) RETURNING id;
+    `);
+    const encRunningId = resRunning.rows[0].id;
+    const resSolRun = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encRunningId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solRunId = resSolRun.rows[0].id;
+    const resBeforeThreshold = await callCrearReporte(
+      hostUser,
+      false,
+      solRunId,
+      "post_encuentro",
+      "inappropriate_behavior"
+    );
+    assert.equal(resBeforeThreshold.ok, false);
+    assert.equal(resBeforeThreshold.error, "report_window_closed");
+    const resEnded = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro Finalizado 120m', true, now(), 120,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '300 minutes')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '300 minutes')::time
+      ) RETURNING id;
+    `);
+    const encEndedId = resEnded.rows[0].id;
+    const resSolEnded = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encEndedId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solEndedId = resSolEnded.rows[0].id;
+    const resAfterThreshold = await callCrearReporte(
+      hostUser,
+      false,
+      solEndedId,
+      "post_encuentro",
+      "inappropriate_behavior",
+      "Comportamiento inapropiado luego del evento de 2 horas"
+    );
+    assert.equal(resAfterThreshold.ok, true);
+    assert.equal(resAfterThreshold.estado, "pending");
+    const resExpired = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro Vencido 120m', true, now(), 120,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '76 hours')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '76 hours')::time
+      ) RETURNING id;
+    `);
+    const encExpId = resExpired.rows[0].id;
+    const resSolExp = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encExpId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solExpId = resSolExp.rows[0].id;
+    const resAfter72h = await callCrearReporte(
+      hostUser,
+      false,
+      solExpId,
+      "post_encuentro",
+      "inappropriate_behavior"
+    );
+    assert.equal(resAfter72h.ok, false);
+    assert.equal(resAfter72h.error, "report_window_closed");
+  });
+  test("POST 12. Ventana post sin duraci\xF3n (duration_minutes = NULL, post_event_active_minutes = 45)", async () => {
+    const resRunningNoDur = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes, post_event_active_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro Sin Duraci\xF3n Iniciado Hace 20m', true, now(), NULL, 45,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '20 minutes')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '20 minutes')::time
+      ) RETURNING id;
+    `);
+    const encRunNoDurId = resRunningNoDur.rows[0].id;
+    const resSolRunNoDur = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encRunNoDurId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solRunNoDurId = resSolRunNoDur.rows[0].id;
+    const resBeforeFallback = await callCrearReporte(
+      hostUser,
+      false,
+      solRunNoDurId,
+      "post_encuentro",
+      "inappropriate_behavior"
+    );
+    assert.equal(resBeforeFallback.ok, false);
+    assert.equal(resBeforeFallback.error, "report_window_closed");
+    const resEndedNoDur = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes, post_event_active_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro Sin Duraci\xF3n Pasado Hace 2h', true, now(), NULL, 45,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '120 minutes')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '120 minutes')::time
+      ) RETURNING id;
+    `);
+    const encEndedNoDurId = resEndedNoDur.rows[0].id;
+    const resSolEndedNoDur = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encEndedNoDurId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solEndedNoDurId = resSolEndedNoDur.rows[0].id;
+    const resAfterFallback = await callCrearReporte(
+      hostUser,
+      false,
+      solEndedNoDurId,
+      "post_encuentro",
+      "safety_concern",
+      "Incidente reportado post fallback can\xF3nico de 45m"
+    );
+    assert.equal(resAfterFallback.ok, true);
+    assert.equal(resAfterFallback.estado, "pending");
+    const resExpiredNoDur = await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, is_open, opened_at, duration_minutes, post_event_active_minutes,
+        fecha, hora
+      ) VALUES (
+        '${hostUser}', 'Encuentro Sin Duraci\xF3n Vencido 74h', true, now(), NULL, 45,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '74 hours')::date,
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' - interval '74 hours')::time
+      ) RETURNING id;
+    `);
+    const encExpNoDurId = resExpiredNoDur.rows[0].id;
+    const resSolExpNoDur = await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encExpNoDurId}', '${applicantUser}', 'Applicant', 'approved')
+      RETURNING id;
+    `);
+    const solExpNoDurId = resSolExpNoDur.rows[0].id;
+    const resAfter72hFallback = await callCrearReporte(
+      hostUser,
+      false,
+      solExpNoDurId,
+      "post_encuentro",
+      "inappropriate_behavior"
+    );
+    assert.equal(resAfter72hFallback.ok, false);
+    assert.equal(resAfter72hFallback.error, "report_window_closed");
   });
   test("PRIVACIDAD 1. Usuario an\xF3nimo es rechazado con permanent_account_required", async () => {
     const res = await callCrearReporte(
