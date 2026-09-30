@@ -148,6 +148,20 @@ async function runStagingSmokeT4B1() {
     assert.ok(foundInQueue, 'El reporte debe figurar en la cola de reportes pending');
     console.log('  ✔ Reporte encontrado en cola de moderación pending');
 
+    // 2B. Verificar que intentar pending con metadata de revisión es estrictamente RECHAZADO
+    console.log('\n[Paso 2B/8] Verificando rechazo estricto de pending con metadata de revisión...');
+    const { error: invalidPendingErr } = await admin
+      .from('reportes_encuentro')
+      .update({
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: operatorMId,
+      })
+      .eq('id', reportId);
+
+    assert.ok(invalidPendingErr !== null, 'Debe fallar por constraint reportes_encuentro_pending_unreviewed');
+    assert.match(invalidPendingErr?.message || '', /reportes_encuentro_pending_unreviewed/);
+    console.log('  ✔ Pending con metadata de revisión rechazado por constraint reportes_encuentro_pending_unreviewed');
+
     // 3 & 4. Pasar a reviewed con operador válido y confirmar reviewed_at/by
     console.log('\n[Paso 3/8] Transición a reviewed con operador...');
     const reviewedTime = new Date().toISOString();
@@ -203,6 +217,43 @@ async function runStagingSmokeT4B1() {
     assert.equal(resolvedData?.resolved_by, operatorMId);
     assert.equal(resolvedData?.resolution_note, resolutionNote);
     console.log('  ✔ Reporte cerrado como dismissed con resolution_note y trazabilidad completa');
+
+    // 4B. Verificar transición directa pending -> actioned con ambos pares completos
+    console.log('\n[Paso 4B/8] Verificando transición directa pending -> actioned con ambos pares...');
+    const { data: directRep, error: directRepErr } = await admin
+      .from('reportes_encuentro')
+      .insert({
+        solicitud_id: requestId,
+        encuentro_id: encounterAId,
+        reporter_id: applicantBId,
+        reported_id: hostAId,
+        contexto: 'post_encuentro',
+        motivo: 'other',
+        detalle: 'Detalle de prueba para resolución directa',
+        estado: 'pending'
+      })
+      .select('id')
+      .single();
+
+    if (directRepErr || !directRep?.id) throw new Error(`Direct rep insert failed: ${directRepErr?.message}`);
+    const directRepId = directRep.id;
+
+    const directNow = new Date().toISOString();
+    const { error: directActionErr } = await admin
+      .from('reportes_encuentro')
+      .update({
+        estado: 'actioned',
+        reviewed_at: directNow,
+        reviewed_by: operatorMId,
+        resolved_at: directNow,
+        resolved_by: operatorMId,
+        resolution_note: 'Resolución directa de caso flagrante.',
+      })
+      .eq('id', directRepId);
+
+    if (directActionErr) throw new Error(`Direct transition failed: ${directActionErr.message}`);
+    console.log('  ✔ Transición directa pending -> actioned con timestamps idénticos aceptada');
+    await admin.from('reportes_encuentro').delete().eq('id', directRepId);
 
     // 8. Verificar que usuario normal no puede leer ni actualizar reportes_encuentro
     console.log('\n[Paso 5/8] Verificando aislamiento de privacidad para clientes normales...');

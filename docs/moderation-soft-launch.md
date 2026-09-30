@@ -36,8 +36,8 @@ ORDER BY created_at ASC;
 
 | Estado | Significado Operativo | Metadatos Requeridos |
 | :--- | :--- | :--- |
-| **`pending`** | Reporte ingresado, pendiente de examen inicial. | `reviewed_at = NULL`, `resolved_at = NULL` |
-| **`reviewed`** | El reporte está bajo evaluación por un operador. No existe resolución definitiva todavía. | `reviewed_at IS NOT NULL`, `reviewed_by IS NOT NULL`, `resolved_at = NULL` |
+| **`pending`** | Reporte ingresado, todavía no examinado por ningún operador. | `reviewed_at = NULL`, `reviewed_by = NULL`, `resolved_at = NULL`, `resolved_by = NULL` |
+| **`reviewed`** | El reporte está bajo evaluación por un operador. No existe resolución definitiva todavía. | `reviewed_at IS NOT NULL`, `reviewed_by IS NOT NULL`, `resolved_at = NULL`, `resolved_by = NULL` |
 | **`dismissed`** | Reporte desestimado (duplicado, falta de mérito, desacuerdo ordinario o sin acción necesaria). | `reviewed_at`, `reviewed_by`, `resolved_at`, `resolved_by` todos completados |
 | **`actioned`** | Reporte resuelto habiéndose tomado alguna acción operativa (contacto preventivo, preservación o escalamiento). | `reviewed_at`, `reviewed_by`, `resolved_at`, `resolved_by` todos completados |
 

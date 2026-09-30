@@ -124,6 +124,14 @@ describe('Fase 2.0-C1 (T4-B1): Trazabilidad Mínima de Moderación para Soft Lau
     );
     const t4b1Sql = fs.readFileSync(t4b1MigrationPath, 'utf-8');
     await db.exec(t4b1Sql);
+
+    // 6. Aplicar la migración correctiva T4-B1.1 de coherencia para pending
+    const t4b11MigrationPath = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20260930193000_fix_fase_20c1_trust_pending_moderation_coherence.sql'
+    );
+    const t4b11Sql = fs.readFileSync(t4b11MigrationPath, 'utf-8');
+    await db.exec(t4b11Sql);
   });
 
   test('A. Reporte pending existente antes de la migración sigue siendo válido', async () => {
@@ -136,7 +144,20 @@ describe('Fase 2.0-C1 (T4-B1): Trazabilidad Mínima de Moderación para Soft Lau
     assert.equal(res.rows[0].resolved_at, null);
   });
 
-  test('B. Pending con reviewed_at no nulo pero reviewed_by null es rechazado', async () => {
+  test('B. Pending con reviewed_at y reviewed_by no nulos es estrictamente rechazado', async () => {
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          UPDATE public.reportes_encuentro
+          SET reviewed_at = now(), reviewed_by = '${operatorUser}'
+          WHERE id = '${existingReportId}';
+        `);
+      },
+      /reportes_encuentro_pending_unreviewed/
+    );
+  });
+
+  test('B2. Pending con reviewed_at no nulo pero reviewed_by null también es rechazado', async () => {
     await assert.rejects(
       async () => {
         await db.query(`
@@ -145,7 +166,7 @@ describe('Fase 2.0-C1 (T4-B1): Trazabilidad Mínima de Moderación para Soft Lau
           WHERE id = '${existingReportId}';
         `);
       },
-      /reportes_encuentro_reviewed_pair/
+      /(reportes_encuentro_pending_unreviewed|reportes_encuentro_reviewed_pair)/
     );
   });
 
