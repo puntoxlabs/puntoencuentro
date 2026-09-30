@@ -104,6 +104,17 @@
   border: 1px solid #6ee7b7;
 }
 
+.pe-host-open-card__badge--inactive {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.pe-host-open-card__badge--inactive .pe-host-open-card__dot {
+  background: #94a3b8;
+  animation: none;
+}
+
 .pe-host-open-card__dot {
   width: 8px;
   height: 8px;

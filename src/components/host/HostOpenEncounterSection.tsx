@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
 import { openEncountersService } from '@/services/openEncountersService';
 import { useAuth } from '@/contexts/AuthContext';
+import { isEncuentroPasado } from '@/lib/formatDate';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
 import { ApplicantTrustSignals } from './ApplicantTrustSignals';
@@ -27,6 +28,7 @@ export interface HostOpenEncounterSectionProps {
   confirmedCount: number;
   onRefresh: () => void;
   onParticipantAdded: () => void;
+  initialSolicitudes?: OpenEncounterRequest[];
 }
 
 export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> = ({
@@ -35,21 +37,27 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   confirmedCount,
   onRefresh,
   onParticipantAdded,
+  initialSolicitudes,
 }) => {
   const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [solicitudes, setSolicitudes] = useState<OpenEncounterRequest[]>([]);
+  const [solicitudes, setSolicitudes] = useState<OpenEncounterRequest[]>(initialSolicitudes || []);
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [showResolved, setShowResolved] = useState(false);
+  const [showResolved, setShowResolved] = useState<boolean | null>(null);
   const [closing, setClosing] = useState(false);
   const [reportingRequest, setReportingRequest] = useState<{ id: string; name: string } | null>(null);
   const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
 
   const isOpen = Boolean(encuentro?.is_open);
+  const isPast = isEncuentroPasado(
+    encuentro?.fecha,
+    encuentro?.hora,
+    encuentro?.duration_minutes ?? encuentro?.post_event_active_minutes ?? 45
+  );
   const maxParticipants = encuentro?.max_participants || 0;
   // Cupo total ocupado: 1 host + confirmados
   const totalOccupied = confirmedCount + 1;
@@ -69,10 +77,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   }, [encuentro?.id, hostId]);
 
   useEffect(() => {
-    if (isOpen) {
-      loadSolicitudes();
-    }
-  }, [isOpen, loadSolicitudes]);
+    loadSolicitudes();
+  }, [loadSolicitudes]);
 
   const handleCloseDiscovery = async () => {
     if (!window.confirm('¿Seguro que querés cerrar el encuentro al Discovery? Ya no aparecerá públicamente pero se conservarán todos los participantes confirmados.')) {
@@ -126,8 +132,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
 
   const pendingRequests = solicitudes.filter((s) => s.estado === 'pending');
   const resolvedRequests = solicitudes.filter((s) => s.estado !== 'pending');
+  const isResolvedExpanded = showResolved ?? (!isOpen && pendingRequests.length === 0);
 
   const handleStartPublish = () => {
+    if (isPast) return;
     if (!isPermanentUser) {
       setIsLoginRequired(true);
       return;
@@ -145,7 +153,9 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     }
   };
 
-  if (!isOpen) {
+  if (!isOpen && solicitudes.length === 0) {
+    if (isPast) return null;
+
     return (
       <div className="pe-host-open-banner pe-host-open-banner--inactive">
         <div className="pe-host-open-banner__content">
@@ -194,9 +204,19 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     <div className="pe-host-open-card">
       <div className="pe-host-open-card__header">
         <div className="pe-host-open-card__status-row">
-          <span className="pe-host-open-card__badge pe-host-open-card__badge--active">
+          <span
+            className={`pe-host-open-card__badge ${
+              isOpen
+                ? 'pe-host-open-card__badge--active'
+                : 'pe-host-open-card__badge--inactive'
+            }`}
+          >
             <span className="pe-host-open-card__dot" />
-            {t('open_encounters.open_status_active', { defaultValue: 'Abierto en Discovery' })}
+            {isOpen
+              ? t('open_encounters.open_status_active', { defaultValue: 'Abierto en Discovery' })
+              : isPast
+              ? 'Finalizado'
+              : 'Cerrado al Discovery'}
           </span>
           <span className="pe-host-open-card__zone">
             <MapPin size={12} />
@@ -204,16 +224,30 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           </span>
         </div>
 
-        <button
-          type="button"
-          className="pe-host-open-card__close-btn"
-          onClick={handleCloseDiscovery}
-          disabled={closing}
-          title="Cerrar al Discovery sin afectar participantes"
-        >
-          <DoorClosed size={14} />
-          <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Cerrar al Discovery' })}</span>
-        </button>
+        {isOpen && (
+          <button
+            type="button"
+            className="pe-host-open-card__close-btn"
+            onClick={handleCloseDiscovery}
+            disabled={closing}
+            title="Cerrar al Discovery sin afectar participantes"
+          >
+            <DoorClosed size={14} />
+            <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Cerrar al Discovery' })}</span>
+          </button>
+        )}
+
+        {!isOpen && !isPast && (
+          <button
+            type="button"
+            className="pe-host-open-card__close-btn"
+            onClick={handleStartPublish}
+            title="Reabrir este encuentro al Discovery"
+          >
+            <Sparkles size={14} />
+            <span>{t('open_encounters.open_encounter_action', { defaultValue: 'Abrir este encuentro' })}</span>
+          </button>
+        )}
       </div>
 
       <div className="pe-host-open-card__slots-grid">
@@ -334,13 +368,13 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
             <button
               type="button"
               className="pe-host-open-card__resolved-toggle"
-              onClick={() => setShowResolved((prev) => !prev)}
+              onClick={() => setShowResolved(!isResolvedExpanded)}
             >
-              <span>Historial de solicitudes ({resolvedRequests.length})</span>
-              {showResolved ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <span>{`Historial de solicitudes (${resolvedRequests.length})`}</span>
+              {isResolvedExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
-            {showResolved && (
+            {isResolvedExpanded && (
               <div className="pe-host-open-card__resolved-list">
                 {resolvedRequests.map((req) => (
                   <div key={req.id} className="pe-host-resolved-item">
@@ -371,6 +405,26 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           </div>
         )}
       </div>
+
+      <OpenEncounterPublishModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        encuentroId={encuentro.id}
+        hostId={hostId}
+        defaultDescription={encuentro.descripcion || ''}
+        confirmedCount={confirmedCount}
+        onPublished={() => {
+          onRefresh();
+        }}
+      />
+
+      <LoginRequiredSheet
+        isOpen={isLoginRequired}
+        onClose={() => setIsLoginRequired(false)}
+        onContinueWithGoogle={handleLoginWithGoogle}
+        loading={loginLoading}
+        action="open_encounter"
+      />
 
       {reportingRequest && (
         <ReportRequestModal

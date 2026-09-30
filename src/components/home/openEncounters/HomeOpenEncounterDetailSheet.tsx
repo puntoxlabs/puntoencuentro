@@ -241,9 +241,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
   const handleNavigateToEncounter = () => {
     if (requestState.tokenParticipante) {
-      navigate(`/join?token=${requestState.tokenParticipante}`);
-    } else {
-      navigate(`/detail/${encounter.id}`);
+      navigate(`/invite/${encodeURIComponent(requestState.tokenParticipante)}`);
     }
     onClose();
   };
