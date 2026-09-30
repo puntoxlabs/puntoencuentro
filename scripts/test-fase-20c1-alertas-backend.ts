@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 
-describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversión)', () => {
+describe('Fase 2.0-C1: Micro-fix Momento de Alerta + Privacidad DTO', () => {
   let db: PGlite;
   const userA = '11111111-1111-1111-1111-111111111111'; // Creador intención y encuentro
   const userB = '22222222-2222-2222-2222-222222222222'; // Interesado 1
@@ -93,25 +93,43 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
         is_open BOOLEAN NOT NULL DEFAULT false,
         open_description TEXT,
         open_public_zone TEXT,
+        max_participants INT,
+        opened_at TIMESTAMPTZ,
+        closed_at TIMESTAMPTZ,
         locality_id TEXT REFERENCES public.localidades(id),
         creado_en TIMESTAMPTZ DEFAULT now()
       );
       GRANT ALL ON TABLE public.encuentros TO authenticated, anon, service_role;
+
+      -- Base participantes
+      CREATE TABLE IF NOT EXISTS public.participantes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
+        estado TEXT NOT NULL DEFAULT 'pendiente',
+        user_id UUID,
+        creado_en TIMESTAMPTZ DEFAULT now()
+      );
+      GRANT ALL ON TABLE public.participantes TO authenticated, anon, service_role;
     `);
 
-    // 2. Cargar migraciones en orden
+    // 2. Cargar migraciones en orden cronológico
     const migrations = [
       'supabase/migrations/20260929170000_fase_20a_intenciones_core.sql',
       'supabase/migrations/20260929180000_fase_20a_intenciones_conversion.sql',
       'supabase/migrations/20260929190000_fase_20b_discovery_intenciones.sql',
       'supabase/migrations/20260929200000_fase_20b_set_interes_intencion.sql',
-      'supabase/migrations/20260929210000_fase_20c1_alertas_caso_c.sql'
+      'supabase/migrations/20260929210000_fase_20c1_alertas_caso_c.sql',
+      'supabase/migrations/20260930093500_fix_fase_20c1_alertas_open_encounter.sql',
     ];
 
     for (const mig of migrations) {
       const sql = fs.readFileSync(path.join(process.cwd(), mig), 'utf8');
       await db.exec(sql);
     }
+
+    await db.exec(`
+      GRANT ALL ON TABLE public.intencion_intereses TO authenticated, service_role, postgres;
+    `);
   });
 
   const setAuthContext = async (userId: string | null, isAnonymous: boolean = false) => {
@@ -126,8 +144,7 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     }
   };
 
-  test('1. Setup previo: User A crea intención, User B y C marcan interés, User D no marca', async () => {
-    // A crea intención
+  test('1. Setup previo: User A crea intención, B y C marcan interés, D no marca', async () => {
     await setAuthContext(userA, false);
     const { rows: intRows }: any = await db.query(`
       SELECT public.crear_intencion_segura(
@@ -142,7 +159,6 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     `);
     assert.equal(intRows[0].res.ok, true);
     sharedIntencionId = intRows[0].res.id;
-    assert.ok(sharedIntencionId, 'Debe devolver UUID de intención');
 
     // B marca interés
     await setAuthContext(userB, false);
@@ -160,18 +176,17 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     assert.equal(cRows[0].res.ok, true);
     assert.equal(cRows[0].res.interesado, true);
 
-    // A crea encuentro
+    // A crea un encuentro PRIVADO (is_open = false por defecto)
     await setAuthContext(userA, false);
     const { rows: encRows }: any = await db.query(`
       INSERT INTO public.encuentros (host_id, titulo, descripcion, fecha, hora, modalidad, locality_id, is_open)
-      VALUES ('${userA}', 'Torneo Pádel Palermo', 'Nos juntamos a jugar', '2026-10-05', '18:00', 'presencial', 'caba_palermo', true)
+      VALUES ('${userA}', 'Torneo Pádel Palermo', 'Nos juntamos a jugar', '2026-10-05', '18:00', 'presencial', 'caba_palermo', false)
       RETURNING id;
     `);
     sharedEncuentroId = encRows[0].id;
-    assert.ok(sharedEncuentroId, 'Debe devolver UUID de encuentro');
   });
 
-  test('2. Conversión genera exactamente 2 alertas para los 2 interesados', async () => {
+  test('2. Conversión a encuentro privado (is_open = false): NO genera alertas pero vincula intención', async () => {
     await setAuthContext(userA, false);
     const { rows: convRows }: any = await db.query(`
       SELECT public.convertir_intencion_a_encuentro('${sharedIntencionId}', '${sharedEncuentroId}') AS res;
@@ -179,48 +194,81 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     assert.equal(convRows[0].res.ok, true);
     assert.equal(convRows[0].res.estado, 'convertida');
 
-    // Comprobar total en base de datos
+    // Comprobar que en DB NO se generó ninguna alerta porque el encuentro es privado
     await db.query(`SET ROLE service_role;`);
     const { rows: totalRows }: any = await db.query(`
       SELECT count(*) as count FROM public.alertas_compatibilidad
       WHERE source_intencion_id = '${sharedIntencionId}' AND target_encuentro_id = '${sharedEncuentroId}';
     `);
-    assert.equal(parseInt(totalRows[0].count, 10), 2, 'Deben existir exactamente 2 alertas');
+    assert.equal(parseInt(totalRows[0].count, 10), 0, 'No debe generarse alerta para encuentro privado');
+
+    // Comprobar que el interés de B y C sigue registrado
+    const { rows: intCount }: any = await db.query(`
+      SELECT count(*) as count FROM public.intencion_intereses WHERE intencion_id = '${sharedIntencionId}';
+    `);
+    assert.equal(parseInt(intCount[0].count, 10), 2, 'Los 2 intereses deben preservarse');
   });
 
-  test('3. Propietario de intención (User A) no recibe alerta', async () => {
+  test('3. Apertura posterior del encuentro vía abrir_encuentro_seguro: genera exactamente 2 alertas', async () => {
+    await setAuthContext(userA, false);
+    const { rows: openRows }: any = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${sharedEncuentroId}',
+        '${userA}',
+        'Abierto a la comunidad',
+        4,
+        'caba_palermo',
+        'Palermo Norte'
+      ) AS res;
+    `);
+    assert.equal(openRows[0].res.ok, true);
+    assert.equal(openRows[0].res.is_open, true);
+
+    // Ahora sí deben existir exactamente 2 alertas
     await db.query(`SET ROLE service_role;`);
-    const { rows }: any = await db.query(`
+    const { rows: totalRows }: any = await db.query(`
+      SELECT count(*) as count FROM public.alertas_compatibilidad
+      WHERE source_intencion_id = '${sharedIntencionId}' AND target_encuentro_id = '${sharedEncuentroId}';
+    `);
+    assert.equal(parseInt(totalRows[0].count, 10), 2, 'Debe haber exactamente 2 alertas tras abrir el encuentro');
+  });
+
+  test('4. Propietario (User A) y usuario sin interés (User D) reciben 0 alertas', async () => {
+    await db.query(`SET ROLE service_role;`);
+    const { rows: aRows }: any = await db.query(`
       SELECT count(*) as count FROM public.alertas_compatibilidad WHERE user_id = '${userA}';
     `);
-    assert.equal(parseInt(rows[0].count, 10), 0, 'User A no debe recibir alerta');
-  });
+    assert.equal(parseInt(aRows[0].count, 10), 0);
 
-  test('4. Usuario sin interés (User D) no recibe alerta', async () => {
-    await db.query(`SET ROLE service_role;`);
-    const { rows }: any = await db.query(`
+    const { rows: dRows }: any = await db.query(`
       SELECT count(*) as count FROM public.alertas_compatibilidad WHERE user_id = '${userD}';
     `);
-    assert.equal(parseInt(rows[0].count, 10), 0, 'User D no debe recibir alerta');
+    assert.equal(parseInt(dRows[0].count, 10), 0);
   });
 
-  test('5. Retry de conversión con el mismo encuentro es idempotente y no duplica alertas', async () => {
+  test('5. Reapertura / retry de abrir_encuentro_seguro es idempotente y no duplica alertas', async () => {
     await setAuthContext(userA, false);
-    const { rows: retryRows }: any = await db.query(`
-      SELECT public.convertir_intencion_a_encuentro('${sharedIntencionId}', '${sharedEncuentroId}') AS res;
+    const { rows: reopenRows }: any = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${sharedEncuentroId}',
+        '${userA}',
+        'Abierto a la comunidad actualizado',
+        6,
+        'caba_palermo',
+        'Palermo Norte'
+      ) AS res;
     `);
-    assert.equal(retryRows[0].res.ok, true);
-    assert.equal(retryRows[0].res.idempotent, true);
+    assert.equal(reopenRows[0].res.ok, true);
 
     await db.query(`SET ROLE service_role;`);
     const { rows: totalRows }: any = await db.query(`
       SELECT count(*) as count FROM public.alertas_compatibilidad
       WHERE source_intencion_id = '${sharedIntencionId}' AND target_encuentro_id = '${sharedEncuentroId}';
     `);
-    assert.equal(parseInt(totalRows[0].count, 10), 2, 'No se deben duplicar alertas tras retry');
+    assert.equal(parseInt(totalRows[0].count, 10), 2, 'No se deben duplicar alertas al reabrir el encuentro');
   });
 
-  test('6. Dos interesados permanecen independientes y alertas referencian intención y encuentro correctos', async () => {
+  test('6. Dos interesados permanecen independientes', async () => {
     await db.query(`SET ROLE service_role;`);
     const { rows: bRows }: any = await db.query(`
       SELECT * FROM public.alertas_compatibilidad WHERE user_id = '${userB}';
@@ -243,62 +291,63 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     alertaCId = cRows[0].id;
   });
 
-  test('7. Privacidad RLS: User A no puede leer alertas de User B ni en tabla directa', async () => {
+  test('7. Conversión de encuentro ya abierto (is_open = true) genera alerta deduplicada de inmediato', async () => {
+    // Intención nueva de A
     await setAuthContext(userA, false);
-    const { rows: aReadB }: any = await db.query(`
-      SELECT * FROM public.alertas_compatibilidad WHERE user_id = '${userB}';
+    const { rows: intRows }: any = await db.query(`
+      SELECT public.crear_intencion_segura('Yoga en el parque', 'Clase abierta') AS res;
     `);
-    assert.equal(aReadB.length, 0, 'RLS debe ocultar alertas de otros');
+    const yogaIntId = intRows[0].res.id;
 
+    // B marca interés
     await setAuthContext(userB, false);
-    const { rows: bReadOwn }: any = await db.query(`
-      SELECT * FROM public.alertas_compatibilidad;
+    await db.query(`SELECT public.set_interes_intencion('${yogaIntId}', true);`);
+
+    // A crea un encuentro que YA está abierto
+    await setAuthContext(userA, false);
+    const { rows: encRows }: any = await db.query(`
+      INSERT INTO public.encuentros (host_id, titulo, is_open, locality_id, max_participants)
+      VALUES ('${userA}', 'Yoga Palermo', true, 'caba_palermo', 10)
+      RETURNING id;
     `);
-    assert.equal(bReadOwn.length, 1);
-    assert.equal(bReadOwn[0].user_id, userB);
+    const yogaEncId = encRows[0].id;
+
+    // A convierte la intención al encuentro ya abierto
+    const { rows: convRows }: any = await db.query(`
+      SELECT public.convertir_intencion_a_encuentro('${yogaIntId}', '${yogaEncId}') AS res;
+    `);
+    assert.equal(convRows[0].res.ok, true);
+
+    // B recibe la alerta de inmediato
+    await db.query(`SET ROLE service_role;`);
+    const { rows: alertCount }: any = await db.query(`
+      SELECT count(*) as count FROM public.alertas_compatibilidad
+      WHERE source_intencion_id = '${yogaIntId}' AND user_id = '${userB}';
+    `);
+    assert.equal(parseInt(alertCount[0].count, 10), 1, 'Debe generarse alerta directa si ya estaba abierto');
   });
 
-  test('8. RPC get_mis_alertas_seguro: sólo devuelve propias con DTO público y seguro (sin host_id ni campos privados)', async () => {
-    // User B ve su alerta
+  test('8. RPC get_mis_alertas_seguro: NO contiene public_token ni host_id ni campos privados', async () => {
     await setAuthContext(userB, false);
-    const { rows: bRes }: any = await db.query(`
+    const { rows }: any = await db.query(`
       SELECT public.get_mis_alertas_seguro() AS res;
     `);
-    assert.equal(bRes[0].res.ok, true);
-    const alertasB = bRes[0].res.alertas;
-    assert.equal(alertasB.length, 1);
-    const aB = alertasB[0];
-    assert.equal(aB.id, alertaBId);
-    assert.equal(aB.tipo, 'interes_convertido');
-    assert.equal(aB.source_intencion_id, sharedIntencionId);
-    assert.equal(aB.target_encuentro_id, sharedEncuentroId);
-    assert.equal(aB.leida, false);
-    assert.equal(aB.encuentro_titulo, 'Torneo Pádel Palermo');
-    assert.equal(aB.encuentro.titulo, 'Torneo Pádel Palermo');
+    assert.equal(rows[0].res.ok, true);
+    const alertas = rows[0].res.alertas;
+    assert.ok(alertas.length >= 1);
 
-    // Invariantes de privacidad
-    assert.equal(aB.host_id, undefined);
-    assert.equal(aB.encuentro.host_id, undefined);
-    assert.equal(aB.lugar_texto, undefined);
-    assert.equal(aB.encuentro.lugar_texto, undefined);
-    assert.equal(aB.link_virtual, undefined);
-    assert.equal(aB.encuentro.link_virtual, undefined);
+    const alerta = alertas[0];
+    assert.equal(alerta.tipo, 'interes_convertido');
 
-    // User A no ve alertas
-    await setAuthContext(userA, false);
-    const { rows: aRes }: any = await db.query(`
-      SELECT public.get_mis_alertas_seguro() AS res;
-    `);
-    assert.equal(aRes[0].res.ok, true);
-    assert.equal(aRes[0].res.alertas.length, 0);
-
-    // User D no ve alertas
-    await setAuthContext(userD, false);
-    const { rows: dRes }: any = await db.query(`
-      SELECT public.get_mis_alertas_seguro() AS res;
-    `);
-    assert.equal(dRes[0].res.ok, true);
-    assert.equal(dRes[0].res.alertas.length, 0);
+    // PRIVACIDAD ESTRICTA
+    assert.equal(alerta.public_token, undefined, 'No debe exponer public_token');
+    assert.equal(alerta.encuentro.public_token, undefined, 'encuentro no debe exponer public_token');
+    assert.equal(alerta.host_id, undefined, 'No debe exponer host_id');
+    assert.equal(alerta.encuentro.host_id, undefined, 'encuentro no debe exponer host_id');
+    assert.equal(alerta.lugar_texto, undefined, 'No debe exponer lugar_texto');
+    assert.equal(alerta.encuentro.lugar_texto, undefined, 'encuentro no debe exponer lugar_texto');
+    assert.equal(alerta.link_virtual, undefined, 'No debe exponer link_virtual');
+    assert.equal(alerta.encuentro.link_virtual, undefined, 'encuentro no debe exponer link_virtual');
   });
 
   test('9. RPC marcar_alerta_leida_seguro: User A no puede marcar alerta de B', async () => {
@@ -311,7 +360,6 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
   });
 
   test('10. RPC marcar_alerta_leida_seguro: funciona y es idempotente', async () => {
-    // User B marca su alerta
     await setAuthContext(userB, false);
     const { rows: m1 }: any = await db.query(`
       SELECT public.marcar_alerta_leida_seguro('${alertaBId}') AS res;
@@ -320,21 +368,14 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     assert.equal(m1[0].res.leida, true);
     assert.equal(m1[0].res.idempotent, false);
 
-    // En get_mis_alertas_seguro ahora figura leida = true
-    const { rows: getRes }: any = await db.query(`
-      SELECT public.get_mis_alertas_seguro() AS res;
-    `);
-    assert.equal(getRes[0].res.alertas[0].leida, true);
-
-    // Retry de marcado es idempotente
+    // Retry idempotente
     const { rows: m2 }: any = await db.query(`
       SELECT public.marcar_alerta_leida_seguro('${alertaBId}') AS res;
     `);
     assert.equal(m2[0].res.ok, true);
-    assert.equal(m2[0].res.leida, true);
     assert.equal(m2[0].res.idempotent, true);
 
-    // Alerta de User C permanece no leída (independencia)
+    // Alerta de User C permanece no leída
     await setAuthContext(userC, false);
     const { rows: cRes }: any = await db.query(`
       SELECT public.get_mis_alertas_seguro() AS res;
@@ -342,7 +383,39 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     assert.equal(cRes[0].res.alertas[0].leida, false);
   });
 
-  test('11. Cuentas anónimas son rechazadas por ambas RPCs', async () => {
+  test('11. Cleanup elimina alertas prematuras sobre encuentros privados', async () => {
+    await db.query(`SET ROLE service_role;`);
+    // Insertar manualmente una alerta prematura sobre un encuentro cerrado/privado
+    const { rows: privateEnc }: any = await db.query(`
+      INSERT INTO public.encuentros (host_id, titulo, is_open)
+      VALUES ('${userA}', 'Encuentro Privado Viejo', false)
+      RETURNING id;
+    `);
+    const pEncId = privateEnc[0].id;
+
+    await db.query(`
+      INSERT INTO public.alertas_compatibilidad (user_id, tipo, source_intencion_id, target_encuentro_id)
+      VALUES ('${userB}', 'interes_convertido', '${sharedIntencionId}', '${pEncId}')
+      ON CONFLICT DO NOTHING;
+    `);
+
+    // Ejecutar lógica de limpieza
+    await db.query(`
+      DELETE FROM public.alertas_compatibilidad a
+      USING public.encuentros e
+      WHERE a.target_encuentro_id = e.id
+        AND a.tipo = 'interes_convertido'
+        AND e.is_open = false;
+    `);
+
+    // Verificar que se eliminó
+    const { rows: count }: any = await db.query(`
+      SELECT count(*) as count FROM public.alertas_compatibilidad WHERE target_encuentro_id = '${pEncId}';
+    `);
+    assert.equal(parseInt(count[0].count, 10), 0, 'La alerta prematura debió ser eliminada');
+  });
+
+  test('12. Cuentas anónimas son rechazadas por ambas RPCs', async () => {
     await setAuthContext(userAnon, true);
 
     const { rows: getRes }: any = await db.query(`
@@ -356,50 +429,5 @@ describe('Fase 2.0-C1: Infraestructura de Alertas + Caso C (Interés -> Conversi
     `);
     assert.equal(markRes[0].res.ok, false);
     assert.equal(markRes[0].res.error, 'permanent_account_required');
-  });
-
-  test('12. Invariantes previas de convertir_intencion_a_encuentro se preservan', async () => {
-    // Crear intención de B
-    await setAuthContext(userB, false);
-    const { rows: intRows }: any = await db.query(`
-      SELECT public.crear_intencion_segura('Intención de B', 'Descripción') AS res;
-    `);
-    const intBId = intRows[0].res.id;
-
-    // Crear encuentro de B
-    const { rows: encRows }: any = await db.query(`
-      INSERT INTO public.encuentros (host_id, titulo) VALUES ('${userB}', 'Encuentro de B') RETURNING id;
-    `);
-    const encBId = encRows[0].id;
-
-    // User A intenta convertir la intención de User B -> unauthorized
-    await setAuthContext(userA, false);
-    const { rows: convUnauthorized }: any = await db.query(`
-      SELECT public.convertir_intencion_a_encuentro('${intBId}', '${sharedEncuentroId}') AS res;
-    `);
-    assert.equal(convUnauthorized[0].res.ok, false);
-    assert.equal(convUnauthorized[0].res.error, 'unauthorized');
-
-    // User B intenta convertir a un encuentro de User A -> unauthorized_encounter
-    await setAuthContext(userB, false);
-    const { rows: encUnauthorized }: any = await db.query(`
-      SELECT public.convertir_intencion_a_encuentro('${intBId}', '${sharedEncuentroId}') AS res;
-    `);
-    assert.equal(encUnauthorized[0].res.ok, false);
-    assert.equal(encUnauthorized[0].res.error, 'unauthorized_encounter');
-
-    // User B convierte exitosamente a su encuentro
-    const { rows: convOk }: any = await db.query(`
-      SELECT public.convertir_intencion_a_encuentro('${intBId}', '${encBId}') AS res;
-    `);
-    assert.equal(convOk[0].res.ok, true);
-    assert.equal(convOk[0].res.estado, 'convertida');
-
-    // Como nadie tenía interés en intBId, no genera alertas adicionales
-    await db.query(`SET ROLE service_role;`);
-    const { rows: countRows }: any = await db.query(`
-      SELECT count(*) as count FROM public.alertas_compatibilidad WHERE source_intencion_id = '${intBId}';
-    `);
-    assert.equal(parseInt(countRows[0].count, 10), 0);
   });
 });

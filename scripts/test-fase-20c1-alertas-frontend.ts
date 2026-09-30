@@ -74,7 +74,6 @@ describe('Fase 2.0-C1: Frontend Data Layer de Alertas', () => {
           approximate_zone: 'Palermo',
           locality_id: 'palermo',
           is_open: true,
-          public_token: 'public-token-uuid-1',
         },
       };
 
@@ -99,9 +98,11 @@ describe('Fase 2.0-C1: Frontend Data Layer de Alertas', () => {
       assert.equal(alerta.leida, false);
       assert.equal(alerta.encuentro.titulo, 'Torneo Pádel Palermo');
       assert.equal(alerta.encuentro.approximate_zone, 'Palermo');
+      assert.equal((alerta as any).public_token, undefined, 'DTO no debe incluir public_token');
+      assert.equal((alerta.encuentro as any).public_token, undefined, 'encuentro DTO no debe incluir public_token');
     });
 
-    test('Garantiza ausencia de campos privados en el DTO (host_id, emails, lugar_texto)', async () => {
+    test('Garantiza ausencia de campos privados en el DTO (host_id, emails, lugar_texto, public_token)', async () => {
       const rawPayload = {
         id: 'alerta-uuid-2',
         tipo: 'interes_convertido',
@@ -119,7 +120,6 @@ describe('Fase 2.0-C1: Frontend Data Layer de Alertas', () => {
           approximate_zone: 'Recoleta',
           locality_id: 'recoleta',
           is_open: true,
-          public_token: 'pub-tok-2',
         },
       };
 
@@ -138,6 +138,13 @@ describe('Fase 2.0-C1: Frontend Data Layer de Alertas', () => {
       // Verificación de invariantes de seguridad y privacidad
       assert.equal(item.user_id, undefined, 'user_id de la alerta no debe ser visible');
       assert.equal(item.host_id, undefined, 'host_id no debe ser expuesto');
+      assert.equal(item.encuentro.host_id, undefined, 'encuentro.host_id no debe ser expuesto');
+      assert.equal(item.public_token, undefined, 'public_token no debe ser expuesto');
+      assert.equal(item.encuentro.public_token, undefined, 'encuentro.public_token no debe ser expuesto');
+      assert.equal(item.lugar_texto, undefined, 'lugar_texto exacto no debe ser expuesto');
+      assert.equal(item.encuentro.lugar_texto, undefined, 'encuentro.lugar_texto no debe ser expuesto');
+      assert.equal(item.email, undefined, 'email no debe ser expuesto');
+      assert.equal(item.encuentro.email, undefined);
       assert.equal(item.encuentro.host_id, undefined, 'encuentro.host_id no debe ser expuesto');
       assert.equal(item.lugar_texto, undefined, 'lugar_texto exacto no debe ser expuesto');
       assert.equal(item.encuentro.lugar_texto, undefined, 'encuentro.lugar_texto no debe ser expuesto');

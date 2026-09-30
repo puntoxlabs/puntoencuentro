@@ -16,7 +16,7 @@ const admin = createClient(url, secretKey, { auth: { persistSession: false } });
 
 async function runStagingSmokeCasoC() {
   console.log('========================================================');
-  console.log('STAGING SMOKE: FASE 2.0-C1 ALERTAS CASO C');
+  console.log('STAGING SMOKE: FASE 2.0-C1 ALERTAS CASO C (MICRO-FIX)');
   console.log(`Target: ${url} (Project: ${STAGING_PROJECT_REF})`);
   console.log('========================================================\n');
 
@@ -38,7 +38,7 @@ async function runStagingSmokeCasoC() {
       throw new Error(`Failed to create author user: ${authorErr?.message}`);
     }
     authorId = authorData.user.id;
-    console.log(`[1/8] Usuario Autor creado: ${authorId}`);
+    console.log(`[1/9] Usuario Autor creado: ${authorId}`);
 
     // 2. Crear usuario interesado QA
     const emailInterested = `qa-c1-interesado-${Date.now()}@puntoencuentro.test`;
@@ -53,7 +53,7 @@ async function runStagingSmokeCasoC() {
       throw new Error(`Failed to create interested user: ${interestedErr?.message}`);
     }
     interestedId = interestedData.user.id;
-    console.log(`[2/8] Usuario Interesado creado: ${interestedId}`);
+    console.log(`[2/9] Usuario Interesado creado: ${interestedId}`);
 
     // 3. Autor crea intención activa
     const authorClient = createClient(url, publishableKey, { auth: { persistSession: false } });
@@ -69,7 +69,7 @@ async function runStagingSmokeCasoC() {
       throw new Error(`crear_intencion_segura falló: ${createErr?.message || createRes?.error}`);
     }
     const intencionId = createRes.id;
-    console.log(`[3/8] Intención creada: ${intencionId}`);
+    console.log(`[3/9] Intención creada: ${intencionId}`);
 
     // 4. Usuario interesado marca interés
     const interestedClient = createClient(url, publishableKey, { auth: { persistSession: false } });
@@ -81,9 +81,9 @@ async function runStagingSmokeCasoC() {
     if (setErr || !setRes?.ok) {
       throw new Error(`set_interes_intencion falló: ${setErr?.message || setRes?.error}`);
     }
-    console.log(`[4/8] Interés registrado para usuario ${interestedId}`);
+    console.log(`[4/9] Interés registrado para usuario ${interestedId}`);
 
-    // 5. Autor crea encuentro seguro para vincular
+    // 5. Autor crea encuentro PRIVADO (is_open = false)
     const { data: encData, error: encErr } = await admin
       .from('encuentros')
       .insert({
@@ -96,7 +96,7 @@ async function runStagingSmokeCasoC() {
         tipo_invitacion: 'link_general',
         locality_id: 'palermo',
         max_participants: 6,
-        is_open: true,
+        is_open: false,
       })
       .select('id')
       .single();
@@ -105,26 +105,49 @@ async function runStagingSmokeCasoC() {
       throw new Error(`Error creando encuentro: ${encErr?.message}`);
     }
     createdEncuentroId = encData.id;
-    console.log(`[5/8] Encuentro creado: ${createdEncuentroId}`);
+    console.log(`[5/9] Encuentro privado creado (is_open=false): ${createdEncuentroId}`);
 
-    // 6. Autor convierte intención en encuentro
-    const { data: convRes1, error: convErr1 } = await authorClient.rpc('convertir_intencion_a_encuentro', {
+    // 6. Autor convierte intención en encuentro privado -> Confirmar 0 alertas generadas
+    const { data: convRes, error: convErr } = await authorClient.rpc('convertir_intencion_a_encuentro', {
       p_intencion_id: intencionId,
       p_encuentro_id: createdEncuentroId,
     });
-    if (convErr1 || !convRes1?.ok) {
-      throw new Error(`convertir_intencion_a_encuentro (1) falló: ${convErr1?.message || convRes1?.error}`);
+    if (convErr || !convRes?.ok) {
+      throw new Error(`convertir_intencion_a_encuentro falló: ${convErr?.message || convRes?.error}`);
     }
-    console.log(`[6/8] Intención convertida exitosamente: estado = ${convRes1.estado}`);
+    console.log(`[6/9] Intención convertida: estado = ${convRes.estado}`);
 
-    // 7. Verificar exactamente una alerta para Usuario B
+    const { data: checkPrivateAlerts, error: checkPrivErr } = await interestedClient.rpc('get_mis_alertas_seguro');
+    if (checkPrivErr || !checkPrivateAlerts?.ok) {
+      throw new Error(`get_mis_alertas_seguro check falló: ${checkPrivErr?.message}`);
+    }
+    const privateAlertsList = checkPrivateAlerts.alertas || checkPrivateAlerts.data || [];
+    if (privateAlertsList.length !== 0) {
+      throw new Error(`ALERTA PREMATURA DETECTADA: Se esperaba 0 alertas para encuentro privado, pero se encontraron ${privateAlertsList.length}`);
+    }
+    console.log('[6/9] Confirmado: 0 alertas generadas mientras el encuentro es privado.');
+
+    // 7. Autor publica/abre el encuentro mediante abrir_encuentro_seguro -> Confirmar exactamente 1 alerta
+    const { data: openRes, error: openErr } = await authorClient.rpc('abrir_encuentro_seguro', {
+      p_encuentro_id: createdEncuentroId,
+      p_host_id: authorId,
+      p_open_description: 'Abierto a la comunidad',
+      p_max_participants: 4,
+      p_locality_id: 'palermo',
+      p_open_public_zone: 'Palermo Soho',
+    });
+    if (openErr || !openRes?.ok) {
+      throw new Error(`abrir_encuentro_seguro falló: ${openErr?.message || JSON.stringify(openRes)}`);
+    }
+    console.log('[7/9] Encuentro abierto a la comunidad exitosamente.');
+
     const { data: alertasB1, error: getErr1 } = await interestedClient.rpc('get_mis_alertas_seguro');
     if (getErr1 || !alertasB1?.ok) {
       throw new Error(`get_mis_alertas_seguro falló: ${getErr1?.message || alertasB1?.error}`);
     }
     const alertas = alertasB1.alertas || alertasB1.data;
     if (!Array.isArray(alertas) || alertas.length !== 1) {
-      throw new Error(`Se esperaba exactamente 1 alerta para el interesado, se obtuvo: ${JSON.stringify(alertas)}`);
+      throw new Error(`Se esperaba exactamente 1 alerta para el interesado tras abrir encuentro, se obtuvo: ${JSON.stringify(alertas)}`);
     }
     const alerta = alertas[0];
     if (
@@ -135,28 +158,37 @@ async function runStagingSmokeCasoC() {
     ) {
       throw new Error(`Campos de alerta inesperados: ${JSON.stringify(alerta)}`);
     }
-    console.log(`[7/8] Exactamente 1 alerta recibida para usuario B: ID = ${alerta.id}, tipo = ${alerta.tipo}`);
 
-    // 8. Repetir conversión (idempotente) y verificar que continúa habiendo exactamente 1 alerta
-    const { data: convRes2, error: convErr2 } = await authorClient.rpc('convertir_intencion_a_encuentro', {
-      p_intencion_id: intencionId,
-      p_encuentro_id: createdEncuentroId,
-    });
-    if (convErr2 || !convRes2?.ok) {
-      throw new Error(`convertir_intencion_a_encuentro (retry) falló: ${convErr2?.message || convRes2?.error}`);
+    // 8. Validar privacidad del DTO: ausencia de public_token, host_id, etc.
+    if (alerta.public_token !== undefined || alerta.encuentro?.public_token !== undefined) {
+      throw new Error(`Vulnerabilidad: public_token presente en DTO: ${JSON.stringify(alerta)}`);
     }
-    if (convRes2.idempotent !== true) {
-      throw new Error(`Esperado idempotent: true en retry, se obtuvo: ${JSON.stringify(convRes2)}`);
+    if (alerta.host_id !== undefined || alerta.encuentro?.host_id !== undefined) {
+      throw new Error(`Vulnerabilidad: host_id presente en DTO: ${JSON.stringify(alerta)}`);
+    }
+    console.log(`[8/9] Alerta recibida con DTO sanitizado (sin public_token ni host_id). ID = ${alerta.id}`);
+
+    // 9. Reapertura / retry idempotente -> verificar que sigue habiendo exactamente 1 alerta
+    const { data: openRetry } = await authorClient.rpc('abrir_encuentro_seguro', {
+      p_encuentro_id: createdEncuentroId,
+      p_host_id: authorId,
+      p_open_description: 'Abierto a la comunidad modificado',
+      p_max_participants: 6,
+      p_locality_id: 'palermo',
+      p_open_public_zone: 'Palermo Soho',
+    });
+    if (!openRetry?.ok) {
+      throw new Error(`abrir_encuentro_seguro (reintento) falló: ${JSON.stringify(openRetry)}`);
     }
 
     const { data: alertasB2 } = await interestedClient.rpc('get_mis_alertas_seguro');
     const alertasAfterRetry = alertasB2.alertas || alertasB2.data;
     if (alertasAfterRetry.length !== 1) {
-      throw new Error(`Se duplicó la alerta en retry: ${alertasAfterRetry.length} alertas`);
+      throw new Error(`Se duplicó la alerta en reapertura: ${alertasAfterRetry.length} alertas`);
     }
-    console.log(`[8/8] Idempotencia verificada: continúa exactamente 1 alerta tras retry.`);
+    console.log('[9/9] Idempotencia verificada: continúa exactamente 1 alerta tras reapertura.');
 
-    // 9. Marcar alerta como leída y verificar
+    // 10. Marcar alerta como leída
     const { data: markRes, error: markErr } = await interestedClient.rpc('marcar_alerta_leida_seguro', {
       p_alerta_id: alerta.id,
     });
@@ -166,7 +198,7 @@ async function runStagingSmokeCasoC() {
     console.log(`[Extra] Alerta marcada como leída exitosamente.`);
 
     console.log('\n========================================================');
-    console.log('✅ STAGING SMOKE EXITOSO: FASE 2.0-C1 ALERTAS CASO C VALIDADO');
+    console.log('✅ STAGING SMOKE EXITOSO: FASE 2.0-C1 MICRO-FIX VALIDADO');
     console.log('========================================================\n');
   } finally {
     if (createdEncuentroId) {

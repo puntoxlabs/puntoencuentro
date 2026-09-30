@@ -15,7 +15,6 @@ export interface AlertaCompatibilidadEncuentroPublico {
   approximate_zone?: string;
   locality_id?: string | null;
   is_open?: boolean;
-  public_token?: string;
 }
 
 export interface AlertaCompatibilidad {
