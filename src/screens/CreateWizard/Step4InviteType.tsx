@@ -179,14 +179,23 @@ const Step4InviteType: React.FC<Step4Props> = () => {
       });
     } catch (error: any) {
       console.error('[CREATE ERROR FULL]', error);
-      alert(error?.message || JSON.stringify(error));
+      const errorCode = error?.code || error?.message;
+      let friendlyError = 'No pudimos crear el encuentro. Revisá tu conexión e intentá nuevamente.';
+      if (errorCode === 'rate_limit_exceeded') {
+        friendlyError = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+      } else if (errorCode === 'rate_limit_unavailable') {
+        friendlyError = 'No pudimos crear el encuentro en este momento. Intentá nuevamente en unos minutos.';
+      } else if (error?.message && typeof error.message === 'string' && !error.message.includes('{') && !error.message.includes('create_failed')) {
+        friendlyError = error.message;
+      }
+      setError(friendlyError);
       import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
         qaTelemetryService.trackEvent({
           event_type: 'technical_error',
           source: 'ui_manual',
           creation_source: 'manual',
           status: 'started',
-          metadata: { error_code: 'create_failed' }
+          metadata: { error_code: errorCode || 'create_failed' }
         });
       });
     } finally { setLoading(false); }

@@ -197,11 +197,11 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         {error && (
           <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 16, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ color: '#dc2626', margin: 0, fontSize: 14, fontWeight: 500 }}>{error}</p>
-            {/* TODO: Remover rawErrorCode y rpcDetails antes del lanzamiento público final */}
-            {rawErrorCode && (
+            {/* Ocultar códigos técnicos en producción y nunca exponerlos para límites de tasa */}
+            {import.meta.env.DEV && rawErrorCode && !['rate_limit_exceeded', 'rate_limit_unavailable'].includes(rawErrorCode) && (
               <p style={{ margin: 0, color: '#ef4444', fontSize: 12, opacity: 0.8 }}>Código técnico: {rawErrorCode}</p>
             )}
-            {rpcDetails && (
+            {import.meta.env.DEV && rpcDetails && !['rate_limit_exceeded', 'rate_limit_unavailable'].includes(rawErrorCode || '') && (
               <p style={{ margin: 0, color: '#ef4444', fontSize: 12, opacity: 0.7 }}>Detalle técnico: {rpcDetails}</p>
             )}
             {error.includes('Volvé a Home') && (

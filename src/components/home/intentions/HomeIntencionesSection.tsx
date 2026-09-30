@@ -161,14 +161,26 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
       if ('id' in payload && payload.id) {
         const res = await editarIntencion(payload as EditarIntencionPayload);
         if (!res.ok) {
-          alert(`No se pudo actualizar la intención: ${res.error || 'error desconocido'}`);
-          return false;
+          const errCode = res.error;
+          let friendly = 'No se pudo actualizar la intención. Intentá nuevamente.';
+          if (errCode === 'rate_limit_exceeded') {
+            friendly = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+          } else if (errCode === 'rate_limit_unavailable') {
+            friendly = 'No pudimos actualizar la intención en este momento. Intentá nuevamente en unos minutos.';
+          }
+          throw new Error(friendly);
         }
       } else {
         const res = await crearIntencion(payload as CrearIntencionPayload);
         if (!res.ok) {
-          alert(`No se pudo crear la intención: ${res.error || 'error desconocido'}`);
-          return false;
+          const errCode = res.error;
+          let friendly = 'No se pudo crear la intención. Intentá nuevamente.';
+          if (errCode === 'rate_limit_exceeded') {
+            friendly = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+          } else if (errCode === 'rate_limit_unavailable') {
+            friendly = 'No pudimos crear la intención en este momento. Intentá nuevamente en unos minutos.';
+          }
+          throw new Error(friendly);
         }
       }
 
@@ -180,8 +192,8 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
       setEditingIntencion(null);
       return true;
     } catch (err: any) {
-      alert(`Error al guardar: ${err?.message || 'error desconocido'}`);
-      return false;
+      console.error('[HomeIntencionesSection] Error saving intention:', err);
+      throw err;
     } finally {
       setIsSubmitting(false);
     }

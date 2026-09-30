@@ -110,6 +110,10 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
 
 export function getCoordinationCreateErrorMessage(errorCode: string): string {
   switch (errorCode) {
+    case 'rate_limit_exceeded':
+      return 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+    case 'rate_limit_unavailable':
+      return 'No pudimos crear la coordinación en este momento. Intentá nuevamente en unos minutos.';
     case 'not_authenticated':
       return 'Necesitás iniciar sesión para crear una coordinación.';
     case 'permanent_account_required':
@@ -466,6 +470,12 @@ export const encuentrosService = {
     if (error) {
       console.error('Error creating encuentro (RPC):', error);
       throw error;
+    }
+
+    if (result && typeof result === 'object' && 'ok' in result && !(result as any).ok) {
+      const err = new Error((result as any).error || 'create_failed');
+      (err as any).code = (result as any).error;
+      throw err;
     }
 
     return result as any;

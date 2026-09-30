@@ -124,18 +124,23 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
       locality_id: modalidad === 'virtual' ? null : localityId || null,
     };
 
-    let success = false;
-    if (isEditing && initialData && 'id' in initialData) {
-      success = await onSave({
-        id: initialData.id,
-        ...basePayload,
-      });
-    } else {
-      success = await onSave(basePayload);
-    }
+    setErrorMsg(null);
+    try {
+      let success = false;
+      if (isEditing && initialData && 'id' in initialData) {
+        success = await onSave({
+          id: initialData.id,
+          ...basePayload,
+        });
+      } else {
+        success = await onSave(basePayload);
+      }
 
-    if (success) {
-      onClose();
+      if (success) {
+        onClose();
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'No pudimos guardar la intención. Intentá nuevamente.');
     }
   };
 

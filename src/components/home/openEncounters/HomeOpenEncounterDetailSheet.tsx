@@ -228,12 +228,24 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           setErrorMsg('Se requiere una cuenta permanente para solicitar sumarte.');
           setIsFormOpen(false);
           setIsLoginRequired(true);
+        } else if (res.error === 'rate_limit_exceeded') {
+          setErrorMsg('Hiciste varias solicitudes en poco tiempo. Esperá un rato e intentá nuevamente.');
+        } else if (res.error === 'rate_limit_unavailable') {
+          setErrorMsg('No pudimos enviar tu solicitud en este momento. Intentá nuevamente en unos minutos.');
+        } else if (res.error === 'request_not_available') {
+          setErrorMsg('Esta solicitud no está disponible en este momento.');
         } else {
           setErrorMsg('No pudimos enviar tu solicitud. Intentá nuevamente.');
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al enviar la solicitud');
+      if (err?.message === 'rate_limit_exceeded') {
+        setErrorMsg('Hiciste varias solicitudes en poco tiempo. Esperá un rato e intentá nuevamente.');
+      } else if (err?.message === 'request_not_available') {
+        setErrorMsg('Esta solicitud no está disponible en este momento.');
+      } else {
+        setErrorMsg(err?.message && !err.message.includes('{') ? err.message : 'Error al enviar la solicitud');
+      }
     } finally {
       setSubmitting(false);
     }

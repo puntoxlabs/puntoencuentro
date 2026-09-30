@@ -811,7 +811,15 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
       }
     } catch (err: any) {
       console.error('[CreateAIWizard] Error creating encounter:', err);
-      const errorMessage = err?.message || 'Error al guardar el encuentro. Podés continuar en el formulario manual.';
+      const errorCode = err?.code || err?.message;
+      let errorMessage = 'Error al guardar el encuentro. Podés continuar en el formulario manual.';
+      if (errorCode === 'rate_limit_exceeded') {
+        errorMessage = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+      } else if (errorCode === 'rate_limit_unavailable') {
+        errorMessage = 'No pudimos guardar el encuentro en este momento. Intentá nuevamente en unos minutos.';
+      } else if (err?.message && typeof err.message === 'string' && !err.message.includes('{') && !err.message.includes('create_failed')) {
+        errorMessage = err.message;
+      }
       setCreationError(errorMessage);
 
       aiService.finishSession({
