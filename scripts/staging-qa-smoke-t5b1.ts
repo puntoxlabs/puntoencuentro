@@ -62,7 +62,10 @@ async function runStagingSmokeT5B1() {
     assert.ok(actions.includes('create_encounter'), 'Falta create_encounter');
     assert.ok(actions.includes('create_intention'), 'Falta create_intention');
     assert.ok(actions.includes('join_open_encounter'), 'Falta join_open_encounter');
-    assert.ok(actions.includes('join_open_encounter_same_target'), 'Falta join_open_encounter_same_target');
+    assert.ok(
+      !actions.includes('join_open_encounter_same_target'),
+      'join_open_encounter_same_target no debe estar presente en Staging'
+    );
 
     // ----------------------------------------------------
     // 2. Crear cuenta Permanente QA

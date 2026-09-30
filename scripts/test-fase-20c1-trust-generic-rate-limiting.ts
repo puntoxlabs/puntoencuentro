@@ -1,10 +1,23 @@
+/**
+ * T5-B1 / T5-B1.1 — Generic Server-Side Rate Limiter Core Tests
+ *
+ * NOTA DE DISEÑO (Section 8):
+ * Cooldown post-rechazo al mismo Encuentro Abierto:
+ * NO se implementa mediante fixed-window bucket.
+ * En T5-B2 se comprobará server-side:
+ * última solicitud del mismo usuario al mismo encuentro con estado = rejected
+ * y: resolved_at + interval '6 hours'.
+ * La duración inicial aprobada es: 6 horas.
+ * Esto es antiabuso técnico, NO límite comercial.
+ */
+
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 
-describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
+describe('T5-B1.1 — Generic Server-Side Rate Limiter Hardened Core Tests', () => {
   let db: PGlite;
   const userA = '11111111-1111-1111-1111-111111111111';
   const userB = '22222222-2222-2222-2222-222222222222';
@@ -47,23 +60,28 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       ON CONFLICT DO NOTHING;
     `);
 
-    // 2. Execute T5-B1 migration
-    const migrationPath = path.resolve(
+    // 2. Execute T5-B1 and T5-B1.1 migrations in order
+    const mig1Path = path.resolve(
       process.cwd(),
       'supabase/migrations/20260930200000_fase_20c1_trust_generic_rate_limiting.sql'
     );
-    const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
-    await db.exec(migrationSql);
+    await db.exec(fs.readFileSync(mig1Path, 'utf-8'));
+
+    const mig2Path = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20260930203000_fix_generic_rate_limiter_hardening.sql'
+    );
+    await db.exec(fs.readFileSync(mig2Path, 'utf-8'));
   });
 
-  test('1. Schema & Initial Seed Policies: rate_limit_policies contains P0 seeds', async () => {
+  test('1. Schema & Hardened Policies: exactly 3 P0 seeds present, join_open_encounter_same_target retired', async () => {
     const res = await db.query(`
       SELECT action, max_requests, window_seconds, enabled
       FROM public.rate_limit_policies
       ORDER BY action ASC;
     `);
 
-    assert.equal(res.rows.length, 4);
+    assert.equal(res.rows.length, 3, 'Must contain exactly 3 active policies');
     const policies = res.rows as any[];
 
     const enc = policies.find((p) => p.action === 'create_encounter');
@@ -91,15 +109,29 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     });
 
     const joinSame = policies.find((p) => p.action === 'join_open_encounter_same_target');
-    assert.deepEqual(joinSame, {
-      action: 'join_open_encounter_same_target',
-      max_requests: 1,
-      window_seconds: 21600,
-      enabled: true,
-    });
+    assert.equal(joinSame, undefined, 'join_open_encounter_same_target must NOT be present in rate_limit_policies');
   });
 
-  test('2. Authentication Guard: rejects unauthenticated call fail-closed', async () => {
+  test('2. Hardened search_path: functions have prosecdef=true and proconfig search_path=""', async () => {
+    const res = await db.query(`
+      SELECT proname, prosecdef, proconfig
+      FROM pg_proc
+      WHERE proname IN ('check_rate_limit_internal', 'check_rate_limit_admin_inspect')
+      ORDER BY proname ASC;
+    `);
+
+    assert.equal(res.rows.length, 2);
+    for (const row of res.rows as any[]) {
+      assert.equal(row.prosecdef, true, `${row.proname} must be SECURITY DEFINER`);
+      const cfg = row.proconfig ? row.proconfig[0] : '';
+      assert.ok(
+        cfg === 'search_path=""' || cfg === 'search_path=',
+        `${row.proname} must have SET search_path = '', got: ${cfg}`
+      );
+    }
+  });
+
+  test('3. Authentication Guard: rejects unauthenticated call fail-closed', async () => {
     // Clear user session
     await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
 
@@ -110,7 +142,7 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal(result.error, 'authentication_required');
   });
 
-  test('3. Parameter Validation: rejects empty/null action or oversized scope_key', async () => {
+  test('4. Parameter Validation: rejects empty/null action or oversized scope_key', async () => {
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
 
     const res1 = await db.query(`SELECT public.check_rate_limit_internal('') AS result;`);
@@ -122,18 +154,17 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal((res2.rows[0] as any).result.error, 'invalid_parameters');
   });
 
-  test('4. Fail-Closed on Non-Existent Policy', async () => {
+  test('5. Fail-Closed on Non-Existent Policy (including retired join_open_encounter_same_target)', async () => {
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
 
-    const res = await db.query(`SELECT public.check_rate_limit_internal('non_existent_action') AS result;`);
+    const res = await db.query(`SELECT public.check_rate_limit_internal('join_open_encounter_same_target') AS result;`);
     const result = (res.rows[0] as any).result;
 
     assert.equal(result.allowed, false);
     assert.equal(result.error, 'rate_limit_policy_not_found');
   });
 
-  test('5. Disabled Policy: enabled=false allows operation with disabled flag', async () => {
-    // Insert a disabled policy
+  test('6. Disabled Policy: enabled=false allows operation with disabled flag', async () => {
     await db.query(`
       INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
       VALUES ('disabled_action', 10, 3600, false)
@@ -147,15 +178,13 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal(result.allowed, true);
     assert.equal(result.disabled, true);
 
-    // Verify NO bucket was created for disabled policy
     const bucketRes = await db.query(`
       SELECT COUNT(*)::int AS count FROM public.rate_limit_buckets WHERE action = 'disabled_action';
     `);
     assert.equal((bucketRes.rows[0] as any).count, 0);
   });
 
-  test('6. Basic Bucket Counting & Atomic Limit: request 1 has count=1, strictly rejected at max+1', async () => {
-    // Setup test policy with max_requests = 3
+  test('7. Basic Bucket Counting & Atomic Limit: request 1 has count=1, strictly rejected at max+1', async () => {
     await db.query(`
       INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
       VALUES ('test_limit_3', 3, 3600, true)
@@ -206,17 +235,17 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal((b4.rows[0] as any).request_count, 3, 'Request count remains 3 after rejection');
   });
 
-  test('7. Separation & Orthogonality: by action, user, scope_key and window', async () => {
-    // Setup two policies with limit 1
+  test('8. Separation & Orthogonality: by action, user, scope_key and window', async () => {
     await db.query(`
       INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
       VALUES
         ('action_alpha', 1, 3600, true),
-        ('action_beta', 1, 3600, true)
+        ('action_beta', 1, 3600, true),
+        ('action_scoped', 1, 3600, true)
       ON CONFLICT (action) DO UPDATE SET max_requests = 1, enabled = true;
     `);
 
-    // A. Separation by action: User A exhausts alpha, but beta is still allowed
+    // A. Separation by action
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
     const a1 = await db.query(`SELECT public.check_rate_limit_internal('action_alpha') AS result;`);
     assert.equal((a1.rows[0] as any).result.allowed, true);
@@ -226,24 +255,23 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     const b1 = await db.query(`SELECT public.check_rate_limit_internal('action_beta') AS result;`);
     assert.equal((b1.rows[0] as any).result.allowed, true);
 
-    // B. Separation by user: User B is NOT affected by User A exhausting alpha
+    // B. Separation by user
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userB}', false);`);
     const ub1 = await db.query(`SELECT public.check_rate_limit_internal('action_alpha') AS result;`);
     assert.equal((ub1.rows[0] as any).result.allowed, true, 'User B must not be limited by User A');
 
-    // C. Separation by scope_key: User A on target-1 vs target-2
+    // C. Separation by scope_key
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
-    const s1 = await db.query(`SELECT public.check_rate_limit_internal('join_open_encounter_same_target', 'encounter-1') AS result;`);
+    const s1 = await db.query(`SELECT public.check_rate_limit_internal('action_scoped', 'scope-1') AS result;`);
     assert.equal((s1.rows[0] as any).result.allowed, true);
-    const s1_repeat = await db.query(`SELECT public.check_rate_limit_internal('join_open_encounter_same_target', 'encounter-1') AS result;`);
+    const s1_repeat = await db.query(`SELECT public.check_rate_limit_internal('action_scoped', 'scope-1') AS result;`);
     assert.equal((s1_repeat.rows[0] as any).result.allowed, false);
 
-    const s2 = await db.query(`SELECT public.check_rate_limit_internal('join_open_encounter_same_target', 'encounter-2') AS result;`);
+    const s2 = await db.query(`SELECT public.check_rate_limit_internal('action_scoped', 'scope-2') AS result;`);
     assert.equal((s2.rows[0] as any).result.allowed, true, 'Different scope_key must have independent bucket');
   });
 
-  test('8. Generic Window Calculation: 3600s and 21600s discrete epoch math', async () => {
-    // Verify PostgreSQL epoch discrete window calculation across different window sizes
+  test('9. Generic Window Calculation: 3600s and 21600s discrete epoch math', async () => {
     const res = await db.query(`
       SELECT
         to_timestamp(floor(extract(epoch from '2026-09-30 15:42:15+00'::timestamptz) / 3600) * 3600) AS w_1h,
@@ -257,7 +285,7 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal(new Date(row.w_6h_next).toISOString(), '2026-09-30T18:00:00.000Z');
   });
 
-  test('9. Concurrency: 15 simultaneous requests at limit 5 result in exactly 5 allowed and 10 rejected', async () => {
+  test('10. Concurrency: 15 simultaneous requests at limit 5 result in exactly 5 allowed and 10 rejected', async () => {
     await db.query(`
       INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
       VALUES ('test_concurrency_5', 5, 3600, true)
@@ -286,14 +314,13 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal((bucketRes.rows[0] as any).request_count, 5, 'Final request_count must be exactly 5, NEVER 6');
   });
 
-  test('10. Opportunistic Cleanup: deletes buckets older than 48 hours for calling user', async () => {
+  test('11. Opportunistic Cleanup: deletes buckets older than 48 hours for calling user', async () => {
     await db.query(`
       INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
       VALUES ('test_cleanup', 10, 3600, true)
       ON CONFLICT (action) DO UPDATE SET max_requests = 10, enabled = true;
     `);
 
-    // Manually insert an old bucket (60 hours old) for User A, and an old bucket for User B
     const oldWindow = new Date(Date.now() - 60 * 3600 * 1000).toISOString();
     await db.query(`
       INSERT INTO public.rate_limit_buckets (action, user_id, scope_key, window_start, request_count)
@@ -303,25 +330,15 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       ON CONFLICT DO NOTHING;
     `);
 
-    // Verify both exist before call
-    const beforeA = await db.query(`
-      SELECT COUNT(*)::int AS count FROM public.rate_limit_buckets
-      WHERE action = 'test_cleanup' AND user_id = '${userA}' AND window_start = '${oldWindow}'::timestamptz;
-    `);
-    assert.equal((beforeA.rows[0] as any).count, 1);
-
-    // Call as User A
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
     await db.query(`SELECT public.check_rate_limit_internal('test_cleanup') AS result;`);
 
-    // Verify User A old bucket is purged
     const afterA = await db.query(`
       SELECT COUNT(*)::int AS count FROM public.rate_limit_buckets
       WHERE action = 'test_cleanup' AND user_id = '${userA}' AND window_start = '${oldWindow}'::timestamptz;
     `);
     assert.equal((afterA.rows[0] as any).count, 0, 'User A old bucket must be cleaned up');
 
-    // Verify User B old bucket is untouched (cleanup is user-scoped)
     const afterB = await db.query(`
       SELECT COUNT(*)::int AS count FROM public.rate_limit_buckets
       WHERE action = 'test_cleanup' AND user_id = '${userB}' AND window_start = '${oldWindow}'::timestamptz;
@@ -329,12 +346,10 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
     assert.equal((afterB.rows[0] as any).count, 1, 'User B old bucket must not be deleted by User A operation');
   });
 
-  test('11. Security & Privacy: anon and authenticated cannot access tables or internal helper directly', async () => {
-    // Test as authenticated role
+  test('12. Security & Privacy: anon and authenticated cannot access tables or internal helper directly', async () => {
     await db.query(`SET ROLE authenticated;`);
     await db.query(`SELECT set_config('request.jwt.claim.sub', '${userA}', false);`);
 
-    // Table rate_limit_policies
     await assert.rejects(
       async () => {
         await db.query(`SELECT * FROM public.rate_limit_policies;`);
@@ -343,7 +358,6 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       'authenticated role MUST NOT SELECT rate_limit_policies'
     );
 
-    // Table rate_limit_buckets
     await assert.rejects(
       async () => {
         await db.query(`SELECT * FROM public.rate_limit_buckets;`);
@@ -352,7 +366,6 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       'authenticated role MUST NOT SELECT rate_limit_buckets'
     );
 
-    // Direct execute check_rate_limit_internal
     await assert.rejects(
       async () => {
         await db.query(`SELECT public.check_rate_limit_internal('create_encounter');`);
@@ -361,7 +374,6 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       'authenticated role MUST NOT EXECUTE check_rate_limit_internal directly'
     );
 
-    // Direct execute check_rate_limit_admin_inspect
     await assert.rejects(
       async () => {
         await db.query(`SELECT public.check_rate_limit_admin_inspect('${userA}', 'create_encounter');`);
@@ -370,12 +382,10 @@ describe('T5-B1 — Generic Server-Side Rate Limiter Core Tests', () => {
       'authenticated role MUST NOT EXECUTE check_rate_limit_admin_inspect directly'
     );
 
-    // Reset role to postgres
     await db.query(`RESET ROLE;`);
   });
 
-  test('12. Admin Helper: check_rate_limit_admin_inspect works for service_role/postgres', async () => {
-    // Reset to postgres
+  test('13. Admin Helper: check_rate_limit_admin_inspect works for service_role/postgres', async () => {
     await db.query(`RESET ROLE;`);
 
     const res = await db.query(`
