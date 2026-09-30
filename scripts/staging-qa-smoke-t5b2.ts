@@ -1,17 +1,22 @@
 /**
- * Staging Smoke QA — Fase 2.0-C1 (T5-B2): Enforcement of Rate Limits on Core Actions
+ * Staging Smoke QA — Fase 2.0-C1 (T5-B2.1): Directed Rate Limiting & Validation Order Smoke
  *
  * Target: wougfhfwqgmxhgvjqoua (Staging)
  * Guards: assertStagingEnvironment()
  *
- * Verifies live in Staging:
- * 1. Anonymous user can create private encounter within limit.
- * 2. Simple encounter and with-options encounter share the 'create_encounter' bucket.
- * 3. Intenciones enforce rate limiting (hit limit 6 -> 7th rejected) and anonymous is blocked before limiter.
- * 4. Join open encounter consumes global bucket, while duplicate_pending does NOT consume bucket.
- * 5. Rejection sets resolved_at = now() and triggers 6-hour exact cooldown on the SAME encounter without affecting other encounters.
- * 6. Historical 13 legacy rows with resolved_at NULL remain intact and unblocked (>6h old).
- * 7. Full cleanup of all created QA fixtures (preserving historical data).
+ * Directed checks (Section 19):
+ * A. invalid create simple no consume.
+ * B. valid create simple consume +1.
+ * C. invalid create options no consume.
+ * D. valid create options según contrato auth previo consume +1 (and anon rejects with permanent_account_required).
+ * E. invalid intention no consume.
+ * F. valid intention consume +1.
+ * G. duplicate pending no consume.
+ * H. blocked join no consume.
+ * I. cooldown join no consume.
+ * J. valid join consume +1.
+ * K. thresholds siguen bloqueando.
+ * Cleanup QA (Preserving historical 13 rows).
  */
 
 import assert from 'node:assert/strict';
@@ -34,7 +39,7 @@ const admin = createClient(url, secretKey, { auth: { persistSession: false } });
 
 async function runStagingSmokeT5B2() {
   console.log('========================================================');
-  console.log('STAGING SMOKE T5-B2: RATE LIMITING CORE ENFORCEMENT');
+  console.log('STAGING SMOKE T5-B2.1: DIRECTED VALIDATION & RATE LIMIT QA');
   console.log(`Target: ${url} (Project: ${STAGING_PROJECT_REF})`);
   console.log('========================================================\n');
 
@@ -42,17 +47,28 @@ async function runStagingSmokeT5B2() {
   let hostUserId: string | null = null;
   let applicantAId: string | null = null;
   let applicantBId: string | null = null;
+  let blockedUserId: string | null = null;
   let anonUserId: string | null = null;
 
   const createdEncounterIds: string[] = [];
   const createdIntentionIds: string[] = [];
   const createdUserIds: string[] = [];
 
+  const getBucketCount = async (action: string, userId: string): Promise<number> => {
+    const { data } = await admin
+      .from('rate_limit_buckets')
+      .select('request_count')
+      .eq('action', action)
+      .eq('user_id', userId)
+      .maybeSingle();
+    return data?.request_count || 0;
+  };
+
   try {
     // ----------------------------------------------------
     // 0. Precheck: 13 Historical Legacy Rows Check
     // ----------------------------------------------------
-    console.log('[0/7] Precheck: Verificando las 13 solicitudes históricas con resolved_at IS NULL...');
+    console.log('[0/12] Precheck: Verificando las 13 solicitudes históricas con resolved_at IS NULL...');
     const { data: legacyRows, error: legErr } = await admin
       .from('solicitudes_encuentro_abierto')
       .select('id, encuentro_id, usuario_id, estado, resolved_at, created_at')
@@ -68,7 +84,7 @@ async function runStagingSmokeT5B2() {
     // ----------------------------------------------------
     // 1. Crear usuarios de prueba QA
     // ----------------------------------------------------
-    console.log('\n[1/7] Creando usuarios QA (Host, Solicitante A, Solicitante B, Anónimo)...');
+    console.log('\n[1/12] Creando usuarios QA (Host, Solicitante A, Solicitante B, Bloqueado, Anónimo)...');
     
     // Host
     const hostEmail = `qa-t5b2-host-${timestamp}@puntoencuentro.test`;
@@ -77,7 +93,7 @@ async function runStagingSmokeT5B2() {
       email: hostEmail,
       password: hostPass,
       email_confirm: true,
-      user_metadata: { full_name: 'QA Host T5B2' },
+      user_metadata: { full_name: 'QA Host T5B2.1' },
     });
     if (uHostErr || !uHost.user) throw new Error(`Error creando host: ${uHostErr?.message}`);
     hostUserId = uHost.user.id;
@@ -90,7 +106,7 @@ async function runStagingSmokeT5B2() {
       email: appAEmail,
       password: appAPass,
       email_confirm: true,
-      user_metadata: { full_name: 'QA Applicant A T5B2' },
+      user_metadata: { full_name: 'QA Applicant A T5B2.1' },
     });
     if (uAppAErr || !uAppA.user) throw new Error(`Error creando applicant A: ${uAppAErr?.message}`);
     applicantAId = uAppA.user.id;
@@ -103,11 +119,24 @@ async function runStagingSmokeT5B2() {
       email: appBEmail,
       password: appBPass,
       email_confirm: true,
-      user_metadata: { full_name: 'QA Applicant B T5B2' },
+      user_metadata: { full_name: 'QA Applicant B T5B2.1' },
     });
     if (uAppBErr || !uAppB.user) throw new Error(`Error creando applicant B: ${uAppBErr?.message}`);
     applicantBId = uAppB.user.id;
     createdUserIds.push(applicantBId);
+
+    // Bloqueado
+    const blockedEmail = `qa-t5b2-blocked-${timestamp}@puntoencuentro.test`;
+    const blockedPass = 'QaPassword123!Safe';
+    const { data: uBlocked, error: uBlockedErr } = await admin.auth.admin.createUser({
+      email: blockedEmail,
+      password: blockedPass,
+      email_confirm: true,
+      user_metadata: { full_name: 'QA Blocked T5B2.1' },
+    });
+    if (uBlockedErr || !uBlocked.user) throw new Error(`Error creando blocked: ${uBlockedErr?.message}`);
+    blockedUserId = uBlocked.user.id;
+    createdUserIds.push(blockedUserId);
 
     // Client sessions
     const hostClient = createClient(url, publishableKey, { auth: { persistSession: false } });
@@ -119,6 +148,9 @@ async function runStagingSmokeT5B2() {
     const appBClient = createClient(url, publishableKey, { auth: { persistSession: false } });
     await appBClient.auth.signInWithPassword({ email: appBEmail, password: appBPass });
 
+    const blockedClient = createClient(url, publishableKey, { auth: { persistSession: false } });
+    await blockedClient.auth.signInWithPassword({ email: blockedEmail, password: blockedPass });
+
     // Anónimo
     const anonClient = createClient(url, publishableKey, { auth: { persistSession: false } });
     const { data: anonAuth, error: anonErr } = await anonClient.auth.signInAnonymously();
@@ -129,122 +161,177 @@ async function runStagingSmokeT5B2() {
     console.log(`  Host: ${hostUserId}`);
     console.log(`  Applicant A: ${applicantAId}`);
     console.log(`  Applicant B: ${applicantBId}`);
-    console.log(`  Anonymous: ${anonUserId} (is_anonymous=true)`);
+    console.log(`  Blocked: ${blockedUserId}`);
+    console.log(`  Anonymous: ${anonUserId}`);
 
     // ----------------------------------------------------
-    // 2. CREATE ENCOUNTER: Anónimo y Bucket Compartido (Simple + Opciones)
+    // 2. CHECK A & B: CREATE ENCOUNTER SIMPLE
     // ----------------------------------------------------
-    console.log('\n[2/7] Verificando CREATE ENCOUNTER (Anónimo + Compartido Simple/Opciones)...');
+    console.log('\n[2/12] Verificando [A] invalid simple no consume y [B] valid simple consume +1...');
+    const countAnon0 = await getBucketCount('create_encounter', anonUserId);
+    assert.equal(countAnon0, 0);
 
-    // A. Anónimo crea encuentro privado
-    const anonEncounterPayload = {
-      titulo: `Encuentro Anon T5B2 ${timestamp}`,
+    // [A] Invalid create simple: post_event_active_minutes invalido (-5)
+    const invalidSimplePayload = {
+      titulo: `Encuentro Invalido ${timestamp}`,
       fecha: '2026-10-15',
       hora: '19:00',
       modalidad: 'presencial',
       lugar_texto: 'Parque Patricios',
       tipo_invitacion: 'link_general',
+      post_event_active_minutes: -5,
     };
-    const { data: anonEncRes, error: anonEncErr } = await anonClient.rpc('crear_encuentro_seguro', {
-      p_data: anonEncounterPayload,
-    });
-    if (anonEncErr) throw new Error(`Error anon crear_encuentro_seguro: ${anonEncErr.message}`);
-    assert.equal(anonEncRes.ok, true, 'Anónimo debe poder crear encuentro privado');
-    createdEncounterIds.push(anonEncRes.id);
+    const { data: rInvSimple } = await anonClient.rpc('crear_encuentro_seguro', { p_data: invalidSimplePayload });
+    assert.equal(rInvSimple.ok, false);
+    assert.equal(rInvSimple.error, 'invalid_post_event_active_minutes');
 
-    // Verificar bucket de anon incrementó a 1
-    const { data: bAnon } = await admin
-      .from('rate_limit_buckets')
-      .select('request_count')
-      .eq('action', 'create_encounter')
-      .eq('user_id', anonUserId)
-      .single();
-    assert.equal(bAnon?.request_count, 1, 'Bucket anon debe tener conteo 1');
-    console.log('  -> Anónimo creó encuentro privado exitosamente y consumió 1 slot de create_encounter');
+    const countAnonAfterInvalid = await getBucketCount('create_encounter', anonUserId);
+    assert.equal(countAnonAfterInvalid, 0, '[A] Invalid simple MUST NOT consume rate limit');
+    console.log('  -> [A] PASÓ: invalid simple devolvió invalid_post_event_active_minutes y NO consumió bucket (conteo=0)');
 
-    // B. Host crea Simple
-    const hostSimplePayload = {
-      titulo: `Encuentro Host Simple ${timestamp}`,
-      fecha: '2026-10-18',
-      hora: '20:00',
+    // [B] Valid create simple as anonymous -> consumes +1
+    const validSimplePayload = {
+      titulo: `Encuentro Anon Valido ${timestamp}`,
+      fecha: '2026-10-15',
+      hora: '19:00',
       modalidad: 'presencial',
-      lugar_texto: 'Palermo',
+      lugar_texto: 'Parque Patricios',
       tipo_invitacion: 'link_general',
+      post_event_active_minutes: 60,
     };
-    const { data: hSimpleRes, error: hSimpleErr } = await hostClient.rpc('crear_encuentro_seguro', {
-      p_data: hostSimplePayload,
-    });
-    if (hSimpleErr) throw new Error(`Error host crear_encuentro_seguro: ${hSimpleErr.message}`);
-    assert.equal(hSimpleRes.ok, true);
-    createdEncounterIds.push(hSimpleRes.id);
+    const { data: rValSimple, error: errValSimple } = await anonClient.rpc('crear_encuentro_seguro', { p_data: validSimplePayload });
+    if (errValSimple) throw new Error(`Error rValSimple: ${errValSimple.message}`);
+    assert.equal(rValSimple.ok, true);
+    createdEncounterIds.push(rValSimple.id);
 
-    // C. Host crea Con Opciones
-    const hostOptPayload = {
-      titulo: `Encuentro Host Coordinacion ${timestamp}`,
+    const countAnonAfterValid = await getBucketCount('create_encounter', anonUserId);
+    assert.equal(countAnonAfterValid, 1, '[B] Valid simple MUST increment bucket by 1');
+    console.log('  -> [B] PASÓ: valid simple creado exitosamente por anónimo y consumió +1 (conteo=1)');
+
+    // ----------------------------------------------------
+    // 3. CHECK C & D: CREATE ENCOUNTER CON OPCIONES
+    // ----------------------------------------------------
+    console.log('\n[3/12] Verificando [C] invalid options no consume y [D] valid options consume +1 (y anon rechaza)...');
+
+    // Contrato previo: anónimo es rechazado por permanent_account_required sin consumir
+    const optPayload = {
+      titulo: `Encuentro Opciones QA ${timestamp}`,
       modalidad: 'presencial',
       lugar_texto: 'Recoleta',
       tipo_invitacion: 'link_general',
       response_deadline: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
     };
-    const hostOpciones = [
+    const validOpciones = [
       { fecha: '2026-10-22', hora_inicio: '18:00' },
       { fecha: '2026-10-23', hora_inicio: '18:00' },
     ];
-    const { data: hOptRes, error: hOptErr } = await hostClient.rpc('crear_encuentro_con_opciones_seguro', {
-      p_data: hostOptPayload,
-      p_opciones: hostOpciones,
+    const { data: rAnonOpt } = await anonClient.rpc('crear_encuentro_con_opciones_seguro', {
+      p_data: optPayload,
+      p_opciones: validOpciones,
     });
-    if (hOptErr) throw new Error(`Error host crear_encuentro_con_opciones_seguro: ${hOptErr.message}`);
-    assert.equal(hOptRes.ok, true);
-    createdEncounterIds.push(hOptRes.id);
+    assert.equal(rAnonOpt.ok, false);
+    assert.equal(rAnonOpt.error, 'permanent_account_required');
+    assert.equal(await getBucketCount('create_encounter', anonUserId), 1, 'Anon rechazado en opciones NO debe consumir bucket');
+    console.log('  -> Contrato preexistente verificado: opciones requiere cuenta permanente (anónimo rechazado sin consumir)');
 
-    // Verificar bucket de host tiene conteo exactamente 2 (compartido)
-    const { data: bHost } = await admin
-      .from('rate_limit_buckets')
-      .select('request_count')
-      .eq('action', 'create_encounter')
-      .eq('user_id', hostUserId)
-      .single();
-    assert.equal(bHost?.request_count, 2, 'Host bucket debe ser exactamente 2');
-    console.log('  -> Host creó Simple + Con Opciones y ambos incrementaron el mismo bucket (conteo=2)');
+    // [C] Host con opciones inválidas (< 2 opciones) -> error minimum_two_options sin consumir
+    const countHostBefore = await getBucketCount('create_encounter', hostUserId);
+    assert.equal(countHostBefore, 0);
+
+    const singleOption = [{ fecha: '2026-10-22', hora_inicio: '18:00' }];
+    const { data: rInvOpt } = await hostClient.rpc('crear_encuentro_con_opciones_seguro', {
+      p_data: optPayload,
+      p_opciones: singleOption,
+    });
+    assert.equal(rInvOpt.ok, false);
+    assert.equal(rInvOpt.error, 'minimum_two_options');
+
+    const countHostAfterInvalid = await getBucketCount('create_encounter', hostUserId);
+    assert.equal(countHostAfterInvalid, 0, '[C] Invalid options MUST NOT consume rate limit');
+    console.log('  -> [C] PASÓ: invalid options devolvió minimum_two_options y NO consumió bucket (conteo=0)');
+
+    // [D] Host con opciones válidas -> consume +1
+    const { data: rValOpt, error: errValOpt } = await hostClient.rpc('crear_encuentro_con_opciones_seguro', {
+      p_data: optPayload,
+      p_opciones: validOpciones,
+    });
+    if (errValOpt) throw new Error(`Error rValOpt: ${errValOpt.message}`);
+    assert.equal(rValOpt.ok, true);
+    createdEncounterIds.push(rValOpt.id);
+
+    const countHostAfterValid = await getBucketCount('create_encounter', hostUserId);
+    assert.equal(countHostAfterValid, 1, '[D] Valid options MUST increment bucket by 1');
+    console.log('  -> [D] PASÓ: valid options creado exitosamente y consumió +1 (conteo=1)');
+
+    // También creamos un simple con host para confirmar bucket compartido (+2)
+    const { data: rHostSimple, error: errHostSimple } = await hostClient.rpc('crear_encuentro_seguro', {
+      p_data: {
+        titulo: `Encuentro Host Simple 2 ${timestamp}`,
+        fecha: '2026-10-18',
+        hora: '20:00',
+        modalidad: 'presencial',
+        lugar_texto: 'Palermo',
+        tipo_invitacion: 'link_general',
+      },
+    });
+    if (errHostSimple) throw new Error(`Error rHostSimple: ${errHostSimple.message}`);
+    assert.equal(rHostSimple.ok, true);
+    createdEncounterIds.push(rHostSimple.id);
+
+    const countHostShared = await getBucketCount('create_encounter', hostUserId);
+    assert.equal(countHostShared, 2, 'Host bucket compartido debe ser exactamente 2');
+    console.log('  -> Bucket compartido verificado: simple + opciones comparten el bucket (conteo=2)');
 
     // ----------------------------------------------------
-    // 3. CREATE INTENTION: Anonymous pre-check & Enforcement límite 6
+    // 4. CHECK E, F, K: CREATE INTENTION
     // ----------------------------------------------------
-    console.log('\n[3/7] Verificando CREATE INTENTION (Anónimo rechazado + Enforcement límite 6)...');
+    console.log('\n[4/12] Verificando [E] invalid intention no consume, [F] valid intention consume +1 y [K] threshold...');
+    const countAppABefore = await getBucketCount('create_intention', applicantAId);
+    assert.equal(countAppABefore, 0);
 
-    // A. Anonymous intenta crear intención -> rejected by permanent_account_required
-    const { data: anonIntRes } = await anonClient.rpc('crear_intencion_segura', {
-      p_titulo: 'Intención anon rechazada',
+    // [E] Invalid intention: empty title -> invalid_title sin consumir
+    const { data: rInvInt } = await appAClient.rpc('crear_intencion_segura', { p_titulo: '' });
+    assert.equal(rInvInt.ok, false);
+    assert.equal(rInvInt.error, 'invalid_title');
+
+    const countAppAAfterInvalid = await getBucketCount('create_intention', applicantAId);
+    assert.equal(countAppAAfterInvalid, 0, '[E] Invalid intention MUST NOT consume rate limit');
+    console.log('  -> [E] PASÓ: invalid intention devolvió invalid_title y NO consumió bucket (conteo=0)');
+
+    // [F] Valid intention -> consume +1
+    const { data: rValInt, error: errValInt } = await appAClient.rpc('crear_intencion_segura', {
+      p_titulo: `Intención Válida A ${timestamp}`,
     });
-    assert.equal(anonIntRes.ok, false);
-    assert.equal(anonIntRes.error, 'permanent_account_required');
-    console.log('  -> Anónimo rechazado por permanent_account_required antes del limiter');
+    if (errValInt) throw new Error(`Error rValInt: ${errValInt.message}`);
+    assert.equal(rValInt.ok, true);
+    createdIntentionIds.push(rValInt.id);
 
-    // B. Applicant B crea intenciones hasta el límite (6 permitidas)
+    const countAppAAfterValid = await getBucketCount('create_intention', applicantAId);
+    assert.equal(countAppAAfterValid, 1, '[F] Valid intention MUST increment bucket by 1');
+    console.log('  -> [F] PASÓ: valid intention consumió +1 (conteo=1)');
+
+    // [K] Threshold enforcement con Applicant B (6 válidas, 7ma excede)
+    console.log('  -> Verificando threshold límite 6 en intenciones...');
     for (let i = 1; i <= 6; i++) {
       const { data: intRes, error: intErr } = await appBClient.rpc('crear_intencion_segura', {
-        p_titulo: `Intención QA ${i} - ${timestamp}`,
+        p_titulo: `Intención B #${i} - ${timestamp}`,
       });
-      if (intErr) throw new Error(`Error appB crear_intencion_segura #${i}: ${intErr.message}`);
-      assert.equal(intRes.ok, true, `Intención ${i} debe crearse exitosamente`);
+      if (intErr) throw new Error(`Error intB #${i}: ${intErr.message}`);
+      assert.equal(intRes.ok, true);
       createdIntentionIds.push(intRes.id);
     }
-
-    // 7ma intención debe exceder el límite
-    const { data: intExceededRes } = await appBClient.rpc('crear_intencion_segura', {
-      p_titulo: `Intención QA 7 Excedida - ${timestamp}`,
+    const { data: rExceededInt } = await appBClient.rpc('crear_intencion_segura', {
+      p_titulo: `Intención B #7 Excedida - ${timestamp}`,
     });
-    assert.equal(intExceededRes.ok, false);
-    assert.equal(intExceededRes.error, 'rate_limit_exceeded');
-    console.log('  -> Intención 1-6 exitosas, 7ma rechazada con rate_limit_exceeded');
+    assert.equal(rExceededInt.ok, false);
+    assert.equal(rExceededInt.error, 'rate_limit_exceeded');
+    console.log('  -> [K] PASÓ: 6 intenciones creadas, 7ma rechazada con rate_limit_exceeded');
 
     // ----------------------------------------------------
-    // 4. JOIN OPEN ENCOUNTER: Global Quota & Duplicate Check
+    // 5. CHECK G, H, I, J: JOIN OPEN ENCOUNTER
     // ----------------------------------------------------
-    console.log('\n[4/7] Verificando JOIN OPEN ENCOUNTER (Duplicate pending no consume quota)...');
+    console.log('\n[5/12] Verificando [G] duplicate no consume, [H] blocked no consume, [I] cooldown no consume y [J] valid consume +1...');
 
-    // Obtener localidad 'palermo' o primera localidad activa
     const { data: locs } = await admin.from('localidades').select('id').eq('activo', true).limit(1);
     const localityId = locs?.[0]?.id || 'palermo';
 
@@ -265,7 +352,7 @@ async function runStagingSmokeT5B2() {
       })
       .select('id')
       .single();
-    if (enc1Err || !encOpen1) throw new Error(`Error creando encuentro abierto 1: ${enc1Err?.message}`);
+    if (enc1Err || !encOpen1) throw new Error(`Error creando encOpen1: ${enc1Err?.message}`);
     createdEncounterIds.push(encOpen1.id);
 
     const { data: encOpen2, error: enc2Err } = await admin
@@ -284,82 +371,92 @@ async function runStagingSmokeT5B2() {
       })
       .select('id')
       .single();
-    if (enc2Err || !encOpen2) throw new Error(`Error creando encuentro abierto 2: ${enc2Err?.message}`);
+    if (enc2Err || !encOpen2) throw new Error(`Error creando encOpen2: ${enc2Err?.message}`);
     createdEncounterIds.push(encOpen2.id);
 
-    // Applicant A solicita unirse a Encuentro 1
-    const { data: join1Res, error: join1Err } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
+    // [H] Bloqueo bilateral no consume
+    await admin.from('bloqueos_usuario').insert({
+      blocker_id: hostUserId,
+      blocked_id: blockedUserId,
+    });
+    const countBlockedBefore = await getBucketCount('join_open_encounter', blockedUserId);
+    assert.equal(countBlockedBefore, 0);
+
+    const { data: rBlockedJoin } = await blockedClient.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: encOpen1.id,
+      p_nombre: 'Blocked QA User',
+    });
+    assert.equal(rBlockedJoin.ok, false);
+    assert.equal(rBlockedJoin.error, 'encuentro_not_open');
+
+    const countBlockedAfter = await getBucketCount('join_open_encounter', blockedUserId);
+    assert.equal(countBlockedAfter, 0, '[H] Blocked join MUST NOT consume rate limit');
+    console.log('  -> [H] PASÓ: blocked join devolvió encuentro_not_open y NO consumió bucket (conteo=0)');
+
+    // Solicitud 1 de Applicant A a Encuentro 1 -> consume +1
+    const countAppAJoin0 = await getBucketCount('join_open_encounter', applicantAId);
+    assert.equal(countAppAJoin0, 0);
+
+    const { data: rJoin1, error: errJoin1 } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encOpen1.id,
       p_nombre: 'Applicant A QA',
     });
-    if (join1Err) throw new Error(`Error join1: ${join1Err.message}`);
-    assert.equal(join1Res.ok, true);
-    const requestId1 = join1Res.request_id;
+    if (errJoin1) throw new Error(`Error rJoin1: ${errJoin1.message}`);
+    assert.equal(rJoin1.ok, true);
+    const requestId1 = rJoin1.request_id;
     assert.ok(requestId1);
 
-    // Applicant A solicita nuevamente a Encuentro 1 -> duplicate_pending_request
-    const { data: dupRes } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
+    const countAppAJoin1 = await getBucketCount('join_open_encounter', applicantAId);
+    assert.equal(countAppAJoin1, 1, 'Initial valid join request consumes 1');
+
+    // [G] Duplicate pending no consume
+    const { data: rDupJoin } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encOpen1.id,
-      p_nombre: 'Applicant A QA Duplicate',
+      p_nombre: 'Applicant A QA Dup',
     });
-    assert.equal(dupRes.ok, false);
-    assert.equal(dupRes.error, 'duplicate_pending_request');
+    assert.equal(rDupJoin.ok, false);
+    assert.equal(rDupJoin.error, 'duplicate_pending_request');
 
-    // Verificar que el bucket de join_open_encounter para Applicant A sigue en 1 (el duplicado NO consumió slot)
-    const { data: bJoin } = await admin
-      .from('rate_limit_buckets')
-      .select('request_count')
-      .eq('action', 'join_open_encounter')
-      .eq('user_id', applicantAId)
-      .single();
-    assert.equal(bJoin?.request_count, 1, 'Duplicate request must NOT increment bucket');
-    console.log('  -> Solicitud 1 aceptada (conteo=1). Duplicado rechazado con duplicate_pending_request sin incrementar bucket');
+    const countAppAAfterDup = await getBucketCount('join_open_encounter', applicantAId);
+    assert.equal(countAppAAfterDup, 1, '[G] Duplicate request MUST NOT consume rate limit');
+    console.log('  -> [G] PASÓ: duplicate request devolvió duplicate_pending_request y NO consumió bucket (conteo=1)');
 
-    // ----------------------------------------------------
-    // 5. COOLDOWN 6 HORAS POST-RECHAZO: Scope y Normal Invariant
-    // ----------------------------------------------------
-    console.log('\n[5/7] Verificando COOLDOWN 6 HORAS post-rechazo...');
-
-    // Host rechaza la solicitud de Applicant A
-    const { data: rejRes, error: rejErr } = await hostClient.rpc('rechazar_solicitud_encuentro_abierto', {
+    // Host rechaza la solicitud 1
+    const { data: rRej, error: errRej } = await hostClient.rpc('rechazar_solicitud_encuentro_abierto', {
       p_request_id: requestId1,
       p_host_id: hostUserId,
     });
-    if (rejErr) throw new Error(`Error rechazar solicitud: ${rejErr.message}`);
-    assert.equal(rejRes.ok, true);
+    if (errRej) throw new Error(`Error rechazo: ${errRej.message}`);
+    assert.equal(rRej.ok, true);
 
-    // Verificar que rechazar_solicitud_encuentro_abierto seteó resolved_at
-    const { data: reqRow } = await admin
-      .from('solicitudes_encuentro_abierto')
-      .select('estado, resolved_at')
-      .eq('id', requestId1)
-      .single();
-    assert.equal(reqRow.estado, 'rejected');
-    assert.ok(reqRow.resolved_at !== null, 'Normal rejection MUST set resolved_at');
-    console.log('  -> Invariante cumplida: rechazo registró resolved_at =', reqRow.resolved_at);
-
-    // Applicant A intenta volver a unirse al MISMO Encuentro 1 -> bloqueado por cooldown (6h)
-    const { data: cooldownRes } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
+    // [I] Cooldown post-rechazo no consume
+    const { data: rCooldownJoin } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encOpen1.id,
       p_nombre: 'Applicant A Re-request',
     });
-    assert.equal(cooldownRes.ok, false);
-    assert.equal(cooldownRes.error, 'request_not_available');
-    console.log('  -> Cooldown activo: solicitud al mismo encuentro rechazada con request_not_available');
+    assert.equal(rCooldownJoin.ok, false);
+    assert.equal(rCooldownJoin.error, 'request_not_available');
 
-    // Applicant A solicita unirse a un Encuentro DIFERENTE (Encuentro 2) -> permitido!
-    const { data: diffRes, error: diffErr } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
+    const countAppAAfterCooldown = await getBucketCount('join_open_encounter', applicantAId);
+    assert.equal(countAppAAfterCooldown, 1, '[I] Cooldown-rejected attempt MUST NOT consume rate limit');
+    console.log('  -> [I] PASÓ: cooldown devolvió request_not_available y NO consumió bucket (conteo=1)');
+
+    // [J] Valid join a otro encuentro consume +1
+    const { data: rJoin2, error: errJoin2 } = await appAClient.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encOpen2.id,
       p_nombre: 'Applicant A to Enc 2',
     });
-    if (diffErr) throw new Error(`Error diffRes: ${diffErr.message}`);
-    assert.equal(diffRes.ok, true);
-    console.log('  -> Cooldown NO afecta otros encuentros: solicitud al Encuentro 2 aprobada con ok=true');
+    if (errJoin2) throw new Error(`Error rJoin2: ${errJoin2.message}`);
+    assert.equal(rJoin2.ok, true);
+
+    const countAppAJoin2 = await getBucketCount('join_open_encounter', applicantAId);
+    assert.equal(countAppAJoin2, 2, '[J] Valid join to another encounter MUST increment bucket to 2');
+    console.log('  -> [J] PASÓ: solicitud válida a otro encuentro aprobada y consumió +1 (conteo=2)');
 
     // ----------------------------------------------------
     // 6. Verificar Filas Históricas Intactas
     // ----------------------------------------------------
-    console.log('\n[6/7] Verificando que las 13 filas históricas permanezcan intactas...');
+    console.log('\n[6/12] Verificando que las 13 filas históricas permanezcan intactas...');
     const { data: legacyAfter } = await admin
       .from('solicitudes_encuentro_abierto')
       .select('id')
@@ -368,14 +465,13 @@ async function runStagingSmokeT5B2() {
     assert.equal(legacyAfter?.length, 13, 'Las 13 filas históricas deben seguir con resolved_at NULL');
     console.log('  -> 13 filas históricas intactas sin modificación.');
 
-    console.log('\n✔ TODOS LOS PUNTOS DE QA SMOKE T5-B2 PASARON EXITOSAMENTE.');
+    console.log('\n✔ TODOS LOS PUNTOS A-K DE QA SMOKE T5-B2.1 PASARON EXITOSAMENTE EN STAGING.');
   } finally {
     // ----------------------------------------------------
     // 7. Cleanup en Staging
     // ----------------------------------------------------
-    console.log('\n[7/7] Realizando cleanup de fixtures de prueba en Staging...');
+    console.log('\n[Cleanup] Realizando cleanup de fixtures de prueba en Staging...');
 
-    // Eliminar solicitudes creadas en encuentros de prueba
     if (createdEncounterIds.length > 0) {
       await admin.from('solicitudes_encuentro_abierto').delete().in('encuentro_id', createdEncounterIds);
       await admin.from('participantes').delete().in('encuentro_id', createdEncounterIds);
@@ -383,13 +479,13 @@ async function runStagingSmokeT5B2() {
       await admin.from('encuentros').delete().in('id', createdEncounterIds);
     }
 
-    // Eliminar intenciones creadas
     if (createdIntentionIds.length > 0) {
       await admin.from('intenciones').delete().in('id', createdIntentionIds);
     }
 
-    // Eliminar rate limit buckets de los usuarios QA creados
     if (createdUserIds.length > 0) {
+      await admin.from('bloqueos_usuario').delete().in('blocker_id', createdUserIds);
+      await admin.from('bloqueos_usuario').delete().in('blocked_id', createdUserIds);
       await admin.from('rate_limit_buckets').delete().in('user_id', createdUserIds);
       for (const uid of createdUserIds) {
         await admin.auth.admin.deleteUser(uid);
@@ -401,6 +497,6 @@ async function runStagingSmokeT5B2() {
 }
 
 runStagingSmokeT5B2().catch((err) => {
-  console.error('\n✖ ERROR FATAL EN STAGING SMOKE T5-B2:', err);
+  console.error('\n✖ ERROR FATAL EN STAGING SMOKE T5-B2.1:', err);
   process.exit(1);
 });

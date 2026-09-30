@@ -1,12 +1,25 @@
 /**
- * T5-B2 — Enforcement of Generic Rate Limiting on Core Social Actions
+ * T5-B2 / T5-B2.1 — Enforcement of Generic Rate Limiting on Core Social Actions
  *
  * Covers:
  * 1. create_encounter (crear_encuentro_seguro & crear_encuentro_con_opciones_seguro)
+ *    - Anonymous user creates simple private encounter within limit.
+ *    - Anonymous user rejected on coordination encounters (permanent_account_required preexistente).
+ *    - Invalid payload in simple (invalid_post_event_active_minutes) does NOT consume bucket.
+ *    - Invalid options/dates in coordination does NOT consume bucket.
+ *    - Valid simple and with-options share the same bucket and count atomically (+1).
  * 2. create_intention (crear_intencion_segura)
+ *    - Anonymous rejected before limiter (permanent_account_required) without consuming bucket.
+ *    - Invalid title, invalid modality, invalid date range do NOT consume bucket.
+ *    - Valid intention consumes +1.
+ *    - Exceeded limit rejects with rate_limit_exceeded without inserting row.
  * 3. join_open_encounter (solicitar_sumarse_encuentro_abierto)
+ *    - Duplicate pending request does NOT consume bucket.
+ *    - Bilateral blocking does NOT consume bucket.
+ *    - Active cooldown does NOT consume bucket.
+ *    - Valid join request consumes +1.
  * 4. Cooldown exacto post-rechazo (6 horas) & Legacy fallback COALESCE(resolved_at, updated_at, created_at)
- * 5. Invariante futura de rechazar_solicitud_encuentro_abierto
+ * 5. Invariante futura de rechazar_solicitud_encuentro_abierto (sets resolved_at = now())
  */
 
 import { test, describe, before } from 'node:test';
@@ -15,11 +28,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 
-describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
+describe('T5-B2.1 — Rate Limiting Enforcement & Validation Order Core Tests', () => {
   let db: PGlite;
   const userHost = '11111111-1111-1111-1111-111111111111';
   const userApplicantA = '22222222-2222-2222-2222-222222222222';
   const userApplicantB = '33333333-3333-3333-3333-333333333333';
+  const userBlocked = '55555555-5555-5555-5555-555555555555';
   const userAnon = '44444444-4444-4444-4444-444444444444';
 
   before(async () => {
@@ -58,6 +72,7 @@ describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
         ('${userHost}', 'host@test.com'),
         ('${userApplicantA}', 'appA@test.com'),
         ('${userApplicantB}', 'appB@test.com'),
+        ('${userBlocked}', 'blocked@test.com'),
         ('${userAnon}', 'anon@test.com')
       ON CONFLICT DO NOTHING;
     `);
@@ -90,6 +105,9 @@ describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
 
     // Load T5-B2 (Enforcement on core actions)
     await runMigration('supabase/migrations/20260930210000_fase_20c1_trust_enforce_rate_limits_core_actions.sql');
+
+    // Load T5-B2.1 (Microfix: validation order)
+    await runMigration('supabase/migrations/20260930213000_fix_rate_limit_validation_order.sql');
   });
 
   // Helper to set authenticated user session
@@ -100,231 +118,264 @@ describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
     `);
   };
 
-  test('1. CREATE ENCOUNTER: Anonymous user creates within limit without permanent account requirement', async () => {
+  const getBucketCount = async (action: string, userId: string) => {
+    const res = await db.query(`
+      SELECT request_count FROM public.rate_limit_buckets
+      WHERE action = '${action}' AND user_id = '${userId}';
+    `);
+    if (res.rows.length === 0) return 0;
+    return (res.rows[0] as any).request_count;
+  };
+
+  test('1. CREATE ENCOUNTER (SIMPLE): Anonymous allowed, invalid payload does NOT consume, valid consumes +1', async () => {
     await setSession(userAnon, true);
 
-    const payload = JSON.stringify({
-      titulo: 'Encuentro Privado Anónimo',
+    // Initial count
+    const count0 = await getBucketCount('create_encounter', userAnon);
+    assert.equal(count0, 0);
+
+    // A. Invalid payload: invalid post_event_active_minutes -> returns functional error
+    const invalidPayload = JSON.stringify({
+      titulo: 'Encuentro Invalido Post Minutes',
       fecha: '2026-10-15',
       hora: '20:00',
       modalidad: 'presencial',
       lugar_texto: 'Parque Patricios',
       tipo_invitacion: 'link_general',
+      post_event_active_minutes: -5,
     });
+    const rInvalid = await db.query(`SELECT public.crear_encuentro_seguro('${invalidPayload}'::jsonb) AS result;`);
+    assert.equal((rInvalid.rows[0] as any).result.ok, false);
+    assert.equal((rInvalid.rows[0] as any).result.error, 'invalid_post_event_active_minutes');
 
-    const res = await db.query(`SELECT public.crear_encuentro_seguro('${payload}'::jsonb) AS result;`);
-    const result = (res.rows[0] as any).result;
+    // Verify bucket was NOT incremented on invalid payload
+    const countAfterInvalid = await getBucketCount('create_encounter', userAnon);
+    assert.equal(countAfterInvalid, 0, 'Invalid payload MUST NOT consume rate limit bucket');
 
-    assert.equal(result.ok, true);
-    assert.ok(result.id);
-    assert.ok(result.public_token);
+    // B. Valid payload for anonymous user -> succeeds and consumes exactly +1
+    const validPayload = JSON.stringify({
+      titulo: 'Encuentro Privado Anónimo Válido',
+      fecha: '2026-10-15',
+      hora: '20:00',
+      modalidad: 'presencial',
+      lugar_texto: 'Parque Patricios',
+      tipo_invitacion: 'link_general',
+      post_event_active_minutes: 60,
+    });
+    const rValid = await db.query(`SELECT public.crear_encuentro_seguro('${validPayload}'::jsonb) AS result;`);
+    const resValid = (rValid.rows[0] as any).result;
+    assert.equal(resValid.ok, true);
+    assert.ok(resValid.id);
 
-    // Verify rate limit bucket incremented for userAnon
-    const bucket = await db.query(`
-      SELECT request_count FROM public.rate_limit_buckets
-      WHERE action = 'create_encounter' AND user_id = '${userAnon}';
-    `);
-    assert.equal((bucket.rows[0] as any).request_count, 1);
+    const countAfterValid = await getBucketCount('create_encounter', userAnon);
+    assert.equal(countAfterValid, 1, 'Valid creation MUST increment bucket by exactly 1');
   });
 
-  test('2. CREATE ENCOUNTER: Simple and With Options share the same bucket and alternation counts correctly', async () => {
-    // Setup test policy with max_requests = 3
-    await db.query(`
-      UPDATE public.rate_limit_policies
-      SET max_requests = 3
-      WHERE action = 'create_encounter';
-    `);
+  test('2. CREATE ENCOUNTER (OPTIONS): Preexisting permanent check, invalid options do NOT consume, valid consumes +1', async () => {
+    // A. Anonymous is rejected with permanent_account_required (preexisting contract) without consuming bucket
+    await setSession(userAnon, true);
+    const countAnonBefore = await getBucketCount('create_encounter', userAnon);
 
-    await setSession(userHost, false);
-
-    // Call 1: Simple
-    const pSimple1 = JSON.stringify({
-      titulo: 'Encuentro Simple 1',
-      fecha: '2026-10-20',
-      hora: '19:00',
-      modalidad: 'presencial',
-      lugar_texto: 'Palermo',
-      tipo_invitacion: 'link_general',
-    });
-    const r1 = await db.query(`SELECT public.crear_encuentro_seguro('${pSimple1}'::jsonb) AS result;`);
-    assert.equal((r1.rows[0] as any).result.ok, true);
-
-    // Call 2: With Options
-    const pOptData = JSON.stringify({
-      titulo: 'Encuentro Coordinación 2',
+    const optData = JSON.stringify({
+      titulo: 'Encuentro Anon Opciones',
       modalidad: 'presencial',
       lugar_texto: 'Belgrano',
       tipo_invitacion: 'link_general',
       response_deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
     });
-    const pOpciones = JSON.stringify([
+    const opciones = JSON.stringify([
       { fecha: '2026-10-22', hora_inicio: '18:00' },
       { fecha: '2026-10-23', hora_inicio: '18:00' },
     ]);
-    const r2 = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${pOptData}'::jsonb, '${pOpciones}'::jsonb) AS result;`);
-    assert.equal((r2.rows[0] as any).result.ok, true);
+    const rAnonOpt = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${opciones}'::jsonb) AS result;`);
+    assert.equal((rAnonOpt.rows[0] as any).result.ok, false);
+    assert.equal((rAnonOpt.rows[0] as any).result.error, 'permanent_account_required');
 
-    // Call 3: Simple again (reaches limit 3)
-    const pSimple2 = JSON.stringify({
-      titulo: 'Encuentro Simple 3',
+    const countAnonAfter = await getBucketCount('create_encounter', userAnon);
+    assert.equal(countAnonAfter, countAnonBefore, 'Rejected anonymous MUST NOT consume bucket');
+
+    // B. Permanent user with invalid options (< 2 options) -> rejected with minimum_two_options without consuming
+    await setSession(userHost, false);
+    const countHostBefore = await getBucketCount('create_encounter', userHost);
+
+    const singleOption = JSON.stringify([{ fecha: '2026-10-22', hora_inicio: '18:00' }]);
+    const rInvalidOpt = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${singleOption}'::jsonb) AS result;`);
+    assert.equal((rInvalidOpt.rows[0] as any).result.ok, false);
+    assert.equal((rInvalidOpt.rows[0] as any).result.error, 'minimum_two_options');
+
+    const countHostAfterInvalid = await getBucketCount('create_encounter', userHost);
+    assert.equal(countHostAfterInvalid, countHostBefore, 'Invalid options MUST NOT consume bucket');
+
+    // C. Valid options encounter -> succeeds and consumes exactly +1
+    const rValidOpt = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${opciones}'::jsonb) AS result;`);
+    assert.equal((rValidOpt.rows[0] as any).result.ok, true);
+
+    const countHostAfterValid = await getBucketCount('create_encounter', userHost);
+    assert.equal(countHostAfterValid, countHostBefore + 1, 'Valid options creation MUST consume +1');
+  });
+
+  test('3. BUCKET COMPARTIDO: Simple and With Options alternate on the same create_encounter bucket', async () => {
+    await setSession(userHost, false);
+    const countStart = await getBucketCount('create_encounter', userHost);
+
+    // Call Simple
+    const pSimple = JSON.stringify({
+      titulo: 'Simple Shared Test',
       fecha: '2026-10-25',
       hora: '19:00',
       modalidad: 'presencial',
       lugar_texto: 'Recoleta',
       tipo_invitacion: 'link_general',
     });
-    const r3 = await db.query(`SELECT public.crear_encuentro_seguro('${pSimple2}'::jsonb) AS result;`);
-    assert.equal((r3.rows[0] as any).result.ok, true);
+    const r1 = await db.query(`SELECT public.crear_encuentro_seguro('${pSimple}'::jsonb) AS result;`);
+    assert.equal((r1.rows[0] as any).result.ok, true);
 
-    // Verify bucket count is exactly 3 (shared between both)
-    const bCheck = await db.query(`
-      SELECT request_count FROM public.rate_limit_buckets
-      WHERE action = 'create_encounter' AND user_id = '${userHost}';
-    `);
-    assert.equal((bCheck.rows[0] as any).request_count, 3);
+    const countAfterSimple = await getBucketCount('create_encounter', userHost);
+    assert.equal(countAfterSimple, countStart + 1);
 
-    // Call 4: Exceeded on simple -> rejected with rate_limit_exceeded
-    const r4 = await db.query(`SELECT public.crear_encuentro_seguro('${pSimple2}'::jsonb) AS result;`);
-    assert.equal((r4.rows[0] as any).result.ok, false);
-    assert.equal((r4.rows[0] as any).result.error, 'rate_limit_exceeded');
+    // Call Options
+    const optData = JSON.stringify({
+      titulo: 'Options Shared Test',
+      modalidad: 'presencial',
+      lugar_texto: 'Recoleta',
+      tipo_invitacion: 'link_general',
+      response_deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    });
+    const opciones = JSON.stringify([
+      { fecha: '2026-10-26', hora_inicio: '18:00' },
+      { fecha: '2026-10-27', hora_inicio: '18:00' },
+    ]);
+    const r2 = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${opciones}'::jsonb) AS result;`);
+    assert.equal((r2.rows[0] as any).result.ok, true);
 
-    // Call 5: Exceeded on with options -> rejected with rate_limit_exceeded
-    const r5 = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${pOptData}'::jsonb, '${pOpciones}'::jsonb) AS result;`);
-    assert.equal((r5.rows[0] as any).result.ok, false);
-    assert.equal((r5.rows[0] as any).result.error, 'rate_limit_exceeded');
-
-    // Restore policy to default
-    await db.query(`UPDATE public.rate_limit_policies SET max_requests = 20 WHERE action = 'create_encounter';`);
+    const countAfterOptions = await getBucketCount('create_encounter', userHost);
+    assert.equal(countAfterOptions, countStart + 2, 'Both simple and options must increment the same bucket count');
   });
 
-  test('3. CREATE INTENTION: Permanent user within limit succeeds, limit exceeded rejects without inserting, anonymous rejects before limiter', async () => {
-    await db.query(`
-      UPDATE public.rate_limit_policies
-      SET max_requests = 2
-      WHERE action = 'create_intention';
-    `);
-
-    // A. Anonymous rejects by permanent_account_required before rate limit check
-    await setSession(userAnon, true);
-    const anonRes = await db.query(`
-      SELECT public.crear_intencion_segura('Intención Anon') AS result;
-    `);
-    assert.equal((anonRes.rows[0] as any).result.ok, false);
-    assert.equal((anonRes.rows[0] as any).result.error, 'permanent_account_required');
-
-    // B. Permanent user within limit
+  test('4. CREATE INTENTION: Invalid payloads do NOT consume, valid consumes +1, threshold enforced', async () => {
     await setSession(userApplicantA, false);
-    const i1 = await db.query(`SELECT public.crear_intencion_segura('Intención 1') AS result;`);
-    assert.equal((i1.rows[0] as any).result.ok, true);
+    const countBefore = await getBucketCount('create_intention', userApplicantA);
 
-    const i2 = await db.query(`SELECT public.crear_intencion_segura('Intención 2') AS result;`);
-    assert.equal((i2.rows[0] as any).result.ok, true);
+    // A. Invalid title -> invalid_title -> count unchanged
+    const rInvTitle = await db.query(`SELECT public.crear_intencion_segura('') AS result;`);
+    assert.equal((rInvTitle.rows[0] as any).result.ok, false);
+    assert.equal((rInvTitle.rows[0] as any).result.error, 'invalid_title');
+    assert.equal(await getBucketCount('create_intention', userApplicantA), countBefore);
 
-    // C. Exceeded limit
-    const i3 = await db.query(`SELECT public.crear_intencion_segura('Intención 3') AS result;`);
-    assert.equal((i3.rows[0] as any).result.ok, false);
-    assert.equal((i3.rows[0] as any).result.error, 'rate_limit_exceeded');
+    // B. Invalid modality -> invalid_modality -> count unchanged
+    const rInvMod = await db.query(`SELECT public.crear_intencion_segura('Titulo Ok', NULL, NULL, NULL, NULL, 'astral') AS result;`);
+    assert.equal((rInvMod.rows[0] as any).result.ok, false);
+    assert.equal((rInvMod.rows[0] as any).result.error, 'invalid_modality');
+    assert.equal(await getBucketCount('create_intention', userApplicantA), countBefore);
 
-    // Confirm only 2 rows inserted in intenciones
-    const countRes = await db.query(`
-      SELECT COUNT(*)::int AS count FROM public.intenciones WHERE user_id = '${userApplicantA}';
-    `);
-    assert.equal((countRes.rows[0] as any).count, 2);
+    // C. Invalid date range -> invalid_date_range -> count unchanged
+    const rInvDate = await db.query(`SELECT public.crear_intencion_segura('Titulo Ok', NULL, NULL, '2026-10-30', '2026-10-20') AS result;`);
+    assert.equal((rInvDate.rows[0] as any).result.ok, false);
+    assert.equal((rInvDate.rows[0] as any).result.error, 'invalid_date_range');
+    assert.equal(await getBucketCount('create_intention', userApplicantA), countBefore);
+
+    // D. Invalid locality -> invalid_locality -> count unchanged
+    const rInvLoc = await db.query(`SELECT public.crear_intencion_segura('Titulo Ok', NULL, NULL, NULL, NULL, 'presencial', 'non_existent_loc') AS result;`);
+    assert.equal((rInvLoc.rows[0] as any).result.ok, false);
+    assert.equal((rInvLoc.rows[0] as any).result.error, 'invalid_locality');
+    assert.equal(await getBucketCount('create_intention', userApplicantA), countBefore);
+
+    // E. Valid intention -> consumes exactly +1
+    const rValid = await db.query(`SELECT public.crear_intencion_segura('Intención Válida') AS result;`);
+    assert.equal((rValid.rows[0] as any).result.ok, true);
+    assert.equal(await getBucketCount('create_intention', userApplicantA), countBefore + 1);
+
+    // F. Exceed threshold test with max_requests = 2
+    await db.query(`UPDATE public.rate_limit_policies SET max_requests = 2 WHERE action = 'create_intention';`);
+    const rValid2 = await db.query(`SELECT public.crear_intencion_segura('Intención Válida 2') AS result;`);
+    assert.equal((rValid2.rows[0] as any).result.ok, true);
+
+    // 3rd request exceeds limit 2 -> rate_limit_exceeded and no row inserted
+    const rExceeded = await db.query(`SELECT public.crear_intencion_segura('Intención Excedida') AS result;`);
+    assert.equal((rExceeded.rows[0] as any).result.ok, false);
+    assert.equal((rExceeded.rows[0] as any).result.error, 'rate_limit_exceeded');
+
+    // Confirm only 2 rows in DB for userApplicantA
+    const countRows = await db.query(`SELECT COUNT(*)::int AS count FROM public.intenciones WHERE user_id = '${userApplicantA}';`);
+    assert.equal((countRows.rows[0] as any).count, 2);
 
     // Restore policy
     await db.query(`UPDATE public.rate_limit_policies SET max_requests = 6 WHERE action = 'create_intention';`);
   });
 
-  test('4. JOIN OPEN ENCOUNTER: Global rate limit shared across different encounters', async () => {
-    // Setup test open encounters
-    const enc1Id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-    const enc2Id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-    const enc3Id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  test('5. JOIN OPEN ENCOUNTER: Duplicate, blocked, cooldown do NOT consume, valid consumes +1', async () => {
+    const encOpen1 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const encOpen2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    const encOpen3 = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 
     await db.exec(`
       INSERT INTO public.localidades (id, nombre, ciudad, zona, activo) VALUES ('palermo', 'Palermo', 'CABA', 'Norte', true) ON CONFLICT (id) DO NOTHING;
       INSERT INTO public.encuentros (id, titulo, host_id, estado, is_open, max_participants, modalidad, locality_id, tipo_invitacion, fecha, hora)
       VALUES
-        ('${enc1Id}', 'Encuentro 1', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00'),
-        ('${enc2Id}', 'Encuentro 2', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00'),
-        ('${enc3Id}', 'Encuentro 3', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00')
+        ('${encOpen1}', 'Encuentro Join 1', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00'),
+        ('${encOpen2}', 'Encuentro Join 2', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00'),
+        ('${encOpen3}', 'Encuentro Join 3', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00')
       ON CONFLICT (id) DO UPDATE SET is_open = true, estado = 'activo', max_participants = 10;
     `);
 
-    // Set join policy max = 2
-    await db.query(`UPDATE public.rate_limit_policies SET max_requests = 2 WHERE action = 'join_open_encounter';`);
-
-    await setSession(userApplicantB, false);
-
-    // Join encounter 1
-    const j1 = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${enc1Id}', 'Applicant B') AS result;`);
-    assert.equal((j1.rows[0] as any).result.ok, true);
-
-    // Duplicate pending check does NOT consume rate limit
-    const j1Dup = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${enc1Id}', 'Applicant B') AS result;`);
-    assert.equal((j1Dup.rows[0] as any).result.ok, false);
-    assert.equal((j1Dup.rows[0] as any).result.error, 'duplicate_pending_request');
-
-    // Bucket count still 1
-    const b1 = await db.query(`
-      SELECT request_count FROM public.rate_limit_buckets
-      WHERE action = 'join_open_encounter' AND user_id = '${userApplicantB}';
-    `);
-    assert.equal((b1.rows[0] as any).request_count, 1);
-
-    // Join encounter 2 (reaches limit 2)
-    const j2 = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${enc2Id}', 'Applicant B') AS result;`);
-    assert.equal((j2.rows[0] as any).result.ok, true);
-
-    // Join encounter 3 (exceeded global limit)
-    const j3 = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${enc3Id}', 'Applicant B') AS result;`);
-    assert.equal((j3.rows[0] as any).result.ok, false);
-    assert.equal((j3.rows[0] as any).result.error, 'rate_limit_exceeded');
-
-    // Restore policy
-    await db.query(`UPDATE public.rate_limit_policies SET max_requests = 12 WHERE action = 'join_open_encounter';`);
-  });
-
-  test('5. COOLDOWN POST-RECHAZO: 6-hour exact cooldown on same encounter, does not affect other encounters', async () => {
-    const encAId = 'aaaaaaaa-1111-aaaa-aaaa-aaaaaaaaaaaa';
-    const encBId = 'bbbbbbbb-2222-bbbb-bbbb-bbbbbbbbbbbb';
-
+    // A. Setup bilateral block between userBlocked and userHost
     await db.exec(`
-      INSERT INTO public.encuentros (id, titulo, host_id, estado, is_open, max_participants, modalidad, locality_id, tipo_invitacion, fecha, hora)
-      VALUES
-        ('${encAId}', 'Encuentro A', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00'),
-        ('${encBId}', 'Encuentro B', '${userHost}', 'activo', true, 10, 'presencial', 'palermo', 'link_general', '2026-10-25', '19:00')
-      ON CONFLICT (id) DO UPDATE SET is_open = true, estado = 'activo', max_participants = 10;
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${userHost}', '${userBlocked}')
+      ON CONFLICT DO NOTHING;
     `);
 
-    await setSession(userApplicantA, false);
+    await setSession(userBlocked, false);
+    const countBlockedBefore = await getBucketCount('join_open_encounter', userBlocked);
 
-    // A. Insert a recent rejection (< 6 hours, e.g. 2 hours ago)
-    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
-    await db.query(`
-      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado, resolved_at)
-      VALUES ('${encAId}', '${userApplicantA}', 'Applicant A', 'rejected', '${twoHoursAgo}'::timestamptz);
-    `);
+    // Blocked user tries to join -> rejected with encuentro_not_open without consuming
+    const rBlocked = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encOpen1}', 'User Blocked') AS result;`);
+    assert.equal((rBlocked.rows[0] as any).result.ok, false);
+    assert.equal((rBlocked.rows[0] as any).result.error, 'encuentro_not_open');
 
-    // B. New request to Encounter A is blocked by cooldown
-    const rA = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encAId}', 'Applicant A') AS result;`);
-    assert.equal((rA.rows[0] as any).result.ok, false);
-    assert.equal((rA.rows[0] as any).result.error, 'request_not_available');
+    const countBlockedAfter = await getBucketCount('join_open_encounter', userBlocked);
+    assert.equal(countBlockedAfter, countBlockedBefore, 'Blocked attempt MUST NOT consume rate limit');
 
-    // C. Cooldown on Encounter A does NOT affect Encounter B
-    const rB = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encBId}', 'Applicant A') AS result;`);
-    assert.equal((rB.rows[0] as any).result.ok, true);
+    // B. Applicant B makes valid request to encOpen1 -> consumes +1
+    await setSession(userApplicantB, false);
+    const countB0 = await getBucketCount('join_open_encounter', userApplicantB);
 
-    // D. Rejection from 7 hours ago has expired -> allowed
-    const sevenHoursAgo = new Date(Date.now() - 7 * 3600 * 1000).toISOString();
-    await db.query(`
-      UPDATE public.solicitudes_encuentro_abierto
-      SET resolved_at = '${sevenHoursAgo}'::timestamptz
-      WHERE encuentro_id = '${encAId}' AND usuario_id = '${userApplicantA}';
-    `);
+    const rJoin1 = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encOpen1}', 'Applicant B') AS result;`);
+    assert.equal((rJoin1.rows[0] as any).result.ok, true);
+    const req1Id = (rJoin1.rows[0] as any).result.request_id;
+    assert.ok(req1Id);
 
-    const rAAfterExpiry = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encAId}', 'Applicant A') AS result;`);
-    assert.equal((rAAfterExpiry.rows[0] as any).result.ok, true);
+    const countB1 = await getBucketCount('join_open_encounter', userApplicantB);
+    assert.equal(countB1, countB0 + 1, 'Valid join request MUST consume +1');
+
+    // C. Duplicate pending request -> duplicate_pending_request without consuming
+    const rDup = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encOpen1}', 'Applicant B') AS result;`);
+    assert.equal((rDup.rows[0] as any).result.ok, false);
+    assert.equal((rDup.rows[0] as any).result.error, 'duplicate_pending_request');
+
+    const countBDup = await getBucketCount('join_open_encounter', userApplicantB);
+    assert.equal(countBDup, countB1, 'Duplicate pending request MUST NOT consume rate limit');
+
+    // D. Host rejects request 1
+    await setSession(userHost, false);
+    const rRej = await db.query(`SELECT public.rechazar_solicitud_encuentro_abierto('${req1Id}'::uuid, '${userHost}'::uuid) AS result;`);
+    assert.equal((rRej.rows[0] as any).result.ok, true);
+
+    // E. Applicant B tries to join encOpen1 during cooldown (< 6h) -> rejected without consuming
+    await setSession(userApplicantB, false);
+    const rCooldown = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encOpen1}', 'Applicant B') AS result;`);
+    assert.equal((rCooldown.rows[0] as any).result.ok, false);
+    assert.equal((rCooldown.rows[0] as any).result.error, 'request_not_available');
+
+    const countBCooldown = await getBucketCount('join_open_encounter', userApplicantB);
+    assert.equal(countBCooldown, countB1, 'Cooldown-rejected attempt MUST NOT consume rate limit');
+
+    // F. Applicant B joins a DIFFERENT encounter (encOpen2) -> succeeds and consumes +1
+    const rJoin2 = await db.query(`SELECT public.solicitar_sumarse_encuentro_abierto('${encOpen2}', 'Applicant B') AS result;`);
+    assert.equal((rJoin2.rows[0] as any).result.ok, true);
+
+    const countB2 = await getBucketCount('join_open_encounter', userApplicantB);
+    assert.equal(countB2, countB1 + 1, 'Joining different open encounter MUST consume +1');
   });
 
   test('6. COOLDOWN LEGACY TOLERANCE: resolved_at NULL falls back to updated_at and created_at without backfill', async () => {
@@ -337,7 +388,7 @@ describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
 
     await setSession(userApplicantA, false);
 
-    // A. Rejected with resolved_at NULL, updated_at 2 hours ago -> active cooldown
+    // Rejected with resolved_at NULL, updated_at 2 hours ago -> active cooldown
     const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
     const req1Id = '99999999-1111-9999-9999-999999999999';
     await db.query(`
@@ -353,7 +404,7 @@ describe('T5-B2 — Rate Limiting Enforcement on Core Social Actions', () => {
     const check1 = await db.query(`SELECT resolved_at FROM public.solicitudes_encuentro_abierto WHERE id = '${req1Id}';`);
     assert.equal((check1.rows[0] as any).resolved_at, null);
 
-    // B. Legacy row older than 6 hours (e.g. 10 hours ago) -> cooldown expired
+    // Legacy row older than 6 hours (e.g. 10 hours ago) -> cooldown expired
     const tenHoursAgo = new Date(Date.now() - 10 * 3600 * 1000).toISOString();
     await db.query(`
       UPDATE public.solicitudes_encuentro_abierto
