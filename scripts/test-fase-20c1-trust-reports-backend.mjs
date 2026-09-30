@@ -116,6 +116,11 @@ describe("Fase 2.0-C1 (T2-A): Almacenamiento seguro de reportes contextuales \u2
       "supabase/migrations/20260930133000_fix_fase_20c1_trust_report_context_and_temporal.sql"
     );
     await db.exec(fs.readFileSync(migrationPath2, "utf-8"));
+    const migrationPath3 = path.resolve(
+      process.cwd(),
+      "supabase/migrations/20260930140000_fix_fase_20c1_trust_preserve_reports_on_delete.sql"
+    );
+    await db.exec(fs.readFileSync(migrationPath3, "utf-8"));
     const resFut = await db.query(`
       INSERT INTO public.encuentros (host_id, titulo, is_open, opened_at, fecha, hora, duration_minutes)
       VALUES ('${hostUser}', 'Encuentro Futuro', true, now(), CURRENT_DATE + interval '5 days', '19:00', 90)

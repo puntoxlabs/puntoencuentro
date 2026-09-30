@@ -127,6 +127,12 @@ describe('Fase 2.0-C1 (T2-A): Almacenamiento seguro de reportes contextuales —
     );
     await db.exec(fs.readFileSync(migrationPath2, 'utf-8'));
 
+    const migrationPath3 = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20260930140000_fix_fase_20c1_trust_preserve_reports_on_delete.sql'
+    );
+    await db.exec(fs.readFileSync(migrationPath3, 'utf-8'));
+
     // 3. Crear fixtures
     // A. Encuentro futuro (no comenzado)
     const resFut = await db.query<{ id: string }>(`
