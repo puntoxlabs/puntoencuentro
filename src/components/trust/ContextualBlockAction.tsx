@@ -9,6 +9,7 @@ export interface ContextualBlockActionProps {
   applicantName?: string;
   variant?: 'button' | 'compact' | 'link';
   className?: string;
+  initialBlocked?: boolean;
   onBlockStateChange?: (blockedByMe: boolean) => void;
 }
 
@@ -17,10 +18,13 @@ export const ContextualBlockAction: React.FC<ContextualBlockActionProps> = ({
   applicantName,
   variant = 'compact',
   className = '',
+  initialBlocked,
   onBlockStateChange,
 }) => {
-  const [blockedByMe, setBlockedByMe] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [blockedByMe, setBlockedByMe] = useState<boolean | null>(
+    initialBlocked !== undefined ? initialBlocked : null
+  );
+  const [loading, setLoading] = useState(initialBlocked === undefined);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
