@@ -16,6 +16,7 @@ import { openEncountersService } from '@/services/openEncountersService';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
+import { ApplicantTrustSignals } from './ApplicantTrustSignals';
 import './HostOpenEncounterSection.css';
 
 export interface HostOpenEncounterSectionProps {
@@ -284,6 +285,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                   {req.mensaje && (
                     <p className="pe-host-request-item__msg">"{req.mensaje}"</p>
                   )}
+                  <ApplicantTrustSignals solicitudId={req.id} />
                 </div>
 
                 <div className="pe-host-request-item__actions">

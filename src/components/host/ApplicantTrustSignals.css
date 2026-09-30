@@ -1,0 +1,79 @@
+/* ApplicantTrustSignals.css - Ficha factual de actividad del solicitante */
+
+.pe-trust-signals {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.pe-trust-signals__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pe-trust-signals__icon {
+  color: #64748b;
+}
+
+.pe-trust-signals__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pe-trust-signals__item {
+  color: #334155;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.pe-trust-signals__bullet {
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+
+.pe-trust-signals__neutral-box {
+  background-color: #f1f5f9;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pe-trust-signals__neutral-title {
+  font-weight: 600;
+  color: #475569;
+}
+
+.pe-trust-signals__neutral-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.pe-trust-signals__loading {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.76rem;
+}
+
+.pe-trust-signals__error {
+  color: #64748b;
+  font-size: 0.76rem;
+}
