@@ -147,23 +147,15 @@ Si se debe inicializar un proyecto nuevo ejecutando las migraciones versionadas 
    ```bash
    npx supabase db push --project-ref <NEW_REF>
    ```
-3. **⚠️ PASO OBLIGATORIO PRE-RESTORE (Resolución de Drift `host_id`):**
-   El baseline histórico (`20260424000000_initial_schema.sql`) define `host_id UUID NOT NULL`. Sin embargo, Producción contiene 83 registros históricos legítimos de encuentros anónimos con `host_id IS NULL`.
-   **NO intentar restaurar los datos sin ejecutar previamente:**
-   ```sql
-   ALTER TABLE public.encuentros ALTER COLUMN host_id DROP NOT NULL;
-   ```
-   *(Esto permite recibir los datos históricos íntegros sin falsear ni descartar registros).*
-4. **⚠️ Recrear función activa no versionada:**
-   Recrear `get_encuentros_participados_por_tokens(p_tokens text[])` requerida por el frontend (`Home.tsx`) para la consulta de invitaciones en localStorage, hasta que sea incorporada formalmente en una migración aditiva.
-5. **Restaurar datos transaccionales y Auth:**
+   *(Nota: La migración `20261001080000_normalize_production_schema_parity.sql` normaliza automáticamente `host_id` a NULLABLE, purga las políticas legacy del MVP y crea la función endurecida `get_encuentros_participados_por_tokens`, por lo que el esquema resultante reproduce el estado productivo sin requerir intervenciones DDL manuales).*
+3. **Restaurar datos transaccionales y Auth:**
    - Restaurar dump de `auth.users` y tablas de `public` respetando claves foráneas.
-6. **Desplegar Edge Functions y Secrets:**
+4. **Desplegar Edge Functions y Secrets:**
    ```bash
    npx supabase secrets set ... --project-ref <NEW_REF>
    npx supabase functions deploy ai-interpret --project-ref <NEW_REF>
    ```
-7. **Actualizar frontend:**
+5. **Actualizar frontend:**
    - Cambiar `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en Vercel y redesplegar.
 
 ---
@@ -179,6 +171,7 @@ Si se debe inicializar un proyecto nuevo ejecutando las migraciones versionadas 
 Antes de promover cambios de Staging a Producción (`main` / `aurbicjwftjhwryhyjiq`):
 - [ ] Working tree de Git 100% limpio en rama `staging`.
 - [ ] Todas las compuertas funcionales de QA aprobadas en Staging.
+- [ ] T6-A.1: PENDIENTE DE VALIDACIÓN HUMANA/BROWSER.
 - [ ] Export / backup manual de Producción generado y descargado a ubicación segura.
 - [ ] Auditoría de Baseline Production ejecutada (ver sección 17).
 - [ ] Secrets de Edge Functions verificados y actualizados.
@@ -212,13 +205,12 @@ Las siguientes comprobaciones deben ser realizadas por un operador humano con ac
 
 ---
 
-## 17. Baseline Especial de Producción y Drift Histórico Auditado (T7-C / T7-C.1 / T7-C.2)
+## 17. Baseline Especial de Producción y Normalización de Paridad (T7-C / T7-C.1 / T7-C.2 / T7-C.3)
 - **Origen del Baseline:** El 24/04/2026, las tablas `encuentros` y `participantes` fueron creadas manualmente en Producción antes de implementar el seguimiento formal de migraciones. Posteriormente se incorporó a Git la migración baseline `20260424000000_initial_schema.sql`.
-- **Divergencias Físicas Auditadas:**
-  1. **Nulabilidad de `host_id`:** En el archivo baseline `20260424000000` se declaró `host_id UUID NOT NULL`, pero en la base física de Producción se creó como `UUID NULL`, existiendo actualmente 83 registros legítimos con `host_id IS NULL`.
-  2. **Políticas RLS Iniciales:** En fresh replay y Staging sobreviven 7 políticas permisivas del MVP creadas en `20260424000000` y `20260429000000` ("Enable insert for anyone", etc.) porque `20260713145000` intentó eliminarlas usando nombres en snake_case (`encuentros_insert_anyone`). Estas políticas son **`SECURE_INERT`** debido a que los privilegios a nivel tabla fueron revocados completamente (`REVOKE ALL ON TABLE public.encuentros, public.participantes FROM PUBLIC, anon, authenticated;`).
-  3. **Función Activa No Versionada (`get_encuentros_participados_por_tokens`):** Creada manualmente en Producción el 18/06/2026 para soportar la visualización de encuentros participados por tokens en `Home.tsx`. Es una dependencia activa (`ACTIVE_DEPENDENCY`) que debe ser incorporada al repositorio mediante una migración aditiva para garantizar paridad en Staging y recuperabilidad autónoma desde Git.
+- **Resolución de Paridad (Migración `20261001080000_normalize_production_schema_parity.sql`):**
+  1. **Nulabilidad de `host_id`:** Normalizada formalmente en Git mediante `ALTER COLUMN host_id DROP NOT NULL`. Ahora un fresh replay de migraciones recrea la columna como nullable de manera idéntica a Producción (que cuenta con 83 registros históricos legítimos con `host_id IS NULL`).
+  2. **Políticas RLS Iniciales:** Eliminadas formalmente con nombres entrecomillados exactos (`"Enable insert for anyone"`, etc.), alcanzando 0 políticas permisivas legadas tanto en fresh replay como en Staging y Producción.
+  3. **Función `get_encuentros_participados_por_tokens`:** Versionada y endurecida con `SET search_path = ''` y referencias fully-qualified, asegurando la recuperabilidad autónoma desde Git de la experiencia de invitados anónimos.
 - **Naturaleza de Baseline Repair:**
-  - `supabase migration repair --status applied 20260424000000` es exclusivamente una **alineación de historial** en `supabase_migrations.schema_migrations`.
+  - `supabase migration repair --status applied 20260424000000` es exclusivamente una alineación de historial evaluada como segura bajo los gates pre-deploy verificados en `supabase_migrations.schema_migrations`.
   - **NO ejecuta SQL ni muta el esquema.** Su función es indicar a la CLI que no aplique el DDL de `20260424000000`, protegiendo a Producción de intentar aplicar la constraint `NOT NULL` sobre registros existentes.
-  - La clasificación `SAFE_AS_HISTORY_ALIGNMENT` no implica que el baseline sea idéntico a Producción, sino que la operación de repair es segura y necesaria previo a un `supabase db push`.
