@@ -61,6 +61,8 @@ Si cualquier componente (Auth, Storage, DB) fallara o el conteo de objetos difir
 
 ---
 
+---
+
 ## 5. Necesidad de Segunda Copia
 > [!IMPORTANT]
 > El respaldo se crea localmente en el disco de la máquina de desarrollo. Para cumplir con las buenas prácticas de recuperación ante desastres:
@@ -69,8 +71,42 @@ Si cualquier componente (Auth, Storage, DB) fallara o el conteo de objetos difir
 
 ---
 
-## 6. Recomendaciones Operativas (Plan Free)
+## 6. Ensayo de Restauración Local (Restore Rehearsal)
+
+Para verificar y certificar la restaurabilidad real de un paquete de respaldo sin tocar jamás Producción ni Staging:
+
+### Requisitos Previos Locales
+- Docker Desktop en ejecución.
+- Supabase local iniciado (`npx supabase start`).
+
+### Ejecución
+Hacer doble clic o ejecutar en terminal:
+```text
+.\scripts\restore-production-backup-local.bat
+```
+*(Opcionalmente: `.\scripts\restore-production-backup-local.ps1 -BackupDir "C:\...\production-YYYYMMDD-HHmmss"`)*
+
+### Comprobaciones del Restaurador Autónomo
+1. **Seguridad de Destino:** Valida estrictamente que el objetivo sea `127.0.0.1` / `localhost` (rechaza cualquier referencia remota).
+2. **Integridad Criptográfica:** Valida los 34 hashes SHA-256 contra `manifests/SHA256SUMS.txt`.
+3. **Reconstrucción Limpia:** Reinicia esquemas locales e inserta en orden DDL (`schema.sql`), usuarios/identidades de Auth (`data-auth.sql`), datos de aplicación (`data-public.sql`), metadata de Storage (`data-storage.sql`) e historial de migraciones (`data-migrations.sql`).
+4. **Objetos de Storage:** Copia los archivos de plantillas (`custom-invitation-templates`) en el volumen local y verifica su descarga HTTP pública mediante hash SHA-256 (10/10 PASS).
+5. **Validación de Conteos y Drift:** Compara los registros recuperados contra `manifests/database-counts.json` (10 tablas públicas + Auth) y certifica que `encuentros.host_id` sea `NULLABLE` con exactamente 83 filas históricas nulas restauradas.
+
+Al finalizar exitosamente se muestra:
+```text
+=======================================
+PUNTOENCUENTRO LOCAL RESTORE REHEARSAL
+RESTORE FULL PASS
+=======================================
+RESTORE REHEARSAL STATUS: 100% OPERATIONAL
+```
+
+---
+
+## 7. Recomendaciones Operativas (Plan Free)
 - **Frecuencia:** Ejecutar diariamente durante períodos con actividad real de usuarios.
 - **Pre-deploy:** Ejecutar **SIEMPRE** antes de aplicar migraciones (`db push`) o despliegues productivos.
+- **Ensayo Periódico:** Ejecutar `restore-production-backup-local.bat` tras cada nuevo respaldo para validar restaurabilidad.
 - **Transición a Pro:** Al migrar a un plan de pago con PITR activo, mantener esta herramienta como mecanismo complementario de exportación lógica independiente.
 - *(Nota técnica: Este procedimiento es un respaldo lógico de emergencia y no sustituye la recuperación continua Point-In-Time a nivel de bloque WAL de la infraestructura gestionada).*

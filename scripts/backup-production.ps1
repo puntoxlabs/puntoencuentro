@@ -124,7 +124,23 @@ function ConvertTo-SqlInsertStatements {
     if (-not $rows -or $rows.Count -eq 0) {
         return "-- No records for $tableName`n"
     }
-    $cols = $rows[0].PSObject.Properties.Name
+
+    # Filter out generated columns that cannot receive non-DEFAULT inserts in Postgres
+    $knownGenerated = @{
+        "auth.users"      = @("confirmed_at")
+        "auth.identities" = @("email")
+        "storage.objects" = @("path_tokens")
+    }
+
+    $rawCols = $rows[0].PSObject.Properties.Name
+    $normalizedTable = ($tableName -replace '"', '').Trim()
+    $toExclude = if ($knownGenerated.ContainsKey($normalizedTable)) {
+        $knownGenerated[$normalizedTable]
+    } else {
+        @()
+    }
+    $cols = @($rawCols | Where-Object { $_ -notin $toExclude })
+
     $colList = ($cols | ForEach-Object { "`"$_`"" }) -join ", "
     $statements = foreach ($row in $rows) {
         $vals = foreach ($col in $cols) {
@@ -135,6 +151,17 @@ function ConvertTo-SqlInsertStatements {
                 if ($val) { "TRUE" } else { "FALSE" }
             } elseif ($val -is [int] -or $val -is [long] -or $val -is [double]) {
                 "$val"
+            } elseif ($val -is [System.Collections.IEnumerable] -and $val -isnot [string] -and $val -isnot [PSCustomObject] -and $val -isnot [hashtable]) {
+                $arrItems = @($val)
+                if ($arrItems.Count -eq 0) {
+                    "'{}'"
+                } else {
+                    $formattedItems = foreach ($item in $arrItems) {
+                        $itemStr = "$item" -replace "'", "''"
+                        "'$itemStr'"
+                    }
+                    "ARRAY[$($formattedItems -join ', ')]"
+                }
             } elseif ($val -is [PSCustomObject] -or $val -is [hashtable]) {
                 $json = ($val | ConvertTo-Json -Compress) -replace "'", "''"
                 "'$json'::jsonb"
@@ -157,7 +184,7 @@ $publicTables = (Invoke-ProdSql $publicTablesQuery).table_name
 Log-Step "Tablas detectadas en public: $($publicTables.Count)" "PASS"
 
 # Build Schema DDL
-Log-Step "Generando DDL de esquema (tablas, columnas, constraints, funciones, vistas, indices, policies)..."
+Log-Step "Generando DDL de esquema (secuencias, tablas, columnas, constraints, funciones, vistas, indices, policies)..."
 $schemaSqlFile = Join-Path $databaseDir "schema.sql"
 $ddlContent = @()
 $ddlContent += "-- ============================================================================"
@@ -167,10 +194,17 @@ $ddlContent += "-- Timestamp: $timestamp"
 $ddlContent += "-- ============================================================================`n"
 $ddlContent += "CREATE SCHEMA IF NOT EXISTS public;`n"
 
+# Sequences (Must be created before tables that reference them in DEFAULT)
+$sequencesQuery = "SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' ORDER BY sequencename;"
+$sequences = Invoke-ProdSql $sequencesQuery
+foreach ($seq in $sequences) {
+    $ddlContent += "CREATE SEQUENCE IF NOT EXISTS public.`"$($seq.sequencename)`";`n"
+}
+
 # Columns & Tables
 $columnsQuery = @"
 SELECT
-    table_name, column_name, data_type, udt_name, is_nullable, column_default
+    table_name, column_name, data_type, udt_name, is_nullable, column_default, is_generated, generation_expression
 FROM information_schema.columns
 WHERE table_schema = 'public'
 ORDER BY table_name, ordinal_position;
@@ -181,26 +215,51 @@ foreach ($tbl in $publicTables) {
     $tblCols = $columns | Where-Object { $_.table_name -eq $tbl }
     $colDefs = foreach ($c in $tblCols) {
         $nullStr = if ($c.is_nullable -eq "NO") { "NOT NULL" } else { "NULL" }
-        $defStr = if (-not [string]::IsNullOrWhiteSpace($c.column_default)) { "DEFAULT $($c.column_default)" } else { "" }
+        $defStr = ""
+        if ($c.is_generated -eq "ALWAYS" -and -not [string]::IsNullOrWhiteSpace($c.generation_expression)) {
+            $defStr = "GENERATED ALWAYS AS ($($c.generation_expression)) STORED"
+            $nullStr = ""
+        } elseif (-not [string]::IsNullOrWhiteSpace($c.column_default)) {
+            $defStr = "DEFAULT $($c.column_default)"
+        }
         "    `"$($c.column_name)`" $($c.udt_name) $nullStr $defStr".TrimEnd()
     }
     $ddlContent += "CREATE TABLE IF NOT EXISTS public.`"$tbl`" (`n$($colDefs -join ",`n")`n);`n"
 }
 
-# Constraints
+# Constraints (Ordered: Primary Keys & Unique first, then Check, then Foreign Keys)
 $constraintsQuery = @"
-SELECT conname, pg_get_constraintdef(oid) as condef, conrelid::regclass::text as contable
+SELECT conname, pg_get_constraintdef(oid) as condef, conrelid::regclass::text as contable, contype
 FROM pg_constraint
 WHERE connamespace = 'public'::regnamespace
-ORDER BY contable, conname;
+ORDER BY
+    CASE contype
+        WHEN 'p' THEN 1
+        WHEN 'u' THEN 2
+        WHEN 'c' THEN 3
+        WHEN 'x' THEN 4
+        WHEN 'f' THEN 5
+        ELSE 6
+    END,
+    contable,
+    conname;
 "@
 $constraints = Invoke-ProdSql $constraintsQuery
 foreach ($cn in $constraints) {
     $ddlContent += "ALTER TABLE $($cn.contable) ADD CONSTRAINT `"$($cn.conname)`" $($cn.condef);`n"
 }
 
-# Indexes
-$indexesQuery = "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname;"
+# Indexes (Excluding indexes automatically created by PRIMARY KEY and UNIQUE constraints)
+$indexesQuery = @"
+SELECT i.indexdef
+FROM pg_indexes i
+WHERE i.schemaname = 'public'
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+    WHERE c.conindid = (quote_ident(i.schemaname) || '.' || quote_ident(i.indexname))::regclass
+  )
+ORDER BY i.tablename, i.indexname;
+"@
 $indexes = Invoke-ProdSql $indexesQuery
 foreach ($idx in $indexes) {
     $ddlContent += "$($idx.indexdef);`n"
@@ -226,13 +285,22 @@ foreach ($vw in $views) {
     $ddlContent += "CREATE OR REPLACE VIEW public.`"$($vw.table_name)`" AS $($vw.view_definition);`n"
 }
 
-# Policies
+# RLS Enabled Tables
+$rlsTablesQuery = "SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' AND relrowsecurity = true ORDER BY relname;"
+$rlsTables = Invoke-ProdSql $rlsTablesQuery
+foreach ($rt in $rlsTables) {
+    $ddlContent += "ALTER TABLE public.`"$($rt.relname)`" ENABLE ROW LEVEL SECURITY;`n"
+}
+
+# Policies (clean up role string formatting e.g. {authenticated} -> authenticated)
 $policiesQuery = "SELECT policyname, tablename, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename, policyname;"
 $policies = Invoke-ProdSql $policiesQuery
 foreach ($pol in $policies) {
     $qualStr = if ($pol.qual) { "USING ($($pol.qual))" } else { "" }
     $checkStr = if ($pol.with_check) { "WITH CHECK ($($pol.with_check))" } else { "" }
-    $ddlContent += "CREATE POLICY `"$($pol.policyname)`" ON public.`"$($pol.tablename)`" AS $($pol.permissive) FOR $($pol.cmd) TO $($pol.roles -join ', ') $qualStr $checkStr;`n"
+    $cleanRoles = ($pol.roles -join ', ') -replace '[{}]', ''
+    if ([string]::IsNullOrWhiteSpace($cleanRoles)) { $cleanRoles = "public" }
+    $ddlContent += "CREATE POLICY `"$($pol.policyname)`" ON public.`"$($pol.tablename)`" AS $($pol.permissive) FOR $($pol.cmd) TO $cleanRoles $qualStr $checkStr;`n"
 }
 
 $ddlContent -join "`n" | Set-Content -Path $schemaSqlFile -Encoding UTF8
@@ -243,7 +311,7 @@ Log-Step "DDL de esquema completado: $([Math]::Round((Get-Item $schemaSqlFile).L
 # ==============================================================================
 Log-Step "Extrayendo registros de tablas de public..."
 $publicDataSqlFile = Join-Path $databaseDir "data-public.sql"
-Set-Content -Path $publicDataSqlFile -Value "-- PuntoEncuentro Public Data Dump`n" -Encoding UTF8
+Set-Content -Path $publicDataSqlFile -Value "-- PuntoEncuentro Public Data Dump`nSET session_replication_role = 'replica';`n`n" -Encoding UTF8
 
 $countsMap = [ordered]@{}
 
@@ -264,12 +332,30 @@ foreach ($tbl in $publicTables) {
     }
 }
 
+# Restore sequence positions
+$sequencesQuery = "SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' ORDER BY sequencename;"
+$seqs = Invoke-ProdSql $sequencesQuery
+foreach ($seq in $seqs) {
+    $seqName = $seq.sequencename
+    try {
+        $seqInfo = Invoke-ProdSql "SELECT last_value, is_called FROM public.`"$seqName`";"
+        if ($seqInfo -and $seqInfo.Count -gt 0) {
+            $lv = $seqInfo[0].last_value
+            $ic = if ($seqInfo[0].is_called) { "true" } else { "false" }
+            Add-Content -Path $publicDataSqlFile -Value "SELECT setval('public.`"$seqName`"', $lv, $ic);`n" -Encoding UTF8
+        }
+    } catch {
+        Log-Step "Aviso: no se pudo obtener estado de secuencia '$seqName': $($_.Exception.Message)" "WARN"
+    }
+}
+Add-Content -Path $publicDataSqlFile -Value "SET session_replication_role = 'origin';`n" -Encoding UTF8
+
 # ==============================================================================
 # 7. Auth Data Export (Mandatory)
 # ==============================================================================
 Log-Step "Extrayendo registros de Auth (auth.users y auth.identities)..."
 $authSqlFile = Join-Path $databaseDir "data-auth.sql"
-Set-Content -Path $authSqlFile -Value "-- PuntoEncuentro Auth Data Dump`n" -Encoding UTF8
+Set-Content -Path $authSqlFile -Value "-- PuntoEncuentro Auth Data Dump`nSET session_replication_role = 'replica';`n`n" -Encoding UTF8
 
 $authUsersCount = [int](Invoke-ProdSql "SELECT count(*) as cnt FROM auth.users;")[0].cnt
 $countsMap["auth.users"] = $authUsersCount
@@ -297,13 +383,14 @@ if ($authIdentitiesCount -gt 0) {
 } else {
     Log-Step "  auth.identities: 0 identidades"
 }
+Add-Content -Path $authSqlFile -Value "SET session_replication_role = 'origin';`n" -Encoding UTF8
 
 # ==============================================================================
 # 8. Storage Metadata & Migration History Export
 # ==============================================================================
 Log-Step "Extrayendo metadata de Storage y Migration History..."
 $storageSqlFile = Join-Path $databaseDir "data-storage.sql"
-Set-Content -Path $storageSqlFile -Value "-- PuntoEncuentro Storage Metadata Dump`n" -Encoding UTF8
+Set-Content -Path $storageSqlFile -Value "-- PuntoEncuentro Storage Metadata Dump`nSET session_replication_role = 'replica';`n`n" -Encoding UTF8
 
 $buckets = Invoke-ProdSql "SELECT * FROM storage.buckets;"
 $buckets | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $databaseDir "storage-buckets.json") -Encoding UTF8
@@ -313,6 +400,7 @@ $storageObjects = Invoke-ProdSql "SELECT * FROM storage.objects WHERE bucket_id 
 $countsMap["storage.objects"] = $storageObjects.Count
 $storageObjects | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $databaseDir "storage-objects.json") -Encoding UTF8
 Add-Content -Path $storageSqlFile -Value (ConvertTo-SqlInsertStatements "storage.objects" $storageObjects) -Encoding UTF8
+Add-Content -Path $storageSqlFile -Value "SET session_replication_role = 'origin';`n" -Encoding UTF8
 
 # Migrations history
 $migrations = Invoke-ProdSql "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;"
