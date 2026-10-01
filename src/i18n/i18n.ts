@@ -21,7 +21,7 @@ i18n
     }
   });
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   (window as any).i18n = i18n;
 }
 
