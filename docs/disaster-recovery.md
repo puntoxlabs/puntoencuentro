@@ -128,20 +128,42 @@ npx supabase secrets set OPENAI_API_KEY=... MISTRAL_API_KEY=... --project-ref <P
 
 ---
 
-## 12. Escenario C — Pérdida Completa de Proyecto Supabase
+## 12. Escenario C — Pérdida Completa de Proyecto Supabase (Estrategias de Restore)
+
+En caso de pérdida catastrófica del proyecto de base de datos, existen tres estrategias según los respaldos disponibles:
+
+### Estrategia 1: Restore Físico de Infraestructura (Recomendada / PITR)
+- **Alcance:** Restauración provista directamente por Supabase mediante snapshot binario o WAL-G / PITR.
+- **Ventaja:** Preserva fielmente el estado binario físico del motor Postgres, incluyendo la nulabilidad de `host_id` y funciones preexistentes sin intermediación de DDL de Git.
+
+### Estrategia 2: Restore Lógico Completo (Schema + Data desde Dump)
+- **Alcance:** Restauración a partir de un dump integral (`pg_dump` con DDL y datos de Producción).
+- **Ventaja:** El DDL generado por el dump físico de Producción ya define `host_id UUID NULL` y contiene las funciones activas del entorno real.
+
+### Estrategia 3: Reconstrucción desde Git Migrations + Restore Data-Only
+Si se debe inicializar un proyecto nuevo ejecutando las migraciones versionadas de Git:
 1. **Crear nuevo proyecto** en Supabase (`<NEW_REF>`).
 2. **Aplicar migraciones completas desde Git:**
    ```bash
    npx supabase db push --project-ref <NEW_REF>
    ```
-3. **Restaurar datos transaccionales y Auth:**
+3. **⚠️ PASO OBLIGATORIO PRE-RESTORE (Resolución de Drift `host_id`):**
+   El baseline histórico (`20260424000000_initial_schema.sql`) define `host_id UUID NOT NULL`. Sin embargo, Producción contiene 83 registros históricos legítimos de encuentros anónimos con `host_id IS NULL`.
+   **NO intentar restaurar los datos sin ejecutar previamente:**
+   ```sql
+   ALTER TABLE public.encuentros ALTER COLUMN host_id DROP NOT NULL;
+   ```
+   *(Esto permite recibir los datos históricos íntegros sin falsear ni descartar registros).*
+4. **⚠️ Recrear función activa no versionada:**
+   Recrear `get_encuentros_participados_por_tokens(p_tokens text[])` requerida por el frontend (`Home.tsx`) para la consulta de invitaciones en localStorage, hasta que sea incorporada formalmente en una migración aditiva.
+5. **Restaurar datos transaccionales y Auth:**
    - Restaurar dump de `auth.users` y tablas de `public` respetando claves foráneas.
-4. **Desplegar Edge Functions y Secrets:**
+6. **Desplegar Edge Functions y Secrets:**
    ```bash
    npx supabase secrets set ... --project-ref <NEW_REF>
    npx supabase functions deploy ai-interpret --project-ref <NEW_REF>
    ```
-5. **Actualizar frontend:**
+7. **Actualizar frontend:**
    - Cambiar `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en Vercel y redesplegar.
 
 ---
@@ -190,14 +212,13 @@ Las siguientes comprobaciones deben ser realizadas por un operador humano con ac
 
 ---
 
-## 17. Baseline Especial de Producción
-- **Origen:** En el MVP inicial, las tablas `encuentros` y `participantes` fueron creadas manualmente en Producción antes de implementar el versionado formal de migraciones.
-- Posteriormente se incorporó a Staging la migración `20260424000000_initial_schema.sql` como baseline aditivo.
-- **Riesgo:** Si se ejecuta `supabase db push` ciegamente en Producción, el CLI puede intentar ejecutar la migración inicial o fallar por conflicto de timestamps.
-- **Protocolo Requerido (T7-C):**
-  1. Comparar mediante diff seguro los objetos físicos de Producción con `20260424000000_initial_schema.sql`.
-  2. Si son equivalentes, registrar la migración como aplicada mediante:
-     ```bash
-     npx supabase migration repair --status applied 20260424000000 --project-ref aurbicjwftjhwryhyjiq
-     ```
-  3. **NO ejecutar este comando** hasta haber completado formalmente el procedimiento T7-C.
+## 17. Baseline Especial de Producción y Drift Histórico Auditado (T7-C / T7-C.1 / T7-C.2)
+- **Origen del Baseline:** El 24/04/2026, las tablas `encuentros` y `participantes` fueron creadas manualmente en Producción antes de implementar el seguimiento formal de migraciones. Posteriormente se incorporó a Git la migración baseline `20260424000000_initial_schema.sql`.
+- **Divergencias Físicas Auditadas:**
+  1. **Nulabilidad de `host_id`:** En el archivo baseline `20260424000000` se declaró `host_id UUID NOT NULL`, pero en la base física de Producción se creó como `UUID NULL`, existiendo actualmente 83 registros legítimos con `host_id IS NULL`.
+  2. **Políticas RLS Iniciales:** En fresh replay y Staging sobreviven 7 políticas permisivas del MVP creadas en `20260424000000` y `20260429000000` ("Enable insert for anyone", etc.) porque `20260713145000` intentó eliminarlas usando nombres en snake_case (`encuentros_insert_anyone`). Estas políticas son **`SECURE_INERT`** debido a que los privilegios a nivel tabla fueron revocados completamente (`REVOKE ALL ON TABLE public.encuentros, public.participantes FROM PUBLIC, anon, authenticated;`).
+  3. **Función Activa No Versionada (`get_encuentros_participados_por_tokens`):** Creada manualmente en Producción el 18/06/2026 para soportar la visualización de encuentros participados por tokens en `Home.tsx`. Es una dependencia activa (`ACTIVE_DEPENDENCY`) que debe ser incorporada al repositorio mediante una migración aditiva para garantizar paridad en Staging y recuperabilidad autónoma desde Git.
+- **Naturaleza de Baseline Repair:**
+  - `supabase migration repair --status applied 20260424000000` es exclusivamente una **alineación de historial** en `supabase_migrations.schema_migrations`.
+  - **NO ejecuta SQL ni muta el esquema.** Su función es indicar a la CLI que no aplique el DDL de `20260424000000`, protegiendo a Producción de intentar aplicar la constraint `NOT NULL` sobre registros existentes.
+  - La clasificación `SAFE_AS_HISTORY_ALIGNMENT` no implica que el baseline sea idéntico a Producción, sino que la operación de repair es segura y necesaria previo a un `supabase db push`.
