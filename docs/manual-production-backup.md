@@ -88,10 +88,15 @@ Hacer doble clic o ejecutar en terminal:
 
 ### Comprobaciones del Restaurador Autónomo
 1. **Seguridad de Destino:** Valida estrictamente que el objetivo sea `127.0.0.1` / `localhost` (rechaza cualquier referencia remota).
-2. **Integridad Criptográfica:** Valida los 34 hashes SHA-256 contra `manifests/SHA256SUMS.txt`.
-3. **Reconstrucción Limpia:** Reinicia esquemas locales e inserta en orden DDL (`schema.sql`), usuarios/identidades de Auth (`data-auth.sql`), datos de aplicación (`data-public.sql`), metadata de Storage (`data-storage.sql`) e historial de migraciones (`data-migrations.sql`).
+2. **Integridad Criptográfica:** Valida todos los hashes SHA-256 contra `manifests/SHA256SUMS.txt`.
+3. **Reconstrucción Limpia:** Reinicia esquemas locales e inserta en orden DDL (`schema.sql`), usuarios/identidades de Auth (`data-auth.sql`), datos de aplicación (`data-public.sql`), metadata de Storage (`data-storage.sql`), historial de migraciones (`data-migrations.sql`) y estado de secuencias (`data-sequences.sql`).
 4. **Objetos de Storage:** Copia los archivos de plantillas (`custom-invitation-templates`) en el volumen local y verifica su descarga HTTP pública mediante hash SHA-256 (10/10 PASS).
 5. **Validación de Conteos y Drift:** Compara los registros recuperados contra `manifests/database-counts.json` (10 tablas públicas + Auth) y certifica que `encuentros.host_id` sea `NULLABLE` con exactamente 83 filas históricas nulas restauradas.
+6. **Estado de Secuencias y Anti-Colisión:** Verifica paridad exacta de `last_value` e `is_called` contra `manifests/sequences.json` y demuestra que la llamada posterior a `nextval` genera un identificador estrictamente superior al `MAX(id)` restaurado (`creation_session_events_id_seq`).
+7. **Integridad Referencial:** Audita las 15 relaciones de clave foránea de la aplicación verificando 0 filas huérfanas (`ORPHAN_ROWS = 0`) y certifica que las restricciones y `session_replication_role = 'origin'` queden plenamente activas.
+
+> [!WARNING]
+> **Información Sensible:** El paquete de respaldo contiene datos reales de usuarios, credenciales hasheadas de autenticación y contenido del proyecto. Debe custodiarse con las más altas precauciones de seguridad, no versionarse en Git ni compartirse en canales inseguros.
 
 Al finalizar exitosamente se muestra:
 ```text

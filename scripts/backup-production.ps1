@@ -195,10 +195,31 @@ $ddlContent += "-- =============================================================
 $ddlContent += "CREATE SCHEMA IF NOT EXISTS public;`n"
 
 # Sequences (Must be created before tables that reference them in DEFAULT)
-$sequencesQuery = "SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' ORDER BY sequencename;"
-$sequences = Invoke-ProdSql $sequencesQuery
-foreach ($seq in $sequences) {
-    $ddlContent += "CREATE SEQUENCE IF NOT EXISTS public.`"$($seq.sequencename)`";`n"
+$sequencesQuery = @"
+SELECT
+    s.schemaname,
+    s.sequencename,
+    s.data_type,
+    s.start_value,
+    s.min_value,
+    s.max_value,
+    s.increment_by,
+    s.cycle,
+    s.cache_size,
+    t.relname AS owner_table,
+    a.attname AS owner_column
+FROM pg_sequences s
+LEFT JOIN pg_class c ON c.relname = s.sequencename AND c.relnamespace = s.schemaname::regnamespace
+LEFT JOIN pg_depend d ON d.objid = c.oid AND d.deptype IN ('a', 'i')
+LEFT JOIN pg_class t ON t.oid = d.refobjid
+LEFT JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+WHERE s.schemaname = 'public'
+ORDER BY s.sequencename;
+"@
+$publicSequences = @(Invoke-ProdSql $sequencesQuery)
+foreach ($seq in $publicSequences) {
+    $cycleClause = if ($seq.cycle) { " CYCLE" } else { " NO CYCLE" }
+    $ddlContent += "CREATE SEQUENCE IF NOT EXISTS public.`"$($seq.sequencename)`" AS $($seq.data_type) INCREMENT BY $($seq.increment_by) MINVALUE $($seq.min_value) MAXVALUE $($seq.max_value) START WITH $($seq.start_value) CACHE $($seq.cache_size)$cycleClause;`n"
 }
 
 # Columns & Tables
@@ -303,6 +324,13 @@ foreach ($pol in $policies) {
     $ddlContent += "CREATE POLICY `"$($pol.policyname)`" ON public.`"$($pol.tablename)`" AS $($pol.permissive) FOR $($pol.cmd) TO $cleanRoles $qualStr $checkStr;`n"
 }
 
+# Sequence Ownership
+foreach ($seq in $publicSequences) {
+    if (-not [string]::IsNullOrWhiteSpace($seq.owner_table) -and -not [string]::IsNullOrWhiteSpace($seq.owner_column)) {
+        $ddlContent += "ALTER SEQUENCE public.`"$($seq.sequencename)`" OWNED BY public.`"$($seq.owner_table)`".`"$($seq.owner_column)`";`n"
+    }
+}
+
 $ddlContent -join "`n" | Set-Content -Path $schemaSqlFile -Encoding UTF8
 Log-Step "DDL de esquema completado: $([Math]::Round((Get-Item $schemaSqlFile).Length / 1KB, 2)) KB" "PASS"
 
@@ -332,23 +360,51 @@ foreach ($tbl in $publicTables) {
     }
 }
 
-# Restore sequence positions
-$sequencesQuery = "SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' ORDER BY sequencename;"
-$seqs = Invoke-ProdSql $sequencesQuery
-foreach ($seq in $seqs) {
+Add-Content -Path $publicDataSqlFile -Value "SET session_replication_role = 'origin';`n" -Encoding UTF8
+
+# ==============================================================================
+# 6.1 Application Sequences State Export
+# ==============================================================================
+Log-Step "Extrayendo estado de secuencias de aplicacion..."
+$sequencesSqlFile = Join-Path $databaseDir "data-sequences.sql"
+Set-Content -Path $sequencesSqlFile -Value "-- PuntoEncuentro Sequences State Dump`nSET session_replication_role = 'replica';`n`n" -Encoding UTF8
+
+$sequencesManifestList = @()
+
+foreach ($seq in $publicSequences) {
     $seqName = $seq.sequencename
-    try {
-        $seqInfo = Invoke-ProdSql "SELECT last_value, is_called FROM public.`"$seqName`";"
-        if ($seqInfo -and $seqInfo.Count -gt 0) {
-            $lv = $seqInfo[0].last_value
-            $ic = if ($seqInfo[0].is_called) { "true" } else { "false" }
-            Add-Content -Path $publicDataSqlFile -Value "SELECT setval('public.`"$seqName`"', $lv, $ic);`n" -Encoding UTF8
+    $stateQuery = "SELECT last_value, is_called FROM public.`"$seqName`";"
+    $seqState = @(Invoke-ProdSql $stateQuery)
+    if ($seqState.Count -gt 0) {
+        $lv = $seqState[0].last_value
+        $ic = [bool]($seqState[0].is_called)
+        $icSql = if ($ic) { "true" } else { "false" }
+
+        Add-Content -Path $sequencesSqlFile -Value "SELECT pg_catalog.setval('public.`"$seqName`"', $lv, $icSql);`n" -Encoding UTF8
+
+        $sequencesManifestList += [ordered]@{
+            "schema"       = "public"
+            "sequence"     = $seqName
+            "data_type"    = $seq.data_type
+            "start_value"  = $seq.start_value
+            "min_value"    = $seq.min_value
+            "max_value"    = $seq.max_value
+            "increment_by" = $seq.increment_by
+            "cycle"        = [bool]$seq.cycle
+            "cache_size"   = $seq.cache_size
+            "last_value"   = [long]$lv
+            "is_called"    = $ic
+            "owner_table"  = $seq.owner_table
+            "owner_column" = $seq.owner_column
         }
-    } catch {
-        Log-Step "Aviso: no se pudo obtener estado de secuencia '$seqName': $($_.Exception.Message)" "WARN"
+        Log-Step "  Secuencia '$seqName': last_value=$lv, is_called=$icSql, owner=$($seq.owner_table).$($seq.owner_column)" "PASS"
     }
 }
-Add-Content -Path $publicDataSqlFile -Value "SET session_replication_role = 'origin';`n" -Encoding UTF8
+Add-Content -Path $sequencesSqlFile -Value "`nSET session_replication_role = 'origin';`n" -Encoding UTF8
+
+$sequencesManifestFile = Join-Path $manifestsDir "sequences.json"
+$sequencesManifestList | ConvertTo-Json -Depth 5 | Set-Content -Path $sequencesManifestFile -Encoding UTF8
+Log-Step "Manifest de secuencias generado: sequences.json ($($sequencesManifestList.Count) secuencias)" "PASS"
 
 # ==============================================================================
 # 7. Auth Data Export (Mandatory)
@@ -524,8 +580,10 @@ Log-Step "Validando integridad estructural del dump..."
 $schemaLen = (Get-Item $schemaSqlFile).Length
 $publicDataLen = (Get-Item $publicDataSqlFile).Length
 $authDataLen = (Get-Item $authSqlFile).Length
+$sequencesLen = (Get-Item $sequencesSqlFile).Length
+$sequencesManifestLen = (Get-Item $sequencesManifestFile).Length
 
-if ($schemaLen -le 0 -or $publicDataLen -le 0 -or $authDataLen -le 0) {
+if ($schemaLen -le 0 -or $publicDataLen -le 0 -or $authDataLen -le 0 -or $sequencesLen -le 0 -or $sequencesManifestLen -le 0) {
     Log-Step "Fallo en validacion estructural: archivos de base de datos vacios o incompletos." "FAIL"
     exit 1
 }
@@ -569,6 +627,7 @@ Write-Host "BACKUP OK" -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor Green
 Write-Host "Backup path:  $backupDir" -ForegroundColor White
 Write-Host "Database:     PASS ($([Math]::Round($dbSizeBytes / 1KB, 2)) KB)" -ForegroundColor White
+Write-Host "Sequences:    PASS ($($sequencesManifestList.Count) sequences)" -ForegroundColor White
 Write-Host "Auth:         PASS ($authUsersCount users)" -ForegroundColor White
 Write-Host "Storage:      $localStorageCount/$remoteStorageCount PASS ($([Math]::Round($storageSizeBytes / 1KB, 2)) KB)" -ForegroundColor White
 Write-Host "SHA256:       PASS ($($checksumEntries.Count) files)" -ForegroundColor White

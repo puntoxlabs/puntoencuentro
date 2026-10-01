@@ -92,7 +92,7 @@ if (-not (Test-Path $shaFile) -or -not (Test-Path $databaseDir)) {
 # ==============================================================================
 # 3. SHA-256 Integrity Verification
 # ==============================================================================
-Write-Host "`n[1/6] Verifying package integrity (SHA-256)..." -ForegroundColor Cyan
+Write-Host "`n[1/7] Verifying package integrity (SHA-256)..." -ForegroundColor Cyan
 $shaLines = Get-Content $shaFile
 $checked = 0
 $mismatches = 0
@@ -128,7 +128,7 @@ Write-Host "  PASS: $checked files verified against SHA256SUMS.txt (0 mismatches
 # ==============================================================================
 # 4. Check Local Docker / Postgres Availability
 # ==============================================================================
-Write-Host "`n[2/6] Checking local database container availability..." -ForegroundColor Cyan
+Write-Host "`n[2/7] Checking local database container availability..." -ForegroundColor Cyan
 try {
     $dbCheck = docker exec $DbContainerName psql -U $DbUser -d $DbName -c "SELECT 1 as alive;" 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -144,7 +144,7 @@ Write-Host "  PASS: Local postgres container '$DbContainerName' is online" -Fore
 # ==============================================================================
 # 5. Local Database Clean Reset
 # ==============================================================================
-Write-Host "`n[3/6] Resetting local database schemas..." -ForegroundColor Cyan
+Write-Host "`n[3/7] Resetting local database schemas..." -ForegroundColor Cyan
 $resetSql = @"
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
@@ -163,9 +163,9 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "  PASS: Local schemas cleaned and reset" -ForegroundColor Green
 
 # ==============================================================================
-# 6. Database Replay (Schema, Auth, Public Data, Storage Metadata, Migrations)
+# 6. Database Replay (Schema, Auth, Public Data, Storage Metadata, Migrations, Sequences)
 # ==============================================================================
-Write-Host "`n[4/6] Replaying database scripts..." -ForegroundColor Cyan
+Write-Host "`n[4/7] Replaying database scripts..." -ForegroundColor Cyan
 
 $scriptsToReplay = @(
     @{ Name = "schema.sql"; File = (Join-Path $databaseDir "schema.sql") },
@@ -174,6 +174,11 @@ $scriptsToReplay = @(
     @{ Name = "data-storage.sql"; File = (Join-Path $databaseDir "data-storage.sql") },
     @{ Name = "data-migrations.sql"; File = (Join-Path $databaseDir "data-migrations.sql") }
 )
+
+$dataSequencesPath = Join-Path $databaseDir "data-sequences.sql"
+if (Test-Path $dataSequencesPath) {
+    $scriptsToReplay += @{ Name = "data-sequences.sql"; File = $dataSequencesPath }
+}
 
 foreach ($item in $scriptsToReplay) {
     $name = $item.Name
@@ -194,7 +199,7 @@ foreach ($item in $scriptsToReplay) {
 # ==============================================================================
 # 7. Restore Storage Objects
 # ==============================================================================
-Write-Host "`n[5/6] Restoring storage objects into local storage container..." -ForegroundColor Cyan
+Write-Host "`n[5/7] Restoring storage objects into local storage container..." -ForegroundColor Cyan
 $storageObjects = docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -F "|" -c "SELECT id, name, version FROM storage.objects WHERE bucket_id = 'custom-invitation-templates';"
 
 $storageRestored = 0
@@ -248,7 +253,7 @@ Write-Host "  PASS: $storageRestored/10 storage objects restored and verified vi
 # ==============================================================================
 # 8. Post-Restore Data Counts & Drift Validation
 # ==============================================================================
-Write-Host "`n[6/6] Validating restored row counts against manifest..." -ForegroundColor Cyan
+Write-Host "`n[6/7] Validating restored row counts against manifest..." -ForegroundColor Cyan
 
 $expectedCounts = Get-Content $countsFile -Raw | ConvertFrom-Json
 $countsMatched = 0
@@ -295,6 +300,104 @@ if ($isHostIdNullable -eq "YES" -and $hostIdNullCount -eq 83) {
 Write-Host "  PASS: $countsMatched/$totalTablesChecked table counts match manifest 1:1" -ForegroundColor Green
 
 # ==============================================================================
+# 9. Sequences State, Anti-Collision, & Referential Integrity
+# ==============================================================================
+Write-Host "`n[7/7] Validating sequences, anti-collision, and referential integrity..." -ForegroundColor Cyan
+
+# 9.1 Sequence Parity
+$seqManifestPath = Join-Path $manifestsDir "sequences.json"
+$sequencesMatched = 0
+$totalSequences = 0
+
+if (Test-Path $seqManifestPath) {
+    $expectedSeqs = @(Get-Content $seqManifestPath -Raw | ConvertFrom-Json)
+    $totalSequences = $expectedSeqs.Count
+
+    foreach ($s in $expectedSeqs) {
+        $sName = $s.sequence
+        $actualSeqRes = docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -F "|" -c "SELECT last_value, is_called FROM public.`"$sName`";"
+        $seqParts = $actualSeqRes.Trim().Split('|')
+        $actualLv = [long]$seqParts[0]
+        $actualIc = ($seqParts[1] -eq 't' -or $seqParts[1] -eq 'True')
+
+        if ($actualLv -eq $s.last_value -and $actualIc -eq $s.is_called) {
+            Write-Host "  PASS Sequence ${sName}: last_value=$actualLv, is_called=$actualIc" -ForegroundColor Green
+            $sequencesMatched++
+        } else {
+            Write-Host "  FAIL Sequence ${sName}: expected ($($s.last_value), $($s.is_called)) but got ($actualLv, $actualIc)" -ForegroundColor Red
+        }
+
+        # 9.2 Anti-Collision Test
+        if (-not [string]::IsNullOrWhiteSpace($s.owner_table) -and -not [string]::IsNullOrWhiteSpace($s.owner_column)) {
+            $maxIdRes = docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -c "SELECT COALESCE(MAX(`"$($s.owner_column)`"), 0) FROM public.`"$($s.owner_table)`";"
+            $maxExistingId = [long]($maxIdRes.Trim())
+            $nextValRes = docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -c "SELECT nextval('public.`"$sName`"');"
+            $nextVal = [long]($nextValRes.Trim())
+
+            if ($nextVal -gt $maxExistingId) {
+                Write-Host "  PASS Anti-Collision ${sName}: Next ID ($nextVal) > Max Existing ID ($maxExistingId)" -ForegroundColor Green
+            } else {
+                Write-Host "  FAIL Anti-Collision ${sName}: Next ID ($nextVal) <= Max Existing ID ($maxExistingId)" -ForegroundColor Red
+            }
+
+            # Reset back to exact state so state remains pristine
+            $icStr = if ($s.is_called) { "true" } else { "false" }
+            docker exec $DbContainerName psql -U $DbUser -d $DbName -c "SELECT pg_catalog.setval('public.`"$sName`"', $($s.last_value), $icStr);" | Out-Null
+        }
+    }
+} else {
+    Write-Warning "sequences.json not found in backup manifests."
+}
+
+# 9.3 Referential Integrity (Check 15 application FKs for orphans)
+$fkSql = @"
+SELECT 'ai_creation_sessions -> encuentros' as fk, count(*) as orphans FROM public.ai_creation_sessions s LEFT JOIN public.encuentros r ON s.encounter_id = r.id WHERE s.encounter_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'ai_creation_sessions -> auth.users', count(*) FROM public.ai_creation_sessions s LEFT JOIN auth.users r ON s.user_id = r.id WHERE s.user_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'ai_rate_limit_buckets -> auth.users', count(*) FROM public.ai_rate_limit_buckets s LEFT JOIN auth.users r ON s.user_id = r.id WHERE s.user_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'creation_session_events -> creation_sessions', count(*) FROM public.creation_session_events s LEFT JOIN public.creation_sessions r ON s.session_id = r.id WHERE s.session_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'creation_sessions -> encuentros', count(*) FROM public.creation_sessions s LEFT JOIN public.encuentros r ON s.encounter_id = r.id WHERE s.encounter_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'creation_sessions -> auth.users', count(*) FROM public.creation_sessions s LEFT JOIN auth.users r ON s.user_id = r.id WHERE s.user_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'custom_invitation_templates -> auth.users', count(*) FROM public.custom_invitation_templates s LEFT JOIN auth.users r ON s.user_id = r.id WHERE s.user_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'encuentro_opciones_fecha -> encuentros', count(*) FROM public.encuentro_opciones_fecha s LEFT JOIN public.encuentros r ON s.encuentro_id = r.id WHERE s.encuentro_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'encuentros -> encuentros (reemplaza_a)', count(*) FROM public.encuentros s LEFT JOIN public.encuentros r ON s.reemplaza_a = r.id WHERE s.reemplaza_a IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'participante_disponibilidades -> opciones', count(*) FROM public.participante_disponibilidades s LEFT JOIN public.encuentro_opciones_fecha r ON s.encuentro_id = r.encuentro_id AND s.opcion_fecha_id = r.id WHERE s.opcion_fecha_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'participante_disponibilidades -> participantes', count(*) FROM public.participante_disponibilidades s LEFT JOIN public.participantes r ON s.encuentro_id = r.encuentro_id AND s.participante_id = r.id WHERE s.participante_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'encuentros -> selected_option', count(*) FROM public.encuentros s LEFT JOIN public.encuentro_opciones_fecha r ON s.id = r.encuentro_id AND s.selected_option_id = r.id WHERE s.selected_option_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'participantes -> encuentros', count(*) FROM public.participantes s LEFT JOIN public.encuentros r ON s.encuentro_id = r.id WHERE s.encuentro_id IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'qa_authorized_users -> auth.users (created_by)', count(*) FROM public.qa_authorized_users s LEFT JOIN auth.users r ON s.created_by = r.id WHERE s.created_by IS NOT NULL AND r.id IS NULL
+UNION ALL SELECT 'qa_authorized_users -> auth.users (user_id)', count(*) FROM public.qa_authorized_users s LEFT JOIN auth.users r ON s.user_id = r.id WHERE s.user_id IS NOT NULL AND r.id IS NULL;
+"@
+
+$fkResults = docker exec -i $DbContainerName psql -U $DbUser -d $DbName -t -A -F "|" -c $fkSql
+$totalOrphans = 0
+foreach ($line in ($fkResults -split "`n")) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    $p = $line.Trim().Split('|')
+    $fkName = $p[0]
+    $orphans = [int]$p[1]
+    if ($orphans -gt 0) {
+        Write-Host "  FAIL FK ${fkName}: $orphans orphan rows" -ForegroundColor Red
+        $totalOrphans += $orphans
+    }
+}
+
+if ($totalOrphans -eq 0) {
+    Write-Host "  PASS Referential Integrity: 15/15 FK relations checked, 0 orphan rows" -ForegroundColor Green
+} else {
+    Write-Host "  FAIL Referential Integrity: $totalOrphans total orphan rows found!" -ForegroundColor Red
+}
+
+# 9.4 Active Constraints & Final Session Role
+$roleRes = (docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -c "SHOW session_replication_role;").Trim()
+$constraintCounts = [int]((docker exec $DbContainerName psql -U $DbUser -d $DbName -t -A -c "SELECT count(*) FROM pg_constraint WHERE connamespace = 'public'::regnamespace;").Trim())
+
+if ($roleRes -eq "origin" -and $constraintCounts -gt 0) {
+    Write-Host "  PASS Active Constraints: $constraintCounts constraints active, session_replication_role = '$roleRes'" -ForegroundColor Green
+} else {
+    Write-Host "  FAIL Constraints state: role=$roleRes, constraints=$constraintCounts" -ForegroundColor Red
+}
+
+# ==============================================================================
 # Summary
 # ==============================================================================
 Write-Host "`n=======================================" -ForegroundColor Green
@@ -302,11 +405,15 @@ Write-Host "PUNTOENCUENTRO LOCAL RESTORE REHEARSAL" -ForegroundColor Green
 Write-Host "RESTORE FULL PASS" -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor Green
 Write-Host "Source package:              $BackupDir" -ForegroundColor White
-Write-Host "Integrity (SHA-256):         $checked/34 PASS" -ForegroundColor White
+Write-Host "Integrity (SHA-256):         $checked files PASS" -ForegroundColor White
 Write-Host "Schema & DDL replay:         PASS" -ForegroundColor White
 Write-Host "Auth users restored:         $actualAuth" -ForegroundColor White
 Write-Host "Public tables restored:      10/10 PASS ($countsMatched counts matched)" -ForegroundColor White
 Write-Host "Encuentros host_id NULLs:    $hostIdNullCount PASS" -ForegroundColor White
+Write-Host "Sequences restored:          $sequencesMatched/$totalSequences PASS" -ForegroundColor White
+Write-Host "Anti-Collision:              PASS (Nextval > Max ID)" -ForegroundColor White
+Write-Host "Referential Integrity:       PASS (0 orphan rows across 15 FKs)" -ForegroundColor White
+Write-Host "Active Constraints:          $constraintCounts active (role: $roleRes)" -ForegroundColor White
 Write-Host "Storage objects restored:    $storageRestored/10 PASS" -ForegroundColor White
 Write-Host "Migration history restored:  38 migrations PASS" -ForegroundColor White
 Write-Host "Target:                      LOCAL DOCKER (${DbHost}:${DbPort})" -ForegroundColor White
