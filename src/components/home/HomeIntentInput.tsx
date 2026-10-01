@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Mic, Square, X, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { useSpeechDictation, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import './HomeIntentInput.css';
@@ -20,12 +21,14 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
   onChange,
   onSubmit,
   isSubmitting = false,
-  placeholder = 'ej. jugar al pádel el sábado a las 18',
+  placeholder,
   disabled = false,
   onFocusChange,
   isListeningChange,
 }) => {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resolvedPlaceholder = placeholder ?? t('home.intent_placeholder', { defaultValue: 'ej. jugar al pádel este sábado a las 18' });
 
   const {
     isListening,
@@ -85,7 +88,7 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
         <div className="home-intent-card-header">
           <div className="home-intent-badge">
             <Sparkles size={13} className="home-intent-sparkle-icon" />
-            <span>QUIERO...</span>
+            <span>{t('home.intent_badge', { defaultValue: 'Tengo ganas de…' })}</span>
           </div>
           {value && (
             <button
@@ -112,10 +115,10 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
           onKeyDown={handleKeyDown}
           onFocus={() => onFocusChange?.(true)}
           onBlur={() => onFocusChange?.(false)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           disabled={disabled || isSubmitting}
           rows={2}
-          aria-label="¿Qué querés hacer?"
+          aria-label={t('home.intent_aria_label', { defaultValue: 'Tengo ganas de…' })}
           data-testid="home-intent-textarea"
         />
 
@@ -162,7 +165,7 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
           </>
         ) : (
           <>
-            <span>Hacer que pase</span>
+            <span>{t('home.create_cta', { defaultValue: 'Hagamos que pase' })}</span>
             <span className="home-intent-cta-arrow">→</span>
           </>
         )}

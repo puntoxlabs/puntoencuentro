@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, MapPin, Calendar, Users, Check, Heart } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { PublicIntencionSummary } from '@/types/intenciones';
 import './PublicIntencionCard.css';
 
@@ -14,6 +15,7 @@ export const PublicIntencionCard: React.FC<PublicIntencionCardProps> = ({
   onInterestClick,
   isLoading = false,
 }) => {
+  const { t } = useTranslation();
   const isOwn = intencion.is_own;
   const isInterested = intencion.viewer_interested;
   const count = intencion.interested_count;
@@ -31,14 +33,14 @@ export const PublicIntencionCard: React.FC<PublicIntencionCardProps> = ({
   return (
     <article
       className={`pe-public-intencion-card ${isOwn ? 'pe-public-intencion-card--own' : ''} ${isInterested ? 'pe-public-intencion-card--interested' : ''}`}
-      aria-label={`Ganas de hacer: ${intencion.titulo}`}
+      aria-label={t('open_encounters.card_aria_label', { defaultValue: `Ganas de…: ${intencion.titulo}`, title: intencion.titulo })}
     >
       {/* Cabecera */}
       <div className="pe-public-intencion-card__header">
         <div className="pe-public-intencion-card__badges">
           <span className="pe-public-intencion-badge pe-public-intencion-badge--type">
             <Sparkles size={12} aria-hidden="true" />
-            <span>Ganas de hacer</span>
+            <span>{t('open_encounters.badge_intention', { defaultValue: 'Ganas de…' })}</span>
           </span>
 
           {intencion.modalidad === 'virtual' ? (

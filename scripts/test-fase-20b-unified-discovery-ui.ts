@@ -45,7 +45,7 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
   };
 
   describe('1. Selector de Tabs y Estructura del Discovery', () => {
-    test('renderiza selector accesible [ Todo ] [ Encuentros ] [ Ganas de hacer ]', () => {
+    test('renderiza selector accesible [ Todo ] [ Encuentros ] [ Ganas de… ]', () => {
       const html = renderToString(
         React.createElement(HomeOpenEncounters, {
           encounters: OPEN_ENCOUNTERS_DEMO,
@@ -56,7 +56,7 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
       assert.ok(html.includes('role="tablist"'), 'Debe incluir tablist accesible');
       assert.ok(html.includes('Todo'), 'Tab Todo');
       assert.ok(html.includes('Encuentros'), 'Tab Encuentros');
-      assert.ok(html.includes('Ganas de hacer'), 'Tab Ganas de hacer');
+      assert.ok(html.includes('Ganas de…'), 'Tab Ganas de…');
       assert.ok(html.includes('aria-selected="true"'), 'Tab activo seleccionado');
     });
 
@@ -69,7 +69,7 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
       );
 
       assert.ok(html.includes('Encuentros próximos'), 'Subtítulo grupo 1');
-      assert.ok(html.includes('Ganas de hacer'), 'Subtítulo grupo 2');
+      assert.ok(html.includes('Ganas de…'), 'Subtítulo grupo 2');
       assert.ok(html.includes('Pádel principiantes'), 'Intención visible en Todo');
       assert.ok(html.includes('Fútbol 5'), 'Encuentro visible en Todo');
     });
@@ -83,7 +83,7 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
         })
       );
 
-      assert.ok(html.includes('Ganas de hacer'), 'Badge de tipo');
+      assert.ok(html.includes('Ganas de…'), 'Badge de tipo');
       assert.ok(html.includes('Presencial'), 'Badge de modalidad');
       assert.ok(html.includes('Pádel principiantes'), 'Título');
       assert.ok(html.includes('Para divertirnos y aprender'), 'Descripción');
@@ -226,8 +226,16 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
       );
 
       assert.ok(
-        html.includes('Por ahora no hay otras ganas de hacer por acá.'),
-        'Copy humano de intenciones vacías'
+        html.includes('Todavía no hay nada por acá.'),
+        'Título empty state'
+      );
+      assert.ok(
+        html.includes('¿Y vos? ¿Qué tenés ganas de hacer?'),
+        'Cuerpo empty state'
+      );
+      assert.ok(
+        html.includes('Tengo ganas de…'),
+        'CTA secundario empty state'
       );
     });
 

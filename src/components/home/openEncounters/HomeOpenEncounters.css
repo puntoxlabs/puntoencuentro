@@ -213,6 +213,28 @@
   background-color: #f1f5f9;
 }
 
+.pe-discovery-empty-btn--secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: transparent;
+  color: var(--color-primary, #059669);
+  border: 1px solid var(--color-primary, #059669);
+}
+
+.pe-discovery-empty-btn--secondary:hover {
+  background-color: rgba(5, 150, 105, 0.08);
+}
+
+.pe-discovery-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 /* Selector Segmentado de Discovery */
 .pe-discovery-tabs {
   display: inline-flex;

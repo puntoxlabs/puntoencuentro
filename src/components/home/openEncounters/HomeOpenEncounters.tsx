@@ -26,6 +26,8 @@ export interface HomeOpenEncountersProps {
   onOpenCreate?: () => void;
   onConfigureZones?: () => void;
   onSeeAll?: () => void;
+  /** Callback para enfocar y hacer scroll suave al input de intención existente en Home */
+  onFocusIntentInput?: () => void;
   /**
    * Forzar modo demo o modo real explícitamente.
    * Si no se define, se permite fallback a demo sólo en rutas /preview.
@@ -43,6 +45,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onConfigureZones,
   onSeeAll,
   isDemoMode,
+  onFocusIntentInput,
 }) => {
   const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -193,6 +196,18 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       }
     } catch {
       setIsOAuthStarting(false);
+    }
+  };
+
+  const handleFocusIntent = () => {
+    if (onFocusIntentInput) {
+      onFocusIntentInput();
+    } else {
+      const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
+      if (textarea) {
+        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        textarea.focus();
+      }
     }
   };
 
@@ -398,11 +413,23 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       return (
         <div className="pe-discovery-empty pe-discovery-empty--subtle">
           <p className="pe-discovery-empty-title">
-            Por ahora no hay otras ganas de hacer por acá.
+            {t('open_encounters.discovery_empty_title', {
+              defaultValue: 'Todavía no hay nada por acá.',
+            })}
           </p>
           <p className="pe-discovery-empty-desc">
-            Podés proponer qué te gustaría hacer desde la sección Intenciones.
+            {t('open_encounters.discovery_empty_body', {
+              defaultValue: '¿Y vos? ¿Qué tenés ganas de hacer?',
+            })}
           </p>
+          <button
+            type="button"
+            className="pe-discovery-empty-btn pe-discovery-empty-btn--secondary"
+            onClick={handleFocusIntent}
+          >
+            <span>{t('open_encounters.discovery_empty_cta', { defaultValue: 'Tengo ganas de…' })}</span>
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
       );
     }
@@ -425,7 +452,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
   return (
-    <section className="pe-discovery-section" aria-label="Encuentros abiertos y ganas de hacer para sumarte">
+    <section className="pe-discovery-section" aria-label="Encuentros abiertos y planes para sumarte">
       {/* Cabecera de la Sección */}
       <div className="pe-discovery-header">
         <div className="pe-discovery-title-group">
@@ -457,7 +484,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         </button>
       </div>
 
-      {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de hacer ] */}
+      {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] */}
       <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Discovery">
         <button
           type="button"
@@ -466,7 +493,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           className={`pe-discovery-tab ${discoveryTab === 'todo' ? 'pe-discovery-tab--active' : ''}`}
           onClick={() => setDiscoveryTab('todo')}
         >
-          Todo
+          {t('open_encounters.tab_all', { defaultValue: 'Todo' })}
         </button>
         <button
           type="button"
@@ -475,7 +502,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           className={`pe-discovery-tab ${discoveryTab === 'encuentros' ? 'pe-discovery-tab--active' : ''}`}
           onClick={() => setDiscoveryTab('encuentros')}
         >
-          Encuentros
+          {t('open_encounters.tab_encounters', { defaultValue: 'Encuentros' })}
         </button>
         <button
           type="button"
@@ -484,7 +511,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           className={`pe-discovery-tab ${discoveryTab === 'intenciones' ? 'pe-discovery-tab--active' : ''}`}
           onClick={() => setDiscoveryTab('intenciones')}
         >
-          Ganas de hacer
+          {t('open_encounters.tab_intentions', { defaultValue: 'Ganas de…' })}
         </button>
       </div>
 
@@ -513,7 +540,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
               </div>
 
               <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
-                <h3 className="pe-discovery-subtitle">Ganas de hacer</h3>
+                <h3 className="pe-discovery-subtitle">
+                  {t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
+                </h3>
                 {renderIntentionsGroup()}
               </div>
             </div>
@@ -526,7 +555,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             </div>
           )}
 
-          {/* Tab: Ganas de hacer */}
+          {/* Tab: Ganas de… */}
           {discoveryTab === 'intenciones' && (
             <div className="pe-discovery-group">
               {renderIntentionsGroup()}

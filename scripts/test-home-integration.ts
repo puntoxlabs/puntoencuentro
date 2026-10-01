@@ -57,7 +57,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
   });
 
   describe('2. Componente HomeIntentInput', () => {
-    test('A. Renderiza campo textarea y botón primario "Hacer que pase"', () => {
+    test('A. Renderiza campo textarea y botón primario "Hagamos que pase"', () => {
       const html = renderToString(
         React.createElement(HomeIntentInput, {
           value: '',
@@ -65,7 +65,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           onSubmit: () => {},
         })
       );
-      assert.ok(html.includes('Hacer que pase'), 'Debe contener el CTA "Hacer que pase"');
+      assert.ok(html.includes('Hagamos que pase'), 'Debe contener el CTA "Hagamos que pase"');
       assert.ok(html.includes('home-intent-textarea'), 'Debe contener el textarea');
       assert.ok(html.includes('disabled=""') || html.includes('disabled'), 'Debe estar deshabilitado si value está vacío');
     });

@@ -1,7 +1,11 @@
 {
   "home": {
     "title": "Mis Encuentros",
-    "create_btn": "Crear encuentro"
+    "create_btn": "Crear encuentro",
+    "intent_badge": "Tengo ganas de…",
+    "intent_placeholder": "ej. jugar al pádel este sábado a las 18",
+    "intent_aria_label": "Tengo ganas de…",
+    "create_cta": "Hagamos que pase"
   },
   "account": {
     "save_title": "Guardá tus encuentros",
@@ -116,6 +120,12 @@
     "subtitle_zones": "En tus zonas",
     "subtitle_near": "Cerca tuyo",
     "see_all": "Ver todos",
+    "tab_all": "Todo",
+    "tab_encounters": "Encuentros",
+    "tab_intentions": "Ganas de…",
+    "intentions_title": "Ganas de…",
+    "badge_intention": "Ganas de…",
+    "card_aria_label": "Ganas de…: {{title}}",
     "slot_single": "Falta 1",
     "slots_remaining": "Quedan {{count}}",
     "slots_count": "{{count}} lugares",
@@ -126,6 +136,9 @@
     "empty_title": "No hay encuentros abiertos ahora en tus zonas.",
     "empty_prompt": "¿Ya tenés un plan y te falta gente?",
     "empty_cta": "Abrir un encuentro",
+    "discovery_empty_title": "Todavía no hay nada por acá.",
+    "discovery_empty_body": "¿Y vos? ¿Qué tenés ganas de hacer?",
+    "discovery_empty_cta": "Tengo ganas de…",
     "no_zones_title": "Elegí tus zonas para ver encuentros cerca tuyo.",
     "no_zones_cta": "Configurar zonas",
     "demo_badge": "Lanzamiento · Demo",

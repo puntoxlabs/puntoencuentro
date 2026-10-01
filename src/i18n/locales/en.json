@@ -1,7 +1,11 @@
 {
   "home": {
     "title": "My Meetings",
-    "create_btn": "Create meeting"
+    "create_btn": "Create meeting",
+    "intent_badge": "I feel like…",
+    "intent_placeholder": "e.g. playing padel this Saturday at 6 PM",
+    "intent_aria_label": "I feel like…",
+    "create_cta": "Let’s make it happen"
   },
   "account": {
     "save_title": "Save your meetings",
@@ -115,6 +119,12 @@
     "subtitle_zones": "In your areas",
     "subtitle_near": "Near you",
     "see_all": "View all",
+    "tab_all": "All",
+    "tab_encounters": "Encounters",
+    "tab_intentions": "Feel like…",
+    "intentions_title": "Feel like…",
+    "badge_intention": "Feel like…",
+    "card_aria_label": "Feel like…: {{title}}",
     "slot_single": "1 spot left",
     "slots_remaining": "{{count}} spots left",
     "slots_count": "{{count}} spots",
@@ -125,6 +135,9 @@
     "empty_title": "No open encounters right now in your areas.",
     "empty_prompt": "Already have a plan and need more people?",
     "empty_cta": "Open an encounter",
+    "discovery_empty_title": "Nothing here yet.",
+    "discovery_empty_body": "How about you? What do you feel like doing?",
+    "discovery_empty_cta": "I feel like…",
     "no_zones_title": "Choose your areas to find encounters near you.",
     "no_zones_cta": "Set up areas",
     "demo_badge": "Launch · Demo",

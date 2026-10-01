@@ -1259,6 +1259,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           {/* 2. ENCUENTROS ABIERTOS (Discovery Carrousel inmediatamente debajo del Hero) */}
           <HomeOpenEncounters
             onOpenCreate={handleCreateClick}
+            onFocusIntentInput={() => {
+              const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
+              if (textarea) {
+                textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                textarea.focus();
+              }
+            }}
           />
 
           {/* 3. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
