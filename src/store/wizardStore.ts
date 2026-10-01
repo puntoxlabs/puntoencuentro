@@ -17,6 +17,7 @@ export interface WizardState {
   invitation_template: string | null;
   encuentro_id: string | null;
   sourceIntentionId: string | null;
+  creation_source?: 'manual' | 'ai';
   setField: (field: string, value: any) => void;
   setSourceIntentionId: (id: string | null) => void;
   nextStep: () => void;
@@ -41,6 +42,7 @@ export const useWizardStore = create<WizardState>()(
       invitation_template: null,
       encuentro_id: null,
       sourceIntentionId: null,
+      creation_source: 'manual',
       setField: (field, value) => set({ [field]: value }),
       setSourceIntentionId: (id) => set({ sourceIntentionId: id }),
       nextStep: () => set((state) => ({ step: state.step < 4 ? state.step + 1 : state.step })),
@@ -60,6 +62,7 @@ export const useWizardStore = create<WizardState>()(
         invitation_template: null,
         encuentro_id: null,
         sourceIntentionId: null,
+        creation_source: 'manual',
       }),
     }),
     {

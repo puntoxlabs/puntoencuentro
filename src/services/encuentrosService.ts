@@ -71,9 +71,9 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// Validates the minimal response contract from crear_encuentro_con_opciones_seguro.
-// The RPC only guarantees {ok, encuentro: {id, public_token}}.
-// date_mode, coordination_status, response_deadline and opciones are NOT returned by the RPC.
+// Validates the response contract from crear_encuentro_con_opciones_seguro.
+// Canonical RPC shape: { ok: true, id, public_token, ... }
+// Legacy RPC shape supported: { ok: true, encuentro: { id, public_token, ... } }
 export function validateCoordinationCreateResult(value: unknown): CoordinationCreateResult {
   if (!isUnknownRecord(value)) {
     return { ok: false, error: 'invalid_response_format' };
@@ -90,17 +90,29 @@ export function validateCoordinationCreateResult(value: unknown): CoordinationCr
   }
 
   if (record.ok === true) {
-    if (!isUnknownRecord(record.encuentro)) return { ok: false, error: 'invalid_response_format' };
-    const enc = record.encuentro;
+    const rawId = typeof record.id === 'string'
+      ? record.id
+      : isUnknownRecord(record.encuentro) && typeof record.encuentro.id === 'string'
+        ? record.encuentro.id
+        : null;
 
-    if (typeof enc.id !== 'string' || !enc.id.trim()) return { ok: false, error: 'invalid_encounter_id' };
-    if (typeof enc.public_token !== 'string' || !enc.public_token.trim()) return { ok: false, error: 'invalid_public_token' };
+    const rawToken = typeof record.public_token === 'string'
+      ? record.public_token
+      : isUnknownRecord(record.encuentro) && typeof record.encuentro.public_token === 'string'
+        ? record.encuentro.public_token
+        : null;
+
+    const id = rawId?.trim();
+    const publicToken = rawToken?.trim();
+
+    if (!id) return { ok: false, error: 'invalid_encounter_id' };
+    if (!publicToken) return { ok: false, error: 'invalid_public_token' };
 
     return {
       ok: true,
       encuentro: {
-        id: enc.id as string,
-        public_token: enc.public_token as string,
+        id,
+        public_token: publicToken,
       },
     };
   }

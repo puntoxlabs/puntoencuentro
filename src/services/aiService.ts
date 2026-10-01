@@ -331,6 +331,7 @@ export const aiService = {
         event_type: 'session_started',
         source: 'system',
         creation_source: 'ai',
+        initial_route: '/create/ai',
         provider: provider,
         status: 'started',
       });
@@ -365,6 +366,7 @@ export const aiService = {
         event_type: eventType as any,
         source: 'system',
         creation_source: 'ai',
+        initial_route: '/create/ai',
         status: params.status === 'completed' ? 'completed' : (params.status === 'abandoned' ? 'cancelled' : 'started'),
         encounter_id: params.encounterId ?? undefined,
         turn_number: params.turns,

@@ -168,11 +168,15 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         navigate(`/share/${encuentroId}`, { replace: true });
       }
 
+      const creationSource = wizardData.creation_source || 'manual';
+      const initialRoute = creationSource === 'ai' ? '/create/ai' : '/create';
+
       import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
         qaTelemetryService.trackEvent({
           event_type: 'encounter_created',
           source: 'ui_manual',
-          creation_source: 'manual',
+          creation_source: creationSource,
+          initial_route: initialRoute,
           encounter_id: encuentroId ?? undefined,
           status: 'completed',
         });
@@ -189,11 +193,16 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         friendlyError = error.message;
       }
       setError(friendlyError);
+
+      const creationSource = wizardData.creation_source || 'manual';
+      const initialRoute = creationSource === 'ai' ? '/create/ai' : '/create';
+
       import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
         qaTelemetryService.trackEvent({
           event_type: 'technical_error',
           source: 'ui_manual',
-          creation_source: 'manual',
+          creation_source: creationSource,
+          initial_route: initialRoute,
           status: 'started',
           metadata: { error_code: errorCode || 'create_failed' }
         });

@@ -2,6 +2,8 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { supabase } from '../src/lib/supabase';
 import { qaTelemetryService } from '../src/services/qaTelemetryService';
+import { validateCoordinationCreateResult } from '../src/services/encuentrosService';
+import { draftToWizardState } from '../src/lib/encounterDraft';
 
 // Mock sessionStorage globally if it doesn't exist
 const setupSessionStorage = () => {
@@ -327,5 +329,153 @@ describe('QA Telemetry Behavioral Tests', () => {
       }
     }
     assert.ok(fetchFailed, 'Si se evade el mock, el interceptor fetch debe abortar con un error duro inmediato');
+  });
+});
+
+describe('P1 — Coordination Contract Alignment Tests', () => {
+  test('P1.A: Accepts canonical flat RPC shape { ok: true, id, public_token }', () => {
+    const rpcResponse = {
+      ok: true,
+      id: '11111111-1111-1111-1111-111111111111',
+      public_token: 'coord-token-canonical',
+      date_mode: 'coordination',
+      opciones_count: 2,
+    };
+    const result = validateCoordinationCreateResult(rpcResponse);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.encuentro.id, '11111111-1111-1111-1111-111111111111');
+      assert.equal(result.encuentro.public_token, 'coord-token-canonical');
+    }
+  });
+
+  test('P1.B: Accepts legacy nested RPC shape { ok: true, encuentro: { id, public_token } }', () => {
+    const rpcResponse = {
+      ok: true,
+      encuentro: {
+        id: '22222222-2222-2222-2222-222222222222',
+        public_token: 'coord-token-legacy',
+      },
+    };
+    const result = validateCoordinationCreateResult(rpcResponse);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.encuentro.id, '22222222-2222-2222-2222-222222222222');
+      assert.equal(result.encuentro.public_token, 'coord-token-legacy');
+    }
+  });
+
+  test('P1.C: Passes through structured errors with details', () => {
+    const errorResponse = {
+      ok: false,
+      error: 'minimum_two_options',
+      details: 'Se requieren al menos 2 opciones de fecha',
+    };
+    const result = validateCoordinationCreateResult(errorResponse);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, 'minimum_two_options');
+      assert.equal(result.details, 'Se requieren al menos 2 opciones de fecha');
+    }
+  });
+
+  test('P1.D: Rejects malformed responses with invalid_response_format', () => {
+    assert.equal(validateCoordinationCreateResult(null).ok, false);
+    assert.equal(validateCoordinationCreateResult(undefined).ok, false);
+    assert.equal(validateCoordinationCreateResult('string').ok, false);
+    assert.equal(validateCoordinationCreateResult({ ok: true }).ok, false);
+    assert.equal(validateCoordinationCreateResult({ ok: true, id: '' }).ok, false);
+    assert.equal(validateCoordinationCreateResult({ ok: true, id: 'valid-id', public_token: ' ' }).ok, false);
+  });
+});
+
+describe('P2 — Creation Telemetry Contract & Handoff Tests', () => {
+  let originalRpc: any;
+  let capturedPayload: any = null;
+
+  beforeEach(() => {
+    setupSessionStorage();
+    qaTelemetryService.clearSession();
+    originalRpc = supabase.rpc;
+    capturedPayload = null;
+    supabase.rpc = async (name: string, payload: any) => {
+      capturedPayload = payload;
+      return { data: null, error: null };
+    };
+  });
+
+  afterEach(() => {
+    supabase.rpc = originalRpc;
+  });
+
+  test('P2.A: Manual creation from /create registers creation_source=manual and initial_route=/create', async () => {
+    qaTelemetryService.trackEvent({
+      event_type: 'encounter_created',
+      source: 'ui_manual',
+      creation_source: 'manual',
+      initial_route: '/create',
+      encounter_id: '33333333-3333-3333-3333-333333333333',
+      status: 'completed',
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(capturedPayload);
+    assert.equal(capturedPayload.p_creation_source, 'manual');
+    assert.equal(capturedPayload.p_initial_route, '/create');
+    assert.equal(capturedPayload.p_event_type, 'encounter_created');
+  });
+
+  test('P2.B: AI creation from /create/ai registers creation_source=ai and initial_route=/create/ai', async () => {
+    qaTelemetryService.trackEvent({
+      event_type: 'encounter_created',
+      source: 'system',
+      creation_source: 'ai',
+      initial_route: '/create/ai',
+      encounter_id: '44444444-4444-4444-4444-444444444444',
+      status: 'completed',
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(capturedPayload);
+    assert.equal(capturedPayload.p_creation_source, 'ai');
+    assert.equal(capturedPayload.p_initial_route, '/create/ai');
+  });
+
+  test('P2.C: Defensive resolution defaults manual to /create if route is omitted', async () => {
+    qaTelemetryService.trackEvent({
+      event_type: 'encounter_created',
+      source: 'ui_manual',
+      creation_source: 'manual',
+      encounter_id: '55555555-5555-5555-5555-555555555555',
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(capturedPayload);
+    assert.equal(capturedPayload.p_creation_source, 'manual');
+    assert.equal(capturedPayload.p_initial_route, '/create');
+  });
+
+  test('P2.D: AI handoff preserves creation_source=ai into wizard state', () => {
+    const draft = {
+      title: 'Pádel AI',
+      date: '2026-10-15',
+      time: '20:00',
+      description: 'Partido de pádel',
+      modality: 'presencial' as const,
+      locationText: 'Club Palermo',
+      virtualLink: '',
+      dateMode: 'fixed' as const,
+      durationMinutes: 90,
+      ambiguities: [],
+    };
+    const config = {
+      invitationType: 'link_general' as const,
+      invitationTheme: 'classic' as const,
+      invitationTemplate: 'default',
+      responseVisibility: 'summary' as const,
+    };
+    const wizardState = draftToWizardState(draft as any, config as any);
+    assert.equal(wizardState.creation_source, 'ai');
+    assert.equal(wizardState.titulo, 'Pádel AI');
   });
 });

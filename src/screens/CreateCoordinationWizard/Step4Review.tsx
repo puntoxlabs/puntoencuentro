@@ -120,6 +120,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
             event_type: 'encounter_created',
             source: 'ui_manual',
             creation_source: 'manual',
+            initial_route: '/create/coordination',
             encounter_id: result.encuentro.id,
             status: 'completed',
             date_mode: 'coordination',
@@ -142,6 +143,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
             event_type: 'technical_error',
             source: 'ui_manual',
             creation_source: 'manual',
+            initial_route: '/create/coordination',
             status: 'started',
             metadata: { error_code: result.error || 'unknown_error' }
           });
@@ -155,6 +157,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
           event_type: 'technical_error',
           source: 'ui_manual',
           creation_source: 'manual',
+          initial_route: '/create/coordination',
           status: 'started',
           metadata: { error_code: 'unexpected_error' }
         });

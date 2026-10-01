@@ -7,6 +7,8 @@ interface QaSessionContext {
   sessionId: string;
   clientToken: string;
   started?: boolean;
+  creation_source?: CreationSource;
+  initial_route?: InitialRoute;
 }
 
 export type EventType =
@@ -122,11 +124,30 @@ class QaTelemetryService {
     const sessionCtx = this.getSessionContext();
     const { sessionId, clientToken } = sessionCtx;
 
+    const effectiveCreationSource = params.creation_source || sessionCtx.creation_source || undefined;
+    const effectiveInitialRoute = params.initial_route || sessionCtx.initial_route || (
+      effectiveCreationSource === 'manual' ? '/create' : (effectiveCreationSource === 'ai' ? '/create/ai' : undefined)
+    );
+
+    let sessionUpdated = false;
     if (params.event_type === 'session_started') {
       if (sessionCtx.started) {
         return; // Already started this session across reloads
       }
       sessionCtx.started = true;
+      sessionUpdated = true;
+    }
+
+    if (effectiveCreationSource && sessionCtx.creation_source !== effectiveCreationSource) {
+      sessionCtx.creation_source = effectiveCreationSource;
+      sessionUpdated = true;
+    }
+    if (effectiveInitialRoute && sessionCtx.initial_route !== effectiveInitialRoute) {
+      sessionCtx.initial_route = effectiveInitialRoute;
+      sessionUpdated = true;
+    }
+
+    if (sessionUpdated) {
       try {
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionCtx));
       } catch (e) {}
@@ -136,8 +157,8 @@ class QaTelemetryService {
       p_session_id: sessionId,
       p_event_type: params.event_type,
       p_source: params.source,
-      p_creation_source: params.creation_source || null,
-      p_initial_route: params.initial_route || null,
+      p_creation_source: effectiveCreationSource || null,
+      p_initial_route: effectiveInitialRoute || null,
       p_turn_number: params.turn_number || 0,
       p_operation: params.operation ? params.operation.substring(0, 60) : null,
       p_result: params.result || null,

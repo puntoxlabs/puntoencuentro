@@ -244,6 +244,7 @@ export function draftToWizardState(
     tema: 'blue',
     tema_invitacion: config.invitationTheme,
     invitation_template: resolvedTemplate,
+    creation_source: 'ai',
   };
 }
 
