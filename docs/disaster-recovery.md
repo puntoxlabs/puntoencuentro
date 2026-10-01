@@ -7,10 +7,16 @@
 
 ---
 
-## 1. Alcance
+## 1. Alcance y Métricas Clave
 Este runbook establece los procedimientos concretos de mitigación y recuperación ante incidentes de datos, fallos de infraestructura o pérdida de componentes para los entornos de **PuntoEncuentro**:
 - **Producción:** `aurbicjwftjhwryhyjiq` (`puntoencuentro.com.ar`)
 - **Staging:** `wougfhfwqgmxhgvjqoua` (`staging.puntoencuentro.com.ar`)
+
+### Estado de Métricas de Recuperación
+- **RPO Production (Recovery Point Objective):** **PENDIENTE DE VERIFICACIÓN** (no asumir backups diarios ni PITR activos hasta completar la verificación manual en el Dashboard de Supabase).
+- **RTO Production (Recovery Time Objective):** **NO MEDIDO** (el tiempo de restauración ante desastre en Producción no ha sido medido y dependerá del tamaño de la base y el mecanismo disponible).
+- **RTO Replay Local (Técnico):** **34.3 segundos** (medido durante `supabase db reset --local` con las 68 migraciones aplicadas de forma secuencial sobre el stack Supabase local real).
+- **Evidencia de Reconstrucción de Schema:** Certificada al 100% (68/68 migraciones aplicadas en orden cronológico en Supabase Local Real con Docker; PGlite se considera únicamente evidencia parcial de apoyo en memoria).
 
 ---
 
