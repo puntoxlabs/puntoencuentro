@@ -20,9 +20,7 @@ export const matchAlertsService = {
         p_fecha_hasta: params.fechaHasta || null,
         p_hora_desde: params.horaDesde || null,
         p_hora_hasta: params.horaHasta || null,
-        p_activity_slug: params.activitySlug || null,
         p_expires_at: params.expiresAt || null,
-        p_metadata: params.metadata || {},
       });
 
       if (error) {
@@ -46,8 +44,6 @@ export const matchAlertsService = {
           fechaHasta: res.subscription.fecha_hasta,
           horaDesde: res.subscription.hora_desde,
           horaHasta: res.subscription.hora_hasta,
-          activitySlug: res.subscription.activity_slug,
-          metadata: res.subscription.metadata || {},
           expiresAt: res.subscription.expires_at,
           createdAt: res.subscription.created_at,
           updatedAt: res.subscription.updated_at,
@@ -85,8 +81,6 @@ export const matchAlertsService = {
         fechaHasta: row.fecha_hasta,
         horaDesde: row.hora_desde,
         horaHasta: row.hora_hasta,
-        activitySlug: row.activity_slug,
-        metadata: row.metadata || {},
         expiresAt: row.expires_at,
         createdAt: row.created_at,
         updatedAt: row.updated_at,

@@ -39,8 +39,13 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
       });
     }
   },
-  "encounter.updated.v1": async (_event, _adminClient) => {
-    // No-op en Fase 1.
+  "encounter.updated.v1": async (event, adminClient) => {
+    const encounterId = event.aggregate_id;
+    if (encounterId) {
+      await adminClient.rpc("evaluar_matching_encuentro_abierto", {
+        p_encuentro_id: encounterId,
+      });
+    }
   },
   "encounter.cancelled.v1": async (_event, _adminClient) => {
     // No-op en Fase 1.
@@ -57,7 +62,7 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
     const encounterId = payload.encounter_id || event.aggregate_id;
     const title = payload.title || "Nuevo encuentro compatible";
     const body = payload.body || `Hay un nuevo encuentro compatible: ${payload.encounter_title || "Encuentro abierto"}`;
-    const deepLink = payload.deep_link || `/encuentros/${encounterId}`;
+    const deepLink = payload.deep_link || `/?open_encounter=${encounterId}`;
     const dedupKey = payload.dedup_key || event.dedup_key;
     const expiresAt = payload.expires_at || null;
 

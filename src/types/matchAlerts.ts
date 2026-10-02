@@ -17,8 +17,6 @@ export interface MatchAlertSubscription {
   fechaHasta: string | null;
   horaDesde: string | null;
   horaHasta: string | null;
-  activitySlug: string | null;
-  metadata: Record<string, unknown>;
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -31,9 +29,7 @@ export interface CrearAlertaParams {
   fechaHasta?: string | null;
   horaDesde?: string | null;
   horaHasta?: string | null;
-  activitySlug?: string | null;
   expiresAt?: string | null;
-  metadata?: Record<string, unknown>;
 }
 
 export interface CrearAlertaResponse {

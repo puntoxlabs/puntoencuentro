@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { validateDeepLink } from '../src/lib/deepLink';
 
 describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel A - PGlite)', () => {
   let db: PGlite;
@@ -172,7 +173,7 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     }
   };
 
-  test('1. Crear alerta válida con criterios explícitos', async () => {
+  test('1. Crear alerta válida con criterios explícitos (sin activity_slug ni metadata)', async () => {
     await setAuthContext(userA, false);
 
     const res = await db.query(`
@@ -182,8 +183,7 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
         p_fecha_desde := '2026-10-10',
         p_fecha_hasta := '2026-10-20',
         p_hora_desde := '18:00:00',
-        p_hora_hasta := '22:00:00',
-        p_activity_slug := 'padel'
+        p_hora_hasta := '22:00:00'
       ) AS result;
     `);
 
@@ -195,6 +195,7 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     assert.equal(result.subscription.locality_id, 'guemes');
     assert.equal(result.subscription.fecha_desde, '2026-10-10');
     assert.equal(result.subscription.fecha_hasta, '2026-10-20');
+    assert.equal(result.subscription.expires_at, null);
   });
 
   test('2. Rechazo de anon y usuarios anónimos de Supabase', async () => {
@@ -240,12 +241,13 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     assert.equal((pauseFail.rows[0] as any).result.error, 'unauthorized');
   });
 
-  test('4. Lifecycle: pausar, reactivar y cancelar', async () => {
+  test('4. Lifecycle: pausar, reactivar y cancelar (sin renovación fija de 30 días)', async () => {
     await setAuthContext(userA, false);
     const createRes = await db.query(`
       SELECT public.crear_alerta_suscripcion_seguro(p_modalidad := 'indistinto') AS result;
     `);
     const subId = (createRes.rows[0] as any).result.subscription.id;
+    assert.equal((createRes.rows[0] as any).result.subscription.expires_at, null);
 
     // Pausar
     const pauseRes = await db.query(`
@@ -254,12 +256,16 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     assert.equal((pauseRes.rows[0] as any).result.ok, true);
     assert.equal((pauseRes.rows[0] as any).result.status, 'paused');
 
-    // Reactivar
+    // Reactivar: no inventa nueva fecha, mantiene expires_at = null
     const reactivateRes = await db.query(`
       SELECT public.reactivar_alerta_suscripcion_seguro('${subId}') AS result;
     `);
     assert.equal((reactivateRes.rows[0] as any).result.ok, true);
     assert.equal((reactivateRes.rows[0] as any).result.status, 'active');
+
+    // Confirmar en DB que expires_at sigue siendo null
+    const checkSub = await db.query(`SELECT expires_at FROM public.match_alert_subscriptions WHERE id = '${subId}';`);
+    assert.equal((checkSub.rows[0] as any).expires_at, null);
 
     // Cancelar
     const cancelRes = await db.query(`
@@ -274,6 +280,54 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     `);
     assert.equal((reactivateAfterCancel.rows[0] as any).result.ok, false);
     assert.equal((reactivateAfterCancel.rows[0] as any).result.error, 'already_cancelled');
+  });
+
+  test('4b. Política de vigencia: expiración explícita vencida rechaza reactivación y transiciona a expired', async () => {
+    await setAuthContext(userA, false);
+
+    // a) Crear con fecha futura explícita
+    const futureDate = '2026-12-31T23:59:59Z';
+    const createFuture = await db.query(`
+      SELECT public.crear_alerta_suscripcion_seguro(
+        p_modalidad := 'virtual',
+        p_expires_at := '${futureDate}'
+      ) AS result;
+    `);
+    const futureSub = (createFuture.rows[0] as any).result;
+    assert.equal(futureSub.ok, true);
+    assert.ok(futureSub.subscription.expires_at);
+
+    // b) Crear con fecha pasada debe ser rechazado
+    const createPast = await db.query(`
+      SELECT public.crear_alerta_suscripcion_seguro(
+        p_modalidad := 'virtual',
+        p_expires_at := '2026-01-01T00:00:00Z'
+      ) AS result;
+    `);
+    assert.equal((createPast.rows[0] as any).result.ok, false);
+    assert.equal((createPast.rows[0] as any).result.error, 'invalid_expiration');
+
+    // c) Reactivar alerta pausada con fecha vencida: transiciona a expired sin inventar fecha
+    const expiredSubId = '99999999-9999-9999-9999-999999999999';
+    await asAdmin(async () => {
+      await db.exec(`
+        INSERT INTO public.match_alert_subscriptions (
+          id, user_id, status, modalidad, expires_at
+        ) VALUES (
+          '${expiredSubId}', '${userA}', 'paused', 'virtual', now() - INTERVAL '2 days'
+        );
+      `);
+    });
+
+    await setAuthContext(userA, false);
+    const reactivateExpired = await db.query(`
+      SELECT public.reactivar_alerta_suscripcion_seguro('${expiredSubId}') AS result;
+    `);
+    assert.equal((reactivateExpired.rows[0] as any).result.ok, false);
+    assert.equal((reactivateExpired.rows[0] as any).result.error, 'subscription_expired');
+
+    const checkExpired = await db.query(`SELECT status FROM public.match_alert_subscriptions WHERE id = '${expiredSubId}';`);
+    assert.equal((checkExpired.rows[0] as any).status, 'expired');
   });
 
   test('5. Alerta expirada no participa en el matching', async () => {
@@ -533,7 +587,7 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     });
   });
 
-  test('12. Integración Outbox -> Inbox (Simulación Worker match.detected.v1)', async () => {
+  test('12. Integración Outbox -> Inbox (Simulación Worker match.detected.v1) + Deep Link Soportado', async () => {
     let event: any;
     let payload: any;
 
@@ -546,6 +600,14 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
       assert.ok(eventRes.rows.length > 0, 'Debe haber al menos 1 evento pendiente');
       event = eventRes.rows[0];
       payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+
+      // Validación de Deep Link seguro y compatible con las rutas reales de App.tsx
+      assert.equal(payload.deep_link, `/?open_encounter=${payload.encounter_id}`);
+      const validatedRoute = validateDeepLink(payload.deep_link);
+      assert.ok(validatedRoute, 'El deep link debe ser válido según validateDeepLink');
+      const url = new URL(payload.deep_link, 'http://localhost');
+      assert.equal(url.pathname, '/', 'La ruta debe apuntar a la ruta Home soportada en App.tsx');
+      assert.equal(url.searchParams.get('open_encounter'), payload.encounter_id);
 
       // Simulación del worker con service_role / postgres: insertar en inbox_notifications vía RPC interna
       const inboxInsert = await db.query(`
@@ -598,7 +660,7 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     });
   });
 
-  test('13. abrir_encuentro_seguro emite encounter.opened.v1 y evalúa matching automáticamente', async () => {
+  test('13. abrir_encuentro_seguro emite encounter.opened.v1 desacoplado de matching; worker evalúa asíncronamente', async () => {
     const subGuemesAuto = '12121212-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
     const encAuto = '13131313-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
@@ -632,19 +694,103 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
     assert.equal((openRes.rows[0] as any).result.ok, true);
 
     await asAdmin(async () => {
-      // Verificar que se emitió encounter.opened.v1 en el outbox
+      // 1. Verificar que se emitió encounter.opened.v1 en el outbox
       const openedEvent = await db.query(`
         SELECT * FROM public.domain_events_outbox
         WHERE event_type = 'encounter.opened.v1' AND aggregate_id = '${encAuto}';
       `);
       assert.equal(openedEvent.rows.length, 1);
 
-      // Verificar que se evaluó matching y se emitió match.detected.v1 para userA
-      const matchEvent = await db.query(`
+      // 2. Desacoplamiento: NO debe haberse emitido match.detected.v1 dentro de la transacción de abrir_encuentro_seguro
+      const matchBeforeWorker = await db.query(`
         SELECT * FROM public.domain_events_outbox
         WHERE dedup_key = 'match:${subGuemesAuto}:${encAuto}:v1';
       `);
-      assert.equal(matchEvent.rows.length, 1);
+      assert.equal(matchBeforeWorker.rows.length, 0, 'Matching no debe ejecutarse sincrónicamente en la apertura');
+
+      // 3. Simulación de ejecución del worker para encounter.opened.v1
+      await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encAuto}');`);
+
+      // 4. Ahora sí se generó match.detected.v1 para userA
+      const matchAfterWorker = await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE dedup_key = 'match:${subGuemesAuto}:${encAuto}:v1';
+      `);
+      assert.equal(matchAfterWorker.rows.length, 1);
+    });
+  });
+
+  test('14. encounter.updated.v1: mutación de criterio relevante en encuentro abierto genera evento y nuevo match', async () => {
+    const subPalermoUserB = '77777777-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    const encToUpdate = '88888888-cccc-cccc-cccc-cccccccccccc';
+
+    await asAdmin(async () => {
+      // User B tiene alerta para presencial en Palermo
+      await db.exec(`
+        INSERT INTO public.match_alert_subscriptions (
+          id, user_id, status, modalidad, locality_id
+        ) VALUES (
+          '${subPalermoUserB}', '${userB}', 'active', 'presencial', 'palermo'
+        ) ON CONFLICT (id) DO NOTHING;
+
+        -- Encuentro abierto inicialmente en Güemes (no coincide con Palermo)
+        INSERT INTO public.encuentros (
+          id, host_id, titulo, modalidad, locality_id, is_open, estado, max_participants
+        ) VALUES (
+          '${encToUpdate}', '${hostUser}', 'Encuentro Inicial Güemes', 'presencial', 'guemes', true, 'activo', 4
+        );
+      `);
+
+      // Limpiar cualquier evento previo en outbox para encToUpdate
+      await db.query(`DELETE FROM public.domain_events_outbox WHERE aggregate_id = '${encToUpdate}';`);
+
+      // Simular worker inicial: no debe haber match para subPalermoUserB
+      await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encToUpdate}');`);
+      const noMatchInitial = await db.query(`
+        SELECT * FROM public.domain_events_outbox WHERE dedup_key = 'match:${subPalermoUserB}:${encToUpdate}:v1';
+      `);
+      assert.equal(noMatchInitial.rows.length, 0, 'No debe haber match antes de la actualización a Palermo');
+
+      // 1. Cambio irrelevante: open_description no debe emitir encounter.updated.v1
+      const countBeforeIrrelevant = await db.query(`
+        SELECT COUNT(*) as count FROM public.domain_events_outbox WHERE aggregate_id = '${encToUpdate}' AND event_type = 'encounter.updated.v1';
+      `);
+      await db.query(`
+        UPDATE public.encuentros
+        SET open_description = 'Descripción modificada que no afecta matching'
+        WHERE id = '${encToUpdate}';
+      `);
+      const countAfterIrrelevant = await db.query(`
+        SELECT COUNT(*) as count FROM public.domain_events_outbox WHERE aggregate_id = '${encToUpdate}' AND event_type = 'encounter.updated.v1';
+      `);
+      assert.equal(Number((countBeforeIrrelevant.rows[0] as any).count), Number((countAfterIrrelevant.rows[0] as any).count), 'Cambios irrelevantes no deben emitir encounter.updated.v1');
+
+      // 2. Cambio relevante: actualizar localidad a 'palermo'
+      await db.query(`
+        UPDATE public.encuentros
+        SET locality_id = 'palermo'
+        WHERE id = '${encToUpdate}';
+      `);
+
+      // 3. Verificar que el trigger emitió encounter.updated.v1
+      const updatedEvents = await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE event_type = 'encounter.updated.v1' AND aggregate_id = '${encToUpdate}';
+      `);
+      assert.ok(updatedEvents.rows.length >= 1, 'Debe emitir encounter.updated.v1 tras cambio de localidad');
+
+      // 4. Simulación del worker: procesa encounter.updated.v1 y reevalúa matching
+      await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encToUpdate}');`);
+
+      // 5. Ahora sí se generó match.detected.v1 para userB (no-match -> match)
+      const matchAfterUpdate = await db.query(`
+        SELECT * FROM public.domain_events_outbox WHERE dedup_key = 'match:${subPalermoUserB}:${encToUpdate}:v1';
+      `);
+      assert.equal(matchAfterUpdate.rows.length, 1, 'Debe generarse match para User B tras mutación relevante a Palermo');
+
+      // 6. Reevaluación subsecuente: idempotencia no genera duplicados
+      const evalDuplicate = await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encToUpdate}') AS result;`);
+      assert.equal((evalDuplicate.rows[0] as any).result.matches_count, 0, 'No debe duplicar matches ya detectados');
     });
   });
 });

@@ -20,8 +20,6 @@ CREATE TABLE IF NOT EXISTS public.match_alert_subscriptions (
     fecha_hasta DATE DEFAULT NULL,
     hora_desde TIME WITHOUT TIME ZONE DEFAULT NULL,
     hora_hasta TIME WITHOUT TIME ZONE DEFAULT NULL,
-    activity_slug TEXT DEFAULT NULL,
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     expires_at TIMESTAMPTZ DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.timezone('utc', pg_catalog.now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.timezone('utc', pg_catalog.now()),
@@ -44,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_match_alerts_user_status
 
 CREATE INDEX IF NOT EXISTS idx_match_alerts_expires_at 
     ON public.match_alert_subscriptions (expires_at) 
-    WHERE status = 'active';
+    WHERE status = 'active' AND expires_at IS NOT NULL;
 
 -- Trigger automático de updated_at
 DROP TRIGGER IF EXISTS trg_match_alert_subscriptions_updated_at ON public.match_alert_subscriptions;
@@ -77,9 +75,7 @@ CREATE OR REPLACE FUNCTION public.crear_alerta_suscripcion_seguro(
     p_fecha_hasta DATE DEFAULT NULL,
     p_hora_desde TIME WITHOUT TIME ZONE DEFAULT NULL,
     p_hora_hasta TIME WITHOUT TIME ZONE DEFAULT NULL,
-    p_activity_slug TEXT DEFAULT NULL,
-    p_expires_at TIMESTAMPTZ DEFAULT NULL,
-    p_metadata JSONB DEFAULT '{}'::jsonb
+    p_expires_at TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -128,7 +124,7 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invalid_time_range');
     END IF;
 
-    -- Validar vigencia futura
+    -- Validar vigencia futura si se especificó
     IF p_expires_at IS NOT NULL AND p_expires_at <= v_now THEN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invalid_expiration');
     END IF;
@@ -142,8 +138,6 @@ BEGIN
         fecha_hasta,
         hora_desde,
         hora_hasta,
-        activity_slug,
-        metadata,
         expires_at
     ) VALUES (
         v_user_id,
@@ -154,8 +148,6 @@ BEGIN
         p_fecha_hasta,
         p_hora_desde,
         p_hora_hasta,
-        NULLIF(trim(p_activity_slug), ''),
-        COALESCE(p_metadata, '{}'::jsonb),
         p_expires_at
     )
     RETURNING * INTO v_result;
@@ -172,8 +164,6 @@ BEGIN
             'fecha_hasta', v_result.fecha_hasta,
             'hora_desde', v_result.hora_desde,
             'hora_hasta', v_result.hora_hasta,
-            'activity_slug', v_result.activity_slug,
-            'metadata', v_result.metadata,
             'expires_at', v_result.expires_at,
             'created_at', v_result.created_at,
             'updated_at', v_result.updated_at
@@ -182,8 +172,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.crear_alerta_suscripcion_seguro(TEXT, TEXT, DATE, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, TEXT, TIMESTAMPTZ, JSONB) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.crear_alerta_suscripcion_seguro(TEXT, TEXT, DATE, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, TEXT, TIMESTAMPTZ, JSONB) TO authenticated;
+REVOKE ALL ON FUNCTION public.crear_alerta_suscripcion_seguro(TEXT, TEXT, DATE, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, TIMESTAMPTZ) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.crear_alerta_suscripcion_seguro(TEXT, TEXT, DATE, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, TIMESTAMPTZ) TO authenticated;
 
 
 -- 2.2. get_mis_alertas_suscripciones_seguro
@@ -223,8 +213,6 @@ BEGIN
             'fecha_hasta', s.fecha_hasta,
             'hora_desde', s.hora_desde,
             'hora_hasta', s.hora_hasta,
-            'activity_slug', s.activity_slug,
-            'metadata', s.metadata,
             'expires_at', s.expires_at,
             'created_at', s.created_at,
             'updated_at', s.updated_at
@@ -356,6 +344,11 @@ BEGIN
     END IF;
 
     IF v_sub.expires_at IS NOT NULL AND v_sub.expires_at <= v_now THEN
+        UPDATE public.match_alert_subscriptions
+        SET status = 'expired',
+            updated_at = v_now
+        WHERE id = p_subscription_id;
+
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'subscription_expired');
     END IF;
 
@@ -539,7 +532,7 @@ BEGIN
             'zone', v_encuentro.zone_text,
             'title', 'Nuevo encuentro compatible',
             'body', 'Se publicó un encuentro que coincide con tu alerta: ' || v_encuentro.titulo,
-            'deep_link', '/encuentros/' || v_encuentro.id::text,
+            'deep_link', pg_catalog.format('/?open_encounter=%s', v_encuentro.id),
             'dedup_key', v_dedup_key,
             'expires_at', v_expires_at
         );
@@ -708,9 +701,6 @@ BEGIN
     )
     ON CONFLICT (dedup_key) DO NOTHING;
 
-    -- Evaluar matching determinístico contra suscripciones de alerta 'Avisame'
-    PERFORM public.evaluar_matching_encuentro_abierto(p_encuentro_id);
-
     RETURN json_build_object(
         'ok', true,
         'encuentro_id', p_encuentro_id,
@@ -726,5 +716,71 @@ REVOKE ALL ON FUNCTION public.abrir_encuentro_seguro(UUID, UUID, TEXT, INT, TEXT
     FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.abrir_encuentro_seguro(UUID, UUID, TEXT, INT, TEXT, TEXT)
     TO authenticated;
+
+
+-- ============================================================
+-- 4. TRIGGER: encounter.updated.v1 (Transactional Outbox)
+-- Emite evento al cambiar criterios relevantes de matching en
+-- encuentros que continúan abiertos.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.fn_trg_encounter_updated_outbox()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    -- Solo aplica si el encuentro ya estaba abierto y continúa abierto y activo
+    IF OLD.is_open = true AND NEW.is_open = true AND NEW.estado = 'activo' THEN
+        -- Evaluar si cambió algún criterio relevante de matching determinístico
+        IF (OLD.fecha IS DISTINCT FROM NEW.fecha)
+           OR (OLD.hora IS DISTINCT FROM NEW.hora)
+           OR (OLD.modalidad IS DISTINCT FROM NEW.modalidad)
+           OR (OLD.locality_id IS DISTINCT FROM NEW.locality_id) THEN
+
+            INSERT INTO public.domain_events_outbox (
+                event_type,
+                event_version,
+                aggregate_type,
+                aggregate_id,
+                actor_user_id,
+                payload,
+                dedup_key,
+                status
+            ) VALUES (
+                'encounter.updated.v1',
+                1,
+                'encounter',
+                NEW.id,
+                NEW.host_id,
+                pg_catalog.jsonb_build_object(
+                    'encounter_id', NEW.id,
+                    'host_id', NEW.host_id,
+                    'fecha', NEW.fecha,
+                    'hora', NEW.hora,
+                    'modalidad', NEW.modalidad,
+                    'locality_id', NEW.locality_id,
+                    'changes', pg_catalog.jsonb_build_object(
+                        'fecha', (OLD.fecha IS DISTINCT FROM NEW.fecha),
+                        'hora', (OLD.hora IS DISTINCT FROM NEW.hora),
+                        'modalidad', (OLD.modalidad IS DISTINCT FROM NEW.modalidad),
+                        'locality_id', (OLD.locality_id IS DISTINCT FROM NEW.locality_id)
+                    )
+                ),
+                pg_catalog.format('encounter:%s:updated:%s', NEW.id, pg_catalog.gen_random_uuid()),
+                'pending'
+            );
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_encounter_updated_outbox ON public.encuentros;
+CREATE TRIGGER trg_encounter_updated_outbox
+    AFTER UPDATE ON public.encuentros
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_trg_encounter_updated_outbox();
 
 COMMIT;
