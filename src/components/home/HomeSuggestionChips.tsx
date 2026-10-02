@@ -20,7 +20,7 @@ export const V2_SUGGESTIONS: SuggestionOption[] = [
   { label: 'Salir a caminar', prompt: 'Quiero salir a caminar con amigos el fin de semana', icon: '🥾' },
   { label: 'Festejar mi cumple', prompt: 'Quiero festejar mi cumpleaños el próximo fin de semana', icon: '🎂' },
   { label: 'Juntarnos a comer', prompt: 'Quiero juntarnos a comer unas pizzas con amigos', icon: '🍕' },
-  { label: 'Tocar música', prompt: 'Quiero juntarnos a tocar música y zapar', icon: '🎸' },
+  { label: 'Coordinar reunión', prompt: 'Quiero coordinar una reunión', icon: '🤝' },
 ];
 
 interface HomeSuggestionChipsProps {

@@ -38,7 +38,7 @@ export const FLOATING_TAGS_CATALOG: FloatingTagItem[] = [
   { id: 'caminar', text: 'Salir a caminar', emoji: '🥾', category: 'airelibre', colorScheme: 'teal', track: 'orbit' },
   { id: 'cafe', text: 'Encontrarnos a tomar un café', emoji: '☕', category: 'social', colorScheme: 'amber', track: 'mobile-top' },
   { id: 'previa', text: 'Hacer una previa', emoji: '🍻', category: 'social', colorScheme: 'coral', track: 'mobile-mid' },
-  { id: 'musica', text: 'Tocar música', emoji: '🎸', category: 'cultura', colorScheme: 'purple', track: 'right' },
+  { id: 'reunion', text: 'Coordinar reunión', emoji: '🤝', category: 'social', colorScheme: 'purple', track: 'right' },
 ];
 
 export const ANIMATED_PHOTOS_CATALOG: AnimatedPhotoItem[] = [
@@ -147,7 +147,7 @@ export const REFINADO_TAGS_CATALOG: RefinadoTagItem[] = [
 
   // 6. Balanceo inferior derecho
   { id: 'cumple', text: 'Organizar un cumpleaños', emoji: '🎂', colorScheme: 'rose', track: 'refinado-lower-sway', delay: '-9s' },
-  { id: 'musica', text: 'Tocar música', emoji: '🎸', colorScheme: 'purple', track: 'refinado-lower-sway', delay: '-18s' },
+  { id: 'reunion', text: 'Coordinar reunión', emoji: '🤝', colorScheme: 'purple', track: 'refinado-lower-sway', delay: '-18s' },
 ];
 
 export interface RefinadoPhotoItem {
