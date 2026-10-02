@@ -252,6 +252,104 @@ describe('Fase 1: Infraestructura Base de Notificaciones e Inbox (Tests Nivel A 
     assert.equal(row.last_error, 'Recovered from abandoned worker');
   });
 
+  test('Outbox 9: Simulación de wake-up primario perdido — reconciliar_domain_events_seguro detecta pending y reactiva procesamiento', async () => {
+    await setServiceRole();
+    const aggregateId = '99999999-9999-9999-9999-999999999999';
+    // 1. Insertar evento (simulando que la señal HTTP no llegó al worker)
+    const insRes = await db.query(`
+      INSERT INTO public.domain_events_outbox (
+        event_type, aggregate_type, aggregate_id, dedup_key, status
+      ) VALUES (
+        'encounter.opened.v1', 'encounter', '${aggregateId}', 'dedup:lost_wakeup_test', 'pending'
+      ) RETURNING id;
+    `);
+    const eventId = (insRes.rows[0] as any).id;
+
+    // 2. El evento queda en pending sin haber sido reclamado aún.
+    // 3. El cron ejecuta reconciliación periódica.
+    const cronRes = await db.query(`
+      SELECT public.reconciliar_domain_events_seguro() AS result;
+    `);
+    const cronResult = (cronRes.rows[0] as any).result;
+    assert.equal(cronResult.ok, true);
+    // Debe haber detectado el evento pending listo para procesar
+    assert.ok(cronResult.pending_events_count >= 1);
+
+    // 4. El worker reclama y procesa el evento
+    const claimRes = await db.query(`
+      SELECT public.claim_domain_events_seguro(10, 'worker-recovery-test') AS result;
+    `);
+    const claimedList = (claimRes.rows[0] as any).result.events;
+    const foundEvent = claimedList.find((e: any) => e.id === eventId);
+    assert.ok(foundEvent !== undefined, 'El evento no debe quedar huérfano y debe ser reclamado');
+
+    // 5. Worker finaliza el evento
+    const doneRes = await db.query(`
+      SELECT public.completar_domain_event_seguro('${eventId}') AS result;
+    `);
+    assert.equal((doneRes.rows[0] as any).result.ok, true);
+
+    const check = await db.query(`
+      SELECT status FROM public.domain_events_outbox WHERE id = '${eventId}';
+    `);
+    assert.equal((check.rows[0] as any).status, 'processed');
+  });
+
+  test('Outbox 10: Semántica exacta de attempt_count y transición a failed tras agotar max_attempts', async () => {
+    await setServiceRole();
+    const aggregateId = '10101010-1010-1010-1010-101010101010';
+    // Evento con max_attempts = 2
+    const insRes = await db.query(`
+      INSERT INTO public.domain_events_outbox (
+        event_type, aggregate_type, aggregate_id, dedup_key, status, max_attempts
+      ) VALUES (
+        'encounter.opened.v1', 'encounter', '${aggregateId}', 'dedup:attempts_exact', 'pending', 2
+      ) RETURNING id;
+    `);
+    const eventId = (insRes.rows[0] as any).id;
+
+    // Intento 1: claim incrementa attempt_count a 1
+    await db.query(`SELECT public.claim_domain_events_seguro(10, 'worker-test');`);
+    const check1 = await db.query(`SELECT attempt_count, status FROM public.domain_events_outbox WHERE id = '${eventId}';`);
+    assert.equal((check1.rows[0] as any).attempt_count, 1);
+    assert.equal((check1.rows[0] as any).status, 'processing');
+
+    // Falla intento 1 (retryable) -> status vuelve a pending
+    await db.query(`SELECT public.fallar_domain_event_seguro('${eventId}', 'Fallo 1', true, 1);`);
+    const check2 = await db.query(`SELECT attempt_count, status FROM public.domain_events_outbox WHERE id = '${eventId}';`);
+    assert.equal((check2.rows[0] as any).attempt_count, 1);
+    assert.equal((check2.rows[0] as any).status, 'pending');
+
+    // Forzar available_at a now para simular expiración del backoff y permitir Intento 2
+    await db.query(`UPDATE public.domain_events_outbox SET available_at = timezone('utc', now()) WHERE id = '${eventId}';`);
+
+    // Intento 2: claim incrementa attempt_count a 2
+    await db.query(`SELECT public.claim_domain_events_seguro(10, 'worker-test');`);
+    const check3 = await db.query(`SELECT attempt_count, status FROM public.domain_events_outbox WHERE id = '${eventId}';`);
+    assert.equal((check3.rows[0] as any).attempt_count, 2);
+    assert.equal((check3.rows[0] as any).status, 'processing');
+
+    // Falla intento 2 -> al ser attempt_count >= max_attempts (2 >= 2), transiciona a failed definitivo
+    await db.query(`SELECT public.fallar_domain_event_seguro('${eventId}', 'Fallo 2 final', true, 1);`);
+    const check4 = await db.query(`SELECT attempt_count, status, last_error FROM public.domain_events_outbox WHERE id = '${eventId}';`);
+    assert.equal((check4.rows[0] as any).attempt_count, 2);
+    assert.equal((check4.rows[0] as any).status, 'failed');
+    assert.equal((check4.rows[0] as any).last_error, 'Fallo 2 final');
+  });
+
+  test('Outbox 11: Parámetros operativos configurables con defaults en reconciliación', async () => {
+    await setServiceRole();
+    // Probar invocación con parámetros explícitos modificados
+    const res = await db.query(`
+      SELECT public.reconciliar_domain_events_seguro(INTERVAL '1 minute', INTERVAL '7 days') AS result;
+    `);
+    const result = (res.rows[0] as any).result;
+    assert.equal(result.ok, true);
+    assert.ok(typeof result.recovered_events_count === 'number');
+    assert.ok(typeof result.pending_events_count === 'number');
+    assert.ok(typeof result.purged_notifications_count === 'number');
+  });
+
   // ============================================================
   // BLOQUE 2: INBOX NOTIFICATIONS & IDEMPOTENCIA
   // ============================================================

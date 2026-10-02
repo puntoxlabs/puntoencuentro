@@ -482,10 +482,12 @@ GRANT EXECUTE ON FUNCTION public.completar_domain_event_seguro(UUID) TO service_
 
 -- 4.3. fallar_domain_event_seguro
 -- Registra fallo en el procesamiento de un evento. Si es retryable y no superó intentos, aplica backoff exponencial.
+-- p_base_backoff_seconds: Parámetro operativo configurable (default 5 segundos).
 CREATE OR REPLACE FUNCTION public.fallar_domain_event_seguro(
     p_event_id UUID,
     p_error_message TEXT,
-    p_is_retryable BOOLEAN DEFAULT true
+    p_is_retryable BOOLEAN DEFAULT true,
+    p_base_backoff_seconds INT DEFAULT 5
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -496,6 +498,7 @@ DECLARE
     v_event RECORD;
     v_new_status TEXT;
     v_next_available TIMESTAMPTZ;
+    v_backoff_base INT := GREATEST(COALESCE(p_base_backoff_seconds, 5), 1);
     v_backoff_seconds INT;
     v_clean_error TEXT;
 BEGIN
@@ -517,8 +520,8 @@ BEGIN
 
     IF p_is_retryable AND v_event.attempt_count < v_event.max_attempts THEN
         v_new_status := 'pending';
-        -- Backoff exponencial: 5 * (2 ^ attempt_count) segundos
-        v_backoff_seconds := 5 * (2 ^ LEAST(v_event.attempt_count, 10));
+        -- Backoff exponencial operativo: base * (2 ^ attempt_count) segundos
+        v_backoff_seconds := v_backoff_base * (2 ^ LEAST(v_event.attempt_count, 10));
         v_next_available := timezone('utc', now()) + (v_backoff_seconds || ' seconds')::INTERVAL;
     ELSE
         v_new_status := 'failed';
@@ -541,8 +544,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.fallar_domain_event_seguro(UUID, TEXT, BOOLEAN) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.fallar_domain_event_seguro(UUID, TEXT, BOOLEAN) TO service_role;
+REVOKE ALL ON FUNCTION public.fallar_domain_event_seguro(UUID, TEXT, BOOLEAN, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fallar_domain_event_seguro(UUID, TEXT, BOOLEAN, INT) TO service_role;
 
 
 -- 4.4. insertar_inbox_notification_seguro
@@ -612,60 +615,71 @@ GRANT EXECUTE ON FUNCTION public.insertar_inbox_notification_seguro(UUID, TEXT, 
 
 
 -- ============================================================
--- 5. RECONCILIACIÓN Y MANTENIMIENTO: reconciliar_domain_events_seguro
--- Recupera eventos en 'processing' abandonados y purga notificaciones expiradas.
+-- 5. RECONCILIACIÓN Y WAKE-UP DE DOMAIN EVENTS
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.reconciliar_domain_events_seguro()
-RETURNS JSONB
+
+-- 5.1. get_domain_events_worker_config
+-- Helper interno seguro para resolver URL y Secret dedicado del worker.
+-- Prioriza Supabase Vault si existe; fallback a app.settings.
+CREATE OR REPLACE FUNCTION public.get_domain_events_worker_config(
+    OUT o_url TEXT,
+    OUT o_secret TEXT
+)
+RETURNS RECORD
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-DECLARE
-    v_stuck_threshold TIMESTAMPTZ := timezone('utc', now()) - INTERVAL '5 minutes';
-    v_recovered_count INT := 0;
-    v_purged_count INT := 0;
-    v_retention_threshold TIMESTAMPTZ := timezone('utc', now()) - INTERVAL '30 days';
 BEGIN
-    -- 1. Recuperar eventos 'processing' colgados hace más de 5 minutos
-    WITH recovered AS (
-        UPDATE public.domain_events_outbox
-        SET status = 'pending',
-            available_at = timezone('utc', now()),
-            last_error = 'Recovered from abandoned worker'
-        WHERE status = 'processing'
-          AND processing_started_at < v_stuck_threshold
-        RETURNING id
-    )
-    SELECT COUNT(*) INTO v_recovered_count FROM recovered;
+    o_url := NULL;
+    o_secret := NULL;
 
-    -- 2. Purgar físicamente notificaciones expiradas que superaron la retención técnica (30 días)
-    WITH purged AS (
-        DELETE FROM public.inbox_notifications
-        WHERE expires_at < v_retention_threshold
-        RETURNING id
-    )
-    SELECT COUNT(*) INTO v_purged_count FROM purged;
+    -- 1. Intentar leer desde Supabase Vault de forma segura si la extensión existe
+    BEGIN
+        IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'supabase_vault') 
+           OR EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'vault') THEN
+            SELECT decrypted_secret INTO o_url 
+            FROM vault.decrypted_secrets 
+            WHERE name = 'domain_events_worker_url' LIMIT 1;
 
-    RETURN pg_catalog.jsonb_build_object(
-        'ok', true,
-        'recovered_events_count', v_recovered_count,
-        'purged_notifications_count', v_purged_count
-    );
+            SELECT decrypted_secret INTO o_secret 
+            FROM vault.decrypted_secrets 
+            WHERE name = 'domain_events_worker_secret' LIMIT 1;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+
+    -- 2. Fallback a current_setting (app.settings.*) si Vault no tiene los valores o no está disponible
+    IF o_url IS NULL OR o_url = '' THEN
+        BEGIN
+            o_url := current_setting('app.settings.domain_events_worker_url', true);
+        EXCEPTION WHEN OTHERS THEN
+            o_url := NULL;
+        END;
+    END IF;
+
+    IF o_secret IS NULL OR o_secret = '' THEN
+        BEGIN
+            o_secret := current_setting('app.settings.domain_events_worker_secret', true);
+        EXCEPTION WHEN OTHERS THEN
+            o_secret := NULL;
+        END;
+    END IF;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.reconciliar_domain_events_seguro() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.reconciliar_domain_events_seguro() TO service_role;
+REVOKE ALL ON FUNCTION public.get_domain_events_worker_config() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_domain_events_worker_config() TO service_role;
 
 
--- ============================================================
--- 6. WAKE-UP ASÍNCRONO VIA pg_net (No bloqueante)
--- Dispara una señal HTTP POST asíncrona hacia el worker Edge Function
+-- 5.2. enviar_domain_events_wakeup
+-- Dispara una señal asíncrona HTTP POST no bloqueante mediante pg_net hacia el worker Edge Function.
 -- El fallo de red o la falta de configuración NUNCA aborta la transacción principal.
--- ============================================================
-CREATE OR REPLACE FUNCTION public.trigger_domain_events_outbox_wakeup()
-RETURNS TRIGGER
+CREATE OR REPLACE FUNCTION public.enviar_domain_events_wakeup(
+    p_source TEXT DEFAULT 'direct'
+)
+RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
@@ -681,20 +695,15 @@ BEGIN
     ) INTO v_has_pg_net;
 
     IF NOT v_has_pg_net THEN
-        RETURN NEW;
+        RETURN false;
     END IF;
 
-    -- 2. Obtener URL y Secret desde variables de configuración o vault de forma segura
-    BEGIN
-        v_url := current_setting('app.settings.domain_events_worker_url', true);
-        v_secret := current_setting('app.settings.domain_events_worker_secret', true);
-    EXCEPTION WHEN OTHERS THEN
-        v_url := NULL;
-        v_secret := NULL;
-    END;
+    -- 2. Resolver configuración segura
+    SELECT o_url, o_secret INTO v_url, v_secret 
+    FROM public.get_domain_events_worker_config();
 
     IF v_url IS NULL OR v_url = '' THEN
-        RETURN NEW;
+        RETURN false;
     END IF;
 
     -- 3. Despachar petición HTTP asíncrona no bloqueante
@@ -706,16 +715,106 @@ BEGIN
                 'x-worker-secret', COALESCE(v_secret, '')
             ),
             body := jsonb_build_object(
-                'source', 'domain_events_outbox_wakeup',
+                'source', p_source,
                 'timestamp', timezone('utc', now())
             ),
             timeout_milliseconds := 5000
         );
+        RETURN true;
     EXCEPTION WHEN OTHERS THEN
         -- Fail-safe: error en wake-up NUNCA debe comprometer la transacción de dominio
-        RAISE WARNING 'trigger_domain_events_outbox_wakeup failed: %', SQLERRM;
+        RAISE WARNING 'enviar_domain_events_wakeup (%) failed: %', p_source, SQLERRM;
+        RETURN false;
     END;
+END;
+$$;
 
+REVOKE ALL ON FUNCTION public.enviar_domain_events_wakeup(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.enviar_domain_events_wakeup(TEXT) TO service_role;
+
+
+-- 5.3. reconciliar_domain_events_seguro
+-- Recupera eventos en 'processing' colgados, detecta eventos 'pending' sin procesar,
+-- despacha una señal de wake-up de contingencia hacia el worker si hay trabajo listo,
+-- y purga notificaciones expiradas tras superar la retención técnica.
+-- Parámetros operativos con defaults modificables (no contratos de producto).
+CREATE OR REPLACE FUNCTION public.reconciliar_domain_events_seguro(
+    p_stuck_interval INTERVAL DEFAULT INTERVAL '5 minutes',
+    p_retention_interval INTERVAL DEFAULT INTERVAL '30 days'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_stuck_interval INTERVAL := COALESCE(p_stuck_interval, INTERVAL '5 minutes');
+    v_retention_interval INTERVAL := COALESCE(p_retention_interval, INTERVAL '30 days');
+    v_stuck_threshold TIMESTAMPTZ := timezone('utc', now()) - v_stuck_interval;
+    v_retention_threshold TIMESTAMPTZ := timezone('utc', now()) - v_retention_interval;
+    v_recovered_count INT := 0;
+    v_pending_count INT := 0;
+    v_wakeup_dispatched BOOLEAN := false;
+    v_purged_count INT := 0;
+BEGIN
+    -- 1. Recuperar eventos 'processing' colgados hace más del intervalo configurado
+    WITH recovered AS (
+        UPDATE public.domain_events_outbox
+        SET status = 'pending',
+            available_at = timezone('utc', now()),
+            last_error = 'Recovered from abandoned worker'
+        WHERE status = 'processing'
+          AND processing_started_at < v_stuck_threshold
+        RETURNING id
+    )
+    SELECT COUNT(*) INTO v_recovered_count FROM recovered;
+
+    -- 2. Detectar eventos 'pending' listos para procesar (incluyendo aquellos cuyo wake-up HTTP se perdió)
+    SELECT COUNT(*) INTO v_pending_count
+    FROM public.domain_events_outbox
+    WHERE status = 'pending'
+      AND available_at <= timezone('utc', now());
+
+    -- 3. Si hay eventos listos o recuperados, reactivar el worker mediante señal de contingencia
+    IF v_pending_count > 0 OR v_recovered_count > 0 THEN
+        v_wakeup_dispatched := public.enviar_domain_events_wakeup('reconciliation_cron');
+    END IF;
+
+    -- 4. Purgar físicamente notificaciones expiradas que superaron la retención técnica
+    WITH purged AS (
+        DELETE FROM public.inbox_notifications
+        WHERE expires_at < v_retention_threshold
+        RETURNING id
+    )
+    SELECT COUNT(*) INTO v_purged_count FROM purged;
+
+    RETURN pg_catalog.jsonb_build_object(
+        'ok', true,
+        'recovered_events_count', v_recovered_count,
+        'pending_events_count', v_pending_count,
+        'wakeup_dispatched', v_wakeup_dispatched,
+        'purged_notifications_count', v_purged_count
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reconciliar_domain_events_seguro(INTERVAL, INTERVAL) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reconciliar_domain_events_seguro(INTERVAL, INTERVAL) TO service_role;
+
+
+-- ============================================================
+-- 6. WAKE-UP ASÍNCRONO VIA TRIGGER (AFTER INSERT ON OUTBOX)
+-- Dispara una señal HTTP POST asíncrona hacia el worker Edge Function.
+-- El fallo de red o la falta de configuración NUNCA aborta la transacción principal.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.trigger_domain_events_outbox_wakeup()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    PERFORM public.enviar_domain_events_wakeup('outbox_insert');
     RETURN NEW;
 END;
 $$;
@@ -729,6 +828,7 @@ CREATE TRIGGER trg_domain_events_outbox_wakeup
 
 -- ============================================================
 -- 7. RECONCILIACIÓN PERIÓDICA VIA pg_cron (Si está disponible)
+-- Intervalo operativo modificable (configuración inicial: cada 2 minutos).
 -- ============================================================
 DO $$
 BEGIN
@@ -740,7 +840,7 @@ BEGIN
             NULL;
         END;
 
-        -- Programar reconciliación cada 2 minutos
+        -- Programar reconciliación (frecuencia operacional de contingencia)
         PERFORM cron.schedule(
             'reconciliar_domain_events_job',
             '*/2 * * * *',
