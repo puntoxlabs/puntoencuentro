@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Check, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from './types';
+import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { openEncountersService } from '@/services/openEncountersService';
 import './ZoneSelectorModal.css';
 
@@ -41,18 +42,7 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
             setLocalidades(data);
           } else {
             // Fallback catálogo local si está offline
-            setLocalidades([
-              { id: 'guemes', nombre: 'Güemes', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 1 },
-              { id: 'constitucion', nombre: 'Constitución', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 2 },
-              { id: 'costa', nombre: 'La Costa', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 3 },
-              { id: 'centro', nombre: 'Centro', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 4 },
-              { id: 'mitre', nombre: 'Plaza Mitre', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 5 },
-              { id: 'palermo', nombre: 'Palermo', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 6 },
-              { id: 'belgrano', nombre: 'Belgrano', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 7 },
-              { id: 'caballito', nombre: 'Caballito', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 8 },
-              { id: 'vicente-lopez', nombre: 'Vicente López', ciudad: 'Buenos Aires', zona: 'GBA Norte', pais: 'AR', orden: 9 },
-              { id: 'villa-urquiza', nombre: 'Villa Urquiza', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 10 },
-            ]);
+            setLocalidades(DEFAULT_LOCALIDADES);
           }
           setLoading(false);
         }

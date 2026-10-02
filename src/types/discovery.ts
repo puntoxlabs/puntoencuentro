@@ -22,6 +22,8 @@ export interface UnifiedDiscoveryFilter {
 export interface UnifiedDiscoveryState {
   encounters: OpenEncounterSummary[];
   intentions: PublicIntencionSummary[];
+  secondaryEncounters: OpenEncounterSummary[];
+  secondaryIntentions: PublicIntencionSummary[];
   loading: boolean;
   error: string | null;
   encountersError: string | null;

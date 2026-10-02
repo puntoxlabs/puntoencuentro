@@ -1,26 +1,34 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { OpenEncounterSummary } from './types';
+import type { OpenEncounterSummary, Localidad } from './types';
 import type { PublicIntencionSummary } from '@/types/intenciones';
 import { OPEN_ENCOUNTERS_DEMO } from './demoData';
+import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { HomeOpenEncounterCard } from './HomeOpenEncounterCard';
 import { HomeOpenEncounterDetailSheet } from './HomeOpenEncounterDetailSheet';
 import { ZoneSelectorModal } from './ZoneSelectorModal';
 import { PublicIntencionCard } from '../discovery/PublicIntencionCard';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { openEncountersService } from '@/services/openEncountersService';
-import { useUnifiedDiscovery } from '@/hooks/useUnifiedDiscovery';
+import {
+  useUnifiedDiscovery,
+  OTHER_ZONES_SUGGESTION_THRESHOLD,
+  MAX_OTHER_ZONE_SUGGESTIONS,
+} from '@/hooks/useUnifiedDiscovery';
 import { useAuth } from '@/contexts/AuthContext';
 import './HomeOpenEncounters.css';
 
 export const PENDING_INTENTION_INTEREST_KEY = 'puntoencuentro_pending_intention_interest';
+export { OTHER_ZONES_SUGGESTION_THRESHOLD, MAX_OTHER_ZONE_SUGGESTIONS };
 
 export type DiscoveryTab = 'todo' | 'encuentros' | 'intenciones';
 
 export interface HomeOpenEncountersProps {
   encounters?: OpenEncounterSummary[];
   intentions?: PublicIntencionSummary[];
+  secondaryEncounters?: OpenEncounterSummary[];
+  secondaryIntentions?: PublicIntencionSummary[];
   selectedLocalityIds?: string[];
   noZonesConfigured?: boolean;
   onOpenCreate?: () => void;
@@ -39,6 +47,8 @@ export interface HomeOpenEncountersProps {
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   encounters: propEncounters,
   intentions: propIntentions,
+  secondaryEncounters: propSecondaryEncounters,
+  secondaryIntentions: propSecondaryIntentions,
   selectedLocalityIds: propLocalityIds,
   noZonesConfigured = false,
   onOpenCreate,
@@ -65,6 +75,21 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const hasProcessedPendingInterestRef = useRef(false);
 
+  // Catálogo activo para reconciliación de preferencias stale y cálculo de otras macrozonas
+  const [activeCatalogue, setActiveCatalogue] = useState<Localidad[]>(DEFAULT_LOCALIDADES);
+
+  useEffect(() => {
+    let mounted = true;
+    openEncountersService.getLocalidades().then((data) => {
+      if (mounted && data && data.length > 0) {
+        setActiveCatalogue(data);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Zonas del usuario (prop o cargadas de service)
   const [userZones, setUserZones] = useState<string[]>(propLocalityIds || []);
 
@@ -80,10 +105,26 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   }, [propLocalityIds]);
 
+  // Reconciliación stale: savedZones ∩ activeCatalogue = effectiveZones
+  const effectiveZones = useMemo(() => {
+    if (!userZones || userZones.length === 0) return [];
+    return userZones.filter((id) => activeCatalogue.some((loc) => loc.id === id));
+  }, [userZones, activeCatalogue]);
+
+  // Otras macrozonas activas para Discovery secundario
+  const otherActiveZoneIds = useMemo(() => {
+    if (effectiveZones.length === 0) return [];
+    return activeCatalogue
+      .map((l) => l.id)
+      .filter((id) => !effectiveZones.includes(id));
+  }, [effectiveZones, activeCatalogue]);
+
   // Hook central de Discovery Unificado
   const {
     encounters: hookEncounters,
     intentions: hookIntentions,
+    secondaryEncounters: hookSecondaryEncounters,
+    secondaryIntentions: hookSecondaryIntentions,
     loading: hookLoading,
     error: hookError,
     encountersError,
@@ -91,7 +132,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     refresh,
     setIntentionInterest,
   } = useUnifiedDiscovery({
-    localityIds: userZones.length > 0 ? userZones : undefined,
+    localityIds: effectiveZones.length > 0 ? effectiveZones : undefined,
+    otherActiveLocalityIds: otherActiveZoneIds.length > 0 ? otherActiveZoneIds : undefined,
     enabled: propEncounters === undefined && propIntentions === undefined,
   });
 
@@ -117,20 +159,52 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return hookIntentions || [];
   }, [propIntentions, hookIntentions]);
 
-  // Filtrado por zonas seleccionadas
+  // Filtrado por zonas seleccionadas efectivas
   const visibleEncounters = useMemo(() => {
     if (!liveEncounters || liveEncounters.length === 0) return [];
-    if (!userZones || userZones.length === 0) return liveEncounters;
-    return liveEncounters.filter((e) => userZones.includes(e.localityId));
-  }, [liveEncounters, userZones]);
+    if (!effectiveZones || effectiveZones.length === 0) return liveEncounters;
+    return liveEncounters.filter((e) => effectiveZones.includes(e.localityId));
+  }, [liveEncounters, effectiveZones]);
 
   const visibleIntentions = useMemo(() => {
     if (!liveIntentions || liveIntentions.length === 0) return [];
-    if (!userZones || userZones.length === 0) return liveIntentions;
+    if (!effectiveZones || effectiveZones.length === 0) return liveIntentions;
     return liveIntentions.filter(
-      (i) => i.modalidad === 'virtual' || (i.locality_id && userZones.includes(i.locality_id))
+      (i) => i.modalidad === 'virtual' || (i.locality_id && effectiveZones.includes(i.locality_id))
     );
-  }, [liveIntentions, userZones]);
+  }, [liveIntentions, effectiveZones]);
+
+  // Sugerencias secundarias de otras macrozonas
+  const liveSecondaryEncounters = useMemo<OpenEncounterSummary[]>(() => {
+    if (propSecondaryEncounters !== undefined) return propSecondaryEncounters;
+    return hookSecondaryEncounters || [];
+  }, [propSecondaryEncounters, hookSecondaryEncounters]);
+
+  const liveSecondaryIntentions = useMemo<PublicIntencionSummary[]>(() => {
+    if (propSecondaryIntentions !== undefined) return propSecondaryIntentions;
+    return hookSecondaryIntentions || [];
+  }, [propSecondaryIntentions, hookSecondaryIntentions]);
+
+  const visibleSecondaryEncounters = useMemo(() => {
+    if (effectiveZones.length === 0) return [];
+    const primaryIds = new Set(visibleEncounters.map((e) => e.id));
+    return liveSecondaryEncounters
+      .filter((e) => !effectiveZones.includes(e.localityId) && !primaryIds.has(e.id))
+      .slice(0, MAX_OTHER_ZONE_SUGGESTIONS);
+  }, [effectiveZones, visibleEncounters, liveSecondaryEncounters]);
+
+  const visibleSecondaryIntentions = useMemo(() => {
+    if (effectiveZones.length === 0) return [];
+    const primaryIds = new Set(visibleIntentions.map((i) => i.id));
+    return liveSecondaryIntentions
+      .filter(
+        (i) =>
+          i.modalidad !== 'virtual' &&
+          Boolean(i.locality_id && !effectiveZones.includes(i.locality_id)) &&
+          !primaryIds.has(i.id)
+      )
+      .slice(0, MAX_OTHER_ZONE_SUGGESTIONS);
+  }, [effectiveZones, visibleIntentions, liveSecondaryIntentions]);
 
   // ── RECUPERACIÓN DE INTERÉS PENDIENTE POST-OAUTH ──
   useEffect(() => {
@@ -448,6 +522,45 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     );
   };
 
+  // Renderizado del bloque secundario de Discovery: Otras macrozonas
+  const renderSecondarySection = (
+    encList: OpenEncounterSummary[],
+    intList: PublicIntencionSummary[]
+  ) => {
+    const hasItems = encList.length > 0 || intList.length > 0;
+    if (!hasItems) return null;
+
+    return (
+      <div className="pe-discovery-secondary-block" data-testid="secondary-suggestions-block">
+        <div className="pe-discovery-secondary-header">
+          <h4 className="pe-discovery-secondary-title">
+            {t('open_encounters.secondary_title', { defaultValue: 'También puede interesarte' })}
+          </h4>
+          <p className="pe-discovery-secondary-subtitle">
+            {t('open_encounters.secondary_context', { defaultValue: 'En otras zonas de Mar del Plata' })}
+          </p>
+        </div>
+
+        <div className="pe-discovery-secondary-cards">
+          {encList.map((encounter) => (
+            <div key={encounter.id} className="pe-discovery-secondary-item">
+              <HomeOpenEncounterCard encounter={encounter} onClick={handleCardClick} />
+            </div>
+          ))}
+          {intList.map((intencion) => (
+            <div key={intencion.id} className="pe-discovery-secondary-item">
+              <PublicIntencionCard
+                intencion={intencion}
+                onInterestClick={handleInterestClick}
+                isLoading={actionLoadingId === intencion.id}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Error general: ambas fuentes fallaron
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
@@ -468,7 +581,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             <MapPin size={11} aria-hidden="true" />
             <span>
               {t('open_encounters.subtitle_zones', { defaultValue: 'En tus zonas' })}
-              {userZones.length > 0 ? ` (${userZones.length})` : ''}
+              {effectiveZones.length > 0 ? ` (${effectiveZones.length})` : ''}
             </span>
           </button>
         </div>
@@ -532,26 +645,44 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       ) : (
         <>
           {/* Tab: Todo */}
-          {discoveryTab === 'todo' && (
-            <div className="pe-discovery-groups">
-              <div className="pe-discovery-group">
-                <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
-                {renderEncountersGroup()}
-              </div>
+          {discoveryTab === 'todo' && (() => {
+            const primaryTotal = visibleEncounters.length + visibleIntentions.length;
+            const secEnc = visibleSecondaryEncounters.slice(0, MAX_OTHER_ZONE_SUGGESTIONS);
+            const remainingSlots = Math.max(0, MAX_OTHER_ZONE_SUGGESTIONS - secEnc.length);
+            const secInt = visibleSecondaryIntentions.slice(0, remainingSlots);
+            const hasSecondary = secEnc.length > 0 || secInt.length > 0;
+            const showSecondary =
+              effectiveZones.length > 0 &&
+              primaryTotal < OTHER_ZONES_SUGGESTION_THRESHOLD &&
+              hasSecondary;
 
-              <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
-                <h3 className="pe-discovery-subtitle">
-                  {t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
-                </h3>
-                {renderIntentionsGroup()}
+            return (
+              <div className="pe-discovery-groups">
+                <div className="pe-discovery-group">
+                  <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
+                  {renderEncountersGroup()}
+                </div>
+
+                <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
+                  <h3 className="pe-discovery-subtitle">
+                    {t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
+                  </h3>
+                  {renderIntentionsGroup()}
+                </div>
+
+                {showSecondary && renderSecondarySection(secEnc, secInt)}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Tab: Encuentros */}
           {discoveryTab === 'encuentros' && (
             <div className="pe-discovery-group">
               {renderEncountersGroup()}
+              {effectiveZones.length > 0 &&
+                visibleEncounters.length < OTHER_ZONES_SUGGESTION_THRESHOLD &&
+                visibleSecondaryEncounters.length > 0 &&
+                renderSecondarySection(visibleSecondaryEncounters, [])}
             </div>
           )}
 
@@ -559,6 +690,10 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           {discoveryTab === 'intenciones' && (
             <div className="pe-discovery-group">
               {renderIntentionsGroup()}
+              {effectiveZones.length > 0 &&
+                visibleIntentions.length < OTHER_ZONES_SUGGESTION_THRESHOLD &&
+                visibleSecondaryIntentions.length > 0 &&
+                renderSecondarySection([], visibleSecondaryIntentions)}
             </div>
           )}
         </>
@@ -575,7 +710,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       <ZoneSelectorModal
         isOpen={isZoneModalOpen}
         onClose={() => setIsZoneModalOpen(false)}
-        selectedLocalityIds={userZones}
+        selectedLocalityIds={effectiveZones}
         onSave={handleSaveZones}
       />
 

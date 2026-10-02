@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, MapPin, Users, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from '@/components/home/openEncounters/types';
+import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { openEncountersService } from '@/services/openEncountersService';
 import './OpenEncounterPublishModal.css';
 
@@ -43,15 +44,10 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           setLocalityId(data[0].id);
         }
       } else {
-        setLocalidades([
-          { id: 'guemes', nombre: 'Güemes', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 1 },
-          { id: 'constitucion', nombre: 'Constitución', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 2 },
-          { id: 'costa', nombre: 'La Costa', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 3 },
-          { id: 'centro', nombre: 'Centro', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 4 },
-          { id: 'mitre', nombre: 'Plaza Mitre', ciudad: 'Mar del Plata', zona: 'Costa Atlántica', pais: 'AR', orden: 5 },
-          { id: 'palermo', nombre: 'Palermo', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 6 },
-          { id: 'belgrano', nombre: 'Belgrano', ciudad: 'Buenos Aires', zona: 'CABA', pais: 'AR', orden: 7 },
-        ]);
+        setLocalidades(DEFAULT_LOCALIDADES);
+        if (!localityId) {
+          setLocalityId(DEFAULT_LOCALIDADES[0].id);
+        }
       }
     });
 

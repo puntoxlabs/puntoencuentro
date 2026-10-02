@@ -354,3 +354,45 @@
   padding: 1rem 1.25rem;
   background-color: #fafbfc;
 }
+
+/* Bloque secundario de Discovery: Otras macrozonas */
+.pe-discovery-secondary-block {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px dashed rgba(203, 213, 225, 0.8);
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.pe-discovery-secondary-header {
+  margin-bottom: 0.75rem;
+}
+
+.pe-discovery-secondary-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  letter-spacing: -0.01em;
+}
+
+.pe-discovery-secondary-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant, #64748b);
+}
+
+.pe-discovery-secondary-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .pe-discovery-secondary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+  }
+}
