@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Pause, Play } from 'lucide-react';
 import './HomeRotatingPhrase.css';
 
 export const DEFAULT_ROTATING_PHRASES = [
@@ -27,7 +26,6 @@ export const HomeRotatingPhrase: React.FC<HomeRotatingPhraseProps> = ({
   onPhraseClick,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isManualPaused, setIsManualPaused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -62,7 +60,7 @@ export const HomeRotatingPhrase: React.FC<HomeRotatingPhraseProps> = ({
 
   // Main timer
   useEffect(() => {
-    if (prefersReducedMotion || isManualPaused || isPausedByInput || isHovered) {
+    if (prefersReducedMotion || isPausedByInput || isHovered) {
       return;
     }
 
@@ -80,15 +78,10 @@ export const HomeRotatingPhrase: React.FC<HomeRotatingPhraseProps> = ({
       clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [prefersReducedMotion, isManualPaused, isPausedByInput, isHovered, intervalMs, goToNextPhrase]);
-
-  const toggleManualPause = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsManualPaused((prev) => !prev);
-  };
+  }, [prefersReducedMotion, isPausedByInput, isHovered, intervalMs, goToNextPhrase]);
 
   const currentText = phrases[currentIndex] || '';
-  const effectivePaused = prefersReducedMotion || isManualPaused || isPausedByInput;
+  const effectivePaused = prefersReducedMotion || isPausedByInput;
 
   return (
     <div
@@ -108,23 +101,6 @@ export const HomeRotatingPhrase: React.FC<HomeRotatingPhraseProps> = ({
           <span className="home-rotating-phrase-quote">&rdquo;</span>
         </span>
       </div>
-
-      {/* Accessible discrete control button */}
-      {!prefersReducedMotion && (
-        <button
-          type="button"
-          onClick={toggleManualPause}
-          className="home-rotating-phrase-btn"
-          aria-label={isManualPaused ? 'Reanudar rotación de frases' : 'Pausar rotación de frases'}
-          title={isManualPaused ? 'Reanudar rotación' : 'Pausar rotación'}
-        >
-          {isManualPaused ? (
-            <Play size={12} className="home-rotating-phrase-icon" />
-          ) : (
-            <Pause size={12} className="home-rotating-phrase-icon" />
-          )}
-        </button>
-      )}
 
       {/* Visually hidden text for screen readers (only reads once, avoids annoying repetitive announcements) */}
       <span className="sr-only">

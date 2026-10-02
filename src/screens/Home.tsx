@@ -53,7 +53,6 @@ import {
   HomeFlankingVisuals,
   HomePillarsSection,
   HomeDynamicCanvas,
-  HomeVariantSwitcher,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -298,8 +297,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
 
-  // Variante de diseño visual de la Home ('envolvente' | 'visor' | 'refinado' | 'stitch' | 'gsap')
-  const [visualVariant, setVisualVariant] = useState<HomeVisualVariant>(() => {
+  // Variante de diseño visual de la Home (GSAP definitiva por defecto)
+  const [visualVariant] = useState<HomeVisualVariant>(() => {
     if (forcedVariant) return forcedVariant;
     if (typeof window !== 'undefined') {
       try {
@@ -310,40 +309,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         if (paramVariant === 'c' || paramVariant === 'refinado') return 'refinado';
         if (paramVariant === 'b' || paramVariant === 'visor') return 'visor';
         if (paramVariant === 'a' || paramVariant === 'envolvente') return 'envolvente';
-        const saved = localStorage.getItem('puntoencuentro_home_variant');
-        if (saved === 'gsap' || saved === 'stitch' || saved === 'refinado' || saved === 'visor' || saved === 'envolvente') return saved as HomeVisualVariant;
       } catch (e) {
         // Fallback seguro
       }
     }
-    return 'refinado';
+    return 'gsap';
   });
 
   const effectiveVariant: HomeVisualVariant = forcedVariant || visualVariant;
-
-  const handleVariantChange = (newVariant: HomeVisualVariant) => {
-    if (newVariant === 'gsap') {
-      navigate('/preview/home-gsap');
-      return;
-    }
-    if (forcedVariant === 'gsap') {
-      const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
-      navigate(`/?variant=${vParam}`);
-      return;
-    }
-    setVisualVariant(newVariant);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('puntoencuentro_home_variant', newVariant);
-        const url = new URL(window.location.href);
-        const vParam = newVariant === 'stitch' ? 'd' : newVariant === 'refinado' ? 'c' : newVariant === 'visor' ? 'b' : 'a';
-        url.searchParams.set('variant', vParam);
-        window.history.replaceState({}, '', url.toString());
-      } catch (e) {
-        // Ignorar fallos de storage
-      }
-    }
-  };
 
   const isGsapPreview = effectiveVariant === 'gsap' || forcedVariant === 'gsap' || enableOpenDiscovery;
 
@@ -1551,14 +1524,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
             )}
           </span>
         </div>
-      )}
-
-      {/* Selector Flotante de Variantes para Evaluación Local */}
-      {(!forcedVariant || forcedVariant === 'gsap') && (
-        <HomeVariantSwitcher
-          currentVariant={effectiveVariant}
-          onVariantChange={handleVariantChange}
-        />
       )}
 
       {/* Alertas de Compatibilidad (Fase 2.0-C1) */}

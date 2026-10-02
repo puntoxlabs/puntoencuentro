@@ -222,12 +222,11 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
   });
 
   describe('8. Componente HomeRotatingPhrase y Frases Inspiradoras V2', () => {
-    test('A. Renderiza la primera frase por defecto y el botón accesible de pausa', () => {
+    test('A. Renderiza la primera frase por defecto con slot CLS=0 y sin botón visible de pausa', () => {
       const html = renderToString(React.createElement(HomeRotatingPhrase));
       assert.ok(html.includes('Quiero invitar a mis amigos a tomar un café.'), 'Debe renderizar primera frase');
       assert.ok(html.includes('home-rotating-phrase-slot'), 'Debe tener slot de altura fija para CLS=0');
-      assert.ok(html.includes('home-rotating-phrase-btn'), 'Debe incluir botón accesible de pausa');
-      assert.ok(html.includes('Pausar rotación'), 'Aria label de pausa presente');
+      assert.ok(!html.includes('home-rotating-phrase-btn'), 'NO debe incluir botón visible de pausa');
     });
 
     test('B. Soporta catálogo personalizado y llamada onClick', () => {
