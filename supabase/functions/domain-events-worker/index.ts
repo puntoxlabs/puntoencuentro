@@ -30,9 +30,14 @@ type EventHandler = (event: OutboxEventItem, adminClient: any) => Promise<void>;
 // Catálogo de Handlers Tipados (Fase 1: Infraestructura)
 // ============================================================
 const EVENT_HANDLERS: Record<string, EventHandler> = {
-  // Encuentros Abiertos (Stubs de infraestructura preparados para Fase 2)
-  "encounter.opened.v1": async (_event, _adminClient) => {
-    // La lógica de matching se conectará en Fase 2.
+  // Encuentros Abiertos (Fase 2A: Reconciliación de Matching)
+  "encounter.opened.v1": async (event, adminClient) => {
+    const encounterId = event.aggregate_id;
+    if (encounterId) {
+      await adminClient.rpc("evaluar_matching_encuentro_abierto", {
+        p_encuentro_id: encounterId,
+      });
+    }
   },
   "encounter.updated.v1": async (_event, _adminClient) => {
     // No-op en Fase 1.
@@ -41,9 +46,37 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
     // No-op en Fase 1.
   },
 
-  // Alertas / Matching (Preparado para Fase 2)
-  "match.detected.v1": async (_event, _adminClient) => {
-    // Inserción en inbox_notifications se conectará en Fase 2.
+  // Alertas / Matching (Fase 2A: Inserción en inbox_notifications)
+  "match.detected.v1": async (event, adminClient) => {
+    const payload = (event.payload || {}) as Record<string, any>;
+    const recipientUserId = payload.recipient_user_id;
+    if (!recipientUserId) {
+      throw new Error("Missing recipient_user_id in match.detected.v1 payload");
+    }
+
+    const encounterId = payload.encounter_id || event.aggregate_id;
+    const title = payload.title || "Nuevo encuentro compatible";
+    const body = payload.body || `Hay un nuevo encuentro compatible: ${payload.encounter_title || "Encuentro abierto"}`;
+    const deepLink = payload.deep_link || `/encuentros/${encounterId}`;
+    const dedupKey = payload.dedup_key || event.dedup_key;
+    const expiresAt = payload.expires_at || null;
+
+    const { error } = await adminClient.rpc("insertar_inbox_notification_seguro", {
+      p_recipient_user_id: recipientUserId,
+      p_notification_type: "match_found",
+      p_target_type: "encounter",
+      p_target_id: encounterId,
+      p_deep_link: deepLink,
+      p_title: title,
+      p_body: body,
+      p_payload: payload,
+      p_dedup_key: dedupKey,
+      p_expires_at: expiresAt,
+    });
+
+    if (error) {
+      throw new Error(`Failed to insert inbox notification for match: ${error.message}`);
+    }
   },
 
   // Invitaciones Internas (Preparado para Fase 3)
