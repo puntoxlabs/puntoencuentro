@@ -137,6 +137,51 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
         creado_en TIMESTAMPTZ DEFAULT now()
       );
       GRANT ALL ON TABLE public.participantes TO authenticated, anon, service_role;
+
+      -- Base cerrar_encuentro_abierto_seguro
+      CREATE OR REPLACE FUNCTION public.cerrar_encuentro_abierto_seguro(
+          p_encuentro_id UUID,
+          p_host_id UUID DEFAULT NULL
+      )
+      RETURNS JSON
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path TO 'public'
+      AS $$
+      DECLARE
+          v_user_id UUID := auth.uid();
+          v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+          v_encuentro public.encuentros%ROWTYPE;
+      BEGIN
+          IF v_user_id IS NULL THEN
+              RETURN json_build_object('ok', false, 'error', 'authentication_required');
+          END IF;
+
+          IF v_is_anon THEN
+              RETURN json_build_object('ok', false, 'error', 'permanent_account_required');
+          END IF;
+
+          SELECT * INTO v_encuentro
+          FROM public.encuentros
+          WHERE id = p_encuentro_id;
+
+          IF NOT FOUND THEN
+              RETURN json_build_object('ok', false, 'error', 'encuentro_not_found');
+          END IF;
+
+          IF v_encuentro.host_id <> v_user_id THEN
+              RETURN json_build_object('ok', false, 'error', 'unauthorized');
+          END IF;
+
+          UPDATE public.encuentros
+          SET is_open = false,
+              closed_at = now()
+          WHERE id = p_encuentro_id;
+
+          RETURN json_build_object('ok', true, 'encuentro_id', p_encuentro_id, 'is_open', false);
+      END;
+      $$;
+      GRANT EXECUTE ON FUNCTION public.cerrar_encuentro_abierto_seguro(UUID, UUID) TO authenticated;
     `);
 
     // 2. Cargar migraciones de notificaciones y la nueva migración de Fase 2A
@@ -328,6 +373,79 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
 
     const checkExpired = await db.query(`SELECT status FROM public.match_alert_subscriptions WHERE id = '${expiredSubId}';`);
     assert.equal((checkExpired.rows[0] as any).status, 'expired');
+  });
+
+  test('4c. Pausar alerta vencida rechaza con subscription_expired y transiciona a expired', async () => {
+    const expiredToPauseId = '88889999-aaaa-bbbb-cccc-111122223333';
+    await asAdmin(async () => {
+      await db.exec(`
+        INSERT INTO public.match_alert_subscriptions (
+          id, user_id, status, modalidad, expires_at
+        ) VALUES (
+          '${expiredToPauseId}', '${userA}', 'active', 'virtual', now() - INTERVAL '1 day'
+        );
+      `);
+    });
+
+    await setAuthContext(userA, false);
+    const pauseExpired = await db.query(`
+      SELECT public.pausar_alerta_suscripcion_seguro('${expiredToPauseId}') AS result;
+    `);
+    assert.equal((pauseExpired.rows[0] as any).result.ok, false);
+    assert.equal((pauseExpired.rows[0] as any).result.error, 'subscription_expired');
+
+    const checkStatus = await db.query(`SELECT status FROM public.match_alert_subscriptions WHERE id = '${expiredToPauseId}';`);
+    assert.equal((checkStatus.rows[0] as any).status, 'expired');
+  });
+
+  test('4d. get_mis_alertas_suscripciones_seguro: filtrado por estado efectivo y vigencia abierta', async () => {
+    const subOpenId = '11110000-0000-0000-0000-000000000001';
+    const subExpiredId = '11110000-0000-0000-0000-000000000002';
+    const subPausedId = '11110000-0000-0000-0000-000000000003';
+
+    await asAdmin(async () => {
+      await db.exec(`
+        INSERT INTO public.match_alert_subscriptions (
+          id, user_id, status, modalidad, expires_at
+        ) VALUES 
+          ('${subOpenId}', '${userA}', 'active', 'presencial', NULL),
+          ('${subExpiredId}', '${userA}', 'active', 'presencial', now() - INTERVAL '3 hours'),
+          ('${subPausedId}', '${userA}', 'paused', 'presencial', NULL)
+        ON CONFLICT (id) DO NOTHING;
+      `);
+    });
+
+    await setAuthContext(userA, false);
+
+    // 1. Filtrar por 'active': solo debe retornar la alerta abierta, nunca la vencida ni la pausada
+    const listActive = await db.query(`
+      SELECT public.get_mis_alertas_suscripciones_seguro('active') AS result;
+    `);
+    const activeSubs = (listActive.rows[0] as any).result.subscriptions;
+    assert.ok(activeSubs.some((s: any) => s.id === subOpenId), 'Alerta sin expires_at debe figurar como activa');
+    assert.ok(!activeSubs.some((s: any) => s.id === subExpiredId), 'Alerta con expires_at pasado NO debe figurar en active');
+    assert.ok(!activeSubs.some((s: any) => s.id === subPausedId), 'Alerta pausada NO debe figurar en active');
+
+    // 2. Filtrar por 'expired': debe retornar la alerta vencida con effective_status = 'expired'
+    const listExpired = await db.query(`
+      SELECT public.get_mis_alertas_suscripciones_seguro('expired') AS result;
+    `);
+    const expiredSubs = (listExpired.rows[0] as any).result.subscriptions;
+    const foundExpired = expiredSubs.find((s: any) => s.id === subExpiredId);
+    assert.ok(foundExpired, 'Alerta vencida debe figurar en filtro expired');
+    assert.equal(foundExpired.effective_status, 'expired');
+    assert.ok(!expiredSubs.some((s: any) => s.id === subOpenId), 'Alerta abierta NO debe figurar en expired');
+
+    // 3. Consulta general (sin parámetro): debe devolver las tres con sus estados efectivos correspondientes
+    const listAll = await db.query(`
+      SELECT public.get_mis_alertas_suscripciones_seguro() AS result;
+    `);
+    const allSubs = (listAll.rows[0] as any).result.subscriptions;
+    const allOpen = allSubs.find((s: any) => s.id === subOpenId);
+    const allExpired = allSubs.find((s: any) => s.id === subExpiredId);
+    assert.equal(allOpen.effective_status, 'active');
+    assert.equal(allOpen.expires_at, null);
+    assert.equal(allExpired.effective_status, 'expired');
   });
 
   test('5. Alerta expirada no participa en el matching', async () => {
@@ -792,5 +910,142 @@ describe('Fase 2A: Backend de "Avisame" + Matching Determinístico (Tests Nivel 
       const evalDuplicate = await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encToUpdate}') AS result;`);
       assert.equal((evalDuplicate.rows[0] as any).result.matches_count, 0, 'No debe duplicar matches ya detectados');
     });
+  });
+
+  test('15. Idempotencia y ciclo de apertura: false -> true emite opened.v1, invocación repetida no duplica, y reapertura genera segundo evento con dedup_key distinta', async () => {
+    const encLifecycle = '55555555-5555-5555-5555-555555555555';
+
+    await asAdmin(async () => {
+      await db.exec(`
+        INSERT INTO public.encuentros (
+          id, host_id, titulo, modalidad, locality_id, is_open, estado, max_participants
+        ) VALUES (
+          '${encLifecycle}', '${hostUser}', 'Encuentro Ciclo Completo', 'presencial', 'guemes', false, 'activo', 4
+        );
+      `);
+    });
+
+    // 1. Apertura inicial: false -> true
+    await setAuthContext(hostUser, false);
+    const open1 = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        p_encuentro_id := '${encLifecycle}',
+        p_host_id := '${hostUser}',
+        p_open_description := 'Apertura inicial',
+        p_max_participants := 4,
+        p_locality_id := 'guemes'
+      ) AS result;
+    `);
+    assert.equal((open1.rows[0] as any).result.ok, true);
+
+    const eventsOpen1 = await asAdmin(async () => {
+      return await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE event_type = 'encounter.opened.v1' AND aggregate_id = '${encLifecycle}';
+      `);
+    });
+    assert.equal(eventsOpen1.rows.length, 1);
+    const dedupKey1 = (eventsOpen1.rows[0] as any).dedup_key;
+    assert.ok(dedupKey1.startsWith(`encounter:${encLifecycle}:opened:`));
+
+    // 2. Invocación repetida mientras YA está abierto: no debe generar falso segundo opened.v1
+    await setAuthContext(hostUser, false);
+    const openDuplicate = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        p_encuentro_id := '${encLifecycle}',
+        p_host_id := '${hostUser}',
+        p_open_description := 'Apertura repetida sin cambios',
+        p_max_participants := 4,
+        p_locality_id := 'guemes'
+      ) AS result;
+    `);
+    assert.equal((openDuplicate.rows[0] as any).result.ok, true);
+
+    const eventsAfterDuplicate = await asAdmin(async () => {
+      return await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE event_type = 'encounter.opened.v1' AND aggregate_id = '${encLifecycle}';
+      `);
+    });
+    assert.equal(eventsAfterDuplicate.rows.length, 1, 'Invocación repetida sobre encuentro abierto no debe duplicar opened.v1');
+
+    // 3. Cierre del encuentro
+    await setAuthContext(hostUser, false);
+    const closeRes = await db.query(`
+      SELECT public.cerrar_encuentro_abierto_seguro('${encLifecycle}', '${hostUser}') AS result;
+    `);
+    assert.equal((closeRes.rows[0] as any).result.ok, true);
+
+    // 4. Reapertura del encuentro: false -> true nuevamente
+    await new Promise((r) => setTimeout(r, 15));
+
+    await setAuthContext(hostUser, false);
+    const openReopen = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        p_encuentro_id := '${encLifecycle}',
+        p_host_id := '${hostUser}',
+        p_open_description := 'Reapertura tras cierre',
+        p_max_participants := 4,
+        p_locality_id := 'guemes'
+      ) AS result;
+    `);
+    assert.equal((openReopen.rows[0] as any).result.ok, true);
+
+    const eventsAfterReopen = await asAdmin(async () => {
+      return await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE event_type = 'encounter.opened.v1' AND aggregate_id = '${encLifecycle}'
+        ORDER BY created_at ASC;
+      `);
+    });
+    assert.equal(eventsAfterReopen.rows.length, 2, 'Reapertura debe emitir un segundo encounter.opened.v1');
+    const dedupKey2 = (eventsAfterReopen.rows[1] as any).dedup_key;
+    assert.ok(dedupKey2.startsWith(`encounter:${encLifecycle}:opened:`));
+    assert.notEqual(dedupKey1, dedupKey2, 'Cada ciclo de apertura debe poseer su propia dedup_key');
+  });
+
+  test('16. encounter.updated.v1: múltiples mutaciones relevantes sucesivas generan eventos sin colisión de dedup_key', async () => {
+    const encSuccessiveUpdates = '66666666-6666-6666-6666-666666666666';
+
+    await asAdmin(async () => {
+      await db.exec(`
+        INSERT INTO public.encuentros (
+          id, host_id, titulo, modalidad, locality_id, fecha, hora, is_open, estado, max_participants
+        ) VALUES (
+          '${encSuccessiveUpdates}', '${hostUser}', 'Encuentro Mutaciones', 'presencial', 'guemes', '2026-10-10', '18:00:00', true, 'activo', 4
+        );
+      `);
+    });
+
+    // Mutación relevante 1: cambiar fecha
+    await asAdmin(async () => {
+      await db.query(`
+        UPDATE public.encuentros
+        SET fecha = '2026-10-25'
+        WHERE id = '${encSuccessiveUpdates}';
+      `);
+    });
+
+    // Mutación relevante 2: cambiar hora
+    await asAdmin(async () => {
+      await db.query(`
+        UPDATE public.encuentros
+        SET hora = '20:30:00'
+        WHERE id = '${encSuccessiveUpdates}';
+      `);
+    });
+
+    const updateEvents = await asAdmin(async () => {
+      return await db.query(`
+        SELECT * FROM public.domain_events_outbox
+        WHERE event_type = 'encounter.updated.v1' AND aggregate_id = '${encSuccessiveUpdates}'
+        ORDER BY created_at ASC;
+      `);
+    });
+
+    assert.equal(updateEvents.rows.length, 2, 'Dos mutaciones relevantes sucesivas deben generar dos encounter.updated.v1');
+    const k1 = (updateEvents.rows[0] as any).dedup_key;
+    const k2 = (updateEvents.rows[1] as any).dedup_key;
+    assert.notEqual(k1, k2, 'Las claves de deduplicación de updates sucesivos no deben colisionar');
   });
 });

@@ -177,7 +177,10 @@ GRANT EXECUTE ON FUNCTION public.crear_alerta_suscripcion_seguro(TEXT, TEXT, DAT
 
 
 -- 2.2. get_mis_alertas_suscripciones_seguro
-CREATE OR REPLACE FUNCTION public.get_mis_alertas_suscripciones_seguro()
+DROP FUNCTION IF EXISTS public.get_mis_alertas_suscripciones_seguro();
+CREATE OR REPLACE FUNCTION public.get_mis_alertas_suscripciones_seguro(
+    p_status TEXT DEFAULT NULL
+)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -198,11 +201,24 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'permanent_account_required');
     END IF;
 
+    -- Normalizar de forma segura en almacenamiento las alertas del usuario que hayan vencido
+    UPDATE public.match_alert_subscriptions
+    SET status = 'expired',
+        updated_at = v_now
+    WHERE user_id = v_user_id
+      AND status = 'active'
+      AND expires_at IS NOT NULL
+      AND expires_at <= v_now;
+
     SELECT COALESCE(pg_catalog.jsonb_agg(
         pg_catalog.jsonb_build_object(
             'id', s.id,
             'user_id', s.user_id,
             'status', CASE 
+                WHEN s.status = 'active' AND s.expires_at IS NOT NULL AND s.expires_at <= v_now THEN 'expired'
+                ELSE s.status
+            END,
+            'effective_status', CASE 
                 WHEN s.status = 'active' AND s.expires_at IS NOT NULL AND s.expires_at <= v_now THEN 'expired'
                 ELSE s.status
             END,
@@ -221,7 +237,14 @@ BEGIN
     INTO v_items
     FROM public.match_alert_subscriptions s
     LEFT JOIN public.localidades l ON s.locality_id = l.id
-    WHERE s.user_id = v_user_id;
+    WHERE s.user_id = v_user_id
+      AND (
+          p_status IS NULL 
+          OR (CASE 
+              WHEN s.status = 'active' AND s.expires_at IS NOT NULL AND s.expires_at <= v_now THEN 'expired'
+              ELSE s.status
+          END) = p_status
+      );
 
     RETURN pg_catalog.jsonb_build_object(
         'ok', true,
@@ -231,8 +254,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.get_mis_alertas_suscripciones_seguro() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.get_mis_alertas_suscripciones_seguro() TO authenticated;
+REVOKE ALL ON FUNCTION public.get_mis_alertas_suscripciones_seguro(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_mis_alertas_suscripciones_seguro(TEXT) TO authenticated;
 
 
 -- 2.3. pausar_alerta_suscripcion_seguro
@@ -248,6 +271,7 @@ DECLARE
     v_user_id UUID := auth.uid();
     v_is_anon BOOLEAN;
     v_sub RECORD;
+    v_now TIMESTAMPTZ := pg_catalog.timezone('utc', pg_catalog.now());
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'authentication_required');
@@ -262,7 +286,7 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invalid_subscription_id');
     END IF;
 
-    SELECT id, user_id, status
+    SELECT id, user_id, status, expires_at
     INTO v_sub
     FROM public.match_alert_subscriptions
     WHERE id = p_subscription_id
@@ -280,13 +304,27 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'already_cancelled');
     END IF;
 
+    IF v_sub.status = 'expired' THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'subscription_expired');
+    END IF;
+
+    -- Si la alerta ya venció, transicionar a expired y rechazar pausa
+    IF v_sub.expires_at IS NOT NULL AND v_sub.expires_at <= v_now THEN
+        UPDATE public.match_alert_subscriptions
+        SET status = 'expired',
+            updated_at = v_now
+        WHERE id = p_subscription_id;
+
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'subscription_expired');
+    END IF;
+
     IF v_sub.status = 'paused' THEN
         RETURN pg_catalog.jsonb_build_object('ok', true, 'id', p_subscription_id, 'status', 'paused');
     END IF;
 
     UPDATE public.match_alert_subscriptions
     SET status = 'paused',
-        updated_at = pg_catalog.timezone('utc', pg_catalog.now())
+        updated_at = v_now
     WHERE id = p_subscription_id;
 
     RETURN pg_catalog.jsonb_build_object('ok', true, 'id', p_subscription_id, 'status', 'paused');
@@ -599,6 +637,7 @@ DECLARE
     v_encuentro public.encuentros%ROWTYPE;
     v_confirmed_count INT := 0;
     v_locality_exists BOOLEAN := false;
+    v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN json_build_object('ok', false, 'error', 'authentication_required');
@@ -645,61 +684,74 @@ BEGIN
         RETURN json_build_object('ok', false, 'error', 'min_two_participants');
     END IF;
 
-    -- Publicar/abrir el encuentro
-    UPDATE public.encuentros
-    SET is_open = true,
-        open_description = NULLIF(trim(p_open_description), ''),
-        max_participants = p_max_participants,
-        locality_id = p_locality_id,
-        open_public_zone = NULLIF(trim(p_open_public_zone), ''),
-        opened_at = now(),
-        closed_at = NULL
-    WHERE id = p_encuentro_id;
+    IF NOT v_encuentro.is_open THEN
+        -- Transición real cerrado -> abierto (false -> true)
+        UPDATE public.encuentros
+        SET is_open = true,
+            open_description = NULLIF(trim(p_open_description), ''),
+            max_participants = p_max_participants,
+            locality_id = p_locality_id,
+            open_public_zone = NULLIF(trim(p_open_public_zone), ''),
+            opened_at = v_now,
+            closed_at = NULL
+        WHERE id = p_encuentro_id;
 
-    -- Disparar alertas para usuarios interesados en intenciones convertidas (Fase 2.0-C1 compatibilidad)
-    INSERT INTO public.alertas_compatibilidad (
-        user_id,
-        tipo,
-        source_intencion_id,
-        target_encuentro_id
-    )
-    SELECT
-        ii.user_id,
-        'interes_convertido',
-        i.id,
-        p_encuentro_id
-    FROM public.intenciones i
-    JOIN public.intencion_intereses ii ON ii.intencion_id = i.id
-    WHERE i.encuentro_id = p_encuentro_id
-      AND ii.user_id <> v_user_id
-    ON CONFLICT (user_id, tipo, source_intencion_id, target_encuentro_id) DO NOTHING;
+        -- Disparar alertas para usuarios interesados en intenciones convertidas (Fase 2.0-C1 compatibilidad)
+        INSERT INTO public.alertas_compatibilidad (
+            user_id,
+            tipo,
+            source_intencion_id,
+            target_encuentro_id
+        )
+        SELECT
+            ii.user_id,
+            'interes_convertido',
+            i.id,
+            p_encuentro_id
+        FROM public.intenciones i
+        JOIN public.intencion_intereses ii ON ii.intencion_id = i.id
+        WHERE i.encuentro_id = p_encuentro_id
+          AND ii.user_id <> v_user_id
+        ON CONFLICT (user_id, tipo, source_intencion_id, target_encuentro_id) DO NOTHING;
 
-    -- Emisión del Domain Event: encounter.opened.v1 (Transactional Outbox)
-    INSERT INTO public.domain_events_outbox (
-        event_type,
-        event_version,
-        aggregate_type,
-        aggregate_id,
-        actor_user_id,
-        payload,
-        dedup_key,
-        status
-    ) VALUES (
-        'encounter.opened.v1',
-        1,
-        'encounter',
-        p_encuentro_id,
-        v_user_id,
-        jsonb_build_object(
-            'encounter_id', p_encuentro_id,
-            'host_id', v_user_id,
-            'locality_id', p_locality_id,
-            'max_participants', p_max_participants
-        ),
-        format('encounter:opened:%s:v1', p_encuentro_id),
-        'pending'
-    )
-    ON CONFLICT (dedup_key) DO NOTHING;
+        -- Emisión del Domain Event: encounter.opened.v1 (Transactional Outbox)
+        -- Dedup key vinculada al timestamp específico de esta apertura (ciclo concreto)
+        INSERT INTO public.domain_events_outbox (
+            event_type,
+            event_version,
+            aggregate_type,
+            aggregate_id,
+            actor_user_id,
+            payload,
+            dedup_key,
+            status
+        ) VALUES (
+            'encounter.opened.v1',
+            1,
+            'encounter',
+            p_encuentro_id,
+            v_user_id,
+            jsonb_build_object(
+                'encounter_id', p_encuentro_id,
+                'host_id', v_user_id,
+                'locality_id', p_locality_id,
+                'max_participants', p_max_participants,
+                'opened_at', v_now
+            ),
+            format('encounter:%s:opened:%s', p_encuentro_id, extract(epoch from v_now)::text),
+            'pending'
+        )
+        ON CONFLICT (dedup_key) DO NOTHING;
+    ELSE
+        -- Ya está abierto: actualizar configuración sin alterar opened_at ni emitir encounter.opened.v1
+        -- Si cambia algún criterio relevante (e.g. locality_id), trg_encounter_updated_outbox emitirá encounter.updated.v1
+        UPDATE public.encuentros
+        SET open_description = NULLIF(trim(p_open_description), ''),
+            max_participants = p_max_participants,
+            locality_id = p_locality_id,
+            open_public_zone = NULLIF(trim(p_open_public_zone), '')
+        WHERE id = p_encuentro_id;
+    END IF;
 
     RETURN json_build_object(
         'ok', true,
@@ -770,7 +822,8 @@ BEGIN
                 ),
                 pg_catalog.format('encounter:%s:updated:%s', NEW.id, pg_catalog.gen_random_uuid()),
                 'pending'
-            );
+            )
+            ON CONFLICT (dedup_key) DO NOTHING;
         END IF;
     END IF;
     RETURN NEW;

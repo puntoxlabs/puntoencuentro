@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
   MatchAlertSubscription,
+  MatchAlertStatus,
   CrearAlertaParams,
   CrearAlertaResponse,
   GetMisAlertasResponse,
@@ -56,10 +57,13 @@ export const matchAlertsService = {
 
   /**
    * Obtiene las alertas del usuario autenticado con su estado de vigencia actualizado.
+   * Permite filtrar opcionalmente por estado ('active', 'paused', 'expired', 'cancelled').
    */
-  async getMisAlertas(): Promise<GetMisAlertasResponse> {
+  async getMisAlertas(status?: MatchAlertStatus): Promise<GetMisAlertasResponse> {
     try {
-      const { data, error } = await supabase.rpc('get_mis_alertas_suscripciones_seguro');
+      const { data, error } = await supabase.rpc('get_mis_alertas_suscripciones_seguro', {
+        p_status: status || null,
+      });
 
       if (error) {
         return { ok: false, subscriptions: [], error: error.message };
@@ -74,6 +78,7 @@ export const matchAlertsService = {
         id: row.id,
         userId: row.user_id,
         status: row.status,
+        effectiveStatus: row.effective_status || row.status,
         modalidad: row.modalidad,
         localityId: row.locality_id,
         localityNombre: row.locality_nombre,

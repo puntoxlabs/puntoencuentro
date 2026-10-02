@@ -10,6 +10,7 @@ export interface MatchAlertSubscription {
   id: string;
   userId: string;
   status: MatchAlertStatus;
+  effectiveStatus?: MatchAlertStatus;
   modalidad: MatchAlertModalidad | null;
   localityId: string | null;
   localityNombre?: string | null;
