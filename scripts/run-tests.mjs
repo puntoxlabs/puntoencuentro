@@ -39,6 +39,9 @@ try {
   await server.ssrLoadModule('./scripts/test-coverage-mvp.ts');
   console.log('✅ Dynamic Coverage MVP backend, security & UI tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-notifications-base.ts');
+  console.log('✅ Phase 1 Notifications base & inbox/outbox tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);

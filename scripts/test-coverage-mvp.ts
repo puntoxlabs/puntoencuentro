@@ -507,11 +507,12 @@ describe('Suite de Pruebas de Integración y Backend Real — Dynamic Coverage M
     assert.equal(rpcs.rows.length, 2);
   });
 
-  test('C25: El conteo total de migraciones en repo es exactamente 74', () => {
+  test('C25: El conteo total de migraciones en repo es al menos 74 y contiene la migración de cobertura', () => {
     const migs = fs.readdirSync(path.resolve(process.cwd(), 'supabase/migrations'));
     const sqlMigs = migs.filter((m) => m.endsWith('.sql'));
-    assert.equal(sqlMigs.length, 74);
+    assert.equal(sqlMigs.length, 75);
     assert.equal(sqlMigs[73], '20261002150000_harden_coverage_catalog_exposure.sql');
+    assert.equal(sqlMigs[74], '20261002180000_notifications_inbox_and_outbox_base.sql');
   });
 
   test('C26: Ciclo de vida de mercados soporta collecting, reviewing, planned, active, paused', async () => {
