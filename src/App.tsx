@@ -16,6 +16,7 @@ import DetailHostCoordination from '@/screens/DetailHostCoordination';
 import JoinCoordination from '@/screens/JoinCoordination';
 import InviteCoordination from '@/screens/InviteCoordination';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { usePostAuthRedirect } from '@/hooks/usePostAuthRedirect';
 import { DATE_COORDINATION_ENABLED, AI_CREATION_ENABLED } from '@/config/features';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -113,9 +114,11 @@ const App: React.FC = () => {
   return (
     <AccessGate>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <NotificationsProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </NotificationsProvider>
       </AuthProvider>
     </AccessGate>
   );

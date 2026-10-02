@@ -51,6 +51,13 @@ describe('Fase 1: Infraestructura Base de Notificaciones e Inbox (Tests Nivel A 
       'supabase/migrations/20261002180000_notifications_inbox_and_outbox_base.sql'
     );
     await db.exec(fs.readFileSync(migPath, 'utf-8'));
+
+    // 3. Ejecutar la migración de hardening de grants (Fase 1.5)
+    const migHardenPath = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20261002200000_harden_inbox_rpc_grants.sql'
+    );
+    await db.exec(fs.readFileSync(migHardenPath, 'utf-8'));
   });
 
   const setAuthContext = async (userId: string | null, isAnonymous: boolean = false) => {
@@ -601,16 +608,29 @@ describe('Fase 1: Infraestructura Base de Notificaciones e Inbox (Tests Nivel A 
     assert.ok(!allTitles.includes('Notificación Antigua'));
   });
 
-  test('RPC 6: Rechazo estricto de usuarios anónimos y sin sesión', async () => {
-    // 1. Sin sesión (anon role)
+  test('RPC 6: Rechazo estricto de usuarios anónimos y sin sesión (Defensa en Profundidad)', async () => {
+    // 1. Sin sesión (rol anon en PostgreSQL: permiso EXECUTE denegado a nivel de base de datos)
     await setAuthContext(null);
-    const unauthRes = await db.query(`
-      SELECT public.get_mis_notificaciones_inbox_seguro() AS result;
-    `);
-    assert.equal((unauthRes.rows[0] as any).result.ok, false);
-    assert.equal((unauthRes.rows[0] as any).result.error, 'authentication_required');
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.get_mis_notificaciones_inbox_seguro() AS result;`);
+      },
+      /permission denied/
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.get_contador_notificaciones_no_leidas_seguro() AS result;`);
+      },
+      /permission denied/
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.marcar_todas_notificaciones_leidas_seguro() AS result;`);
+      },
+      /permission denied/
+    );
 
-    // 2. Usuario anónimo de Supabase (is_anonymous = true)
+    // 2. Usuario anónimo de Supabase (rol authenticated con is_anonymous = true: validación lógica server-side)
     await setAuthContext(userAnon, true);
     const anonRes = await db.query(`
       SELECT public.get_mis_notificaciones_inbox_seguro() AS result;

@@ -9,9 +9,11 @@ import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { AlertasSheet } from '@/components/home/alerts';
+import { NotificationsSheet } from '@/components/notifications';
 import { HomeOpenEncounterDetailSheet } from '@/components/home/openEncounters/HomeOpenEncounterDetailSheet';
 import type { OpenEncounterSummary } from '@/components/home/openEncounters/types';
 import { useAlertas } from '@/hooks/useAlertas';
+import { useNotifications } from '@/contexts/NotificationsContext';
 import type { AlertaCompatibilidadEncuentroPublico } from '@/types/alertas';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
@@ -341,6 +343,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   // Filtros secundarios simplificados para Preview GSAP
   const [secondaryFilters, setSecondaryFilters] = useState<EncountersFilterValues>(DEFAULT_FILTER_VALUES);
   const [isSecondaryFilterOpen, setIsSecondaryFilterOpen] = useState(false);
+
+  // Hook y estados de Notificaciones In-App (Fase 1.5)
+  const {
+    unreadCount: notificationsUnreadCount,
+    isOpen: isNotificationsOpen,
+    setIsOpen: setIsNotificationsOpen,
+  } = useNotifications();
 
   // Hook y estados de Alertas de Compatibilidad (Fase 2.0-C1)
   const alertasHook = useAlertas();
@@ -1092,20 +1101,26 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           <span className="home-header-logo-text">PuntoEncuentro</span>
         </div>
         <div className="home-header-actions">
-          {/* Campana de alertas (solo cuentas permanentes) */}
+          {/* Campana de notificaciones (solo cuentas permanentes) */}
           {user && !user.is_anonymous && (
             <button
               type="button"
-              onClick={() => setIsAlertsOpen(true)}
+              onClick={() => setIsNotificationsOpen(true)}
               className="home-header-icon-btn home-header-bell-btn"
-              aria-label={alertasUnreadCount > 0 ? `Alertas (${alertasUnreadCount} no leídas)` : 'Alertas'}
-              title="Alertas"
+              aria-label={
+                (notificationsUnreadCount || alertasUnreadCount) > 0
+                  ? `Notificaciones (${notificationsUnreadCount || alertasUnreadCount} no leídas)`
+                  : 'Notificaciones'
+              }
+              title="Notificaciones"
             >
               <div className="home-header-bell-wrapper">
                 <Bell size={20} />
-                {alertasUnreadCount > 0 && (
+                {(notificationsUnreadCount > 0 || alertasUnreadCount > 0) && (
                   <span className="home-header-bell-badge" aria-hidden="true">
-                    {alertasUnreadCount > 99 ? '99+' : alertasUnreadCount}
+                    {(notificationsUnreadCount || alertasUnreadCount) > 99
+                      ? '99+'
+                      : notificationsUnreadCount || alertasUnreadCount}
                   </span>
                 )}
               </div>
@@ -1525,6 +1540,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           </span>
         </div>
       )}
+
+      {/* Bandeja de Notificaciones In-App (Fase 1.5) */}
+      <NotificationsSheet
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+      />
 
       {/* Alertas de Compatibilidad (Fase 2.0-C1) */}
       <AlertasSheet

@@ -1,0 +1,289 @@
+/* NotificationsSheet.css — Estilos para la bandeja de notificaciones in-app (Fase 1.5) */
+
+.pe-notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+}
+
+.pe-notifications-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-notifications-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #1e293b);
+  letter-spacing: -0.01em;
+}
+
+.pe-notifications-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-notifications-mark-all-btn {
+  background: none;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.pe-notifications-mark-all-btn:hover {
+  background-color: rgba(37, 99, 235, 0.08);
+}
+
+.pe-notifications-mark-all-btn:active {
+  background-color: rgba(37, 99, 235, 0.14);
+}
+
+.pe-notifications-close-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-outline, #64748b);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.pe-notifications-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--color-on-surface, #1e293b);
+}
+
+/* ==========================================================================
+   Estados: Carga, Vacío, Error
+   ========================================================================== */
+
+.pe-notifications-empty,
+.pe-notifications-loading,
+.pe-notifications-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  min-height: 240px;
+}
+
+.pe-notifications-empty-icon,
+.pe-notifications-error-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--color-outline, #64748b);
+}
+
+.pe-notifications-error-icon {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.pe-notifications-empty-title,
+.pe-notifications-error-title {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-on-surface, #1e293b);
+}
+
+.pe-notifications-empty-desc,
+.pe-notifications-error-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-outline, #64748b);
+  max-width: 320px;
+  line-height: 1.45;
+}
+
+.pe-notifications-retry-btn {
+  margin-top: 16px;
+  padding: 8px 16px;
+  background: var(--color-primary, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.pe-notifications-retry-btn:hover {
+  opacity: 0.9;
+}
+
+.pe-notifications-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(37, 99, 235, 0.2);
+  border-top-color: var(--color-primary, #2563eb);
+  border-radius: 50%;
+  animation: pe-spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes pe-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Listado de Notificaciones
+   ========================================================================== */
+
+.pe-notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pe-notification-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.pe-notification-card:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.pe-notification-card:active {
+  transform: scale(0.99);
+}
+
+.pe-notification-card--unread {
+  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.pe-notification-card--unread:hover {
+  background: rgba(37, 99, 235, 0.07);
+}
+
+.pe-notification-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary, #2563eb);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.pe-notification-read-spacer {
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.pe-notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.pe-notification-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pe-notification-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-on-surface, #1e293b);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.pe-notification-card--unread .pe-notification-title {
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+}
+
+.pe-notification-time {
+  font-size: 0.75rem;
+  color: var(--color-outline, #64748b);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pe-notification-body {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-outline, #475569);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+/* ==========================================================================
+   Paginación: Cargar Más
+   ========================================================================== */
+
+.pe-notifications-load-more-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 8px 0;
+}
+
+.pe-notifications-load-more-btn {
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pe-notifications-load-more-btn:hover {
+  background-color: rgba(37, 99, 235, 0.05);
+  border-color: var(--color-primary, #2563eb);
+}
+
+.pe-notifications-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
