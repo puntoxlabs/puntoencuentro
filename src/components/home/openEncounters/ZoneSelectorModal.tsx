@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Localidad } from './types';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { openEncountersService } from '@/services/openEncountersService';
+import { CoverageRequestModal } from '@/components/coverage/CoverageRequestModal';
 import './ZoneSelectorModal.css';
 
 export interface ZoneSelectorModalProps {
@@ -23,6 +24,7 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [selected, setSelected] = useState<string[]>(selectedLocalityIds);
   const [loading, setLoading] = useState(false);
+  const [isCoverageModalOpen, setIsCoverageModalOpen] = useState(false);
 
   useEffect(() => {
     setSelected(selectedLocalityIds);
@@ -150,6 +152,15 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
                 </div>
               </div>
             ))}
+            <div className="pe-zones-coverage-trigger">
+              <button
+                type="button"
+                className="pe-zones-modal__btn-coverage"
+                onClick={() => setIsCoverageModalOpen(true)}
+              >
+                {t('open_encounters.coverage_cta', { defaultValue: '¿No está tu zona? Pedir cobertura' })}
+              </button>
+            </div>
           </div>
         )}
 
@@ -171,6 +182,15 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
           </button>
         </div>
       </div>
+
+      <CoverageRequestModal
+        isOpen={isCoverageModalOpen}
+        onClose={() => setIsCoverageModalOpen(false)}
+        onSelectExistingLocality={(localityId) => {
+          setSelected((prev) => (prev.includes(localityId) ? prev : [...prev, localityId]));
+          setIsCoverageModalOpen(false);
+        }}
+      />
     </>
   );
 };

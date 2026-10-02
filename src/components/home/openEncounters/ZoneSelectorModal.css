@@ -191,6 +191,35 @@
   font-size: 0.9rem;
 }
 
+.pe-zones-coverage-trigger {
+  padding-top: 10px;
+  padding-bottom: 4px;
+  display: flex;
+  justify-content: center;
+}
+
+.pe-zones-modal__btn-coverage {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #059669;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pe-zones-modal__btn-coverage:hover {
+  color: #047857;
+  background-color: #ecfdf5;
+}
+
 @keyframes pe-zoom-in {
   from {
     opacity: 0;
