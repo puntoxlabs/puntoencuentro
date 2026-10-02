@@ -123,6 +123,7 @@ describe('Suite de Pruebas de Integración y Backend Real — Dynamic Coverage M
       'supabase/migrations/20261002120000_dynamic_coverage_mvp.sql',
       'supabase/migrations/20261002130000_fix_coverage_btrim.sql',
       'supabase/migrations/20261002140000_allow_paused_market_status.sql',
+      'supabase/migrations/20261002150000_harden_coverage_catalog_exposure.sql',
     ];
 
     for (const mig of migrations) {
@@ -506,11 +507,11 @@ describe('Suite de Pruebas de Integración y Backend Real — Dynamic Coverage M
     assert.equal(rpcs.rows.length, 2);
   });
 
-  test('C25: El conteo total de migraciones en repo es exactamente 73', () => {
+  test('C25: El conteo total de migraciones en repo es exactamente 74', () => {
     const migs = fs.readdirSync(path.resolve(process.cwd(), 'supabase/migrations'));
     const sqlMigs = migs.filter((m) => m.endsWith('.sql'));
-    assert.equal(sqlMigs.length, 73);
-    assert.equal(sqlMigs[72], '20261002140000_allow_paused_market_status.sql');
+    assert.equal(sqlMigs.length, 74);
+    assert.equal(sqlMigs[73], '20261002150000_harden_coverage_catalog_exposure.sql');
   });
 
   test('C26: Ciclo de vida de mercados soporta collecting, reviewing, planned, active, paused', async () => {
@@ -527,5 +528,110 @@ describe('Suite de Pruebas de Integración y Backend Real — Dynamic Coverage M
       `);
       assert.equal(row.rows[0].status, st);
     }
+  });
+
+  // ==========================================
+  // DIRECTED DATA-EXPOSURE SECURITY TESTS (S1 - S8)
+  // ==========================================
+
+  test('S1: anon cannot SELECT candidate markets', async () => {
+    await setAuthUser(null);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.coverage_markets;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+  });
+
+  test('S2: authenticated cannot SELECT candidate markets', async () => {
+    await setAuthUser(userA, false);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.coverage_markets;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+  });
+
+  test('S3: anon cannot SELECT aliases', async () => {
+    await setAuthUser(null);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.coverage_location_aliases;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+  });
+
+  test('S4: authenticated cannot SELECT aliases', async () => {
+    await setAuthUser(userA, false);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.coverage_location_aliases;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+  });
+
+  test('S5: submit RPC still resolves known candidate', async () => {
+    await setAuthUser(userA, true);
+    const res = await db.query<{ submit_coverage_request: any }>(`
+      SELECT public.submit_coverage_request('Mendoza') as submit_coverage_request;
+    `);
+    const result = res.rows[0].submit_coverage_request;
+    assert.equal(result.ok, true);
+    assert.equal(result.market_key, 'gran-mendoza');
+  });
+
+  test('S6: submit RPC still resolves existing locality', async () => {
+    await setAuthUser(userA, true);
+    const res = await db.query<{ submit_coverage_request: any }>(`
+      SELECT public.submit_coverage_request('Los Acantilados') as submit_coverage_request;
+    `);
+    const result = res.rows[0].submit_coverage_request;
+    assert.equal(result.ok, true);
+    assert.equal(result.result_type, 'existing_locality');
+    assert.equal(result.existing_locality_id, 'sur-playas-del-sur');
+  });
+
+  test('S7: internal views still denied to anon and authenticated', async () => {
+    await setAuthUser(null);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.v_coverage_growth_summary;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.v_coverage_unknown_review;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+
+    await setAuthUser(userA, false);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.v_coverage_growth_summary;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.v_coverage_unknown_review;`);
+      },
+      (err: any) => /permission denied/i.test(err.message)
+    );
+  });
+
+  test('S8: service_role/internal access preserved', async () => {
+    await db.exec(`SET ROLE postgres;`);
+    const markets = await db.query<{ count: string }>(`SELECT count(*)::text as count FROM public.coverage_markets;`);
+    assert.ok(Number(markets.rows[0].count) >= 1);
+    const aliases = await db.query<{ count: string }>(`SELECT count(*)::text as count FROM public.coverage_location_aliases;`);
+    assert.ok(Number(aliases.rows[0].count) >= 1);
+    const views = await db.query<{ count: string }>(`SELECT count(*)::text as count FROM public.v_coverage_growth_summary;`);
+    assert.ok(views.rows.length >= 0);
   });
 });
