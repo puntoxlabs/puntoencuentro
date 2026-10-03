@@ -6,7 +6,7 @@
  *    vieja del JS nunca puede quedar atrapada por este worker.
  *  - Actualización inmediata: skipWaiting() + clients.claim().
  *  - Limpieza defensiva de cualquier Cache Storage que hubiese creado una versión previa.
- *  - Manejo seguro de eventos "push" y "notificationclick".
+ *  - Manejo seguro de eventos "push" y "notificationclick" con validación estricta same-origin.
  */
 
 self.addEventListener('install', () => {
@@ -27,6 +27,31 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/**
+ * Valida de forma estricta que una URL relativa o absoluta pertenezca exactamente
+ * al mismo origen y utilice protocolo http/https, mitigando variantes de bypass
+ * (open redirects, backslashes, schemes no seguros como javascript: o data:).
+ */
+function sanitizeDeepLink(rawLink, baseOrigin) {
+  if (typeof rawLink !== 'string' || !rawLink.trim()) {
+    return '/';
+  }
+  try {
+    const resolvedUrl = new URL(rawLink, baseOrigin);
+    // 1. Debe coincidir exactamente con el origen actual (mismo origin)
+    if (resolvedUrl.origin !== baseOrigin) {
+      return '/';
+    }
+    // 2. Solo protocolos http o https (rechaza javascript:, data:, etc.)
+    if (resolvedUrl.protocol !== 'https:' && resolvedUrl.protocol !== 'http:') {
+      return '/';
+    }
+    return resolvedUrl.pathname + resolvedUrl.search + resolvedUrl.hash;
+  } catch (_err) {
+    return '/';
+  }
+}
+
 // ============================================================
 // Evento "push": recepción de mensajes Web Push
 // ============================================================
@@ -38,20 +63,16 @@ self.addEventListener('push', (event) => {
     } catch (_err) {
       data = {
         title: 'PuntoEncuentro',
-        body: event.data.text() || 'Tenés una nueva notificación',
+        body: 'Tenés una nueva notificación',
         deep_link: '/',
       };
     }
   }
 
-  const title = data.title || 'PuntoEncuentro';
-  const body = data.body || 'Tenés una nueva notificación';
-  const deepLink =
-    typeof data.deep_link === 'string' &&
-    data.deep_link.startsWith('/') &&
-    !data.deep_link.startsWith('//')
-      ? data.deep_link
-      : '/';
+  // Copy genérico por privacidad de pantalla de bloqueo
+  const title = 'PuntoEncuentro';
+  const body = 'Tenés una nueva notificación';
+  const safePath = sanitizeDeepLink(data.deep_link, self.location.origin);
 
   const notificationOptions = {
     body,
@@ -59,7 +80,7 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192.png',
     tag: data.tag || (data.notification_id ? `pe-notif-${data.notification_id}` : 'pe-general'),
     data: {
-      deep_link: deepLink,
+      deep_link: safePath,
       notification_id: data.notification_id || null,
     },
     renotify: true,
@@ -74,11 +95,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawLink = event.notification.data?.deep_link;
-  const safeLink =
-    typeof rawLink === 'string' && rawLink.startsWith('/') && !rawLink.startsWith('//')
-      ? rawLink
-      : '/';
+  const safePath = sanitizeDeepLink(event.notification.data?.deep_link, self.location.origin);
 
   event.waitUntil(
     (async () => {
@@ -87,7 +104,7 @@ self.addEventListener('notificationclick', (event) => {
         includeUncontrolled: true,
       });
 
-      const targetUrl = new URL(safeLink, self.location.origin).href;
+      const targetUrl = new URL(safePath, self.location.origin).href;
 
       // Si ya hay una ventana abierta en el mismo origen, enfocarla y navegar
       for (const client of clientList) {

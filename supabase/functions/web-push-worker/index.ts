@@ -1,6 +1,7 @@
 // Supabase Edge Function: web-push-worker
 // Consumidor asíncrono desacoplado del Notification Delivery Outbox (notification_delivery_outbox).
-// Procesa entregas Web Push utilizando VAPID, con claim atómico, backoff y revocación automática de 410/404.
+// Procesa entregas Web Push utilizando VAPID, con claim atómico, verificación pre-despacho,
+// backoff, copy genérico privado y revocación automática de 410/404.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -36,27 +37,29 @@ function getAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function isAuthorized(req: Request): boolean {
   const configuredSecret = Deno.env.get("WEB_PUSH_WORKER_SECRET");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!configuredSecret) {
+    return false;
+  }
 
+  // Autenticación de invocación EXCLUSIVAMENTE mediante x-worker-secret.
+  // Bearer service_role es de uso exclusivo interno del worker hacia la DB, NO como credencial pública.
   const headerSecret = req.headers.get("x-worker-secret");
-  const authHeader = req.headers.get("authorization");
-
-  // 1. Validar por header dedicado si está configurado
-  if (configuredSecret && headerSecret === configuredSecret) {
-    return true;
+  if (!headerSecret) {
+    return false;
   }
 
-  // 2. Validar por Bearer Token de service_role
-  if (serviceRoleKey && authHeader) {
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (token === serviceRoleKey) {
-      return true;
-    }
-  }
-
-  return false;
+  return timingSafeEqual(headerSecret, configuredSecret);
 }
 
 function sanitizeErrorMessage(msg: string): string {
@@ -74,7 +77,7 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { status: 200 });
   }
 
-  // 1. Validar autenticación interna
+  // 1. Validar autenticación interna (exclusivamente secret dedicado)
   if (!isAuthorized(req)) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
@@ -149,11 +152,31 @@ Deno.serve(async (req: Request) => {
       ttl = Math.max(1, Math.min(86400, remainingSeconds));
     }
 
-    // Payload conservador para el Service Worker
+    // Pre-dispatch security guard (mitigación de carrera de dispositivo compartido):
+    // Verifica atómicamente si la entrega sigue en 'processing' y si la suscripción
+    // sigue activa y pertenece a este destinatario antes de despachar a la red.
+    const { data: isValidDelivery } = await adminClient.rpc(
+      "verificar_delivery_activo_seguro",
+      {
+        p_delivery_id: delivery.delivery_id,
+        p_expected_recipient_id: delivery.recipient_user_id,
+      }
+    );
+
+    if (!isValidDelivery) {
+      console.warn(
+        `[web-push-worker] Delivery ${delivery.delivery_id} ya no está activa para destinatario ${delivery.recipient_user_id} (reasignada, cancelada o revocada). Despacho abortado.`
+      );
+      failedCount++;
+      continue;
+    }
+
+    // Payload conservador y privado para el Service Worker:
+    // Copy genérico para proteger la privacidad en pantalla de bloqueo y tránsito de red.
     const payload = JSON.stringify({
       notification_id: delivery.inbox_notification_id,
-      title: delivery.title || "PuntoEncuentro",
-      body: delivery.body || "Nueva notificación",
+      title: "PuntoEncuentro",
+      body: "Tenés una nueva notificación",
       deep_link: delivery.deep_link || "/",
       tag: `pe-notif-${delivery.inbox_notification_id}`,
     });
@@ -181,10 +204,15 @@ Deno.serve(async (req: Request) => {
     } catch (err: any) {
       const statusCode = err?.statusCode || (err?.status as number) || 500;
       const isGoneOrNotFound = statusCode === 404 || statusCode === 410;
+      // 401 (Unauthorized) y 403 (Forbidden): Rechazo de credenciales VAPID del servidor.
+      // NO revoca la suscripción del dispositivo (el endpoint no es inválido),
+      // pero es terminal para esta entrega (p_is_retryable: false) para no ciclar.
+      const isVapidAuthFailure = statusCode === 401 || statusCode === 403;
       const isRetryable =
-        statusCode === 429 ||
-        (statusCode >= 500 && statusCode < 600) ||
-        (!err?.statusCode && !err?.status);
+        !isVapidAuthFailure &&
+        (statusCode === 429 ||
+          (statusCode >= 500 && statusCode < 600) ||
+          (!err?.statusCode && !err?.status));
 
       if (isGoneOrNotFound) {
         // Suscripción inválida / dispositivo desinstalado: revocar y cancelar pendientes

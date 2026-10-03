@@ -267,6 +267,36 @@ export function createWebPushService(deps: WebPushDeps) {
         p_auth: auth,
       });
       const res = data as { ok?: boolean; error?: string } | null;
+      if (res?.error === 'device_reassigned_needs_new_subscription') {
+        // Suscripción física del navegador pertenecía a otra cuenta:
+        // Desuscribir localmente de la suscripción vieja y crear una suscripción nueva y fresca
+        try {
+          await subscription.unsubscribe();
+          const freshSub = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: vapidKey,
+          });
+          const freshJson = freshSub.toJSON();
+          const freshEndpoint = freshJson.endpoint ?? freshSub.endpoint;
+          const freshP256dh = freshJson.keys?.p256dh;
+          const freshAuth = freshJson.keys?.auth;
+          if (freshEndpoint && freshP256dh && freshAuth) {
+            const retryRes = await deps.rpc('registrar_web_push_subscription_seguro', {
+              p_endpoint: freshEndpoint,
+              p_p256dh: freshP256dh,
+              p_auth: freshAuth,
+            });
+            const retryData = retryRes.data as { ok?: boolean } | null;
+            if (!retryRes.error && retryData?.ok) {
+              return { ok: true };
+            }
+          }
+        } catch {
+          deps.warn('activate', 'reassign_refresh_failed');
+          return { ok: false, error: 'register_failed' };
+        }
+      }
+
       if (error || !res?.ok) {
         deps.warn('activate', error ? 'rpc_error' : 'rpc_rejected');
         const code = res?.error;

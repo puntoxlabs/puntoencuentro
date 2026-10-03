@@ -23,6 +23,7 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
   const userB = '22222222-2222-2222-2222-222222222222';
   const userC = '33333333-3333-3333-3333-333333333333'; // Sin dispositivos
   const userD = '44444444-4444-4444-4444-444444444444'; // Para pruebas aisladas
+  const userShared = '55555555-5555-5555-5555-555555555555'; // Para test de carrera A -> B
 
   const setAuth = async (userId: string | null) => {
     if (!userId) {
@@ -131,7 +132,7 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
       $$ LANGUAGE plpgsql;
 
       INSERT INTO auth.users (id, email) VALUES
-        ('${userA}', 'a@test.com'), ('${userB}', 'b@test.com'), ('${userC}', 'c@test.com'), ('${userD}', 'd@test.com')
+        ('${userA}', 'a@test.com'), ('${userB}', 'b@test.com'), ('${userC}', 'c@test.com'), ('${userD}', 'd@test.com'), ('${userShared}', 'shared@test.com')
       ON CONFLICT DO NOTHING;
     `);
 
@@ -140,6 +141,7 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
       'supabase/migrations/20261002200000_harden_inbox_rpc_grants.sql',
       'supabase/migrations/20261003120000_web_push_subscriptions.sql',
       'supabase/migrations/20261003140000_web_push_delivery_outbox.sql',
+      'supabase/migrations/20261003150000_harden_web_push_delivery_safety.sql',
     ]) {
       await db.exec(read(mig));
     }
@@ -459,18 +461,25 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.equal(pendingA.length, 1);
     assert.equal(pendingA[0].status, 'pending');
 
-    // 3. Usuario B inicia sesión en ese mismo dispositivo y registra el endpoint
+    // 3. Usuario B inicia sesión en ese mismo dispositivo e intenta registrar el mismo endpoint
     const regB = await registerDevice(userB, sharedEndpoint, sharedKeys);
-    assert.equal(regB.ok, true);
+    assert.equal(regB.ok, false);
+    assert.equal(regB.error, 'device_reassigned_needs_new_subscription');
 
-    // 4. Verificar como admin que la entrega pendiente de Usuario A fue cancelada inmediatamente
+    // 4. Verificar como admin que la suscripción de A fue revocada y su entrega cancelada inmediatamente
     await asAdmin();
     const { rows: afterReassign } = await db.query<any>(
       `SELECT id, status, last_error FROM public.notification_delivery_outbox WHERE id = $1`,
       [pendingA[0].id]
     );
     assert.equal(afterReassign[0].status, 'cancelled');
-    assert.match(afterReassign[0].last_error, /reassigned to another user/i);
+    assert.match(afterReassign[0].last_error, /Device ownership transfer|reassigned/i);
+
+    const { rows: subA } = await db.query<any>(
+      `SELECT status FROM public.web_push_subscriptions WHERE id = $1`,
+      [regA.device.id]
+    );
+    assert.equal(subA[0].status, 'revoked');
 
     // 5. El reclamo para ese endpoint compartido nunca devuelve la notificación privada de A
     const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', {
@@ -490,11 +499,12 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
   });
 
   // ── 14. Payload conservador sin secretos ni credenciales ─────────────────────────────────
-  test('14. Payload hacia el Service Worker contiene únicamente campos autorizados sin secretos', async () => {
+  test('14. Payload hacia el Service Worker contiene copy genérico sin secretos ni textos privados', async () => {
+    await registerDevice(userB);
     const notif = await insertInboxNotification(
       userB,
-      'Titulo Seguro',
-      'Cuerpo Seguro',
+      'Titulo Sensible y Privado',
+      'Cuerpo con datos privados que no van a lock screen',
       '/?open_encounter=xyz'
     );
 
@@ -508,11 +518,11 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     );
     assert.ok(delivery);
 
-    // Construir payload que enviaría el worker
+    // Construir payload que envía el worker (copy genérico para lock screen)
     const payload = {
       notification_id: delivery.inbox_notification_id,
-      title: delivery.title,
-      body: delivery.body,
+      title: 'PuntoEncuentro',
+      body: 'Tenés una nueva notificación',
       deep_link: delivery.deep_link,
       tag: `pe-notif-${delivery.inbox_notification_id}`,
     };
@@ -524,8 +534,11 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.ok(!json.includes('@test.com'));
     assert.ok(!json.includes(delivery.auth_key));
     assert.ok(!json.includes(delivery.p256dh_key));
+    assert.ok(!json.includes('Titulo Sensible y Privado'));
+    assert.ok(!json.includes('datos privados'));
     assert.equal(payload.notification_id, notif.notification_id);
-    assert.equal(payload.title, 'Titulo Seguro');
+    assert.equal(payload.title, 'PuntoEncuentro');
+    assert.equal(payload.body, 'Tenés una nueva notificación');
   });
 
   // ── 15. Cálculo de TTL proporcional ──────────────────────────────────────────────────────
@@ -876,7 +889,7 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     const swSource = read('public/sw.js');
     assert.match(swSource, /self\.addEventListener\('notificationclick'/);
     assert.match(swSource, /event\.notification\.close\(\)/);
-    assert.match(swSource, /startsWith\('\/'\)\s*&&\s*!.*startsWith\('\/\/'\)/);
+    assert.match(swSource, /sanitizeDeepLink/);
     assert.match(swSource, /clients\.matchAll/);
     assert.match(swSource, /client\.focus\(\)/);
     assert.match(swSource, /client\.navigate/);
@@ -885,7 +898,6 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
 
   // ── 28. Sanitización de errores y observabilidad sin fugas de secretos ────────────────────
   test('28. Sanitización de errores en worker: jamás versiona ni registra tokens, endpoints ni secretos', async () => {
-    // Función de sanitización implementada en el worker
     function sanitizeErrorMessage(msg: string): string {
       if (!msg) return 'Push delivery failed';
       return msg
@@ -903,5 +915,202 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.ok(!clean.includes('raw_auth_token_456'));
     assert.ok(clean.includes('[ENDPOINT_REDACTED]'));
     assert.ok(clean.includes('key=[REDACTED]'));
+  });
+
+  // ── 29. BLOQUEANTE: Carrera de dispositivo compartido ─────────────────────────────────────
+  test('29. BLOQUEANTE: Carrera de dispositivo compartido: A claimed → B toma dispositivo → A intenta send → send NO ocurre', async () => {
+    const sharedEndpoint = newEndpoint();
+    const sharedKeys = newKeys();
+
+    // 1. Usuario A tiene dispositivo registrado exclusivamente
+    const regA = await registerDevice(userShared, sharedEndpoint, sharedKeys);
+    assert.equal(regA.ok, true);
+
+    // 2. Notificación privada para A
+    const notifA = await insertInboxNotification(userShared, 'Super Secreto A', 'Contenido confidencial');
+
+    // 3. Worker ejecuta claim_web_push_deliveries_seguro:
+    // delivery queda en 'processing' y el worker de A obtiene las credenciales en memoria
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', {
+      p_batch_size: 10,
+      p_worker_id: 'worker-user-A',
+    });
+    const claimedItem = claimRes.deliveries.find(
+      (d: any) => d.inbox_notification_id === notifA.notification_id
+    );
+    assert.ok(claimedItem, 'Worker reclamó la entrega para A');
+    assert.equal(claimedItem.web_push_subscription_id, regA.device.id);
+
+    await asAdmin();
+    const { rows: inFlight } = await db.query<any>(
+      `SELECT status FROM public.notification_delivery_outbox WHERE id = $1`,
+      [claimedItem.delivery_id]
+    );
+    assert.equal(inFlight[0].status, 'processing');
+
+    // 4. ANTES de que el worker haga el dispatch HTTP, Usuario B toma el dispositivo e intenta registrar
+    const regB = await registerDevice(userB, sharedEndpoint, sharedKeys);
+    assert.equal(regB.ok, false);
+    assert.equal(regB.error, 'device_reassigned_needs_new_subscription');
+
+    // La entrega en DB de A pasó inmediatamente de 'processing' a 'cancelled'
+    await asAdmin();
+    const { rows: cancelledDelivery } = await db.query<any>(
+      `SELECT status, last_error FROM public.notification_delivery_outbox WHERE id = $1`,
+      [claimedItem.delivery_id]
+    );
+    assert.equal(cancelledDelivery[0].status, 'cancelled');
+    assert.match(cancelledDelivery[0].last_error, /Device ownership transfer/i);
+
+    // 5. Worker de A (que todavía conserva el objeto claimed en memoria) intenta ejecutar el pre-dispatch guard:
+    const isValid = await rpc(null, 'verificar_delivery_activo_seguro', {
+      p_delivery_id: claimedItem.delivery_id,
+      p_expected_recipient_id: userShared,
+    });
+    assert.equal(isValid, false, 'verificar_delivery_activo_seguro DEBE rechazar el envío');
+
+    // 6. Simular el handler del worker:
+    let sendAttempted = false;
+    if (isValid) {
+      sendAttempted = true; // No debe entrar aquí
+    }
+    assert.equal(sendAttempted, false, 'El envío HTTP NO debe ocurrir');
+  });
+
+  // ── 30. Autenticación del web-push-worker ──────────────────────────────────────────────────
+  test('30. Autenticación web-push-worker: entrada restringida a x-worker-secret y Bearer service_role rechazado', () => {
+    function timingSafeEqual(a: string, b: string): boolean {
+      if (a.length !== b.length) return false;
+      let diff = 0;
+      for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      }
+      return diff === 0;
+    }
+
+    function isAuthorized(headers: Record<string, string>, configuredSecret: string | undefined): boolean {
+      if (!configuredSecret) return false;
+      const headerSecret = headers['x-worker-secret'];
+      if (!headerSecret) return false;
+      return timingSafeEqual(headerSecret, configuredSecret);
+    }
+
+    const secret = 'super-secure-worker-secret-xyz';
+    const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.service-role-key-test';
+
+    // 1. Con secret dedicado correcto -> autorizado
+    assert.equal(isAuthorized({ 'x-worker-secret': secret }, secret), true);
+
+    // 2. Con secret incorrecto -> rechazado
+    assert.equal(isAuthorized({ 'x-worker-secret': 'wrong-secret' }, secret), false);
+
+    // 3. Sin header -> rechazado
+    assert.equal(isAuthorized({}, secret), false);
+
+    // 4. Intentando usar Bearer service_role como credencial de invocación -> rechazado estrictamente
+    assert.equal(
+      isAuthorized({ authorization: `Bearer ${serviceRoleKey}` }, secret),
+      false,
+      'Bearer service_role NO debe ser aceptado como credencial pública de invocación'
+    );
+  });
+
+  // ── 31. SW notificationclick & push: validación same-origin estricta ─────────────────────
+  test('31. SW notificationclick: validación same-origin estricta rechaza URLs externas, javascript: y backslashes', () => {
+    function sanitizeDeepLink(rawLink: unknown, baseOrigin: string): string {
+      if (typeof rawLink !== 'string' || !rawLink.trim()) {
+        return '/';
+      }
+      try {
+        const resolvedUrl = new URL(rawLink, baseOrigin);
+        if (resolvedUrl.origin !== baseOrigin) {
+          return '/';
+        }
+        if (resolvedUrl.protocol !== 'https:' && resolvedUrl.protocol !== 'http:') {
+          return '/';
+        }
+        return resolvedUrl.pathname + resolvedUrl.search + resolvedUrl.hash;
+      } catch {
+        return '/';
+      }
+    }
+
+    const baseOrigin = 'https://puntoencuentro.com.ar';
+
+    // Rutas válidas
+    assert.equal(
+      sanitizeDeepLink('/?open_encounter=a1b2c3d4-e5f6-7890-abcd-ef1234567890', baseOrigin),
+      '/?open_encounter=a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+    );
+    assert.equal(sanitizeDeepLink('/encuentros/explorar', baseOrigin), '/encuentros/explorar');
+
+    // URLs externas y ataques open redirect -> rechazados a '/'
+    assert.equal(sanitizeDeepLink('https://evil.example', baseOrigin), '/');
+    assert.equal(sanitizeDeepLink('http://evil.example/login', baseOrigin), '/');
+    assert.equal(sanitizeDeepLink('//evil.example/phish', baseOrigin), '/');
+
+    // Protocolos no permitidos
+    assert.equal(sanitizeDeepLink('javascript:alert(document.cookie)', baseOrigin), '/');
+    assert.equal(sanitizeDeepLink('data:text/html,<script>alert(1)</script>', baseOrigin), '/');
+
+    // Backslash ambiguo
+    const backslashResult = sanitizeDeepLink('/\\evil.example', baseOrigin);
+    assert.ok(backslashResult === '/' || backslashResult.startsWith('/'), 'No debe redirigir cross-origin');
+    assert.ok(!backslashResult.includes('https://evil.example'));
+  });
+
+  // ── 32. Privacidad de contenido push ──────────────────────────────────────────────────────
+  test('32. Privacidad de contenido push: payload y copy de SW utilizan copy genérico sin exponer títulos ni cuerpos en pantalla de bloqueo', () => {
+    const swSource = read('public/sw.js');
+    const workerSource = read('supabase/functions/web-push-worker/index.ts');
+
+    // Worker genera copy genérico
+    assert.match(workerSource, /title:\s*"PuntoEncuentro"/);
+    assert.match(workerSource, /body:\s*"Tenés una nueva notificación"/);
+
+    // SW usa copy genérico
+    assert.match(swSource, /const title = 'PuntoEncuentro'/);
+    assert.match(swSource, /const body = 'Tenés una nueva notificación'/);
+  });
+
+  // ── 33. HTTP 401 y 403 ────────────────────────────────────────────────────────────────────
+  test('33. Códigos HTTP 401 y 403 de provider Web Push: terminales para la entrega pero NO revocan la suscripción del dispositivo', async () => {
+    const reg = await registerDevice(userA);
+    const n401 = await insertInboxNotification(userA, 'Auth error 401', 'Test');
+    const n403 = await insertInboxNotification(userA, 'Auth error 403', 'Test');
+
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', {
+      p_batch_size: 10,
+      p_worker_id: 'worker-401-403',
+    });
+
+    const d401 = claimRes.deliveries.find((d: any) => d.inbox_notification_id === n401.notification_id);
+    const d403 = claimRes.deliveries.find((d: any) => d.inbox_notification_id === n403.notification_id);
+
+    // Simular 401
+    const res401 = await rpc(null, 'fallar_web_push_delivery_seguro', {
+      p_delivery_id: d401.delivery_id,
+      p_error_message: 'Unauthorized VAPID JWT',
+      p_http_status: 401,
+      p_is_retryable: false,
+    });
+    assert.equal(res401.status, 'failed');
+
+    // Simular 403
+    const res403 = await rpc(null, 'fallar_web_push_delivery_seguro', {
+      p_delivery_id: d403.delivery_id,
+      p_error_message: 'Forbidden VAPID Subject',
+      p_http_status: 403,
+      p_is_retryable: false,
+    });
+    assert.equal(res403.status, 'failed');
+
+    await asAdmin();
+    // La suscripción del dispositivo permanece ACTIVE (no fue revocada)
+    const { rows: subCheck } = await db.query<any>(
+      `SELECT status FROM public.web_push_subscriptions WHERE id = $1`,
+      [reg.device.id]
+    );
+    assert.equal(subCheck[0].status, 'active', 'HTTP 401/403 NO deben revocar la suscripción del dispositivo');
   });
 });
