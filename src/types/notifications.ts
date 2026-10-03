@@ -8,6 +8,7 @@ export type DomainEventType =
   | 'encounter.updated.v1'
   | 'encounter.cancelled.v1'
   | 'match.detected.v1'
+  | 'intention.converted_to_encounter.v1'
   | 'internal_invitation.created.v1'
   | 'internal_invitation.accepted.v1'
   | 'internal_invitation.declined.v1'
@@ -18,6 +19,8 @@ export type OutboxEventStatus = 'pending' | 'processing' | 'processed' | 'failed
 
 export type NotificationType =
   | 'match_found'
+  | 'interes_convertido'
+  | 'intention_converted_to_encounter'
   | 'internal_invitation'
   | 'invitation_accepted'
   | 'invitation_declined';
@@ -37,6 +40,16 @@ export interface MatchFoundNotificationPayload {
   dateText?: string | null;
   approximateZone?: string | null;
   spotsLeft?: number | null;
+}
+
+export interface IntentionConvertedNotificationPayload {
+  intencionId: string;
+  encounterId: string;
+  encounterTitle: string;
+  approximateZone?: string | null;
+  modality?: 'presencial' | 'virtual';
+  dateText?: string | null;
+  legacyAlertId?: string | null;
 }
 
 export interface InternalInvitationNotificationPayload {
@@ -59,6 +72,8 @@ export interface InvitationResponseNotificationPayload {
 
 export type InboxNotificationPayload =
   | { type: 'match_found'; data: MatchFoundNotificationPayload }
+  | { type: 'interes_convertido'; data: IntentionConvertedNotificationPayload }
+  | { type: 'intention_converted_to_encounter'; data: IntentionConvertedNotificationPayload }
   | { type: 'internal_invitation'; data: InternalInvitationNotificationPayload }
   | { type: 'invitation_accepted'; data: InvitationResponseNotificationPayload }
   | { type: 'invitation_declined'; data: InvitationResponseNotificationPayload }

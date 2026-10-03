@@ -8,13 +8,10 @@ import { FilterSheet } from '@/components/ui/FilterSheet';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
-import { AlertasSheet } from '@/components/home/alerts';
 import { NotificationsSheet } from '@/components/notifications';
 import { HomeOpenEncounterDetailSheet } from '@/components/home/openEncounters/HomeOpenEncounterDetailSheet';
 import type { OpenEncounterSummary } from '@/components/home/openEncounters/types';
-import { useAlertas } from '@/hooks/useAlertas';
 import { useNotifications } from '@/contexts/NotificationsContext';
-import type { AlertaCompatibilidadEncuentroPublico } from '@/types/alertas';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
 import { openEncountersService } from '@/services/openEncountersService';
@@ -352,30 +349,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     setIsOpen: setIsNotificationsOpen,
   } = useNotifications();
 
-  // Hook y estados de Alertas de Compatibilidad (Fase 2.0-C1)
-  const alertasHook = useAlertas();
-  const { unreadCount: alertasUnreadCount } = alertasHook;
-  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
-  const [selectedAlertOpenEncounter, setSelectedAlertOpenEncounter] = useState<OpenEncounterSummary | null>(null);
-  const [isAlertOpenEncounterDetailOpen, setIsAlertOpenEncounterDetailOpen] = useState(false);
-
-  const handleSelectEncuentroFromAlert = useCallback((enc: AlertaCompatibilidadEncuentroPublico) => {
-    const startsAt = enc.fecha && enc.hora ? `${enc.fecha}T${enc.hora}` : (enc.fecha || new Date().toISOString());
-    const dateLabel = formatFriendlyDate(enc.fecha || '', enc.hora || null) || 'Fecha por confirmar';
-    setSelectedAlertOpenEncounter({
-      id: enc.id,
-      title: enc.titulo,
-      description: enc.descripcion || undefined,
-      startsAt,
-      dateLabel,
-      approximateZone: enc.approximate_zone || 'Zona no especificada',
-      localityId: enc.locality_id || '',
-      openSlots: 1,
-      confirmedCount: 1,
-      language: 'es',
-    });
-    setIsAlertOpenEncounterDetailOpen(true);
-  }, []);
+  // Estado para visualización de Encuentro Abierto desde deep link
+  const [selectedDeepLinkEncounter, setSelectedDeepLinkEncounter] = useState<OpenEncounterSummary | null>(null);
+  const [isDeepLinkEncounterDetailOpen, setIsDeepLinkEncounterDetailOpen] = useState(false);
 
   // ── DEEP LINK "open_encounter" (Fase 2B) ──
   // Abre automáticamente el sheet de detalle seguro al navegar a /?open_encounter=<uuid>
@@ -409,8 +385,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         if (!isMounted) return;
         if (enc) {
           // 3. Abrir automáticamente HomeOpenEncounterDetailSheet
-          setSelectedAlertOpenEncounter(enc);
-          setIsAlertOpenEncounterDetailOpen(true);
+          setSelectedDeepLinkEncounter(enc);
+          setIsDeepLinkEncounterDetailOpen(true);
         } else {
           // 4. Fallback discreto si no existe o ya no está abierto
           console.info('[Home] El encuentro abierto ya no está disponible o no existe:', encounterId);
@@ -1166,19 +1142,19 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
               onClick={() => setIsNotificationsOpen(true)}
               className="home-header-icon-btn home-header-bell-btn"
               aria-label={
-                (notificationsUnreadCount || alertasUnreadCount) > 0
-                  ? `Notificaciones (${notificationsUnreadCount || alertasUnreadCount} no leídas)`
+                notificationsUnreadCount > 0
+                  ? `Notificaciones (${notificationsUnreadCount} no leídas)`
                   : 'Notificaciones'
               }
               title="Notificaciones"
             >
               <div className="home-header-bell-wrapper">
                 <Bell size={20} />
-                {(notificationsUnreadCount > 0 || alertasUnreadCount > 0) && (
+                {notificationsUnreadCount > 0 && (
                   <span className="home-header-bell-badge" aria-hidden="true">
-                    {(notificationsUnreadCount || alertasUnreadCount) > 99
+                    {notificationsUnreadCount > 99
                       ? '99+'
-                      : notificationsUnreadCount || alertasUnreadCount}
+                      : notificationsUnreadCount}
                   </span>
                 )}
               </div>
@@ -1605,21 +1581,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         onClose={() => setIsNotificationsOpen(false)}
       />
 
-      {/* Alertas de Compatibilidad (Fase 2.0-C1) */}
-      <AlertasSheet
-        isOpen={isAlertsOpen}
-        onClose={() => setIsAlertsOpen(false)}
-        alertasHook={alertasHook}
-        onSelectEncuentro={handleSelectEncuentroFromAlert}
-      />
-
-      {/* Detalle seguro de Encuentro Abierto abierto desde alerta */}
+      {/* Detalle seguro de Encuentro Abierto abierto desde deep link */}
       <HomeOpenEncounterDetailSheet
-        isOpen={isAlertOpenEncounterDetailOpen}
-        encounter={selectedAlertOpenEncounter}
+        isOpen={isDeepLinkEncounterDetailOpen}
+        encounter={selectedDeepLinkEncounter}
         onClose={() => {
-          setIsAlertOpenEncounterDetailOpen(false);
-          setSelectedAlertOpenEncounter(null);
+          setIsDeepLinkEncounterDetailOpen(false);
+          setSelectedDeepLinkEncounter(null);
         }}
       />
     </ScreenContainer>
