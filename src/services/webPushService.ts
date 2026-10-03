@@ -394,8 +394,12 @@ export const webPushService = createWebPushService({
   getEnv: readBrowserEnv,
   // La VAPID PUBLIC key puede estar en el bundle. La PRIVATE jamás (nunca VITE_*).
   getVapidPublicKey: () => {
-    const meta = typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string | undefined> }) : undefined;
-    return (meta?.env?.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim() || null;
+    try {
+      const key = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      return key?.trim() || null;
+    } catch {
+      return null;
+    }
   },
   rpc: (name, args) => supabase.rpc(name, args) as unknown as Promise<{ data: unknown; error: { message: string } | null }>,
   warn: (context, code) => {

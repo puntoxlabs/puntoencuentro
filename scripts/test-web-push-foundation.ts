@@ -674,4 +674,81 @@ describe('Fase 3A: Fundación PWA + Web Push (manifest, SW, RPCs, cliente, logou
     const svcSrc = read('src/services/webPushService.ts');
     assert.doesNotMatch(svcSrc, /console\.(log|warn|error)\([^)]*(endpoint|p256dh|auth\b|error\.message)/);
   });
+
+  // ── 16. Acceso Vite compilable (anti-regresión) ──────────────────────────────────────────
+  test('16. Vite env access compilable: webPushService y registerServiceWorker usan acceso directo sin indirecciones', () => {
+    const svc = read('src/services/webPushService.ts');
+    assert.match(
+      svc,
+      /import\.meta\.env\.VITE_VAPID_PUBLIC_KEY/,
+      'webPushService debe referenciar literalmente import.meta.env.VITE_VAPID_PUBLIC_KEY para reemplazo en build'
+    );
+    assert.doesNotMatch(
+      svc,
+      /const\s+meta\s*=.*import\.meta/s,
+      'webPushService NO debe envolver import.meta en variables intermedias'
+    );
+    assert.doesNotMatch(
+      svc,
+      /meta\?\.env\?\.VITE_VAPID_PUBLIC_KEY/,
+      'webPushService NO debe usar acceso dinámico meta?.env'
+    );
+    assert.doesNotMatch(
+      svc,
+      /import\.meta\.env\[/,
+      'webPushService NO debe usar acceso computado import.meta.env[key]'
+    );
+
+    const rsw = read('src/lib/registerServiceWorker.ts');
+    assert.match(
+      rsw,
+      /import\.meta\.env\.PROD/,
+      'registerServiceWorker debe referenciar literalmente import.meta.env.PROD'
+    );
+    assert.doesNotMatch(
+      rsw,
+      /const\s+meta\s*=.*import\.meta/s,
+      'registerServiceWorker NO debe envolver import.meta en variables intermedias'
+    );
+    assert.doesNotMatch(
+      rsw,
+      /meta\?\.env\?\.PROD/,
+      'registerServiceWorker NO debe usar acceso dinámico meta?.env'
+    );
+
+    // Si dist/assets existe, validar que el bundle productivo no contenga accesos runtime residuales
+    const distDir = path.join(ROOT, 'dist', 'assets');
+    if (fs.existsSync(distDir)) {
+      const jsFiles = fs.readdirSync(distDir).filter((f) => f.endsWith('.js'));
+      let totalVapidKeysFound = 0;
+
+      for (const file of jsFiles) {
+        const content = fs.readFileSync(path.join(distDir, file), 'utf8');
+        assert.doesNotMatch(
+          content,
+          /import\.meta\?\.env\?\.VITE_VAPID_PUBLIC_KEY/,
+          `${file} no debe conservar acceso runtime a import.meta?.env?.VITE_VAPID_PUBLIC_KEY`
+        );
+        assert.doesNotMatch(
+          content,
+          /import\.meta\?\.env\?\.PROD/,
+          `${file} no debe conservar acceso runtime a import.meta?.env?.PROD`
+        );
+
+        // Si este archivo es el que contiene el singleton webPushService, verificar la VAPID inlined
+        if (content.includes('getVapidPublicKey')) {
+          const match = content.match(/getVapidPublicKey:\(\)=>{try{return["'`]([A-Za-z0-9_-]{80,100})["'`]}/);
+          if (match) {
+            totalVapidKeysFound += 1;
+            const key = match[1];
+            const buf = Buffer.from(key, 'base64url');
+            assert.equal(buf.length, 65, 'VAPID embebida debe tener exactamente 65 bytes decodificados');
+            assert.equal(buf[0], 0x04, 'VAPID embebida debe iniciar con byte 0x04 (punto P-256 no comprimido)');
+          }
+        }
+      }
+
+      assert.ok(totalVapidKeysFound >= 1, 'Al menos un bundle generado debe contener la VAPID pública compilada');
+    }
+  });
 });

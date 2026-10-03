@@ -27,8 +27,13 @@ export async function registerServiceWorker(
  * NO solicita ningún permiso.
  */
 export function initServiceWorker(): void {
-  const meta = typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: { PROD?: boolean } }) : undefined;
-  if (!meta?.env?.PROD) return;
+  let isProd = false;
+  try {
+    isProd = import.meta.env.PROD;
+  } catch {
+    isProd = false;
+  }
+  if (!isProd) return;
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
   const run = () => {
