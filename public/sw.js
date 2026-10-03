@@ -64,15 +64,13 @@ self.addEventListener('push', (event) => {
       data = {
         title: 'PuntoEncuentro',
         body: 'Tenés una nueva notificación',
-        deep_link: '/',
       };
     }
   }
 
-  // Copy genérico por privacidad de pantalla de bloqueo
+  // Copy genérico por privacidad de pantalla de bloqueo y datos en tránsito
   const title = 'PuntoEncuentro';
   const body = 'Tenés una nueva notificación';
-  const safePath = sanitizeDeepLink(data.deep_link, self.location.origin);
 
   const notificationOptions = {
     body,
@@ -80,7 +78,6 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192.png',
     tag: data.tag || (data.notification_id ? `pe-notif-${data.notification_id}` : 'pe-general'),
     data: {
-      deep_link: safePath,
       notification_id: data.notification_id || null,
     },
     renotify: true,
@@ -90,12 +87,16 @@ self.addEventListener('push', (event) => {
 });
 
 // ============================================================
-// Evento "notificationclick": interacción y deep link seguro
+// Evento "notificationclick": interacción neutral y segura
 // ============================================================
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const safePath = sanitizeDeepLink(event.notification.data?.deep_link, self.location.origin);
+  // Privacidad estricta: NO se confía en ningún deep_link del payload push.
+  // Siempre abre/enfoca la bandeja genérica neutral (/?notifications=1),
+  // garantizando que la visualización dependa exclusivamente de la sesión
+  // activa en el cliente con RLS y control de acceso.
+  const targetUrl = new URL('/?notifications=1', self.location.origin).href;
 
   event.waitUntil(
     (async () => {
@@ -104,13 +105,11 @@ self.addEventListener('notificationclick', (event) => {
         includeUncontrolled: true,
       });
 
-      const targetUrl = new URL(safePath, self.location.origin).href;
-
       // Si ya hay una ventana abierta en el mismo origen, enfocarla y navegar
       for (const client of clientList) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           await client.focus();
-          if ('navigate' in client && client.url !== targetUrl) {
+          if ('navigate' in client) {
             await client.navigate(targetUrl);
           }
           return;

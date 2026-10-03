@@ -229,4 +229,113 @@ describe('Fase 1.5: UI Mínima de Notificaciones In-App', () => {
       assert.ok(errorHtml.includes('Reintentar'));
     });
   });
+
+  // -------------------------------------------------------------
+  // 6. MANEJO SEGURO DEL DEEP LINK NEUTRAL ?notifications=1 EN HOME
+  // -------------------------------------------------------------
+  describe('6. Deep Link Neutral ?notifications=1 (Privacidad Web Push)', () => {
+    function simulateNotificationsQueryHandling(opts: {
+      search: string;
+      pathname: string;
+      authLoading: boolean;
+      isPermanentUser: boolean;
+    }) {
+      let isOpen = false;
+      let replacedUrl: string | null = null;
+      let notificationIdLoaded: string | null = null;
+
+      const { search, pathname, authLoading, isPermanentUser } = opts;
+
+      // Lógica canónica de Home.tsx:
+      if (!authLoading) {
+        const params = new URLSearchParams(search);
+        if (params.has('notifications')) {
+          const notifVal = params.get('notifications');
+          if (notifVal === '1' || notifVal === 'true') {
+            if (isPermanentUser) {
+              isOpen = true;
+            }
+          }
+          params.delete('notifications');
+          const cleanSearch = params.toString();
+          replacedUrl = cleanSearch ? `${pathname}?${cleanSearch}` : pathname;
+        }
+      }
+
+      return { isOpen, replacedUrl, notificationIdLoaded };
+    }
+
+    test('Usuario permanente con ?notifications=1: abre NotificationsSheet y limpia query param con replace', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?notifications=1',
+        pathname: '/',
+        authLoading: false,
+        isPermanentUser: true,
+      });
+
+      assert.equal(res.isOpen, true, 'Debe abrir la bandeja');
+      assert.equal(res.replacedUrl, '/', 'Debe limpiar ?notifications=1');
+      assert.equal(res.notificationIdLoaded, null, 'No debe cargar ninguna notificación por ID');
+    });
+
+    test('Usuario permanente con otros query params (?notifications=1&v=gsap): preserva otros params y limpia notifications', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?notifications=1&v=gsap',
+        pathname: '/',
+        authLoading: false,
+        isPermanentUser: true,
+      });
+
+      assert.equal(res.isOpen, true);
+      assert.equal(res.replacedUrl, '/?v=gsap');
+    });
+
+    test('Usuario anónimo con ?notifications=1: NO abre bandeja y limpia query param sin exponer nada', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?notifications=1',
+        pathname: '/',
+        authLoading: false,
+        isPermanentUser: false, // Anónimo
+      });
+
+      assert.equal(res.isOpen, false, 'NO debe abrir la bandeja para anónimos');
+      assert.equal(res.replacedUrl, '/', 'Debe limpiar la URL');
+    });
+
+    test('Usuario no logueado con ?notifications=1: NO abre bandeja y limpia query param', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?notifications=1',
+        pathname: '/',
+        authLoading: false,
+        isPermanentUser: false, // Sin sesión
+      });
+
+      assert.equal(res.isOpen, false, 'NO debe abrir la bandeja sin sesión');
+      assert.equal(res.replacedUrl, '/', 'Debe limpiar la URL');
+    });
+
+    test('Durante authLoading: no ejecuta acciones prematuras', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?notifications=1',
+        pathname: '/',
+        authLoading: true,
+        isPermanentUser: false,
+      });
+
+      assert.equal(res.isOpen, false);
+      assert.equal(res.replacedUrl, null, 'No debe navegar mientras carga auth');
+    });
+
+    test('Sin parámetro notifications en URL: no modifica nada', () => {
+      const res = simulateNotificationsQueryHandling({
+        search: '?tab=upcoming',
+        pathname: '/',
+        authLoading: false,
+        isPermanentUser: true,
+      });
+
+      assert.equal(res.isOpen, false);
+      assert.equal(res.replacedUrl, null);
+    });
+  });
 });

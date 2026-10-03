@@ -171,13 +171,13 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    // Payload conservador y privado para el Service Worker:
-    // Copy genérico para proteger la privacidad en pantalla de bloqueo y tránsito de red.
+    // Payload completamente neutral para el Service Worker:
+    // Exclusivamente datos técnicos no sensibles (notification_id, copy genérico y tag).
+    // Jamás incluye deep_link ni información privada del usuario o encuentro.
     const payload = JSON.stringify({
       notification_id: delivery.inbox_notification_id,
       title: "PuntoEncuentro",
       body: "Tenés una nueva notificación",
-      deep_link: delivery.deep_link || "/",
       tag: `pe-notif-${delivery.inbox_notification_id}`,
     });
 

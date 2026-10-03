@@ -286,7 +286,7 @@ export interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInWithGoogleForDiscovery } = useAuth();
+  const { user, loading: authLoading, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -409,6 +409,28 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
       isMounted = false;
     };
   }, [location.search, location.pathname, navigate]);
+
+  // ── DEEP LINK "notifications" (Fase 3B - Privacidad Web Push) ──
+  // Al hacer clic en un push neutral (?notifications=1), abre la bandeja de notificaciones
+  // únicamente si el usuario cuenta con una sesión permanente autenticada.
+  // Limpia el query param con replace sin recargar la página y no carga ninguna notificación por ID.
+  useEffect(() => {
+    if (authLoading) return;
+
+    const params = new URLSearchParams(location.search);
+    if (!params.has('notifications')) return;
+
+    const notifVal = params.get('notifications');
+    if (notifVal === '1' || notifVal === 'true') {
+      if (isPermanentUser) {
+        setIsNotificationsOpen(true);
+      }
+    }
+
+    params.delete('notifications');
+    const cleanSearch = params.toString();
+    navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+  }, [authLoading, isPermanentUser, location.search, location.pathname, navigate, setIsNotificationsOpen]);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);

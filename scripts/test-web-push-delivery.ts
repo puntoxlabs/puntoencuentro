@@ -518,12 +518,11 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     );
     assert.ok(delivery);
 
-    // Construir payload que envía el worker (copy genérico para lock screen)
+    // Construir payload que envía el worker (payload completamente neutral)
     const payload = {
       notification_id: delivery.inbox_notification_id,
       title: 'PuntoEncuentro',
       body: 'Tenés una nueva notificación',
-      deep_link: delivery.deep_link,
       tag: `pe-notif-${delivery.inbox_notification_id}`,
     };
 
@@ -536,6 +535,8 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.ok(!json.includes(delivery.p256dh_key));
     assert.ok(!json.includes('Titulo Sensible y Privado'));
     assert.ok(!json.includes('datos privados'));
+    assert.ok(!json.includes('deep_link'));
+    assert.equal((payload as any).deep_link, undefined);
     assert.equal(payload.notification_id, notif.notification_id);
     assert.equal(payload.title, 'PuntoEncuentro');
     assert.equal(payload.body, 'Tenés una nueva notificación');
@@ -884,16 +885,17 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.match(swSource, /self\.registration\.showNotification/);
   });
 
-  // ── 27. Service Worker evento 'notificationclick' con deep link seguro ───────────────────
-  test('27. Service Worker notificationclick: cierra notificación, valida link relativo seguro y enfoca/navega', () => {
+  // ── 27. Service Worker evento 'notificationclick' con navegación neutral ─────────────────
+  test('27. Service Worker notificationclick: cierra notificación, abre ruta neutral /?notifications=1 sin confiar en deep_link', () => {
     const swSource = read('public/sw.js');
     assert.match(swSource, /self\.addEventListener\('notificationclick'/);
     assert.match(swSource, /event\.notification\.close\(\)/);
-    assert.match(swSource, /sanitizeDeepLink/);
+    assert.match(swSource, /\/\?notifications=1/);
     assert.match(swSource, /clients\.matchAll/);
     assert.match(swSource, /client\.focus\(\)/);
     assert.match(swSource, /client\.navigate/);
     assert.match(swSource, /clients\.openWindow/);
+    assert.doesNotMatch(swSource, /event\.notification\.data\??\.deep_link/);
   });
 
   // ── 28. Sanitización de errores y observabilidad sin fugas de secretos ────────────────────
@@ -1060,17 +1062,19 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
   });
 
   // ── 32. Privacidad de contenido push ──────────────────────────────────────────────────────
-  test('32. Privacidad de contenido push: payload y copy de SW utilizan copy genérico sin exponer títulos ni cuerpos en pantalla de bloqueo', () => {
+  test('32. Privacidad de contenido push: payload neutral sin deep_link ni datos sensibles, copy genérico', () => {
     const swSource = read('public/sw.js');
     const workerSource = read('supabase/functions/web-push-worker/index.ts');
 
-    // Worker genera copy genérico
+    // Worker genera copy genérico y NO incluye deep_link
     assert.match(workerSource, /title:\s*"PuntoEncuentro"/);
     assert.match(workerSource, /body:\s*"Tenés una nueva notificación"/);
+    assert.doesNotMatch(workerSource, /deep_link:\s*delivery\.deep_link/);
 
-    // SW usa copy genérico
+    // SW usa copy genérico y NO guarda deep_link en options.data
     assert.match(swSource, /const title = 'PuntoEncuentro'/);
     assert.match(swSource, /const body = 'Tenés una nueva notificación'/);
+    assert.doesNotMatch(swSource, /deep_link:\s*safePath/);
   });
 
   // ── 33. HTTP 401 y 403 ────────────────────────────────────────────────────────────────────
@@ -1112,5 +1116,121 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
       [reg.device.id]
     );
     assert.equal(subCheck[0].status, 'active', 'HTTP 401/403 NO deben revocar la suscripción del dispositivo');
+  });
+
+  // ── 34. Stale push residual: A verificado → B cambia de usuario → stale push de A llega ───
+  test('34. Stale push residual: A verificado → B cambia de usuario → stale push de A llega → payload neutral, click abre /?notifications=1 y B no ve datos de A', async () => {
+    const sharedEndpoint = newEndpoint();
+    const sharedKeys = newKeys();
+
+    // 1. Usuario A tiene dispositivo registrado exclusivamente
+    const regA = await registerDevice(userShared, sharedEndpoint, sharedKeys);
+    assert.equal(regA.ok, true);
+
+    // 2. Notificación privada para A con datos sensibles (título, cuerpo confidencial y deep link con ID de encuentro)
+    const privateTargetId = 'e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1';
+    const notifA = await insertInboxNotification(
+      userShared,
+      'Secreto Confidencial de A',
+      'Información privada que Usuario B jamás debe conocer',
+      `/meet/${privateTargetId}`
+    );
+
+    // 3. Worker ejecuta claim y verifica delivery activo para A en t0 (antes del cambio de usuario)
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', {
+      p_batch_size: 10,
+      p_worker_id: 'worker-stale-test',
+    });
+    const claimedItem = claimRes.deliveries.find(
+      (d: any) => d.inbox_notification_id === notifA.notification_id
+    );
+    assert.ok(claimedItem);
+
+    const isValidA = await rpc(null, 'verificar_delivery_activo_seguro', {
+      p_delivery_id: claimedItem.delivery_id,
+      p_expected_recipient_id: userShared,
+    });
+    assert.equal(isValidA, true, 'Delivery verificado como activo en t0');
+
+    // 4. Se produce la ventana de carrera residual inevitable externa:
+    // La verificación pasó, pero antes de que el paquete llegue a la pantalla física,
+    // el dispositivo físico pasa a manos de Usuario B.
+    // El push de A llega físicamente al dispositivo:
+    const pushPayload = {
+      notification_id: claimedItem.inbox_notification_id,
+      title: 'PuntoEncuentro',
+      body: 'Tenés una nueva notificación',
+      tag: `pe-notif-${claimedItem.inbox_notification_id}`,
+    };
+    const pushPayloadJson = JSON.stringify(pushPayload);
+
+    // Garantía 1: El push payload es estrictamente neutral:
+    // Cero datos de A, cero títulos/cuerpos privados, cero deep links sensibles:
+    assert.ok(!pushPayloadJson.includes('Secreto Confidencial'));
+    assert.ok(!pushPayloadJson.includes('privada'));
+    assert.ok(!pushPayloadJson.includes(privateTargetId));
+    assert.ok(!pushPayloadJson.includes('meet'));
+    assert.ok(!pushPayloadJson.includes(userShared));
+    assert.equal((pushPayload as any).deep_link, undefined);
+    assert.equal(pushPayload.title, 'PuntoEncuentro');
+    assert.equal(pushPayload.body, 'Tenés una nueva notificación');
+
+    // Garantía 2: Al hacer click en la notificación, el Service Worker NO confía en ningún
+    // deep link del payload y siempre navega a la ruta neutral /?notifications=1.
+    const swSource = read('public/sw.js');
+    assert.match(
+      swSource,
+      /const targetUrl = new URL\('\/\?notifications=1', self\.location\.origin\)\.href/
+    );
+    assert.doesNotMatch(swSource, /event\.notification\.data\??\.deep_link/);
+
+    // Garantía 3: Usuario B recibe /?notifications=1 en su navegador.
+    // Al consultar la base de datos con la sesión activa de B (RLS estricto):
+    await setAuth(userB);
+    const { rows: userBNotifications } = await db.query<any>(
+      `SELECT * FROM public.inbox_notifications WHERE id = $1`,
+      [notifA.notification_id]
+    );
+    // RLS garantiza que Usuario B jamás puede ver la notificación privada de A
+    assert.equal(userBNotifications.length, 0, 'RLS previene que Usuario B lea la notificación de A');
+
+    // Tampoco mediante la RPC segura de consulta de inbox:
+    const inboxB = await rpc(userB, 'get_mis_notificaciones_inbox_seguro', {
+      p_limit: 50,
+    });
+    const foundInB = ((inboxB as any)?.notifications || []).some(
+      (n: any) => n.id === notifA.notification_id
+    );
+    assert.equal(foundInB, false, 'RPC de inbox no devuelve notificaciones de A al usuario B');
+
+    // Garantía 4: Si Usuario B no tiene sesión (anónimo o deslogueado):
+    await setAuth(null);
+    // La RPC get_mis_notificaciones_inbox_seguro deniega ejecución a anon a nivel de privilegios:
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.get_mis_notificaciones_inbox_seguro(50) AS res;`);
+      },
+      /permission denied for function get_mis_notificaciones_inbox_seguro/i,
+      'Usuario anónimo no tiene permisos de ejecución en get_mis_notificaciones_inbox_seguro'
+    );
+
+    // Y el acceso directo por SQL está revocado a nivel de privilegios:
+    await setAuth(null);
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.inbox_notifications WHERE id = $1`, [notifA.notification_id]);
+      },
+      /permission denied for table inbox_notifications/i,
+      'Usuario anónimo/sin sesión no tiene permisos de SELECT en inbox_notifications'
+    );
+
+    // Garantía 5: Home.tsx maneja ?notifications=1 de forma neutral y segura:
+    // Requiere sesión permanente para abrir el sheet y limpia el query param sin recargar.
+    const homeSource = read('src/screens/Home.tsx');
+    assert.match(homeSource, /params\.get\('notifications'\)/);
+    assert.match(homeSource, /isPermanentUser/);
+    assert.match(homeSource, /setIsNotificationsOpen\(true\)/);
+    assert.match(homeSource, /params\.delete\('notifications'\)/);
+    assert.doesNotMatch(homeSource, /openNotificationById/);
   });
 });
