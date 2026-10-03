@@ -22,6 +22,7 @@ import type {
 } from '@/types/matchAlerts';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { DevicePushSettings } from './DevicePushSettings';
 import '@/components/ui/BottomSheet.css';
 import './AvisameSheet.css';
 
@@ -717,6 +718,11 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
                   </div>
                 );
               })
+            )}
+
+            {/* Fase 3A: activar push en este dispositivo (solo tras tener ≥1 aviso; sin interrumpir la creación) */}
+            {isPermanentUser && !loadingAlerts && !alertsError && alerts.length > 0 && (
+              <DevicePushSettings />
             )}
           </div>
         )}

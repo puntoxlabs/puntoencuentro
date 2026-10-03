@@ -490,3 +490,62 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Fase 3A: Notificaciones push en este dispositivo ── */
+.pe-push-device {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-primary-container, #E5EDFF);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pe-push-device__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--color-primary-dark, #123AA1);
+}
+.pe-push-device__row--spread {
+  justify-content: space-between;
+  align-items: center;
+}
+.pe-push-device__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pe-push-device__text {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant, #4b5563);
+}
+.pe-push-device__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-primary, #184CD4);
+  background: transparent;
+  color: var(--color-primary, #184CD4);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pe-push-device__btn--primary {
+  background: var(--color-primary, #184CD4);
+  color: #fff;
+}
+.pe-push-device__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.pe-push-device__error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+}

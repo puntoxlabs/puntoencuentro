@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { participantesService } from '@/services/participantesService';
+import { webPushService } from '@/services/webPushService';
 
 const RECENT_PARTICIPANT_KEY = 'pending_participant_invitation_token';
 const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
@@ -127,6 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setLoading(false);
+
+      if (event === 'SIGNED_OUT') {
+        // Privacidad en dispositivos compartidos: sin sesión no se puede autenticar la
+        // revocación remota, pero sí cortar la suscripción push local del navegador.
+        void webPushService.unsubscribeLocalOnly();
+      }
 
       if (
         event === 'SIGNED_IN' ||
@@ -379,6 +386,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    // Antes de cerrar sesión (necesitamos el JWT para revocar en backend). Nunca lanza.
+    await webPushService.cleanupOnSignOut();
     await supabase.auth.signOut();
   };
 
