@@ -48,6 +48,9 @@ try {
   await server.ssrLoadModule('./scripts/test-alerts-matching.ts');
   console.log('✅ Phase 2A Avisame subscriptions backend & matching tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-avisame-ux.ts');
+  console.log('✅ Phase 2B Avisame user experience & open encounter deep link tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);
