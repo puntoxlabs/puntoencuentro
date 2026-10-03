@@ -93,10 +93,11 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
     }
 
     const encounterId = payload.encounter_id || event.aggregate_id;
+    const intencionId = payload.intencion_id || payload.source_intencion_id;
     const title = payload.title || "Intención convertida en encuentro";
     const body = payload.body || `Una intención que te interesaba se convirtió en un encuentro abierto: ${payload.encounter_title || "Encuentro abierto"}`;
     const deepLink = payload.deep_link || `/?open_encounter=${encounterId}`;
-    const dedupKey = payload.dedup_key || event.dedup_key;
+    const dedupKey = payload.dedup_key || (intencionId && encounterId ? `intention:${intencionId}:encounter:${encounterId}` : event.dedup_key);
     const expiresAt = payload.expires_at || null;
 
     const { error } = await adminClient.rpc("insertar_inbox_notification_seguro", {

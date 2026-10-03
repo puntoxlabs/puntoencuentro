@@ -43,10 +43,11 @@ SELECT
     ),
     CASE WHEN a.leida THEN a.created_at ELSE NULL END,
     pg_catalog.format('intention:%s:encounter:%s', a.source_intencion_id, a.target_encuentro_id),
-    GREATEST(a.created_at + INTERVAL '14 days', pg_catalog.clock_timestamp() + INTERVAL '14 days'),
+    a.created_at + INTERVAL '14 days',
     a.created_at
 FROM public.alertas_compatibilidad a
 LEFT JOIN public.encuentros e ON e.id = a.target_encuentro_id
+WHERE a.created_at >= (pg_catalog.clock_timestamp() - INTERVAL '14 days')
 ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
 
 -- Documentar deprecación de tabla legacy

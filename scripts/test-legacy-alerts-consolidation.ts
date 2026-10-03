@@ -474,10 +474,11 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
             ),
             CASE WHEN a.leida THEN a.created_at ELSE NULL END,
             pg_catalog.format('intention:%s:encounter:%s', a.source_intencion_id, a.target_encuentro_id),
-            GREATEST(a.created_at + INTERVAL '14 days', pg_catalog.clock_timestamp() + INTERVAL '14 days'),
+            a.created_at + INTERVAL '14 days',
             a.created_at
         FROM public.alertas_compatibilidad a
         LEFT JOIN public.encuentros e ON e.id = a.target_encuentro_id
+        WHERE a.created_at >= (pg_catalog.clock_timestamp() - INTERVAL '14 days')
         ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
       `);
     });
@@ -579,5 +580,165 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
       const safe = validateDeepLink(item.deep_link);
       assert.ok(safe, 'El deep link debe pasar la validación estricta de seguridad');
     }
+  });
+
+  test('11. Deduplicación backfill ↔ worker: legacy backfill + posterior evento moderno = una sola inbox notification', async () => {
+    const testIntentionId = intentionOpenId;
+    const testEncounterId = openEncounterId;
+    const testLegacyId = '90000000-0000-0000-0000-000000000003';
+
+    await asAdmin(async () => {
+      // 1. Simular alerta legacy previa migrada por backfill
+      await db.query(`
+        INSERT INTO public.alertas_compatibilidad (
+          id, user_id, tipo, source_intencion_id, target_encuentro_id, leida, created_at
+        ) VALUES (
+          '${testLegacyId}', '${userA}', 'interes_convertido', '${testIntentionId}', '${testEncounterId}', false, now() - INTERVAL '3 days'
+        ) ON CONFLICT DO NOTHING;
+      `);
+
+      // Ejecutar backfill para esta alerta
+      await db.query(`
+        INSERT INTO public.inbox_notifications (
+          recipient_user_id,
+          notification_type,
+          target_type,
+          target_id,
+          deep_link,
+          title,
+          body,
+          payload,
+          read_at,
+          dedup_key,
+          expires_at,
+          created_at
+        ) VALUES (
+          '${userA}',
+          'interes_convertido',
+          'encounter',
+          '${testEncounterId}',
+          '/?open_encounter=${testEncounterId}',
+          'Intención convertida en encuentro',
+          'Una intención que te interesaba se convirtió en un encuentro abierto.',
+          jsonb_build_object('source_intencion_id', '${testIntentionId}', 'target_encuentro_id', '${testEncounterId}'),
+          NULL,
+          'intention:${testIntentionId}:encounter:${testEncounterId}',
+          now() + INTERVAL '11 days',
+          now() - INTERVAL '3 days'
+        ) ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
+      `);
+
+      // 2. Verificar que existe exactamente 1 notificación de este par
+      const beforeEvent = await db.query(`
+        SELECT count(*) as count FROM public.inbox_notifications
+        WHERE recipient_user_id = '${userA}'
+          AND dedup_key = 'intention:${testIntentionId}:encounter:${testEncounterId}';
+      `);
+      assert.equal(parseInt((beforeEvent.rows[0] as any).count, 10), 1);
+
+      // 3. Simular que el worker procesa posteriormente el evento moderno intention.converted_to_encounter.v1
+      const modernEvent = {
+        event_type: 'intention.converted_to_encounter.v1',
+        aggregate_id: testEncounterId,
+        dedup_key: `intention_conversion:intention:${testIntentionId}:encounter:${testEncounterId}:user:${userA}`,
+        payload: {
+          recipient_user_id: userA,
+          intencion_id: testIntentionId,
+          encounter_id: testEncounterId,
+          encounter_title: 'Pádel Abierto Palermo',
+          title: 'Intención convertida en encuentro',
+          body: 'Una intención que te interesaba se convirtió en un encuentro abierto: Pádel Abierto Palermo',
+          deep_link: `/?open_encounter=${testEncounterId}`,
+          dedup_key: `intention:${testIntentionId}:encounter:${testEncounterId}`,
+        },
+      };
+
+      await processWorkerEvent(modernEvent);
+
+      // 4. Verificar que SIGUE habiendo exactamente 1 sola fila en inbox_notifications
+      const afterEvent = await db.query(`
+        SELECT count(*) as count FROM public.inbox_notifications
+        WHERE recipient_user_id = '${userA}'
+          AND dedup_key = 'intention:${testIntentionId}:encounter:${testEncounterId}';
+      `);
+      assert.equal(parseInt((afterEvent.rows[0] as any).count, 10), 1, 'La deduplicación debe evitar registros duplicados');
+    });
+  });
+
+  test('12. Retención del backfill: alertas legacy > 14 días no se migran al inbox activo y permanecen en histórico', async () => {
+    const expiredLegacyId = '90000000-0000-0000-0000-000000000004';
+    const oldIntentionId = intentionOpenId;
+
+    await asAdmin(async () => {
+      // 1. Insertar alerta de hace 20 días en alertas_compatibilidad
+      await db.query(`
+        INSERT INTO public.alertas_compatibilidad (
+          id, user_id, tipo, source_intencion_id, target_encuentro_id, leida, created_at
+        ) VALUES (
+          '${expiredLegacyId}', '${userNoInterest}', 'interes_convertido', '${oldIntentionId}', '${openEncounterId}', false, now() - INTERVAL '20 days'
+        ) ON CONFLICT DO NOTHING;
+      `);
+
+      // 2. Ejecutar la query de migración/backfill que aplica la política de 14 días
+      await db.query(`
+        INSERT INTO public.inbox_notifications (
+            recipient_user_id,
+            notification_type,
+            target_type,
+            target_id,
+            deep_link,
+            title,
+            body,
+            payload,
+            read_at,
+            dedup_key,
+            expires_at,
+            created_at
+        )
+        SELECT
+            a.user_id,
+            'interes_convertido',
+            'encounter',
+            a.target_encuentro_id,
+            pg_catalog.format('/?open_encounter=%s', a.target_encuentro_id),
+            'Intención convertida en encuentro',
+            COALESCE('Una intención que te interesaba se convirtió en un encuentro abierto: ' || e.titulo, 'Una intención que te interesaba se convirtió en un encuentro abierto.'),
+            pg_catalog.jsonb_build_object(
+                'source_intencion_id', a.source_intencion_id,
+                'target_encuentro_id', a.target_encuentro_id,
+                'legacy_alert_id', a.id
+            ),
+            CASE WHEN a.leida THEN a.created_at ELSE NULL END,
+            pg_catalog.format('intention:%s:encounter:%s', a.source_intencion_id, a.target_encuentro_id),
+            a.created_at + INTERVAL '14 days',
+            a.created_at
+        FROM public.alertas_compatibilidad a
+        LEFT JOIN public.encuentros e ON e.id = a.target_encuentro_id
+        WHERE a.created_at >= (pg_catalog.clock_timestamp() - INTERVAL '14 days')
+        ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
+      `);
+
+      // 3. Verificar que la alerta antigua NO se insertó en inbox_notifications
+      const inboxCheck = await db.query(`
+        SELECT count(*) as count FROM public.inbox_notifications
+        WHERE recipient_user_id = '${userNoInterest}'
+          AND payload->>'legacy_alert_id' = '${expiredLegacyId}';
+      `);
+      assert.equal(parseInt((inboxCheck.rows[0] as any).count, 10), 0, 'Alerta > 14 días no debe migrarse al inbox activo');
+
+      // 4. Verificar que permanece intacta en alertas_compatibilidad como histórico
+      const legacyCheck = await db.query(`
+        SELECT count(*) as count FROM public.alertas_compatibilidad
+        WHERE id = '${expiredLegacyId}';
+      `);
+      assert.equal(parseInt((legacyCheck.rows[0] as any).count, 10), 1, 'Alerta legacy debe preservarse en tabla original');
+    });
+
+    // 5. Verificar que para userNoInterest el inbox no contiene elementos
+    await setAuthContext(userNoInterest, false);
+    const { rows: inboxRes }: any = await db.query(`
+      SELECT public.get_mis_notificaciones_inbox_seguro(10) AS res;
+    `);
+    assert.equal(inboxRes[0].res.data.length, 0, 'La bandeja activa moderna debe estar limpia');
   });
 });
