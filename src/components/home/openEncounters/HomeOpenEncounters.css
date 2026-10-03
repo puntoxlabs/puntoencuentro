@@ -18,30 +18,21 @@
 /* Header */
 .pe-discovery-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
   margin-bottom: 0.75rem;
 }
 
 .pe-discovery-title-group {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   min-width: 0;
-  flex: 1;
-}
-
-@media (min-width: 480px) {
-  .pe-discovery-header {
-    align-items: center;
-  }
-  .pe-discovery-title-group {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
+  width: 100%;
 }
 
 .pe-discovery-title {
@@ -50,14 +41,14 @@
   font-weight: 700;
   color: var(--color-on-surface, #0f172a);
   letter-spacing: -0.015em;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 
 .pe-discovery-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 9999px;
   background-color: #f1f5f9;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -65,6 +56,7 @@
   font-weight: 600;
   color: #475569;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pe-discovery-badge--interactive {
@@ -81,8 +73,9 @@
 .pe-discovery-header-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
+  width: 100%;
 }
 
 .pe-discovery-avisame-btn {
@@ -91,14 +84,15 @@
   color: var(--color-primary, #4f46e5);
   font-size: 0.8rem;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 6px 12px;
+  min-height: 36px;
   border-radius: 9999px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   transition: all 0.15s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -114,20 +108,42 @@
   color: var(--color-primary, #059669);
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 4px 6px;
+  padding: 6px 8px;
+  min-height: 36px;
   border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 2px;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
 .pe-discovery-see-all-btn:hover {
   background-color: rgba(5, 150, 105, 0.08);
   opacity: 0.9;
+}
+
+@media (min-width: 540px) {
+  .pe-discovery-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+
+  .pe-discovery-title-group {
+    width: auto;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+
+  .pe-discovery-header-actions {
+    width: auto;
+    justify-content: flex-end;
+  }
 }
 
 /* Carrusel Container */

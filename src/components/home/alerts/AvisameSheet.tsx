@@ -155,6 +155,21 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // Bloqueo de scroll en body mientras el bottom sheet está abierto para evitar scroll chaining en mobile
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalOverscrollBehavior = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.overscrollBehavior = originalOverscrollBehavior;
+    };
+  }, [isOpen]);
+
   // Localidad efectiva y catálogo
   const activeLocalities = useMemo(() => {
     return localidades.length > 0 ? localidades : [];
@@ -287,7 +302,14 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
   return (
     <>
       {/* Overlay */}
-      <div className="pe-sheet-overlay" onClick={onClose} aria-hidden="true" />
+      <div
+        className="pe-sheet-overlay"
+        onClick={onClose}
+        onTouchMove={(e) => {
+          if (e.cancelable) e.preventDefault();
+        }}
+        aria-hidden="true"
+      />
 
       {/* Sheet Container */}
       <div
