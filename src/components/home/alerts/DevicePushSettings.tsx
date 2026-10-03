@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, RefreshCw, Smartphone } from 'lucide-react';
+import { Bell, BellOff, Check, RefreshCw, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { webPushService } from '@/services/webPushService';
 import type { WebPushActivateError, WebPushDeviceState } from '@/types/webPush';
@@ -17,12 +17,16 @@ const ERROR_COPY: Record<WebPushActivateError, string> = {
   permanent_account_required: 'Iniciá sesión con tu cuenta para activar las notificaciones.',
 };
 
+export interface DevicePushSettingsProps {
+  onStateChange?: (state: WebPushDeviceState) => void;
+}
+
 /**
- * Activación de Web Push para ESTE dispositivo (Fase 3A).
+ * Activación de Web Push para ESTE dispositivo (Fase 3A / 3B UX).
  * Regla: el permiso del navegador solo se solicita al tocar "Activar".
  * Montar este componente solo LEE el estado; jamás pide permiso.
  */
-export const DevicePushSettings: React.FC = () => {
+export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateChange }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<WebPushDeviceState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,8 +35,11 @@ export const DevicePushSettings: React.FC = () => {
 
   const refresh = useCallback(async () => {
     const next = await webPushService.getDeviceState();
-    if (mounted.current) setState(next);
-  }, []);
+    if (mounted.current) {
+      setState(next);
+      onStateChange?.(next);
+    }
+  }, [onStateChange]);
 
   useEffect(() => {
     mounted.current = true;
@@ -135,9 +142,9 @@ export const DevicePushSettings: React.FC = () => {
       {state.kind === 'subscribed' && (
         <div className="pe-push-device__row pe-push-device__row--spread">
           <div className="pe-push-device__row">
-            <Bell size={16} aria-hidden="true" />
-            <p className="pe-push-device__title">
-              {t('push.active', { defaultValue: 'Notificaciones en este dispositivo: activadas' })}
+            <Check size={16} aria-hidden="true" style={{ color: '#059669', flexShrink: 0 }} />
+            <p className="pe-push-device__title" style={{ color: '#065f46' }}>
+              {t('push.active', { defaultValue: 'Notificaciones activadas en este dispositivo' })}
             </p>
           </div>
           <button

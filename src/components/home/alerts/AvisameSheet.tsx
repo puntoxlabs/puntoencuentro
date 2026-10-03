@@ -23,6 +23,9 @@ import type {
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { DevicePushSettings } from './DevicePushSettings';
+import { webPushService } from '@/services/webPushService';
+import { isPushPromptDismissed } from './antiNagging';
+import { AvisamePushPromptModal } from './AvisamePushPromptModal';
 import '@/components/ui/BottomSheet.css';
 import './AvisameSheet.css';
 
@@ -75,6 +78,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
 
   // Estados de "Mis avisos"
   const [alerts, setAlerts] = useState<MatchAlertSubscription[]>([]);
@@ -226,15 +230,31 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
         return;
       }
 
-      // Éxito: notificar, resetear formulario y cambiar a tab 'list'
-      setFeedbackMsg({
-        text: '¡Aviso creado! Te notificaremos en tu inbox cuando coincida un encuentro.',
-        type: 'success',
-      });
+      // Éxito: notificar, recargar y evaluar si corresponde ofrecer Web Push
       if (onAlertCreated) {
         onAlertCreated(res.subscription);
       }
       void fetchMisAlertas();
+
+      let prompted = false;
+      if (isPermanentUser && !isPushPromptDismissed()) {
+        try {
+          const deviceState = await webPushService.getDeviceState();
+          if (deviceState.kind === 'default' || deviceState.kind === 'granted_unsubscribed') {
+            setShowPushPrompt(true);
+            prompted = true;
+          }
+        } catch {
+          // Fail-open: no interrumpir flujo de confirmación de aviso
+        }
+      }
+
+      if (!prompted) {
+        setFeedbackMsg({
+          text: '¡Aviso creado! Te notificaremos en tu inbox cuando coincida un encuentro.',
+          type: 'success',
+        });
+      }
       setActiveTab('list');
     } catch (err: any) {
       setFormError(err?.message || 'Error inesperado al conectar con el servidor.');
@@ -567,6 +587,11 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
               </div>
             )}
 
+            {/* Configuración de Web Push en este dispositivo (solo usuario permanente) */}
+            {isPermanentUser && (
+              <DevicePushSettings />
+            )}
+
             {/* Botón Guardar */}
             <button
               type="submit"
@@ -734,14 +759,28 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
                 );
               })
             )}
-
-            {/* Fase 3A: activar push en este dispositivo (solo tras tener ≥1 aviso; sin interrumpir la creación) */}
-            {isPermanentUser && !loadingAlerts && !alertsError && alerts.length > 0 && (
-              <DevicePushSettings />
-            )}
           </div>
         )}
       </div>
+
+      {/* Modal contextual post-guardado de alerta (Fase 3B UX) */}
+      <AvisamePushPromptModal
+        isOpen={showPushPrompt}
+        onClose={() => {
+          setShowPushPrompt(false);
+          setFeedbackMsg({
+            text: '¡Aviso creado! Te notificaremos en tu inbox cuando coincida un encuentro.',
+            type: 'success',
+          });
+        }}
+        onActivated={() => {
+          setShowPushPrompt(false);
+          setFeedbackMsg({
+            text: '¡Aviso creado! Notificaciones activadas en este dispositivo.',
+            type: 'success',
+          });
+        }}
+      />
     </>
   );
 };
