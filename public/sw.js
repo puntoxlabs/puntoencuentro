@@ -76,10 +76,8 @@ self.addEventListener('push', (event) => {
     body,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: data.tag || (data.notification_id ? `pe-notif-${data.notification_id}` : 'pe-general'),
-    data: {
-      notification_id: data.notification_id || null,
-    },
+    tag: data.tag || 'pe-notification',
+    data: {},
     renotify: true,
   };
 

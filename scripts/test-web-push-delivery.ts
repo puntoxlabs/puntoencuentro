@@ -518,12 +518,11 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     );
     assert.ok(delivery);
 
-    // Construir payload que envía el worker (payload completamente neutral)
+    // Construir payload que envía el worker (payload estrictamente neutral y minimizado)
     const payload = {
-      notification_id: delivery.inbox_notification_id,
       title: 'PuntoEncuentro',
       body: 'Tenés una nueva notificación',
-      tag: `pe-notif-${delivery.inbox_notification_id}`,
+      tag: 'pe-notification',
     };
 
     const json = JSON.stringify(payload);
@@ -536,10 +535,13 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     assert.ok(!json.includes('Titulo Sensible y Privado'));
     assert.ok(!json.includes('datos privados'));
     assert.ok(!json.includes('deep_link'));
+    assert.ok(!json.includes('notification_id'));
+    assert.ok(!json.includes(notif.notification_id));
     assert.equal((payload as any).deep_link, undefined);
-    assert.equal(payload.notification_id, notif.notification_id);
+    assert.equal((payload as any).notification_id, undefined);
     assert.equal(payload.title, 'PuntoEncuentro');
     assert.equal(payload.body, 'Tenés una nueva notificación');
+    assert.equal(payload.tag, 'pe-notification');
   });
 
   // ── 15. Cálculo de TTL proporcional ──────────────────────────────────────────────────────
@@ -881,7 +883,9 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     const swSource = read('public/sw.js');
     assert.match(swSource, /self\.addEventListener\('push'/);
     assert.match(swSource, /event\.data\.json\(\)/);
-    assert.match(swSource, /pe-notif-/);
+    assert.match(swSource, /pe-notification/);
+    assert.doesNotMatch(swSource, /pe-notif-/);
+    assert.doesNotMatch(swSource, /notification_id/);
     assert.match(swSource, /self\.registration\.showNotification/);
   });
 
@@ -1066,15 +1070,18 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     const swSource = read('public/sw.js');
     const workerSource = read('supabase/functions/web-push-worker/index.ts');
 
-    // Worker genera copy genérico y NO incluye deep_link
+    // Worker genera copy genérico y NO incluye deep_link ni notification_id, y tag es estático
     assert.match(workerSource, /title:\s*"PuntoEncuentro"/);
     assert.match(workerSource, /body:\s*"Tenés una nueva notificación"/);
+    assert.match(workerSource, /tag:\s*"pe-notification"/);
     assert.doesNotMatch(workerSource, /deep_link:\s*delivery\.deep_link/);
+    assert.doesNotMatch(workerSource, /notification_id:\s*delivery\.inbox_notification_id/);
 
-    // SW usa copy genérico y NO guarda deep_link en options.data
+    // SW usa copy genérico y NO guarda deep_link ni notification_id en options.data
     assert.match(swSource, /const title = 'PuntoEncuentro'/);
     assert.match(swSource, /const body = 'Tenés una nueva notificación'/);
     assert.doesNotMatch(swSource, /deep_link:\s*safePath/);
+    assert.doesNotMatch(swSource, /notification_id:/);
   });
 
   // ── 33. HTTP 401 y 403 ────────────────────────────────────────────────────────────────────
@@ -1157,32 +1164,36 @@ describe('Fase 3B: Delivery Web Push (Outbox, Claim Atómico, Reconciliación, S
     // el dispositivo físico pasa a manos de Usuario B.
     // El push de A llega físicamente al dispositivo:
     const pushPayload = {
-      notification_id: claimedItem.inbox_notification_id,
       title: 'PuntoEncuentro',
       body: 'Tenés una nueva notificación',
-      tag: `pe-notif-${claimedItem.inbox_notification_id}`,
+      tag: 'pe-notification',
     };
     const pushPayloadJson = JSON.stringify(pushPayload);
 
-    // Garantía 1: El push payload es estrictamente neutral:
-    // Cero datos de A, cero títulos/cuerpos privados, cero deep links sensibles:
+    // Garantía 1: El push payload es estrictamente neutral y minimizado:
+    // Cero datos de A, cero títulos/cuerpos privados, cero deep links ni identificadores de notificación:
     assert.ok(!pushPayloadJson.includes('Secreto Confidencial'));
     assert.ok(!pushPayloadJson.includes('privada'));
     assert.ok(!pushPayloadJson.includes(privateTargetId));
     assert.ok(!pushPayloadJson.includes('meet'));
     assert.ok(!pushPayloadJson.includes(userShared));
+    assert.ok(!pushPayloadJson.includes('notification_id'));
+    assert.ok(!pushPayloadJson.includes(claimedItem.inbox_notification_id));
     assert.equal((pushPayload as any).deep_link, undefined);
+    assert.equal((pushPayload as any).notification_id, undefined);
     assert.equal(pushPayload.title, 'PuntoEncuentro');
     assert.equal(pushPayload.body, 'Tenés una nueva notificación');
+    assert.equal(pushPayload.tag, 'pe-notification');
 
     // Garantía 2: Al hacer click en la notificación, el Service Worker NO confía en ningún
-    // deep link del payload y siempre navega a la ruta neutral /?notifications=1.
+    // deep link ni dato del payload, no guarda notification_id y siempre navega a la ruta neutral /?notifications=1.
     const swSource = read('public/sw.js');
     assert.match(
       swSource,
       /const targetUrl = new URL\('\/\?notifications=1', self\.location\.origin\)\.href/
     );
     assert.doesNotMatch(swSource, /event\.notification\.data\??\.deep_link/);
+    assert.doesNotMatch(swSource, /notification_id/);
 
     // Garantía 3: Usuario B recibe /?notifications=1 en su navegador.
     // Al consultar la base de datos con la sesión activa de B (RLS estricto):

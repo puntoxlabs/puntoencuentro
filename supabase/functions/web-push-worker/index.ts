@@ -172,13 +172,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // Payload completamente neutral para el Service Worker:
-    // Exclusivamente datos técnicos no sensibles (notification_id, copy genérico y tag).
-    // Jamás incluye deep_link ni información privada del usuario o encuentro.
+    // Exclusivamente copy genérico y tag estático sin identificadores internos.
+    // Jamás incluye notification_id, IDs de usuario, encuentros ni deep_link.
     const payload = JSON.stringify({
-      notification_id: delivery.inbox_notification_id,
       title: "PuntoEncuentro",
       body: "Tenés una nueva notificación",
-      tag: `pe-notif-${delivery.inbox_notification_id}`,
+      tag: "pe-notification",
     });
 
     const pushSubscription = {
