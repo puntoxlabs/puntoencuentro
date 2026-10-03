@@ -1,0 +1,492 @@
+/* AvisameSheet.css - Estilos para el Bottom Sheet de Alertas Explícitas (Fase 2B) */
+
+.pe-avisame-sheet {
+  max-width: 520px;
+}
+
+/* ── Encabezado del Sheet ── */
+.pe-avisame-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.pe-avisame-header__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pe-avisame-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-avisame-header__icon {
+  color: var(--color-primary, #6366f1);
+  display: flex;
+  align-items: center;
+}
+
+.pe-avisame-header__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-surface, #111827);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.pe-avisame-header__subtitle {
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #6b7280);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pe-avisame-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant, #6b7280);
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pe-avisame-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-avisame-close-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #6366f1);
+  outline-offset: 2px;
+}
+
+/* ── Tabs Segmentadas ── */
+.pe-avisame-tabs {
+  display: flex;
+  background: var(--color-surface-variant, #f3f4f6);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 20px;
+  gap: 4px;
+}
+
+.pe-avisame-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant, #6b7280);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.pe-avisame-tab--active {
+  background: var(--color-surface, #ffffff);
+  color: var(--color-on-surface, #111827);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.pe-avisame-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-container, #eef2ff);
+  color: var(--color-primary-dark, #4338ca);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+}
+
+/* ── Formulario de Creación ── */
+.pe-avisame-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pe-avisame-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pe-avisame-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface, #111827);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pe-avisame-label__optional {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-on-surface-variant, #9ca3af);
+}
+
+/* Segmented chips para Modalidad */
+.pe-avisame-chips {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.pe-avisame-chip {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--color-outline-variant, #e5e7eb);
+  background: var(--color-surface, #ffffff);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-on-surface-variant, #4b5563);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pe-avisame-chip:hover {
+  border-color: var(--color-primary-light, #a5b4fc);
+  background: #fafbff;
+}
+
+.pe-avisame-chip--active {
+  background: var(--color-primary-container, #eef2ff);
+  border-color: var(--color-primary, #6366f1);
+  color: var(--color-primary-dark, #4338ca);
+  font-weight: 600;
+}
+
+/* Inputs y Selects */
+.pe-avisame-select,
+.pe-avisame-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-outline-variant, #e5e7eb);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--color-on-surface, #111827);
+  background-color: var(--color-surface, #ffffff);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.pe-avisame-select:focus,
+.pe-avisame-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.pe-avisame-select:disabled,
+.pe-avisame-input:disabled {
+  background-color: var(--color-surface-variant, #f3f4f6);
+  color: var(--color-on-surface-variant, #9ca3af);
+  cursor: not-allowed;
+}
+
+/* Filas de 2 columnas */
+.pe-avisame-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 400px) {
+  .pe-avisame-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Checkbox sin vencimiento */
+.pe-avisame-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #4b5563);
+  user-select: none;
+  margin-top: 2px;
+}
+
+.pe-avisame-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary, #6366f1);
+  cursor: pointer;
+}
+
+/* Botón de envío */
+.pe-avisame-submit-btn {
+  margin-top: 8px;
+  padding: 12px 20px;
+  background: var(--color-primary, #6366f1);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.18s ease, transform 0.1s ease;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+}
+
+.pe-avisame-submit-btn:hover:not(:disabled) {
+  background: var(--color-primary-dark, #4f46e5);
+}
+
+.pe-avisame-submit-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.pe-avisame-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Mensajes de feedback / error */
+.pe-avisame-feedback {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-avisame-feedback--success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.pe-avisame-feedback--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* ── Tab "Mis avisos" (Lista) ── */
+.pe-avisame-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-avisame-empty {
+  text-align: center;
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.pe-avisame-empty__icon {
+  color: var(--color-on-surface-variant, #9ca3af);
+  margin-bottom: 4px;
+}
+
+.pe-avisame-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-on-surface, #111827);
+  margin: 0;
+}
+
+.pe-avisame-empty__desc {
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #6b7280);
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+.pe-avisame-empty__cta {
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e5e7eb);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pe-avisame-empty__cta:hover {
+  background: var(--color-primary-container, #eef2ff);
+  border-color: var(--color-primary, #6366f1);
+}
+
+/* Card de Alerta Individual */
+.pe-avisame-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e5e7eb);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pe-avisame-card--active {
+  border-left: 4px solid var(--color-primary, #6366f1);
+}
+
+.pe-avisame-card--paused {
+  border-left: 4px solid #f59e0b;
+  opacity: 0.88;
+}
+
+.pe-avisame-card--expired {
+  border-left: 4px solid #9ca3af;
+  opacity: 0.75;
+}
+
+.pe-avisame-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pe-avisame-card__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface, #111827);
+}
+
+/* Badges de Estado Efectivo */
+.pe-avisame-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pe-avisame-badge--active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.pe-avisame-badge--paused {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pe-avisame-badge--expired {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+/* Criterios de la Card */
+.pe-avisame-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant, #4b5563);
+}
+
+.pe-avisame-card__detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Acciones de la Card */
+.pe-avisame-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-outline-variant, #f3f4f6);
+}
+
+.pe-avisame-card__action-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e5e7eb);
+  color: var(--color-on-surface-variant, #4b5563);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pe-avisame-card__action-btn:hover:not(:disabled) {
+  background: var(--color-surface-variant, #f9fafb);
+  border-color: var(--color-on-surface-variant, #9ca3af);
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-avisame-card__action-btn--primary {
+  color: var(--color-primary, #6366f1);
+  border-color: var(--color-primary-light, #c7d2fe);
+}
+
+.pe-avisame-card__action-btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-container, #eef2ff);
+  border-color: var(--color-primary, #6366f1);
+}
+
+.pe-avisame-card__action-btn--danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.pe-avisame-card__action-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.pe-avisame-card__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

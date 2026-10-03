@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary, Localidad } from './types';
 import type { PublicIntencionSummary } from '@/types/intenciones';
+import type { CrearAlertaParams } from '@/types/matchAlerts';
+import { PENDING_AVISAME_DRAFT_KEY } from '@/types/matchAlerts';
 import { OPEN_ENCOUNTERS_DEMO } from './demoData';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { HomeOpenEncounterCard } from './HomeOpenEncounterCard';
 import { HomeOpenEncounterDetailSheet } from './HomeOpenEncounterDetailSheet';
 import { ZoneSelectorModal } from './ZoneSelectorModal';
 import { PublicIntencionCard } from '../discovery/PublicIntencionCard';
+import { AvisameSheet } from '../alerts/AvisameSheet';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { openEncountersService } from '@/services/openEncountersService';
 import {
@@ -20,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import './HomeOpenEncounters.css';
 
 export const PENDING_INTENTION_INTEREST_KEY = 'puntoencuentro_pending_intention_interest';
+export { PENDING_AVISAME_DRAFT_KEY };
 export { OTHER_ZONES_SUGGESTION_THRESHOLD, MAX_OTHER_ZONE_SUGGESTIONS };
 
 export type DiscoveryTab = 'todo' | 'encuentros' | 'intenciones';
@@ -71,9 +75,18 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
   // Auth Guard Sheet & Pending Action
   const [isLoginSheetOpen, setIsLoginSheetOpen] = useState(false);
+  const [loginSheetAction, setLoginSheetAction] = useState<
+    'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert'
+  >('interest_intention');
   const [isOAuthStarting, setIsOAuthStarting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const hasProcessedPendingInterestRef = useRef(false);
+  const hasProcessedPendingAvisameRef = useRef(false);
+
+  // Avisame Sheet State
+  const [isAvisameOpen, setIsAvisameOpen] = useState(false);
+  const [avisameTab, setAvisameTab] = useState<'create' | 'list'>('create');
+  const [avisameDraft, setAvisameDraft] = useState<Partial<CrearAlertaParams> | null>(null);
 
   // Catálogo activo para reconciliación de preferencias stale y cálculo de otras macrozonas
   const [activeCatalogue, setActiveCatalogue] = useState<Localidad[]>(DEFAULT_LOCALIDADES);
@@ -239,6 +252,52 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   }, [isPermanentUser, setIntentionInterest]);
 
+  // ── RECUPERACIÓN DE BORRADOR DE AVISAME POST-OAUTH ──
+  useEffect(() => {
+    if (!isPermanentUser) return;
+    if (hasProcessedPendingAvisameRef.current) return;
+    if (typeof sessionStorage === 'undefined') return;
+
+    const raw = sessionStorage.getItem(PENDING_AVISAME_DRAFT_KEY);
+    if (!raw) return;
+
+    try {
+      const draft = JSON.parse(raw) as Partial<CrearAlertaParams>;
+      if (draft) {
+        hasProcessedPendingAvisameRef.current = true;
+        sessionStorage.removeItem(PENDING_AVISAME_DRAFT_KEY);
+        setAvisameDraft(draft);
+        setAvisameTab('create');
+        setIsAvisameOpen(true);
+      }
+    } catch (err) {
+      console.warn('[HomeOpenEncounters] Error recuperando draft avisame:', err);
+      sessionStorage.removeItem(PENDING_AVISAME_DRAFT_KEY);
+    }
+  }, [isPermanentUser]);
+
+  const handleOpenAvisame = (tab: 'create' | 'list' = 'create') => {
+    if (!isPermanentUser) {
+      const defaultDraft: Partial<CrearAlertaParams> = {
+        modalidad: effectiveZones.length > 0 ? 'presencial' : 'indistinto',
+        localityId: effectiveZones[0] || null,
+      };
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(PENDING_AVISAME_DRAFT_KEY, JSON.stringify(defaultDraft));
+      }
+      setLoginSheetAction('create_alert');
+      setIsLoginSheetOpen(true);
+      return;
+    }
+
+    setAvisameDraft({
+      modalidad: effectiveZones.length > 0 ? 'presencial' : 'indistinto',
+      localityId: effectiveZones[0] || null,
+    });
+    setAvisameTab(tab);
+    setIsAvisameOpen(true);
+  };
+
   // Manejo de clicks en botón de interés
   const handleInterestClick = async (intencionId: string, interesado: boolean) => {
     if (interesado === true && !isPermanentUser) {
@@ -249,6 +308,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           JSON.stringify({ intencionId, interesado: true })
         );
       }
+      setLoginSheetAction('interest_intention');
       setIsLoginSheetOpen(true);
       return;
     }
@@ -431,14 +491,24 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
               defaultValue: '¿Ya tenés un plan y te falta gente?',
             })}
           </p>
-          <button
-            type="button"
-            className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
-            onClick={onOpenCreate}
-          >
-            <Sparkles size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
-            {t('open_encounters.empty_cta', { defaultValue: 'Abrir un encuentro' })}
-          </button>
+          <div className="pe-discovery-empty-actions">
+            <button
+              type="button"
+              className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
+              onClick={onOpenCreate}
+            >
+              <Sparkles size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+              {t('open_encounters.empty_cta', { defaultValue: 'Abrir un encuentro' })}
+            </button>
+            <button
+              type="button"
+              className="pe-discovery-empty-btn pe-discovery-empty-btn--secondary pe-discovery-avisame-empty-btn"
+              onClick={() => handleOpenAvisame('create')}
+            >
+              <Bell size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+              {t('avisame.empty_cta', { defaultValue: 'Avisame si aparece uno' })}
+            </button>
+          </div>
         </div>
       );
     }
@@ -586,15 +656,28 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSeeAllClick}
-          className="pe-discovery-see-all-btn"
-          aria-label="Ver todos los encuentros abiertos"
-        >
-          <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
-          <ChevronRight size={14} aria-hidden="true" />
-        </button>
+        <div className="pe-discovery-header-actions">
+          <button
+            type="button"
+            className="pe-discovery-avisame-btn"
+            onClick={() => handleOpenAvisame('create')}
+            aria-label={t('avisame.action_btn', { defaultValue: 'Avisame' })}
+            title={t('avisame.action_tooltip', { defaultValue: 'Avisame cuando aparezca un encuentro' })}
+          >
+            <Bell size={13} aria-hidden="true" />
+            <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSeeAllClick}
+            className="pe-discovery-see-all-btn"
+            aria-label="Ver todos los encuentros abiertos"
+          >
+            <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] */}
@@ -714,13 +797,32 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         onSave={handleSaveZones}
       />
 
-      {/* LoginRequiredSheet para acción de Interés */}
+      {/* Sheet de Avisame (Fase 2B) */}
+      <AvisameSheet
+        isOpen={isAvisameOpen}
+        onClose={() => setIsAvisameOpen(false)}
+        initialTab={avisameTab}
+        initialLocalityId={effectiveZones[0] || null}
+        localidades={activeCatalogue}
+        initialDraft={avisameDraft}
+        isPermanentUser={isPermanentUser}
+        onRequestLogin={(draft) => {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(PENDING_AVISAME_DRAFT_KEY, JSON.stringify(draft));
+          }
+          setIsAvisameOpen(false);
+          setLoginSheetAction('create_alert');
+          setIsLoginSheetOpen(true);
+        }}
+      />
+
+      {/* LoginRequiredSheet para acción de Interés o Avisame */}
       <LoginRequiredSheet
         isOpen={isLoginSheetOpen}
         onClose={() => setIsLoginSheetOpen(false)}
         onContinueWithGoogle={handleLoginWithGoogle}
         loading={isOAuthStarting}
-        action="interest_intention"
+        action={loginSheetAction}
       />
     </section>
   );

@@ -78,6 +78,36 @@
   color: #065f46;
 }
 
+.pe-discovery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pe-discovery-avisame-btn {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e2e8f0);
+  color: var(--color-primary, #4f46e5);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.pe-discovery-avisame-btn:hover {
+  background-color: var(--color-primary-container, #eef2ff);
+  border-color: var(--color-primary, #6366f1);
+}
+
 .pe-discovery-see-all-btn {
   background: transparent;
   border: none;

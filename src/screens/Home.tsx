@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -17,6 +17,7 @@ import { useNotifications } from '@/contexts/NotificationsContext';
 import type { AlertaCompatibilidadEncuentroPublico } from '@/types/alertas';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
+import { openEncountersService } from '@/services/openEncountersService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -375,6 +376,63 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     });
     setIsAlertOpenEncounterDetailOpen(true);
   }, []);
+
+  // ── DEEP LINK "open_encounter" (Fase 2B) ──
+  // Abre automáticamente el sheet de detalle seguro al navegar a /?open_encounter=<uuid>
+  const location = useLocation();
+  const lastProcessedEncounterIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const encounterId = params.get('open_encounter');
+    if (!encounterId) return;
+
+    if (lastProcessedEncounterIdRef.current === encounterId) return;
+    lastProcessedEncounterIdRef.current = encounterId;
+
+    // 1. Validar UUID/formato (RFC 4122)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(encounterId)) {
+      console.warn('[Home] ID de encuentro abierto inválido en deep link:', encounterId);
+      // Limpiar parámetro de la URL sin recargar
+      params.delete('open_encounter');
+      const cleanSearch = params.toString();
+      navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+      return;
+    }
+
+    // 2. Localizar/cargar el encuentro abierto
+    let isMounted = true;
+    void openEncountersService
+      .getEncuentroAbiertoById(encounterId)
+      .then((enc) => {
+        if (!isMounted) return;
+        if (enc) {
+          // 3. Abrir automáticamente HomeOpenEncounterDetailSheet
+          setSelectedAlertOpenEncounter(enc);
+          setIsAlertOpenEncounterDetailOpen(true);
+        } else {
+          // 4. Fallback discreto si no existe o ya no está abierto
+          console.info('[Home] El encuentro abierto ya no está disponible o no existe:', encounterId);
+        }
+
+        // 5. Limpiar open_encounter de la URL mediante navegación replace
+        params.delete('open_encounter');
+        const cleanSearch = params.toString();
+        navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('[Home] Error cargando encuentro abierto desde deep link:', err);
+        params.delete('open_encounter');
+        const cleanSearch = params.toString();
+        navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.search, location.pathname, navigate]);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);

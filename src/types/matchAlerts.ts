@@ -6,6 +6,8 @@
 export type MatchAlertStatus = 'active' | 'paused' | 'expired' | 'cancelled';
 export type MatchAlertModalidad = 'presencial' | 'virtual' | 'indistinto';
 
+export const PENDING_AVISAME_DRAFT_KEY = 'puntoencuentro_pending_avisame_draft';
+
 export interface MatchAlertSubscription {
   id: string;
   userId: string;

@@ -11,8 +11,8 @@ export interface LoginRequiredSheetProps {
   onContinueWithGoogle: () => void;
   /** Cargando la operación OAuth */
   loading?: boolean;
-  /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' */
-  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention';
+  /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert' */
+  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert';
 }
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
@@ -35,6 +35,10 @@ const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: st
   interest_intention: {
     title: 'Para indicar tu interés necesitás una cuenta',
     body: 'Una cuenta nos ayuda a cuidar la comunidad y avisarle a quien propuso la idea que hay interés.',
+  },
+  create_alert: {
+    title: 'Para crear un aviso necesitás una cuenta',
+    body: 'Una cuenta nos permite notificarte en tu inbox cuando se abra un encuentro que coincida con lo que buscás.',
   },
 };
 
@@ -63,6 +67,11 @@ const BENEFITS_BY_ACTION: Record<NonNullable<LoginRequiredSheetProps['action']>,
     'Mostrar tu interés a quien propuso la idea',
     'Seguir las ganas de hacer en tus zonas',
     'Sin compromiso ni grupos obligatorios',
+  ],
+  create_alert: [
+    'Recibir avisos cuando coincida un encuentro',
+    'Gestionar y pausar tus alertas activas',
+    'Sin spam ni mensajes innecesarios',
   ],
 };
 

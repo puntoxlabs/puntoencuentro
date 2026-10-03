@@ -139,6 +139,23 @@ export const openEncountersService = {
   },
 
   /**
+   * Obtiene un encuentro abierto por su ID de manera segura para Discovery o deep link.
+   * Si no existe o no está abierto, retorna null.
+   */
+  async getEncuentroAbiertoById(encounterId: string): Promise<OpenEncounterSummary | null> {
+    try {
+      const res = await this.getDiscoveryEncuentrosWithStatus();
+      if (!res.ok || !Array.isArray(res.data)) {
+        return null;
+      }
+      return res.data.find((e) => e.id === encounterId) || null;
+    } catch (err) {
+      console.warn('[openEncountersService] Error fetching encuentro abierto by id:', err);
+      return null;
+    }
+  },
+
+  /**
    * Abre un encuentro existente para que aparezca en Discovery.
    */
   async abrirEncuentro(
