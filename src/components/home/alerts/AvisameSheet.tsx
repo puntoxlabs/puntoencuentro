@@ -154,8 +154,6 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   // Localidad efectiva y catálogo
   const activeLocalities = useMemo(() => {
     return localidades.length > 0 ? localidades : [];
@@ -282,6 +280,8 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
       setMutatingId(null);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <>
