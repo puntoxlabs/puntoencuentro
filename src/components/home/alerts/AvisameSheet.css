@@ -1,13 +1,13 @@
 /* AvisameSheet.css - Estilos para el Bottom Sheet de Alertas Explícitas (Fase 2B) */
 
+.pe-sheet-container.pe-avisame-sheet,
 .pe-avisame-sheet {
   max-width: 520px;
   max-height: min(88vh, 88dvh);
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden; /* Contenedor exterior flex no scrollea; evita contenedores anidados */
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
 }
 
 /* ── Encabezado del Sheet ── */
@@ -124,11 +124,20 @@
   min-width: 18px;
 }
 
-/* ── Formulario de Creación ── */
+/* ── Formulario de Creación (Scrollable) ── */
 .pe-avisame-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 0 2px calc(24px + env(safe-area-inset-bottom, 0px)) 2px;
+  box-sizing: border-box;
 }
 
 .pe-avisame-field {
@@ -303,11 +312,20 @@
   border: 1px solid #fecaca;
 }
 
-/* ── Tab "Mis avisos" (Lista) ── */
+/* ── Tab "Mis avisos" (Lista Scrollable) ── */
 .pe-avisame-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 0 2px calc(24px + env(safe-area-inset-bottom, 0px)) 2px;
+  box-sizing: border-box;
 }
 
 .pe-avisame-empty {

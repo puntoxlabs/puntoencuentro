@@ -6,7 +6,7 @@ import path from 'node:path';
 describe('Corrección Mobile: AvisameSheet Scroll Lock y HomeOpenEncounters Header Resiliente', () => {
   const rootDir = process.cwd();
 
-  test('1. AvisameSheet implementa bloqueo de scroll en document.body al abrirse y cleanup al cerrarse', () => {
+  test('1. AvisameSheet implementa bloqueo de scroll en document.body al abrirse y cleanup al cerrarse sin preventDefault en overlay', () => {
     const filePath = path.join(rootDir, 'src/components/home/alerts/AvisameSheet.tsx');
     const content = fs.readFileSync(filePath, 'utf-8');
 
@@ -22,13 +22,20 @@ describe('Corrección Mobile: AvisameSheet Scroll Lock y HomeOpenEncounters Head
       content.includes('document.body.style.overflow = originalOverflow'),
       'AvisameSheet debe restaurar el overflow original en la función cleanup'
     );
+    // El overlay es un backdrop limpio, NO debe tener preventDefault en touchmove que cancele gestos
     assert.ok(
-      content.includes('onTouchMove='),
-      'El overlay de AvisameSheet debe interceptar touchMove para evitar scroll chaining en mobile'
+      !content.includes('onTouchMove='),
+      'El overlay de AvisameSheet NO debe tener onTouchMove con preventDefault que interfiera con gestos'
+    );
+    // El overlay y el container son hermanos (siblings) directos en el React Fragment
+    assert.ok(
+      content.includes('<div className="pe-sheet-overlay"') &&
+      content.includes('<div\n        className="pe-sheet-container pe-avisame-sheet"'),
+      'pe-sheet-overlay y pe-sheet-container deben ser hermanos en el fragmento'
     );
   });
 
-  test('2. BottomSheet.css y AvisameSheet.css contienen reglas de overscroll-behavior y touch-action para mobile', () => {
+  test('2. AvisameSheet.css y BottomSheet.css implementan un único contenedor scrollable sin anidamientos', () => {
     const bottomSheetCssPath = path.join(rootDir, 'src/components/ui/BottomSheet.css');
     const bottomSheetCss = fs.readFileSync(bottomSheetCssPath, 'utf-8');
 
@@ -37,48 +44,59 @@ describe('Corrección Mobile: AvisameSheet Scroll Lock y HomeOpenEncounters Head
       'BottomSheet overlay debe tener overscroll-behavior: contain'
     );
     assert.ok(
-      bottomSheetCss.includes('touch-action: none'),
-      'BottomSheet overlay debe tener touch-action: none'
-    );
-    assert.ok(
-      bottomSheetCss.includes('overscroll-behavior-y: contain'),
-      'BottomSheet container debe tener overscroll-behavior-y: contain'
-    );
-    assert.ok(
-      bottomSheetCss.includes('touch-action: pan-y'),
-      'BottomSheet container debe tener touch-action: pan-y'
-    );
-    assert.ok(
-      bottomSheetCss.includes('max-height: min(85vh, 85dvh)'),
-      'BottomSheet container debe soportar unidades dvh dinámicas en navegadores móviles'
+      !bottomSheetCss.includes('.pe-sheet-overlay {\n  position: fixed;\n  top: 0;\n  left: 0;\n  right: 0;\n  bottom: 0;\n  background: rgba(0, 0, 0, 0.4);\n  z-index: 999;\n  backdrop-filter: blur(2px);\n  overscroll-behavior: contain;\n  touch-action: none;'),
+      'BottomSheet overlay NO debe tener touch-action: none'
     );
 
     const avisameCssPath = path.join(rootDir, 'src/components/home/alerts/AvisameSheet.css');
     const avisameCss = fs.readFileSync(avisameCssPath, 'utf-8');
 
+    // El container exterior flex NO debe scrollear (overflow: hidden) para evitar scrolls anidados y fijar cabeceras
     assert.ok(
-      avisameCss.includes('overscroll-behavior-y: contain'),
-      'AvisameSheet container debe tener overscroll-behavior-y: contain'
-    );
-    assert.ok(
-      avisameCss.includes('touch-action: pan-y'),
-      'AvisameSheet container debe tener touch-action: pan-y'
+      avisameCss.includes('.pe-sheet-container.pe-avisame-sheet') &&
+      avisameCss.includes('overflow: hidden'),
+      'AvisameSheet container exterior debe tener overflow: hidden para no anidar scroll y fijar cabecera'
     );
     assert.ok(
       avisameCss.includes('max-height: min(88vh, 88dvh)'),
-      'AvisameSheet container debe soportar unidades dvh'
+      'AvisameSheet container debe soportar unidades dvh dinámicas'
     );
+
+    // Cabecera y tabs fijas
     assert.ok(
       avisameCss.includes('.pe-avisame-header') && avisameCss.includes('flex-shrink: 0'),
-      'Header de AvisameSheet no debe colapsar ante scroll (flex-shrink: 0)'
+      'Header de AvisameSheet debe tener flex-shrink: 0 para mantenerse fijo'
     );
     assert.ok(
       avisameCss.includes('.pe-avisame-tabs') && avisameCss.includes('flex-shrink: 0'),
-      'Tabs de AvisameSheet no deben colapsar ante scroll (flex-shrink: 0)'
+      'Tabs de AvisameSheet deben tener flex-shrink: 0 para mantenerse fijos'
     );
+
+    // Contenedor scrollable único para la lista (Mis avisos)
+    assert.ok(
+      avisameCss.includes('.pe-avisame-list') &&
+      avisameCss.includes('flex: 1 1 auto') &&
+      avisameCss.includes('min-height: 0') &&
+      avisameCss.includes('overflow-y: auto') &&
+      avisameCss.includes('overscroll-behavior-y: contain') &&
+      avisameCss.includes('touch-action: pan-y'),
+      'pe-avisame-list debe ser el contenedor scrollable vertical único con min-height: 0 y overscroll contain'
+    );
+
+    // Contenedor scrollable único para el formulario (Crear aviso)
+    assert.ok(
+      avisameCss.includes('.pe-avisame-form') &&
+      avisameCss.includes('flex: 1 1 auto') &&
+      avisameCss.includes('min-height: 0') &&
+      avisameCss.includes('overflow-y: auto') &&
+      avisameCss.includes('overscroll-behavior-y: contain') &&
+      avisameCss.includes('touch-action: pan-y'),
+      'pe-avisame-form debe ser el contenedor scrollable vertical con min-height: 0 y overscroll contain'
+    );
+
     assert.ok(
       avisameCss.includes('.pe-push-device') && avisameCss.includes('flex-shrink: 0'),
-      'DevicePushSettings no debe colapsar (flex-shrink: 0)'
+      'DevicePushSettings no debe colapsar al fondo de la lista (flex-shrink: 0)'
     );
   });
 
@@ -134,7 +152,6 @@ describe('Corrección Mobile: AvisameSheet Scroll Lock y HomeOpenEncounters Head
     const avisameSheetPath = path.join(rootDir, 'src/components/home/alerts/AvisameSheet.tsx');
     const avisameContent = fs.readFileSync(avisameSheetPath, 'utf-8');
 
-    // Comprobamos la condición exacta de render:
     assert.ok(
       avisameContent.includes('isPermanentUser && !loadingAlerts && !alertsError && alerts.length > 0'),
       'DevicePushSettings debe renderizarse cuando el usuario es permanente y posee >= 1 aviso'

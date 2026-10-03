@@ -302,14 +302,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
   return (
     <>
       {/* Overlay */}
-      <div
-        className="pe-sheet-overlay"
-        onClick={onClose}
-        onTouchMove={(e) => {
-          if (e.cancelable) e.preventDefault();
-        }}
-        aria-hidden="true"
-      />
+      <div className="pe-sheet-overlay" onClick={onClose} aria-hidden="true" />
 
       {/* Sheet Container */}
       <div
