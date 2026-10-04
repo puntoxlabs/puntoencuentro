@@ -131,6 +131,7 @@
     "full": "Lotado",
     "confirmed_people": "{{count}} pessoas confirmadas",
     "confirmed_single": "1 pessoa confirmada",
+    "confirmed_zero": "0 pessoas confirmadas",
     "request_join": "Pedir para participar",
     "empty_title": "Não há encontros abertos agora nas suas regiões.",
     "empty_prompt": "Já tem um plano e falta gente?",
