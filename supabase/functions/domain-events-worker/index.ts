@@ -50,6 +50,11 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
   "encounter.cancelled.v1": async (_event, _adminClient) => {
     // No-op en Fase 1.
   },
+  "encounter.join_request.created.v1": async (_event, _adminClient) => {
+    // La RPC solicitar_sumarse_encuentro_abierto ya inserta directamente en
+    // public.inbox_notifications de forma atómica. No duplicar Inbox ni Push.
+    // Marcado exitoso para Transactional Outbox audit/replay.
+  },
 
   // Alertas / Matching (Fase 2A: Inserción en inbox_notifications)
   "match.detected.v1": async (event, adminClient) => {

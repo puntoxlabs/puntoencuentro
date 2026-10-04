@@ -16,7 +16,7 @@ import { useHomeStore } from '@/store/homeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
-import { MapPin, Video, CheckCircle2, XCircle, Clock, User, Eye, Palette, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Video, CheckCircle2, XCircle, Clock, User, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
@@ -997,6 +997,12 @@ const DetailHost: React.FC = () => {
           <span className="dh-participant-status-label">{statusLabel}</span>
         </div>
 
+        {Boolean(encuentro.is_open) && (
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-on-surface-variant)', fontStyle: 'italic', margin: '4px 0 12px' }}>
+            Este encuentro también está abierto a solicitudes de otras personas.
+          </p>
+        )}
+
         {isCancelado && (
           <div className="dh-participant-banner dh-participant-banner--cancelled">
             <p className="dh-participant-banner-text">El organizador canceló este encuentro.</p>
@@ -1161,7 +1167,7 @@ const DetailHost: React.FC = () => {
               ) : (
                 <>
                   <div className="dh-alias-text">
-                    Invitás como: <span className="dh-alias-name">{hostAlias || 'Sin alias'}</span>
+                    Invitás como: <span className="dh-alias-name">{hostAlias || 'Sin nombre'}</span>
                   </div>
                   <button
                     onClick={() => {
@@ -1213,24 +1219,6 @@ const DetailHost: React.FC = () => {
                   )}
                 </div>
               )}
-
-              {/* BLOQUE: REVISÁ ANTES DE COMPARTIR */}
-              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
-                <p style={{ margin: '0 0 20px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-                  Podés ver cómo recibirán la invitación tus invitados o cambiar el diseño antes de enviarla.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <Button variant="primary" fullWidth onClick={() => setShowPreview(true)} style={{ height: 48, fontSize: 15, fontWeight: 700 }}>
-                    <Eye size={18} style={{ marginRight: 8 }} />
-                    Previsualizar invitación
-                  </Button>
-                  <Button variant="outline" fullWidth onClick={() => setShowThemeSelector(true)} style={{ height: 44, fontSize: 14, fontWeight: 600 }}>
-                    <Palette size={18} style={{ marginRight: 8 }} />
-                    Cambiar diseño
-                  </Button>
-                </div>
-              </div>
 
               {/* BLOQUE: COMPARTIR INVITACIÓN O AGREGAR INVITADOS */}
               {encuentro.tipo_invitacion === 'link_general' ? (
@@ -1290,6 +1278,32 @@ const DetailHost: React.FC = () => {
                   </p>
                 </div>
               )}
+
+              {/* BLOQUE: REVISÁ ANTES DE COMPARTIR */}
+              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
+                <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  Podés ver cómo recibirán la invitación tus invitados antes de enviarla.
+                </p>
+                <div>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    onClick={() => setShowPreview(true)}
+                    style={{
+                      height: 44,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      background: '#fff',
+                      borderColor: 'var(--color-primary)',
+                      color: 'var(--color-primary)'
+                    }}
+                  >
+                    <Eye size={18} style={{ marginRight: 8 }} />
+                    Previsualizar invitación
+                  </Button>
+                </div>
+              </div>
 
               {/* Google sign-in nudge: solo cuando viene de ?share=1 y usuario no autenticado */}
               {isFromShare && !user && !loading && encuentro && (
@@ -1406,6 +1420,10 @@ const DetailHost: React.FC = () => {
               confirmedCount={confirmados.length}
               onRefresh={() => loadData(hostIdRef.current!)}
               onParticipantAdded={refreshParticipantes}
+              onUpdateLocation={async (loc) => {
+                await encuentrosService.updateEncuentro(encuentro.id, loc, hostIdRef.current!);
+                setEncuentro((prev: any) => ({ ...prev, ...loc }));
+              }}
             />
           )}
 

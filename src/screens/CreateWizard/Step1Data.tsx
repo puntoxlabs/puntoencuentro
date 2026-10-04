@@ -31,7 +31,9 @@ const Step1Data: React.FC = () => {
   const didAutoFocusRef = useRef(false);
 
   useEffect(() => {
-    if (!locationState?.autoFocusTitle) return;
+    // Foco automático si viene explícito por navegación o si entra con fecha ya definida
+    const shouldAutoFocus = locationState?.autoFocusTitle || Boolean(fecha);
+    if (!shouldAutoFocus) return;
     if (didAutoFocusRef.current) return;
 
     didAutoFocusRef.current = true;
@@ -64,7 +66,7 @@ const Step1Data: React.FC = () => {
     requestAnimationFrame(() => {
       setTimeout(runFocus, 120);
     });
-  }, [locationState]);
+  }, [locationState, fecha]);
 
   const now = new Date();
   const localYear = now.getFullYear();

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { notificationService } from '../services/notificationService';
 import type { InboxNotificationItem } from '../types/notifications';
@@ -159,6 +160,34 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     // Usuario permanente autenticado: carga inicial de contador
     fetchUnreadCount();
   }, [authLoading, isPermanentUser, user?.id, fetchUnreadCount]);
+
+  // 6.1. Suscripción Realtime en app abierta para inbox_notifications
+  useEffect(() => {
+    if (!isPermanentUser || !user?.id) return;
+
+    const channel = supabase
+      .channel(`inbox_notifications_user:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'inbox_notifications',
+          filter: `recipient_user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchUnreadCount();
+          if (isOpen) {
+            fetchNotifications(true);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isPermanentUser, user?.id, isOpen, fetchUnreadCount, fetchNotifications]);
 
   // 7. Revalidación al volver a primer plano (visibilitychange)
   useEffect(() => {

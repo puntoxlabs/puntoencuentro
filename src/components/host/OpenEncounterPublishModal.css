@@ -205,3 +205,112 @@
   background: #9ca3af;
   cursor: not-allowed;
 }
+
+/* Sección de ubicación privada */
+.pe-publish-private-loc {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+
+.pe-publish-private-loc--missing {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.pe-publish-private-loc__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.pe-publish-private-loc__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.pe-publish-private-loc__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.pe-publish-private-loc__edit-btn:hover {
+  background: #eff6ff;
+}
+
+.pe-publish-private-loc__value {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1f2937;
+  word-break: break-all;
+}
+
+.pe-publish-private-loc__empty {
+  color: #b45309;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.pe-publish-private-loc__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pe-publish-private-loc__input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pe-publish-private-loc__edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-publish-private-loc__save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pe-publish-private-loc__save-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.pe-publish-private-loc__cancel-edit-btn {
+  background: transparent;
+  color: #6b7280;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+

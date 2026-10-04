@@ -13,7 +13,8 @@ export type DomainEventType =
   | 'internal_invitation.accepted.v1'
   | 'internal_invitation.declined.v1'
   | 'internal_invitation.cancelled.v1'
-  | 'internal_invitation.expired.v1';
+  | 'internal_invitation.expired.v1'
+  | 'encounter.join_request.created.v1';
 
 export type OutboxEventStatus = 'pending' | 'processing' | 'processed' | 'failed';
 
@@ -23,7 +24,8 @@ export type NotificationType =
   | 'intention_converted_to_encounter'
   | 'internal_invitation'
   | 'invitation_accepted'
-  | 'invitation_declined';
+  | 'invitation_declined'
+  | 'open_encounter_join_request';
 
 export type TargetType = 'encounter' | 'invitation';
 

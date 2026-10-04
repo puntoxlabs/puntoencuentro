@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, MapPin, Users, AlertCircle, Video } from 'lucide-react';
+import { X, Sparkles, MapPin, Users, AlertCircle, Video, Edit2, Check, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
@@ -12,8 +12,11 @@ export interface OpenEncounterPublishModalProps {
   encuentroId: string;
   hostId: string;
   modalidad?: 'presencial' | 'virtual';
+  lugarTexto?: string;
+  linkVirtual?: string;
   defaultDescription?: string;
   confirmedCount: number;
+  onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
   onPublished: () => void;
 }
 
@@ -23,19 +26,34 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   encuentroId,
   hostId,
   modalidad = 'presencial',
+  lugarTexto = '',
+  linkVirtual = '',
   defaultDescription = '',
   confirmedCount,
+  onUpdateLocation,
   onPublished,
 }) => {
   const { t } = useTranslation();
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [description, setDescription] = useState(defaultDescription);
-  const [maxParticipants, setMaxParticipants] = useState<number>(Math.max(4, confirmedCount + 2));
+  const [externalSlots, setExternalSlots] = useState<number>(2);
   const [localityId, setLocalityId] = useState<string>('guemes');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Edición de ubicación privada
   const isVirtual = modalidad === 'virtual';
+  const [currentLugar, setCurrentLugar] = useState(lugarTexto);
+  const [currentLink, setCurrentLink] = useState(linkVirtual);
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [tempLocation, setTempLocation] = useState(isVirtual ? linkVirtual : lugarTexto);
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  useEffect(() => {
+    setCurrentLugar(lugarTexto);
+    setCurrentLink(linkVirtual);
+    setTempLocation(isVirtual ? linkVirtual : lugarTexto);
+  }, [lugarTexto, linkVirtual, isVirtual]);
 
   useEffect(() => {
     if (!isOpen || isVirtual) return;
@@ -63,20 +81,64 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 
   if (!isOpen) return null;
 
+  const handleSaveLocation = async () => {
+    if (!onUpdateLocation) return;
+    const clean = tempLocation.trim();
+    if (!clean) return;
+
+    setSavingLocation(true);
+    setErrorMsg(null);
+    try {
+      if (isVirtual) {
+        await onUpdateLocation({ link_virtual: clean });
+        setCurrentLink(clean);
+      } else {
+        await onUpdateLocation({ lugar_texto: clean });
+        setCurrentLugar(clean);
+      }
+      setIsEditingLocation(false);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'No se pudo actualizar la ubicación.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Validar ubicación privada
+    if (isVirtual) {
+      if (!currentLink || !currentLink.trim()) {
+        setErrorMsg('Por favor ingresá el enlace de la videollamada antes de abrir el encuentro.');
+        setIsEditingLocation(true);
+        return;
+      }
+    } else {
+      if (!currentLugar || !currentLugar.trim()) {
+        setErrorMsg('Por favor ingresá la dirección o lugar exacto antes de abrir el encuentro.');
+        setIsEditingLocation(true);
+        return;
+      }
+    }
+
     if (!description.trim()) {
       setErrorMsg('Por favor ingresá una descripción pública para el encuentro.');
       return;
     }
-    if (maxParticipants <= confirmedCount) {
-      setErrorMsg(`El cupo total debe ser mayor a los confirmados actuales (${confirmedCount}).`);
+
+    if (externalSlots < 1) {
+      setErrorMsg('Debés ofrecer al menos 1 lugar para sumarse.');
       return;
     }
+
     if (!isVirtual && !localityId) {
       setErrorMsg('Por favor seleccioná una localidad.');
       return;
     }
+
+    // Fórmula: max_participants = lugares_para_sumarse + 1 (host) + confirmados
+    const calculatedMaxParticipants = externalSlots + 1 + confirmedCount;
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -84,7 +146,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     try {
       const res = await openEncountersService.abrirEncuentro(encuentroId, hostId, {
         open_description: description.trim(),
-        max_participants: maxParticipants,
+        max_participants: calculatedMaxParticipants,
         locality_id: isVirtual ? null : localityId,
       });
 
@@ -92,7 +154,15 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         onPublished();
         onClose();
       } else {
-        setErrorMsg(res.error || 'No se pudo publicar el encuentro.');
+        if (res.error === 'private_location_required') {
+          setErrorMsg('La dirección privada es requerida para abrir el encuentro.');
+          setIsEditingLocation(true);
+        } else if (res.error === 'private_virtual_link_required') {
+          setErrorMsg('El enlace de videollamada es requerido para abrir el encuentro virtual.');
+          setIsEditingLocation(true);
+        } else {
+          setErrorMsg(res.error || 'No se pudo publicar el encuentro.');
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al publicar el encuentro.');
@@ -100,6 +170,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       setSubmitting(false);
     }
   };
+
+  const hasPrivateLocation = isVirtual ? Boolean(currentLink?.trim()) : Boolean(currentLugar?.trim());
 
   return (
     <>
@@ -142,6 +214,68 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           </div>
         )}
 
+        {/* Sección de Ubicación Privada con Opción de Editar */}
+        <div className={`pe-publish-private-loc ${!hasPrivateLocation ? 'pe-publish-private-loc--missing' : ''}`}>
+          <div className="pe-publish-private-loc__header">
+            <div className="pe-publish-private-loc__label">
+              <Lock size={13} />
+              <span>{isVirtual ? 'Enlace de acceso privado' : 'Dirección exacta privada'}</span>
+            </div>
+            {!isEditingLocation && onUpdateLocation && (
+              <button
+                type="button"
+                className="pe-publish-private-loc__edit-btn"
+                onClick={() => {
+                  setTempLocation(isVirtual ? currentLink : currentLugar);
+                  setIsEditingLocation(true);
+                }}
+              >
+                <Edit2 size={12} />
+                <span>Editar</span>
+              </button>
+            )}
+          </div>
+
+          {isEditingLocation ? (
+            <div className="pe-publish-private-loc__edit-form">
+              <input
+                type="text"
+                className="pe-publish-modal__input pe-publish-private-loc__input"
+                placeholder={isVirtual ? 'https://meet.google.com/...' : 'Ej: Av. Colón 1234, Timbre B'}
+                value={tempLocation}
+                onChange={(e) => setTempLocation(e.target.value)}
+                autoFocus
+              />
+              <div className="pe-publish-private-loc__edit-actions">
+                <button
+                  type="button"
+                  className="pe-publish-private-loc__save-btn"
+                  onClick={handleSaveLocation}
+                  disabled={savingLocation || !tempLocation.trim()}
+                >
+                  <Check size={14} />
+                  <span>{savingLocation ? 'Guardando…' : 'Guardar'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="pe-publish-private-loc__cancel-edit-btn"
+                  onClick={() => setIsEditingLocation(false)}
+                  disabled={savingLocation}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="pe-publish-private-loc__value">
+              {hasPrivateLocation
+                ? (isVirtual ? currentLink : currentLugar)
+                : <span className="pe-publish-private-loc__empty">⚠️ Falta definir {isVirtual ? 'el enlace' : 'la dirección'}. Es necesario para que los confirmados puedan asistir.</span>
+              }
+            </p>
+          )}
+        </div>
+
         {errorMsg && (
           <div className="pe-publish-modal__error">
             <AlertCircle size={16} />
@@ -171,19 +305,19 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
             <div className="pe-publish-modal__field">
               <label className="pe-publish-modal__label">
                 <Users size={12} style={{ display: 'inline', marginRight: 4 }} />
-                {t('open_encounters.open_slots_label', { defaultValue: 'Cupo máximo total' })} *
+                {t('open_encounters.open_slots_label', { defaultValue: 'Lugares para sumarse' })} *
               </label>
               <input
                 type="number"
                 required
-                min={Math.max(2, confirmedCount + 1)}
-                max={50}
+                min={1}
+                max={40}
                 className="pe-publish-modal__input"
-                value={maxParticipants}
-                onChange={(e) => setMaxParticipants(parseInt(e.target.value, 10) || 2)}
+                value={externalSlots}
+                onChange={(e) => setExternalSlots(Math.max(1, parseInt(e.target.value, 10) || 1))}
               />
               <span className="pe-publish-modal__hint">
-                Incluye al anfitrión y acompañantes ({confirmedCount} ocupados hoy).
+                Personas que querés sumar ({confirmedCount + 1} anfitrión y participantes actuales).
               </span>
             </div>
 
@@ -235,3 +369,4 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     </>
   );
 };
+

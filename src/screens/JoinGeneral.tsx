@@ -548,6 +548,12 @@ const JoinGeneral: React.FC = () => {
         Podés volver a este enlace en cualquier momento para ver los detalles del encuentro.
       </p>
 
+      {Boolean(encuentro?.is_open) && (
+        <p className="guest-help-text" style={{ padding: '0 20px', marginTop: 4, fontStyle: 'italic', opacity: 0.85 }}>
+          Este encuentro también está abierto a solicitudes de otras personas.
+        </p>
+      )}
+
       {visibleEnabled && (
         <div className="guest-responses-box" style={{ margin: '0 20px 24px' }}>
           <p className="guest-responses-title">
@@ -857,6 +863,12 @@ const JoinGeneral: React.FC = () => {
               />
             </div>
           </div>
+        )}
+
+        {Boolean(encuentro?.is_open) && (
+          <p className="guest-form-help" style={{ textAlign: 'center', marginBottom: 16, fontStyle: 'italic', opacity: 0.85 }}>
+            Este encuentro también está abierto a solicitudes de otras personas.
+          </p>
         )}
       </div>
 

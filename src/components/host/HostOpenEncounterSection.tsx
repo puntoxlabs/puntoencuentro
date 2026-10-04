@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
 import type { ContextoReporte } from '@/types/trust';
+import { supabase } from '@/lib/supabase';
 import { openEncountersService } from '@/services/openEncountersService';
 import { useAuth } from '@/contexts/AuthContext';
 import { isEncuentroPasado } from '@/lib/formatDate';
@@ -30,6 +31,7 @@ export interface HostOpenEncounterSectionProps {
   confirmedCount: number;
   onRefresh: () => void;
   onParticipantAdded: () => void;
+  onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
   initialSolicitudes?: OpenEncounterRequest[];
 }
 
@@ -39,6 +41,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   confirmedCount,
   onRefresh,
   onParticipantAdded,
+  onUpdateLocation,
   initialSolicitudes,
 }) => {
   const { t } = useTranslation();
@@ -85,6 +88,41 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   useEffect(() => {
     loadSolicitudes();
   }, [loadSolicitudes]);
+
+  // Suscripción Realtime para actualizar la lista de solicitudes sin reload con app abierta
+  useEffect(() => {
+    if (!encuentro?.id || !isOpen) return;
+
+    const channel = supabase
+      .channel(`solicitudes_encuentro:${encuentro.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'solicitudes_encuentro_abierto',
+          filter: `encuentro_id=eq.${encuentro.id}`,
+        },
+        () => {
+          loadSolicitudes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [encuentro?.id, isOpen, loadSolicitudes]);
+
+  // Soporte de navegación y foco por hash #solicitudes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#solicitudes') {
+      const el = document.getElementById('solicitudes');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, []);
 
   const handleCloseDiscovery = async () => {
     if (!window.confirm('¿Seguro que querés cerrar el encuentro al Discovery? Ya no aparecerá públicamente pero se conservarán todos los participantes confirmados.')) {
@@ -189,8 +227,11 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           encuentroId={encuentro.id}
           hostId={hostId}
           modalidad={encuentro.modalidad || 'presencial'}
+          lugarTexto={encuentro.lugar_texto || ''}
+          linkVirtual={encuentro.link_virtual || ''}
           defaultDescription={encuentro.descripcion || ''}
           confirmedCount={confirmedCount}
+          onUpdateLocation={onUpdateLocation}
           onPublished={() => {
             onRefresh();
           }}
@@ -286,7 +327,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       )}
 
       {/* Sección de Solicitudes */}
-      <div className="pe-host-open-card__requests-section">
+      <div id="solicitudes" className="pe-host-open-card__requests-section">
         <div className="pe-host-open-card__requests-header">
           <div className="pe-host-open-card__requests-title-row">
             <Clock size={16} />
@@ -447,8 +488,11 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         encuentroId={encuentro.id}
         hostId={hostId}
         modalidad={encuentro.modalidad || 'presencial'}
+        lugarTexto={encuentro.lugar_texto || ''}
+        linkVirtual={encuentro.link_virtual || ''}
         defaultDescription={encuentro.descripcion || ''}
         confirmedCount={confirmedCount}
+        onUpdateLocation={onUpdateLocation}
         onPublished={() => {
           onRefresh();
         }}
