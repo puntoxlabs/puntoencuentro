@@ -3,8 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Sliders, Plus, User, MoreVertical, Bell } from 'lucide-react';
-import { FilterSheet } from '@/components/ui/FilterSheet';
+import { Calendar, Plus, User, MoreVertical, Bell } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -325,7 +324,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
     !validCache && staleOrganized.length === 0 && staleParticipated.length === 0
   );
   const [error, setError] = useState<string | null>(null);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
@@ -556,7 +554,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   //
   // En desktop el input enfocado no oculta el FAB salvo interferencia real (layout fijo).
   const isAnySheetOpen =
-    isFilterOpen ||
     isAccountOpen ||
     isInfoOpen ||
     isSecondaryFilterOpen ||
@@ -1206,20 +1203,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
             )}
           </button>
 
-          {/* Botón de filtros */}
-          {(encuentros.length > 0 || filterStatus !== 'all' || filterType !== 'all') && (
-            <button
-              onClick={() => setIsFilterOpen(true)}
-              className="home-header-icon-btn"
-              style={{
-                color: filterStatus !== 'all' || sortBy !== 'date_upcoming' ? 'var(--color-primary)' : 'var(--color-on-surface)'
-              }}
-              title="Filtros"
-            >
-              <Sliders size={20} />
-            </button>
-          )}
-
           {/* Botón de información */}
           <button
             onClick={() => setIsInfoOpen(true)}
@@ -1515,7 +1498,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         onResumeOld={handleResumeOldDraft}
         onClose={() => setIsOverwriteSheetOpen(false)}
       />
-      <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
       <CreationAccountChoiceSheet {...choiceSheetProps} />
