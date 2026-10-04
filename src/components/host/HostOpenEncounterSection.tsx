@@ -301,13 +301,17 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       <div className="pe-host-open-card__slots-grid">
         <div className="pe-host-open-card__slot-metric">
           <span className="pe-host-open-card__metric-label">
-            <Users size={12} /> Personas actuales
+            <Users size={12} /> Participantes confirmados
           </span>
           <span className="pe-host-open-card__metric-value">
-            {totalOccupied}
+            {confirmedCount}
           </span>
           <span className="pe-host-open-card__metric-subtext" style={{ fontSize: 11, color: '#64748b' }}>
-            {confirmedCount > 0 ? `1 anfitrión + ${confirmedCount} ${confirmedCount === 1 ? 'confirmado' : 'confirmados'}` : '1 anfitrión'}
+            {confirmedCount === 0
+              ? 'Sin participantes externos confirmados'
+              : confirmedCount === 1
+              ? '1 participante confirmado'
+              : `${confirmedCount} participantes confirmados`}
           </span>
         </div>
 

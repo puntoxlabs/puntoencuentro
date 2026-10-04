@@ -9,45 +9,51 @@ describe('Correcciones QA Manual: Autofocus, Orden Invitación, Lugar Privado y 
   const publishModalPath = path.resolve(process.cwd(), 'src/components/host/OpenEncounterPublishModal.tsx');
   const hostSectionPath = path.resolve(process.cwd(), 'src/components/host/HostOpenEncounterSection.tsx');
 
+  const openEncountersServicePath = path.resolve(process.cwd(), 'src/services/openEncountersService.ts');
+  const cardPath = path.resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounterCard.tsx');
+  const sheetPath = path.resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx');
+
   const step1Code = fs.readFileSync(step1Path, 'utf-8');
   const detailHostCode = fs.readFileSync(detailHostPath, 'utf-8');
   const publishModalCode = fs.readFileSync(publishModalPath, 'utf-8');
   const hostSectionCode = fs.readFileSync(hostSectionPath, 'utf-8');
+  const openEncountersServiceCode = fs.readFileSync(openEncountersServicePath, 'utf-8');
+  const cardCode = fs.readFileSync(cardPath, 'utf-8');
+  const sheetCode = fs.readFileSync(sheetPath, 'utf-8');
 
   // 1. AUTOFOCUS EN STEP 1
-  describe('1. Autofocus en Nombre del encuentro', () => {
-    test('Step1Data define autofocus reactivo sin timeouts demorados ni scrollIntoView invasivo', () => {
-      // Debe chequear si viene con fecha o autoFocusTitle
+  describe('1. Autofocus en Nombre del encuentro (Paridad con Coordinación)', () => {
+    test('Step1Data replica el patrón confiable de coordinación con RAF + setTimeout 120ms', () => {
+      // Debe chequear autoFocusTitle !== false
       assert.ok(
-        step1Code.includes('Boolean(locationState?.autoFocusTitle || fecha)'),
-        'Debe activar autofocus si entra con fecha o autoFocusTitle'
+        step1Code.includes('locationState?.autoFocusTitle === false'),
+        'Debe permitir autofocus por defecto salvo que autoFocusTitle sea false'
       );
 
-      // El efecto de autofocus no debe contener setTimeout encadenados ni scrollIntoView invasivo
-      const autofocusEffectCode = step1Code.slice(
-        step1Code.indexOf('shouldAutoFocus'),
-        step1Code.indexOf('const now')
+      // El efecto de autofocus debe usar requestAnimationFrame + setTimeout 120ms
+      assert.ok(
+        step1Code.includes('requestAnimationFrame'),
+        'Debe usar requestAnimationFrame para asegurar montaje completo'
       );
       assert.ok(
-        !autofocusEffectCode.includes('setTimeout(runFocus, 120)'),
-        'No debe tener delay de 120ms que cancela el teclado en Android'
-      );
-      assert.ok(
-        !autofocusEffectCode.includes('scrollIntoView'),
-        'Efecto de autofocus no debe hacer scrollIntoView center diferido que quita el foco'
+        step1Code.includes('setTimeout(runFocus, 120)'),
+        'Debe usar delay de 120ms para permitir despliegue de teclado virtual en mobile'
       );
 
-      // No debe robar foco si el usuario ya interactuó
+      // scrollTo top y focus
       assert.ok(
-        step1Code.includes('document.activeElement') &&
-        step1Code.includes('active !== nameInputRef.current'),
-        'Debe respetar si el usuario ya tiene el foco en otro elemento'
+        step1Code.includes("window.scrollTo({ top: 0, behavior: 'auto' })"),
+        'Debe asegurar scroll al inicio sin saltos'
+      );
+      assert.ok(
+        step1Code.includes('input.focus()'),
+        'Debe enfocar físicamente el input'
       );
 
-      // El Input recibe autoFocus nativo como prop
+      // Input NO debe pelear con autoFocus nativo redundante
       assert.ok(
-        step1Code.includes('autoFocus={Boolean(locationState?.autoFocusTitle || fecha)}'),
-        'Input de Nombre del encuentro debe recibir prop autoFocus'
+        !step1Code.includes('autoFocus={Boolean(locationState?.autoFocusTitle || fecha)}'),
+        'Input no debe tener prop autoFocus nativa redundante que dispute el foco del ref'
       );
     });
   });
@@ -162,28 +168,73 @@ describe('Correcciones QA Manual: Autofocus, Orden Invitación, Lugar Privado y 
       assert.equal(openSlots, 4, 'Capacidad interna 5 produce exactamente 4 vacantes visibles en Discovery');
     });
 
-    test('D. Detalle del encuentro: muestra Personas actuales y Lugares disponibles', () => {
+    test('D. Detalle del anfitrión: excluye al host del conteo visible de participantes', () => {
+      // Debe mostrar "Participantes confirmados" (no "Personas actuales")
       assert.ok(
-        hostSectionCode.includes('Personas actuales'),
-        'Detalle del host debe mostrar "Personas actuales"'
+        hostSectionCode.includes('Participantes confirmados'),
+        'Detalle del host debe mostrar "Participantes confirmados"'
+      );
+      assert.ok(
+        !hostSectionCode.includes('Personas actuales'),
+        'Detalle del host NO debe mostrar "Personas actuales"'
       );
       assert.ok(
         hostSectionCode.includes('Lugares disponibles'),
         'Detalle del host debe mostrar "Lugares disponibles"'
       );
+
+      // Subtexto no debe incluir "1 anfitrión"
       assert.ok(
-        !hostSectionCode.includes('Ocupación total'),
-        'No debe mostrar "Ocupación total 1 / 5"'
+        !hostSectionCode.includes("'1 anfitrión'"),
+        'Métrica de participantes no debe mostrar "1 anfitrión"'
+      );
+      assert.ok(
+        hostSectionCode.includes('Sin participantes externos confirmados'),
+        'Métrica debe indicar "Sin participantes externos confirmados" cuando confirmedCount === 0'
       );
 
-      // Cálculo de visualización
+      // Cálculo de visualización: Host solo con 3 lugares disponibles
+      // En DB: max_participants = 4 (1 host + 3 slots)
+      // En UI: confirmados = 0
       const confirmedCount = 0;
-      const totalOccupied = confirmedCount + 1; // 1
-      const maxParticipants = 5;
-      const availableSlots = Math.max(0, maxParticipants - totalOccupied); // 4
+      const maxParticipants = 4;
+      const totalOccupied = confirmedCount + 1; // 1 ocupado internamente por el anfitrión
+      const availableSlots = Math.max(0, maxParticipants - totalOccupied); // 3
 
-      assert.equal(totalOccupied, 1, 'Personas actuales debe ser 1 (el anfitrión)');
-      assert.equal(availableSlots, 4, 'Lugares disponibles debe ser 4');
+      assert.equal(confirmedCount, 0, 'Participantes confirmados visibles debe ser 0');
+      assert.equal(availableSlots, 3, 'Lugares disponibles debe ser 3');
+    });
+
+    test('E. Mapeo en Discovery y Cards: excluye al anfitrión del conteo de participantes', () => {
+      // openEncountersService debe descontar al anfitrión de item.confirmed_count
+      assert.ok(
+        openEncountersServiceCode.includes('Math.max(0, Number(item.confirmed_count ?? 1) - 1)'),
+        'openEncountersService debe descontar al anfitrión del confirmed_count del backend'
+      );
+
+      // Simulación de respuesta backend:
+      // Host solo: backend retorna confirmed_count = 1 (1 anfitrión + 0 externos)
+      const hostSoloBackend = { confirmed_count: 1, open_slots: 3 };
+      const hostSoloMappedConfirmed = Math.max(0, Number(hostSoloBackend.confirmed_count ?? 1) - 1);
+      assert.equal(hostSoloMappedConfirmed, 0, 'Host solo produce 0 participantes confirmados en Discovery');
+      assert.equal(hostSoloBackend.open_slots, 3, 'Lugares disponibles se mantiene en 3');
+
+      // Host con 2 participantes: backend retorna confirmed_count = 3 (1 anfitrión + 2 externos)
+      const hostConDosBackend = { confirmed_count: 3, open_slots: 1 };
+      const hostConDosMapped = Math.max(0, Number(hostConDosBackend.confirmed_count ?? 1) - 1);
+      assert.equal(hostConDosMapped, 2, 'Host con 2 externos produce 2 participantes confirmados en Discovery');
+
+      // Cards y sheets manejan confirmedCount === 0
+      assert.ok(
+        cardCode.includes("encounter.confirmedCount === 0") &&
+        cardCode.includes("open_encounters.confirmed_zero"),
+        'HomeOpenEncounterCard debe manejar confirmedCount === 0'
+      );
+      assert.ok(
+        sheetCode.includes("encounter.confirmedCount === 0") &&
+        sheetCode.includes("open_encounters.confirmed_zero"),
+        'HomeOpenEncounterDetailSheet debe manejar confirmedCount === 0'
+      );
     });
   });
 });

@@ -132,6 +132,7 @@
     "full": "Completo",
     "confirmed_people": "{{count}} personas confirmadas",
     "confirmed_single": "1 persona confirmada",
+    "confirmed_zero": "0 personas confirmadas",
     "request_join": "Solicitar sumarme",
     "empty_title": "No hay encuentros abiertos ahora en tus zonas.",
     "empty_prompt": "¿Ya tenés un plan y te falta gente?",

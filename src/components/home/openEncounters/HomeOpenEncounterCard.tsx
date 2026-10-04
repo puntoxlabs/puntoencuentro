@@ -27,7 +27,9 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
       : 'count';
 
   const confirmedLabel =
-    encounter.confirmedCount === 1
+    encounter.confirmedCount === 0
+      ? t('open_encounters.confirmed_zero', { defaultValue: '0 personas confirmadas' })
+      : encounter.confirmedCount === 1
       ? t('open_encounters.confirmed_single', { defaultValue: '1 persona confirmada' })
       : t('open_encounters.confirmed_people', {
           count: encounter.confirmedCount,

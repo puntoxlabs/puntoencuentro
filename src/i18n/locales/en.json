@@ -131,6 +131,7 @@
     "full": "Full",
     "confirmed_people": "{{count}} people confirmed",
     "confirmed_single": "1 person confirmed",
+    "confirmed_zero": "0 people confirmed",
     "request_join": "Request to join",
     "empty_title": "No open encounters right now in your areas.",
     "empty_prompt": "Already have a plan and need more people?",

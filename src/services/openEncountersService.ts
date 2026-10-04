@@ -112,7 +112,7 @@ export const openEncountersService = {
         approximateZone: item.approximate_zone,
         localityId: item.locality_id,
         openSlots: Number(item.open_slots ?? 0),
-        confirmedCount: Number(item.confirmed_count ?? 1),
+        confirmedCount: Math.max(0, Number(item.confirmed_count ?? 1) - 1),
         language: item.language || 'es',
         description: item.description,
         hostName: item.host_name,

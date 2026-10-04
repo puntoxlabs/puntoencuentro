@@ -31,27 +31,15 @@ const Step1Data: React.FC = () => {
   const didAutoFocusRef = useRef(false);
 
   useEffect(() => {
-    // Foco automático si viene explícito por navegación o si entra con fecha ya definida
-    const shouldAutoFocus = Boolean(locationState?.autoFocusTitle || fecha);
-    if (!shouldAutoFocus) return;
     if (didAutoFocusRef.current) return;
-
-    // No robar foco si el usuario ya interactuó con otro elemento
-    const active = document.activeElement;
-    if (
-      active &&
-      active !== document.body &&
-      active !== document.documentElement &&
-      active !== nameInputRef.current
-    ) {
-      return;
-    }
-
     didAutoFocusRef.current = true;
+    if (locationState?.autoFocusTitle === false) return;
 
-    const input = nameInputRef.current;
-    if (input) {
-      // Enfocar directamente sin scroll extraño ni delays artificiales que cancelan el teclado en Android
+    const runFocus = () => {
+      const input = nameInputRef.current;
+      if (!input) return;
+
+      window.scrollTo({ top: 0, behavior: 'auto' });
       input.focus();
       try {
         const length = input.value.length;
@@ -59,12 +47,16 @@ const Step1Data: React.FC = () => {
       } catch {
         // En caso de inputs que no admitan setSelectionRange
       }
-    }
 
-    if (locationState?.autoFocusTitle) {
-      window.history.replaceState({}, document.title);
-    }
-  }, [locationState, fecha]);
+      setTimeout(() => {
+        window.history.replaceState({}, document.title);
+      }, 250);
+    };
+
+    requestAnimationFrame(() => {
+      setTimeout(runFocus, 120);
+    });
+  }, []);
 
   const now = new Date();
   const localYear = now.getFullYear();
@@ -252,7 +244,6 @@ const Step1Data: React.FC = () => {
           placeholder="Ej: Cena de fin de año"
           ref={nameInputRef}
           enterKeyHint="next"
-          autoFocus={Boolean(locationState?.autoFocusTitle || fecha)}
         />
         <Input
           label="Fecha"
