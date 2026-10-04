@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, MapPin, Users, AlertCircle } from 'lucide-react';
+import { X, Sparkles, MapPin, Users, AlertCircle, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
@@ -11,6 +11,7 @@ export interface OpenEncounterPublishModalProps {
   onClose: () => void;
   encuentroId: string;
   hostId: string;
+  modalidad?: 'presencial' | 'virtual';
   defaultDescription?: string;
   confirmedCount: number;
   onPublished: () => void;
@@ -21,6 +22,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   onClose,
   encuentroId,
   hostId,
+  modalidad = 'presencial',
   defaultDescription = '',
   confirmedCount,
   onPublished,
@@ -30,12 +32,13 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   const [description, setDescription] = useState(defaultDescription);
   const [maxParticipants, setMaxParticipants] = useState<number>(Math.max(4, confirmedCount + 2));
   const [localityId, setLocalityId] = useState<string>('guemes');
-  const [publicZone, setPublicZone] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const isVirtual = modalidad === 'virtual';
+
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isVirtual) return;
 
     openEncountersService.getLocalidades().then((data) => {
       if (data && data.length > 0) {
@@ -56,7 +59,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isVirtual, onClose]);
 
   if (!isOpen) return null;
 
@@ -70,7 +73,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       setErrorMsg(`El cupo total debe ser mayor a los confirmados actuales (${confirmedCount}).`);
       return;
     }
-    if (!localityId) {
+    if (!isVirtual && !localityId) {
       setErrorMsg('Por favor seleccioná una localidad.');
       return;
     }
@@ -78,15 +81,11 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     setSubmitting(true);
     setErrorMsg(null);
 
-    const selectedLoc = localidades.find((l) => l.id === localityId);
-    const resolvedZone = publicZone.trim() || (selectedLoc ? `${selectedLoc.nombre} · ${selectedLoc.ciudad}` : '');
-
     try {
       const res = await openEncountersService.abrirEncuentro(encuentroId, hostId, {
         open_description: description.trim(),
         max_participants: maxParticipants,
-        locality_id: localityId,
-        open_public_zone: resolvedZone,
+        locality_id: isVirtual ? null : localityId,
       });
 
       if (res.ok) {
@@ -129,8 +128,19 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         </div>
 
         <p className="pe-publish-modal__subtitle">
-          Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. La dirección puntual solo se revelará a quienes apruebes.
+          {isVirtual
+            ? 'Abrí lugares para que otras personas puedan descubrir tu plan y solicitar sumarse. El enlace de acceso seguirá siendo privado para participantes aprobados.'
+            : 'Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. La dirección puntual solo se revelará a quienes apruebes.'}
         </p>
+
+        {isVirtual && (
+          <div className="pe-publish-modal__virtual-info">
+            <Video size={18} style={{ flexShrink: 0 }} />
+            <span>
+              Se publicará como <strong>Encuentro Virtual</strong>. No requiere zona física y el enlace privado no será expuesto en Discovery.
+            </span>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="pe-publish-modal__error">
@@ -177,42 +187,28 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
               </span>
             </div>
 
-            <div className="pe-publish-modal__field">
-              <label className="pe-publish-modal__label">
-                <MapPin size={12} style={{ display: 'inline', marginRight: 4 }} />
-                {t('open_encounters.open_zone_label', { defaultValue: 'Localidad / Barrio' })} *
-              </label>
-              <select
-                className="pe-publish-modal__select"
-                value={localityId}
-                onChange={(e) => setLocalityId(e.target.value)}
-              >
-                {localidades.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.nombre} ({loc.ciudad})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="pe-publish-modal__field">
-            <label className="pe-publish-modal__label">
-              {t('open_encounters.open_public_zone_label', { defaultValue: 'Referencia pública aproximada' })}
-            </label>
-            <input
-              type="text"
-              className="pe-publish-modal__input"
-              placeholder={t('open_encounters.open_public_zone_placeholder', {
-                defaultValue: 'Ej: Güemes · Mar del Plata, o Palermo Soho',
-              })}
-              value={publicZone}
-              onChange={(e) => setPublicZone(e.target.value)}
-              maxLength={70}
-            />
-            <span className="pe-publish-modal__hint">
-              Esta referencia es lo único visible antes de la aprobación (la dirección exacta permanece oculta).
-            </span>
+            {!isVirtual && (
+              <div className="pe-publish-modal__field">
+                <label className="pe-publish-modal__label">
+                  <MapPin size={12} style={{ display: 'inline', marginRight: 4 }} />
+                  {t('open_encounters.open_zone_label', { defaultValue: 'Localidad / Barrio' })} *
+                </label>
+                <select
+                  className="pe-publish-modal__select"
+                  value={localityId}
+                  onChange={(e) => setLocalityId(e.target.value)}
+                >
+                  {localidades.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.nombre} ({loc.ciudad})
+                    </option>
+                  ))}
+                </select>
+                <span className="pe-publish-modal__hint">
+                  Esta zona será visible públicamente. La dirección exacta seguirá siendo privada.
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="pe-publish-modal__footer">

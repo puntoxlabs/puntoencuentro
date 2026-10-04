@@ -188,6 +188,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           onClose={() => setIsPublishModalOpen(false)}
           encuentroId={encuentro.id}
           hostId={hostId}
+          modalidad={encuentro.modalidad || 'presencial'}
           defaultDescription={encuentro.descripcion || ''}
           confirmedCount={confirmedCount}
           onPublished={() => {
@@ -445,6 +446,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         onClose={() => setIsPublishModalOpen(false)}
         encuentroId={encuentro.id}
         hostId={hostId}
+        modalidad={encuentro.modalidad || 'presencial'}
         defaultDescription={encuentro.descripcion || ''}
         confirmedCount={confirmedCount}
         onPublished={() => {

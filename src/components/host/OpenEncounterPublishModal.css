@@ -89,6 +89,20 @@
   margin-bottom: 14px;
 }
 
+.pe-publish-modal__virtual-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
 .pe-publish-modal__form {
   display: flex;
   flex-direction: column;

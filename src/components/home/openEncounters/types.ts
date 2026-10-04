@@ -41,8 +41,8 @@ export interface OpenEncounterRequest {
 export interface AbrirEncuentroPayload {
   open_description: string;
   max_participants: number;
-  locality_id: string;
-  open_public_zone?: string;
+  locality_id?: string | null;
+  open_public_zone?: string | null;
 }
 
 export type OpenEncounterSlotState = 'single' | 'remaining' | 'count' | 'full';
