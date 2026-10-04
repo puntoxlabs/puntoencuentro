@@ -125,7 +125,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   }, []);
 
   const handleCloseDiscovery = async () => {
-    if (!window.confirm('¿Seguro que querés cerrar el encuentro al Discovery? Ya no aparecerá públicamente pero se conservarán todos los participantes confirmados.')) {
+    if (!window.confirm('¿Seguro que querés dejar de mostrar el encuentro en Encuentros Abiertos? Ya no aparecerá públicamente pero se conservarán todos los participantes confirmados.')) {
       return;
     }
     setClosing(true);
@@ -261,10 +261,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           >
             <span className="pe-host-open-card__dot" />
             {isOpen
-              ? t('open_encounters.open_status_active', { defaultValue: 'Abierto en Discovery' })
+              ? t('open_encounters.open_status_active', { defaultValue: 'Abierto para sumarse' })
               : isPast
               ? 'Finalizado'
-              : 'Cerrado al Discovery'}
+              : 'No visible en Encuentros Abiertos'}
           </span>
           <span className="pe-host-open-card__zone">
             <MapPin size={12} />
@@ -278,10 +278,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
             className="pe-host-open-card__close-btn"
             onClick={handleCloseDiscovery}
             disabled={closing}
-            title="Cerrar al Discovery sin afectar participantes"
+            title="Dejar de mostrar sin afectar participantes"
           >
             <DoorClosed size={14} />
-            <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Cerrar al Discovery' })}</span>
+            <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Dejar de mostrar' })}</span>
           </button>
         )}
 
@@ -290,7 +290,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
             type="button"
             className="pe-host-open-card__close-btn"
             onClick={handleStartPublish}
-            title="Reabrir este encuentro al Discovery"
+            title="Reabrir este encuentro para sumarse"
           >
             <Sparkles size={14} />
             <span>{t('open_encounters.open_encounter_action', { defaultValue: 'Abrir este encuentro' })}</span>
@@ -331,7 +331,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
 
       {encuentro.open_description && (
         <div className="pe-host-open-card__desc-box">
-          <span className="pe-host-open-card__desc-label">Descripción en Discovery:</span>
+          <span className="pe-host-open-card__desc-label">Descripción pública:</span>
           <p className="pe-host-open-card__desc">{encuentro.open_description}</p>
         </div>
       )}
@@ -363,7 +363,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         {/* Lista de Solicitudes Pendientes */}
         {pendingRequests.length === 0 ? (
           <p className="pe-host-open-card__empty-requests">
-            No tenés solicitudes pendientes en este momento. Tu plan está visible en Discovery.
+            No tenés solicitudes pendientes en este momento. Tu plan está visible en Encuentros Abiertos.
           </p>
         ) : (
           <div className="pe-host-open-card__requests-list">

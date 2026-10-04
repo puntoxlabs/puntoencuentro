@@ -681,7 +681,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       </div>
 
       {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] */}
-      <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Discovery">
+      <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Encuentros Abiertos">
         <button
           type="button"
           role="tab"
@@ -715,7 +715,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       {isGeneralError ? (
         <div className="pe-discovery-empty pe-discovery-notice--error" role="alert">
           <AlertCircle size={20} aria-hidden="true" />
-          <p className="pe-discovery-empty-title">No pudimos cargar el contenido de Discovery.</p>
+          <p className="pe-discovery-empty-title">No pudimos cargar los encuentros y planes para sumarse.</p>
           <button
             type="button"
             className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"

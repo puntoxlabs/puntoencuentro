@@ -213,7 +213,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           <div className="pe-publish-modal__title-row">
             <Sparkles size={20} className="pe-publish-modal__icon" aria-hidden="true" />
             <h2 id="pe-publish-title" className="pe-publish-modal__title">
-              {t('open_encounters.open_encounter_modal_title', { defaultValue: 'Abrir encuentro al Discovery' })}
+              {t('open_encounters.open_encounter_modal_title', { defaultValue: 'Abrir encuentro para sumarse' })}
             </h2>
           </div>
           <button
@@ -236,7 +236,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           <div className="pe-publish-modal__virtual-info">
             <Video size={18} style={{ flexShrink: 0 }} />
             <span>
-              Se publicará como <strong>Encuentro Virtual</strong>. No requiere zona física y el enlace privado no será expuesto en Discovery.
+              Se publicará como <strong>Encuentro Virtual</strong>. No requiere zona física y el enlace privado no será expuesto públicamente.
             </span>
           </div>
         )}
