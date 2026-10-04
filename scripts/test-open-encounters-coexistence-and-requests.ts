@@ -240,12 +240,18 @@ describe('Encuentros Abiertos: Coexistencia, Ubicación Privada, Eventos de Soli
       $$;
     `);
 
-    // 2. Aplicar la migración aditiva bajo prueba
-    const migrationSql = fs.readFileSync(
+    // 2. Aplicar las migraciones aditivas bajo prueba
+    const migrationSql1 = fs.readFileSync(
       path.resolve(__dirname, '../supabase/migrations/20261004120000_open_encounter_join_request_events_and_inbox.sql'),
       'utf8'
     );
-    await db.exec(migrationSql);
+    await db.exec(migrationSql1);
+
+    const migrationSql2 = fs.readFileSync(
+      path.resolve(__dirname, '../supabase/migrations/20261004130000_enable_realtime_and_sanitize_join_request_event.sql'),
+      'utf8'
+    );
+    await db.exec(migrationSql2);
   });
 
   const setAuthContext = async (userId: string, isAnon: boolean = false) => {
@@ -359,7 +365,7 @@ describe('Encuentros Abiertos: Coexistencia, Ubicación Privada, Eventos de Soli
     assert.equal(outboxRes.rows.length, 1);
     assert.equal(outboxRes.rows[0].actor_user_id, applicantUser);
     assert.equal(outboxRes.rows[0].payload.host_id, hostUser);
-    assert.equal(outboxRes.rows[0].payload.applicant_name, 'Martín P.');
+    assert.equal(outboxRes.rows[0].payload.applicant_name, undefined);
     assert.equal(outboxRes.rows[0].payload.request_id, requestId);
 
     // 4. Verificar que se insertó la notificación in-app en inbox_notifications para el Host
