@@ -63,6 +63,7 @@ describe('Normalización de Zona Pública por Modalidad en Encuentros Abiertos (
       INSERT INTO public.localidades (id, nombre, ciudad, zona, activo) VALUES
         ('guemes', 'Güemes / Playa Grande', 'Mar del Plata', 'Costa Atlántica', true),
         ('centro', 'Centro / La Perla', 'Mar del Plata', 'Costa Atlántica', true),
+        ('mitre', 'Plaza Mitre / Chauvín', 'Mar del Plata', 'Costa Atlántica', true),
         ('costa_inactiva', 'La Costa Vieja', 'Mar del Plata', 'Costa Atlántica', false)
       ON CONFLICT DO NOTHING;
 
@@ -83,6 +84,7 @@ describe('Normalización de Zona Pública por Modalidad en Encuentros Abiertos (
         tema_invitacion TEXT DEFAULT 'sports',
         invitation_template TEXT,
         date_mode TEXT DEFAULT 'fixed',
+        reemplaza_a UUID,
         is_open BOOLEAN NOT NULL DEFAULT false,
         open_description TEXT,
         max_participants INT,
@@ -205,6 +207,16 @@ describe('Normalización de Zona Pública por Modalidad en Encuentros Abiertos (
     if (partMatch) {
       await db.exec(partMatch[0]);
     }
+
+    // 3b. Aplicar cerrar_encuentro_abierto_seguro (versión vigente endurecida)
+    const hardenedMigration = fs.readFileSync(
+      path.resolve(process.cwd(), 'supabase/migrations/20260928150000_harden_open_encounters_identity.sql'),
+      'utf8'
+    );
+    const fnCerrarRegex = /CREATE OR REPLACE FUNCTION public\.cerrar_encuentro_abierto_seguro[\s\S]+?END;\s*\$\$;/m;
+    const cerrarMatch = hardenedMigration.match(fnCerrarRegex);
+    assert.ok(cerrarMatch, 'cerrar_encuentro_abierto_seguro debe poder extraerse de la migración vigente');
+    await db.exec(cerrarMatch[0]);
 
     // 4. Aplicar la NUEVA migración objeto de la prueba
     const newMigration = fs.readFileSync(
@@ -632,5 +644,273 @@ describe('Normalización de Zona Pública por Modalidad en Encuentros Abiertos (
     `);
     assert.equal(res.rows[0].actualizar_encuentro_seguro.ok, false);
     assert.equal(res.rows[0].actualizar_encuentro_seguro.error, 'cannot_change_modality_while_open');
+  });
+
+  // ============================================================
+  // AUDITORÍA PRE-DEPLOY — canonicidad, reapertura, seguridad
+  // ============================================================
+
+  const openRpc = async (encId: string, loc: string | null, legacyZone: string | null = null) => {
+    const locSql = loc === null ? 'NULL' : `'${loc}'`;
+    const zoneSql = legacyZone === null ? 'NULL' : `'${legacyZone}'`;
+    const r = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Desc pública', 5, ${locSql}, ${zoneSql});
+    `);
+    return r.rows[0].abrir_encuentro_seguro;
+  };
+
+  const closeRpc = async (encId: string) => {
+    const r = await db.query<{ cerrar_encuentro_abierto_seguro: any }>(`
+      SELECT public.cerrar_encuentro_abierto_seguro('${encId}', '${hostUser}');
+    `);
+    return r.rows[0].cerrar_encuentro_abierto_seguro;
+  };
+
+  const newClosed = async (modalidad: 'presencial' | 'virtual') => {
+    const r = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (titulo, modalidad, lugar_texto, link_virtual, host_id, fecha, hora, is_open, estado)
+      VALUES ('Audit ${modalidad}', '${modalidad}',
+              ${modalidad === 'presencial' ? "'Dirección privada 123'" : 'NULL'},
+              ${modalidad === 'virtual' ? "'https://meet.example/privado'" : 'NULL'},
+              '${hostUser}', CURRENT_DATE + 6, '10:00', false, 'activo')
+      RETURNING id;
+    `);
+    return r.rows[0].id;
+  };
+
+  test('21. CHECK: virtual abierto con open_public_zone distinto de "Virtual" es rechazado por la base', async () => {
+    await assert.rejects(
+      db.query(`
+        INSERT INTO public.encuentros (titulo, modalidad, host_id, is_open, max_participants, locality_id, open_public_zone)
+        VALUES ('Drift virtual', 'virtual', '${hostUser}', true, 4, NULL, 'Belgrano');
+      `)
+    );
+    await assert.rejects(
+      db.query(`
+        INSERT INTO public.encuentros (titulo, modalidad, host_id, is_open, max_participants, locality_id, open_public_zone)
+        VALUES ('Drift virtual 2', 'virtual', '${hostUser}', true, 4, 'guemes', 'Virtual');
+      `)
+    );
+  });
+
+  test('22. CHECK: presencial abierto sin locality_id o con zona vacía es rechazado', async () => {
+    await assert.rejects(
+      db.query(`
+        INSERT INTO public.encuentros (titulo, modalidad, host_id, is_open, max_participants, locality_id, open_public_zone)
+        VALUES ('Pres sin loc', 'presencial', '${hostUser}', true, 4, NULL, 'Algo');
+      `)
+    );
+    await assert.rejects(
+      db.query(`
+        INSERT INTO public.encuentros (titulo, modalidad, host_id, is_open, max_participants, locality_id, open_public_zone)
+        VALUES ('Pres zona vacía', 'presencial', '${hostUser}', true, 4, 'guemes', '   ');
+      `)
+    );
+  });
+
+  test('23. Reapertura presencial: guemes → cerrar → centro deriva label de centro y reevalúa matching con centro', async () => {
+    const subCentro = '70000000-0000-0000-0000-000000000007';
+    const subGuemes = '80000000-0000-0000-0000-000000000008';
+    await db.exec(`
+      INSERT INTO auth.users (id, email) VALUES
+        ('${subCentro}', 'sc@test.com'), ('${subGuemes}', 'sg@test.com')
+      ON CONFLICT DO NOTHING;
+      INSERT INTO public.match_alert_subscriptions (user_id, modalidad, locality_id, status) VALUES
+        ('${subCentro}', 'presencial', 'centro', 'active'),
+        ('${subGuemes}', 'presencial', 'guemes', 'active');
+    `);
+    await setAuthContext(hostUser);
+    const encId = await newClosed('presencial');
+
+    const r1 = await openRpc(encId, 'guemes');
+    assert.equal(r1.ok, true);
+    assert.equal(r1.open_public_zone, 'Güemes / Playa Grande');
+
+    await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encId}');`);
+    const g1 = await db.query(`SELECT 1 FROM public.domain_events_outbox WHERE event_type='match.detected.v1' AND payload->>'recipient_user_id'='${subGuemes}' AND payload->>'encounter_id'='${encId}';`);
+    const c1 = await db.query(`SELECT 1 FROM public.domain_events_outbox WHERE event_type='match.detected.v1' AND payload->>'recipient_user_id'='${subCentro}' AND payload->>'encounter_id'='${encId}';`);
+    assert.equal(g1.rows.length, 1);
+    assert.equal(c1.rows.length, 0);
+
+    const cl = await closeRpc(encId);
+    assert.equal(cl.ok, true);
+
+    // Edición permitida estando cerrado
+    const upd = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "Audit renombrado"}'::jsonb);
+    `);
+    assert.equal(upd.rows[0].actualizar_encuentro_seguro.ok, true);
+
+    // Reabrir en centro, intentando inyectar zona legacy
+    const r2 = await openRpc(encId, 'centro', 'Zona Inventada');
+    assert.equal(r2.ok, true);
+    assert.equal(r2.locality_id, 'centro');
+    assert.equal(r2.open_public_zone, 'Centro / La Perla');
+
+    const row = await db.query<{ locality_id: string; open_public_zone: string }>(`SELECT locality_id, open_public_zone FROM public.encuentros WHERE id='${encId}';`);
+    assert.equal(row.rows[0].locality_id, 'centro');
+    assert.equal(row.rows[0].open_public_zone, 'Centro / La Perla');
+
+    // Dos eventos opened distintos; el último refleja centro
+    const ev = await db.query<{ payload: any }>(`SELECT payload FROM public.domain_events_outbox WHERE event_type='encounter.opened.v1' AND aggregate_id='${encId}' ORDER BY id ASC;`);
+    assert.equal(ev.rows.length, 2);
+    assert.equal(ev.rows[0].payload.locality_id, 'guemes');
+    assert.equal(ev.rows[1].payload.locality_id, 'centro');
+
+    // Matching tras reapertura usa centro
+    await db.query(`SELECT public.evaluar_matching_encuentro_abierto('${encId}');`);
+    const c2 = await db.query(`SELECT 1 FROM public.domain_events_outbox WHERE event_type='match.detected.v1' AND payload->>'recipient_user_id'='${subCentro}' AND payload->>'encounter_id'='${encId}' AND payload->>'locality_id'='centro';`);
+    assert.equal(c2.rows.length, 1);
+  });
+
+  test('24. Cambio de modalidad: abierto rechaza; cerrar → cambiar a virtual → abrir deja locality NULL / "Virtual"', async () => {
+    await setAuthContext(hostUser);
+    const encId = await newClosed('presencial');
+    assert.equal((await openRpc(encId, 'guemes')).ok, true);
+
+    const rej = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"modalidad": "virtual"}'::jsonb);
+    `);
+    assert.equal(rej.rows[0].actualizar_encuentro_seguro.error, 'cannot_change_modality_while_open');
+
+    assert.equal((await closeRpc(encId)).ok, true);
+    const ok = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"modalidad": "virtual", "link_virtual": "https://meet.example/nuevo"}'::jsonb);
+    `);
+    assert.equal(ok.rows[0].actualizar_encuentro_seguro.ok, true);
+
+    // Aunque el caller envíe localidad/zona accidentalmente, virtual queda canónico
+    const r = await openRpc(encId, 'guemes', 'Palermo Soho');
+    assert.equal(r.ok, true);
+    assert.equal(r.locality_id, null);
+    assert.equal(r.open_public_zone, 'Virtual');
+
+    const row = await db.query<{ locality_id: string | null; open_public_zone: string; modalidad: string }>(`SELECT locality_id, open_public_zone, modalidad FROM public.encuentros WHERE id='${encId}';`);
+    assert.equal(row.rows[0].modalidad, 'virtual');
+    assert.equal(row.rows[0].locality_id, null);
+    assert.equal(row.rows[0].open_public_zone, 'Virtual');
+
+    const ev = await db.query<{ payload: any }>(`SELECT payload FROM public.domain_events_outbox WHERE event_type='encounter.opened.v1' AND aggregate_id='${encId}' ORDER BY id DESC LIMIT 1;`);
+    assert.equal(ev.rows[0].payload.modalidad, 'virtual');
+    assert.equal(ev.rows[0].payload.locality_id, null);
+  });
+
+  test('25. Cambio inverso: virtual cerrado → presencial exige localidad al abrir y deriva label canónico', async () => {
+    await setAuthContext(hostUser);
+    const encId = await newClosed('virtual');
+    const o1 = await openRpc(encId, null);
+    assert.equal(o1.ok, true, `abrir virtual: ${JSON.stringify(o1)}`);
+    const c1 = await closeRpc(encId);
+    assert.equal(c1.ok, true, `cerrar: ${JSON.stringify(c1)}`);
+
+    const chg = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"modalidad": "presencial", "lugar_texto": "Calle X 1"}'::jsonb);
+    `);
+    assert.equal(chg.rows[0].actualizar_encuentro_seguro.ok, true, `actualizar: ${JSON.stringify(chg.rows[0].actualizar_encuentro_seguro)}`);
+
+    const sinLoc = await openRpc(encId, null);
+    assert.equal(sinLoc.ok, false);
+    assert.equal(sinLoc.error, 'locality_required');
+
+    const conLoc = await openRpc(encId, 'mitre');
+    assert.equal(conLoc.ok, true, `abrir presencial mitre: ${JSON.stringify(conLoc)}`);
+    assert.equal(conLoc.open_public_zone, 'Plaza Mitre / Chauvín');
+  });
+
+  test('26. Invariante global: ningún abierto presencial difiere del catálogo y todo virtual abierto es "Virtual" tras flujos RPC', async () => {
+    const drift = await db.query<{ n: number }>(`
+      SELECT count(*)::int AS n FROM public.encuentros e
+      LEFT JOIN public.localidades l ON l.id = e.locality_id
+      WHERE e.is_open = true AND e.modalidad = 'presencial'
+        AND (l.id IS NULL OR e.open_public_zone IS DISTINCT FROM l.nombre);
+    `);
+    assert.equal(drift.rows[0].n, 0);
+    const virt = await db.query<{ n: number }>(`
+      SELECT count(*)::int AS n FROM public.encuentros
+      WHERE is_open = true AND modalidad = 'virtual'
+        AND (locality_id IS NOT NULL OR open_public_zone IS DISTINCT FROM 'Virtual');
+    `);
+    assert.equal(virt.rows[0].n, 0);
+  });
+
+  test('27. Reparación de datos: el UPDATE de la migración normaliza filas legacy con zona contradictoria', async () => {
+    const migration = fs.readFileSync(
+      path.resolve(process.cwd(), 'supabase/migrations/20261003210000_normalize_open_encounters_zone_by_modality.sql'),
+      'utf8'
+    );
+    const repair = migration.match(/UPDATE public\.encuentros e\s+SET open_public_zone = l\.nombre[\s\S]+?;/m);
+    assert.ok(repair, 'debe existir el UPDATE de reparación presencial');
+
+    // Fila legacy con drift (satisface el CHECK nuevo: zona no vacía)
+    const ins = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (titulo, modalidad, host_id, is_open, max_participants, locality_id, open_public_zone)
+      VALUES ('Legacy drift', 'presencial', '${hostUser}', true, 4, 'guemes', 'Belgrano')
+      RETURNING id;
+    `);
+    const id = ins.rows[0].id;
+    await db.exec(repair[0]);
+    const row = await db.query<{ open_public_zone: string; locality_id: string }>(`SELECT open_public_zone, locality_id FROM public.encuentros WHERE id='${id}';`);
+    assert.equal(row.rows[0].open_public_zone, 'Güemes / Playa Grande');
+    assert.equal(row.rows[0].locality_id, 'guemes');
+  });
+
+  test('28. Seguridad RPC: SECURITY DEFINER, search_path fijo, sin EXECUTE para PUBLIC/anon, EXECUTE para authenticated', async () => {
+    const sigs = [
+      'public.abrir_encuentro_seguro(uuid,uuid,text,integer,text,text)',
+      'public.actualizar_encuentro_seguro(uuid,uuid,jsonb)',
+    ];
+    for (const sig of sigs) {
+      const meta = await db.query<{ prosecdef: boolean; proconfig: string[] | null }>(`SELECT prosecdef, proconfig FROM pg_proc WHERE oid = '${sig}'::regprocedure;`);
+      assert.equal(meta.rows[0].prosecdef, true, `${sig} debe ser SECURITY DEFINER`);
+      assert.ok((meta.rows[0].proconfig || []).some((c) => c.startsWith('search_path=')), `${sig} debe fijar search_path`);
+      const anon = await db.query<{ p: boolean }>(`SELECT has_function_privilege('anon', '${sig}', 'EXECUTE') AS p;`);
+      const auth = await db.query<{ p: boolean }>(`SELECT has_function_privilege('authenticated', '${sig}', 'EXECUTE') AS p;`);
+      assert.equal(anon.rows[0].p, false, `${sig} no debe ser ejecutable por anon/PUBLIC`);
+      assert.equal(auth.rows[0].p, true, `${sig} debe ser ejecutable por authenticated`);
+    }
+  });
+
+  test('29. Seguridad abrir: sin sesión, anónimo y no-host son rechazados', async () => {
+    const encId = await newClosed('presencial');
+
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{}', false);`);
+    assert.equal((await openRpc(encId, 'guemes')).error, 'authentication_required');
+
+    await setAuthContext(hostUser, true);
+    assert.equal((await openRpc(encId, 'guemes')).error, 'permanent_account_required');
+
+    await setAuthContext(participantUser);
+    assert.equal((await openRpc(encId, 'guemes')).error, 'unauthorized');
+
+    await setAuthContext(hostUser);
+  });
+
+  test('30. Discovery preserva el filtro de bloqueo bilateral tras la migración', async () => {
+    await setAuthContext(alertSubscriberUser);
+    const before = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`SELECT public.get_discovery_encuentros_abiertos();`);
+    assert.ok(before.rows[0].get_discovery_encuentros_abiertos.length > 0);
+
+    await db.exec(`INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id) VALUES ('${alertSubscriberUser}', '${hostUser}');`);
+    const blocked = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`SELECT public.get_discovery_encuentros_abiertos();`);
+    assert.equal(blocked.rows[0].get_discovery_encuentros_abiertos.length, 0);
+
+    // Bloqueo inverso (host bloquea al viewer) también filtra
+    await db.exec(`DELETE FROM public.bloqueos_usuario;`);
+    await db.exec(`INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id) VALUES ('${hostUser}', '${alertSubscriberUser}');`);
+    const blockedInv = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`SELECT public.get_discovery_encuentros_abiertos();`);
+    assert.equal(blockedInv.rows[0].get_discovery_encuentros_abiertos.length, 0);
+
+    await db.exec(`DELETE FROM public.bloqueos_usuario;`);
+    await setAuthContext(hostUser);
+  });
+
+  test('31. Privacidad tras reapertura: Discovery no expone lugar_texto/link_virtual y host sigue con acceso en su tabla', async () => {
+    const res = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`SELECT public.get_discovery_encuentros_abiertos();`);
+    const serialized = JSON.stringify(res.rows[0].get_discovery_encuentros_abiertos);
+    assert.ok(!serialized.includes('Dirección privada 123'));
+    assert.ok(!serialized.includes('meet.example'));
+    const host = await db.query<{ lugar_texto: string | null }>(`SELECT lugar_texto FROM public.encuentros WHERE titulo = 'Audit renombrado';`);
+    assert.equal(host.rows[0].lugar_texto, 'Dirección privada 123');
   });
 });

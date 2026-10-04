@@ -37,7 +37,7 @@ CHECK (
         AND (
             (modalidad = 'presencial' AND locality_id IS NOT NULL AND open_public_zone IS NOT NULL AND trim(open_public_zone) <> '')
             OR
-            (modalidad = 'virtual' AND locality_id IS NULL)
+            (modalidad = 'virtual' AND locality_id IS NULL AND open_public_zone = 'Virtual')
         )
     )
 );
@@ -217,6 +217,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 DECLARE
+    v_viewer_id UUID := auth.uid();
     v_result JSON;
 BEGIN
     SELECT json_agg(enc_row) INTO v_result
@@ -278,6 +279,15 @@ BEGIN
               p_locality_ids IS NULL
               OR array_length(p_locality_ids, 1) IS NULL
               OR e.locality_id = ANY(p_locality_ids)
+          )
+          -- Filtrar bloqueos bilaterales si el viewer está autenticado (preservado de 20261001120000)
+          AND (
+              v_viewer_id IS NULL
+              OR NOT EXISTS (
+                  SELECT 1 FROM public.bloqueos_usuario b
+                  WHERE (b.blocker_id = v_viewer_id AND b.blocked_id = e.host_id)
+                     OR (b.blocker_id = e.host_id AND b.blocked_id = v_viewer_id)
+              )
           )
         ORDER BY e.opened_at DESC, e.creado_en DESC
     ) enc_row;
