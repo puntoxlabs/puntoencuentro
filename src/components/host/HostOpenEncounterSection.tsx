@@ -301,20 +301,26 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       <div className="pe-host-open-card__slots-grid">
         <div className="pe-host-open-card__slot-metric">
           <span className="pe-host-open-card__metric-label">
-            <Users size={12} /> Ocupación total
+            <Users size={12} /> Personas actuales
           </span>
           <span className="pe-host-open-card__metric-value">
-            {totalOccupied} / {maxParticipants}
+            {totalOccupied}
+          </span>
+          <span className="pe-host-open-card__metric-subtext" style={{ fontSize: 11, color: '#64748b' }}>
+            {confirmedCount > 0 ? `1 anfitrión + ${confirmedCount} ${confirmedCount === 1 ? 'confirmado' : 'confirmados'}` : '1 anfitrión'}
           </span>
         </div>
 
         <div className="pe-host-open-card__slot-metric">
-          <span className="pe-host-open-card__metric-label">Lugares libres</span>
+          <span className="pe-host-open-card__metric-label">Lugares disponibles</span>
           <span
             className="pe-host-open-card__metric-value"
             style={{ color: availableSlots > 0 ? '#059669' : '#dc2626' }}
           >
-            {availableSlots > 0 ? `${availableSlots} disponibles` : 'Completo'}
+            {availableSlots > 0 ? availableSlots : 'Completo'}
+          </span>
+          <span className="pe-host-open-card__metric-subtext" style={{ fontSize: 11, color: '#64748b' }}>
+            {availableSlots > 0 ? `${availableSlots} ${availableSlots === 1 ? 'lugar para sumarse' : 'lugares para sumarse'}` : 'Sin lugares libres'}
           </span>
         </div>
       </div>

@@ -36,10 +36,32 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   const { t } = useTranslation();
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [description, setDescription] = useState(defaultDescription);
-  const [externalSlots, setExternalSlots] = useState<number>(2);
+  const [slotsInput, setSlotsInput] = useState<string>('2');
   const [localityId, setLocalityId] = useState<string>('guemes');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSlotsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '' || /^\d+$/.test(val)) {
+      setSlotsInput(val);
+      if (val !== '') {
+        const num = parseInt(val, 10);
+        if (num >= 1) setErrorMsg(null);
+      }
+    }
+  };
+
+  const handleSlotsBlur = () => {
+    const parsed = parseInt(slotsInput, 10);
+    if (!slotsInput || isNaN(parsed) || parsed < 1) {
+      setSlotsInput('1');
+    } else if (parsed > 40) {
+      setSlotsInput('40');
+    } else {
+      setSlotsInput(String(parsed));
+    }
+  };
 
   // Edición de ubicación privada
   const isVirtual = modalidad === 'virtual';
@@ -116,7 +138,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       }
     } else {
       if (!currentLugar || !currentLugar.trim()) {
-        setErrorMsg('Por favor ingresá la dirección o lugar exacto antes de abrir el encuentro.');
+        setErrorMsg('Por favor ingresá el lugar y dirección antes de abrir el encuentro.');
         setIsEditingLocation(true);
         return;
       }
@@ -127,8 +149,13 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       return;
     }
 
-    if (externalSlots < 1) {
+    const parsedSlots = parseInt(slotsInput, 10);
+    if (isNaN(parsedSlots) || parsedSlots < 1) {
       setErrorMsg('Debés ofrecer al menos 1 lugar para sumarse.');
+      return;
+    }
+    if (parsedSlots > 40) {
+      setErrorMsg('El máximo permitido es 40 lugares para sumarse.');
       return;
     }
 
@@ -138,7 +165,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     }
 
     // Fórmula: max_participants = lugares_para_sumarse + 1 (host) + confirmados
-    const calculatedMaxParticipants = externalSlots + 1 + confirmedCount;
+    const calculatedMaxParticipants = parsedSlots + 1 + confirmedCount;
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -155,7 +182,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         onClose();
       } else {
         if (res.error === 'private_location_required') {
-          setErrorMsg('La dirección privada es requerida para abrir el encuentro.');
+          setErrorMsg('El lugar y dirección privada es requerido para abrir el encuentro.');
           setIsEditingLocation(true);
         } else if (res.error === 'private_virtual_link_required') {
           setErrorMsg('El enlace de videollamada es requerido para abrir el encuentro virtual.');
@@ -202,7 +229,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         <p className="pe-publish-modal__subtitle">
           {isVirtual
             ? 'Abrí lugares para que otras personas puedan descubrir tu plan y solicitar sumarse. El enlace de acceso seguirá siendo privado para participantes aprobados.'
-            : 'Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. La dirección puntual solo se revelará a quienes apruebes.'}
+            : 'Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. El lugar y dirección privada solo se revelará a quienes apruebes.'}
         </p>
 
         {isVirtual && (
@@ -219,7 +246,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           <div className="pe-publish-private-loc__header">
             <div className="pe-publish-private-loc__label">
               <Lock size={13} />
-              <span>{isVirtual ? 'Enlace de acceso privado' : 'Dirección exacta privada'}</span>
+              <span>{isVirtual ? 'Enlace de acceso privado' : 'Lugar y dirección privada'}</span>
             </div>
             {!isEditingLocation && onUpdateLocation && (
               <button
@@ -241,7 +268,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
               <input
                 type="text"
                 className="pe-publish-modal__input pe-publish-private-loc__input"
-                placeholder={isVirtual ? 'https://meet.google.com/...' : 'Ej: Av. Colón 1234, Timbre B'}
+                placeholder={isVirtual ? 'https://meet.google.com/...' : 'Ej: Café Martínez (Güemes), o Av. Colón 1234'}
                 value={tempLocation}
                 onChange={(e) => setTempLocation(e.target.value)}
                 autoFocus
@@ -267,12 +294,19 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
               </div>
             </div>
           ) : (
-            <p className="pe-publish-private-loc__value">
-              {hasPrivateLocation
-                ? (isVirtual ? currentLink : currentLugar)
-                : <span className="pe-publish-private-loc__empty">⚠️ Falta definir {isVirtual ? 'el enlace' : 'la dirección'}. Es necesario para que los confirmados puedan asistir.</span>
-              }
-            </p>
+            <>
+              <p className="pe-publish-private-loc__value">
+                {hasPrivateLocation
+                  ? (isVirtual ? currentLink : currentLugar)
+                  : <span className="pe-publish-private-loc__empty">⚠️ Falta definir {isVirtual ? 'el enlace de acceso' : 'el lugar y dirección'}. Es necesario para que los participantes aprobados puedan asistir.</span>
+                }
+              </p>
+              <p className="pe-publish-private-loc__hint" style={{ margin: '6px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+                {isVirtual
+                  ? 'Enlace donde se realizará el encuentro. No es público: solo lo verán los participantes aprobados.'
+                  : 'Indica dónde será el encuentro (nombre del lugar, referencia o dirección). No es público: solo lo verán los participantes aprobados.'}
+              </p>
+            </>
           )}
         </div>
 
@@ -308,16 +342,18 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
                 {t('open_encounters.open_slots_label', { defaultValue: 'Lugares para sumarse' })} *
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
-                min={1}
-                max={40}
                 className="pe-publish-modal__input"
-                value={externalSlots}
-                onChange={(e) => setExternalSlots(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                value={slotsInput}
+                onChange={handleSlotsChange}
+                onBlur={handleSlotsBlur}
+                placeholder="Ej: 4"
               />
               <span className="pe-publish-modal__hint">
-                Personas que querés sumar ({confirmedCount + 1} anfitrión y participantes actuales).
+                Personas adicionales que querés sumar a tu encuentro (no incluye al anfitrión).
               </span>
             </div>
 

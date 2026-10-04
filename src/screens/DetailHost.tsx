@@ -1220,6 +1220,32 @@ const DetailHost: React.FC = () => {
                 </div>
               )}
 
+              {/* BLOQUE: REVISÁ ANTES DE COMPARTIR */}
+              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
+                <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  Podés ver cómo recibirán la invitación tus invitados antes de enviarla.
+                </p>
+                <div>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    onClick={() => setShowPreview(true)}
+                    style={{
+                      height: 44,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      background: '#fff',
+                      borderColor: 'var(--color-primary)',
+                      color: 'var(--color-primary)'
+                    }}
+                  >
+                    <Eye size={18} style={{ marginRight: 8 }} />
+                    Previsualizar invitación
+                  </Button>
+                </div>
+              </div>
+
               {/* BLOQUE: COMPARTIR INVITACIÓN O AGREGAR INVITADOS */}
               {encuentro.tipo_invitacion === 'link_general' ? (
                 // --- Link general: compartir ---
@@ -1278,32 +1304,6 @@ const DetailHost: React.FC = () => {
                   </p>
                 </div>
               )}
-
-              {/* BLOQUE: REVISÁ ANTES DE COMPARTIR */}
-              <div className="dh-review-section" style={{ padding: '20px', background: 'var(--color-surface-variant)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-outline-variant)' }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 700, color: 'var(--color-on-surface)' }}>Revisá antes de compartir</h4>
-                <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-                  Podés ver cómo recibirán la invitación tus invitados antes de enviarla.
-                </p>
-                <div>
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    onClick={() => setShowPreview(true)}
-                    style={{
-                      height: 44,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      background: '#fff',
-                      borderColor: 'var(--color-primary)',
-                      color: 'var(--color-primary)'
-                    }}
-                  >
-                    <Eye size={18} style={{ marginRight: 8 }} />
-                    Previsualizar invitación
-                  </Button>
-                </div>
-              </div>
 
               {/* Google sign-in nudge: solo cuando viene de ?share=1 y usuario no autenticado */}
               {isFromShare && !user && !loading && encuentro && (

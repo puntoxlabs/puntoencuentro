@@ -32,40 +32,38 @@ const Step1Data: React.FC = () => {
 
   useEffect(() => {
     // Foco automático si viene explícito por navegación o si entra con fecha ya definida
-    const shouldAutoFocus = locationState?.autoFocusTitle || Boolean(fecha);
+    const shouldAutoFocus = Boolean(locationState?.autoFocusTitle || fecha);
     if (!shouldAutoFocus) return;
     if (didAutoFocusRef.current) return;
 
+    // No robar foco si el usuario ya interactuó con otro elemento
+    const active = document.activeElement;
+    if (
+      active &&
+      active !== document.body &&
+      active !== document.documentElement &&
+      active !== nameInputRef.current
+    ) {
+      return;
+    }
+
     didAutoFocusRef.current = true;
 
-    const runFocus = () => {
-      const input = nameInputRef.current;
-      if (!input) return;
-
-      // Primero llevar el formulario arriba.
-      window.scrollTo({ top: 0, behavior: 'auto' });
-
-      // Luego enfocar el input sin preventScroll para que el teclado se abra
+    const input = nameInputRef.current;
+    if (input) {
+      // Enfocar directamente sin scroll extraño ni delays artificiales que cancelan el teclado en Android
       input.focus();
-
-      // Asegurar que el campo quede visible después de abrir teclado.
-      setTimeout(() => {
-        input.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-
+      try {
         const length = input.value.length;
         input.setSelectionRange(length, length);
+      } catch {
+        // En caso de inputs que no admitan setSelectionRange
+      }
+    }
 
-        // Remove from history state so it doesn't fire again on step-back
-        window.history.replaceState({}, document.title);
-      }, 250);
-    };
-
-    requestAnimationFrame(() => {
-      setTimeout(runFocus, 120);
-    });
+    if (locationState?.autoFocusTitle) {
+      window.history.replaceState({}, document.title);
+    }
   }, [locationState, fecha]);
 
   const now = new Date();
@@ -254,6 +252,7 @@ const Step1Data: React.FC = () => {
           placeholder="Ej: Cena de fin de año"
           ref={nameInputRef}
           enterKeyHint="next"
+          autoFocus={Boolean(locationState?.autoFocusTitle || fecha)}
         />
         <Input
           label="Fecha"
