@@ -820,5 +820,29 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlV2.includes('home-v2-variant'), 'V2 debe contener clase home-v2-variant');
     });
+
+    test('H. En Home V2 la sección personal muestra "Tengo ganas de…" mientras el tab de descubrimiento conserva "Ganas de…"', () => {
+      const htmlV2 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+        )
+      );
+      // 1. Sección personal con nuevo título en V2
+      assert.ok(htmlV2.includes('Tengo ganas de…'), 'Debe mostrar "Tengo ganas de…" en la sección personal de V2');
+      // 2. Tab de descubrimiento en Encuentros Abiertos conserva "Ganas de…"
+      assert.ok(htmlV2.includes('role="tab"'), 'Debe contener pestañas de descubrimiento');
+      assert.ok(htmlV2.includes('>Ganas de…<'), 'El tab/filtro de descubrimiento debe conservar "Ganas de…"');
+      // 3. En Home V1 se mantiene el título original "Ganas de…"
+      const htmlV1 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+        )
+      );
+      assert.ok(htmlV1.includes('<h3 class="pe-discovery-subtitle">Ganas de…</h3>'), 'V1 debe mantener "Ganas de…" en la cabecera');
+    });
   });
 });

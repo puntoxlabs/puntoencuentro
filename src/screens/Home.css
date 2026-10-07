@@ -911,37 +911,37 @@ html, body {
    V1 y desktop permanecen visualmente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
-  /* 1. Respiración entre Hero y Encuentros Abiertos */
+  /* 1. Respiración equilibrada entre Hero y Encuentros Abiertos */
   .home-v2-variant .pe-discovery-section {
-    margin-top: 1.5rem;
+    margin-top: 1.25rem;
     padding-top: 0.25rem;
   }
 
-  /* 2. Transición entre Encuentros Abiertos y Capacidades (Pilares) */
+  /* 2. Transición entre Encuentros Abiertos y Capacidades (Pilares): armónica y continua */
   .home-v2-variant .home-pillars-section {
-    margin-top: 2rem;
-    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
     border-top: 1px solid rgba(15, 23, 42, 0.05);
   }
 
   /* 3. Transición hacia "Cómo funciona" (Value Proposition) */
   .home-v2-variant .home-value-prop {
-    margin-top: 2rem;
+    margin-top: 1.5rem;
     background-color: #fafbfc;
     border-color: rgba(15, 23, 42, 0.06);
     box-shadow: none;
   }
 
-  /* 4. Transición hacia "Tus encuentros" */
+  /* 4. Transición hacia "Tus encuentros": ritmo orgánico sin corte abrupto */
   .home-v2-variant.home-gsap-layout .home-encounters-section {
-    margin-top: 2.25rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    margin-top: 1.65rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.07);
   }
 
   /* 5. Eliminación de wrapper pesado y borde discontinuo en "También puede interesarte" */
   .home-v2-variant .pe-discovery-secondary-block {
-    margin-top: 1.5rem;
+    margin-top: 1.25rem;
     padding: 0;
     background: transparent;
     border: none;
@@ -964,7 +964,7 @@ html, body {
     color: var(--color-on-surface-variant, #64748b);
   }
 
-  /* 6. Refinamiento del estado vacío de "Ganas de…" (sin apariencia de wireframe técnico) */
+  /* 6. Refinamiento del estado vacío de "Tengo ganas de…" (sin apariencia de wireframe técnico) */
   .home-v2-variant .pe-discovery-empty--subtle {
     background-color: #f8fafc;
     border: 1px solid rgba(15, 23, 42, 0.06);
@@ -990,6 +990,15 @@ html, body {
     border-radius: 10px;
     font-size: 0.84rem;
     font-weight: 600;
+  }
+
+  /* 7. Reserva de espacio inferior: garantiza que el FAB "+ Crear" no tape cards ni el timestamp inferior */
+  .home-v2-variant .home-build-info {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .home-v2-variant .pe-gsap-encounters-container {
+    padding-bottom: 12px;
   }
 }
 

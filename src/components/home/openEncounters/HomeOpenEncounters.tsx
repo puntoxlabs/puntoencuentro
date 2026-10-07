@@ -46,6 +46,8 @@ export interface HomeOpenEncountersProps {
    * En rutas normales (Home, Staging real, Prod) se muestran datos reales y empty states reales.
    */
   isDemoMode?: boolean;
+  /** Título personalizado para la sección de intenciones (por defecto "Ganas de…") */
+  intentionsTitle?: string;
 }
 
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
@@ -60,6 +62,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onSeeAll,
   isDemoMode,
   onFocusIntentInput,
+  intentionsTitle,
 }) => {
   const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -748,7 +751,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
                 <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
                   <h3 className="pe-discovery-subtitle">
-                    {t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
+                    {intentionsTitle || t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
                   </h3>
                   {renderIntentionsGroup()}
                 </div>
