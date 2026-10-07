@@ -33,7 +33,7 @@ import { useAiWizardStore } from '@/store/aiWizardStore';
 import { useDetailStore } from '@/store/detailStore';
 import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
-import { throttle } from 'lodash';
+import throttle from 'lodash/throttle';
 import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
 import { DATE_COORDINATION_ENABLED } from '@/config/features';
 import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceSheet';
@@ -277,13 +277,33 @@ const PastCard: React.FC<{
   );
 };
 
+export function formatBuildTimestamp(raw: string): string {
+  if (!raw) return '';
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})/);
+  if (match) {
+    const [, d, m, y, h, min] = match;
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y} ${h.padStart(2, '0')}:${min}`;
+  }
+  const parsedDate = new Date(raw);
+  if (!isNaN(parsedDate.getTime())) {
+    const formatted = parsedDate.toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+    const matchIso = formatted.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})/);
+    if (matchIso) {
+      const [, d, m, y, h, min] = matchIso;
+      return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y} ${h.padStart(2, '0')}:${min}`;
+    }
+  }
+  return raw;
+}
+
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
   enableOpenDiscovery?: boolean;
+  homeVariant?: 'v1' | 'v2';
 }
 
-const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
+const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant }) => {
   const navigate = useNavigate();
   const { user, loading: authLoading, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
@@ -295,6 +315,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
   const staleOrganized = storeState.encuentros;
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
+
+  // Variante V2 de revisión de la Home (acceso controlado vía ?homeVariant=v2 o prop)
+  const isV2Variant = propHomeVariant === 'v2' || (
+    propHomeVariant !== 'v1' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('homeVariant') === 'v2'
+  );
 
   // Variante de diseño visual de la Home (GSAP definitiva por defecto)
   const [visualVariant] = useState<HomeVisualVariant>(() => {
@@ -1240,6 +1267,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
         <div className="home-hero-center-column">
           <HomeHero
             isPausedByInput={isInputFocused || isSpeechListening || Boolean(homeIntent.trim())}
+            subtitle={isV2Variant ? 'Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.' : undefined}
             onPhraseClick={(phrase) => {
               setHomeIntent(phrase);
             }}
@@ -1296,7 +1324,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
           />
 
           {/* 3. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
-          <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
+          <HomePillarsSection
+            onCreateClick={handleCreateClick}
+            variant={effectiveVariant}
+            showLaunchBadges={!isV2Variant}
+            openEncountersExplanation={isV2Variant ? '¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.' : undefined}
+          />
 
           {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
           {!loading && rawEncuentros.length === 0 && !user && (
@@ -1365,7 +1398,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
       ) : (
         <>
           {/* Modalidades de encuentro (Los 3 Pilares V2 / 2 Pilares en Lanzamiento Variante D) */}
-          <HomePillarsSection onCreateClick={handleCreateClick} variant={effectiveVariant} />
+          <HomePillarsSection
+            onCreateClick={handleCreateClick}
+            variant={effectiveVariant}
+            showLaunchBadges={!isV2Variant}
+            openEncountersExplanation={isV2Variant ? '¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.' : undefined}
+          />
 
           {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
           {!loading && (!encuentros || encuentros.length === 0) && !user && (
@@ -1568,7 +1606,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery }) => {
       {!loading && (
         <div className="home-build-info">
           <span>
-            {typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging' ? (
+            {isV2Variant ? (
+              typeof __APP_VERSION__ !== 'undefined' ? formatBuildTimestamp(__APP_VERSION__) : ''
+            ) : typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging' ? (
               <>STAGING · {typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'local'} · {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>
             ) : typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'preview' ? (
               <>PREVIEW · {typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'local'} · {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'Local'}</>

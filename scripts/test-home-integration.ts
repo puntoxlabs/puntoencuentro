@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import { renderToString } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import {
   HomeHero,
   HomeIntentInput,
@@ -18,6 +19,7 @@ import {
   ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
+import Home, { formatBuildTimestamp } from '../src/screens/Home';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
@@ -706,6 +708,49 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       assert.ok(html.includes('Pádel'), 'Debe incluir Pádel (Güemes)');
       assert.ok(!html.includes('Fútbol 5'), 'NO debe incluir Fútbol 5 (Constitución)');
+    });
+  });
+
+  describe('15. Variante Paralela de Home (V1 vigente vs V2 en revisión)', () => {
+    test('A. Home vigente (V1 default) mantiene copy original, badges de Lanzamiento y texto original de pilares', () => {
+      let html = '';
+      try {
+        html = renderToString(React.createElement(MemoryRouter, { initialEntries: ['/'] }, React.createElement(Home, { homeVariant: 'v1' })));
+      } catch (err: any) {
+        console.error('*** ERROR EN TEST 15 A RENDER ***:', err.message, err.stack);
+        throw err;
+      }
+      // Copy del Hero original
+      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título principal');
+      assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener el subtítulo original de V1');
+      assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe mostrar el nuevo copy V2 en V1');
+      // Badges Lanzamiento en V1
+      assert.ok(html.includes('Lanzamiento'), 'Debe mantener los badges de Lanzamiento en V1');
+      // Copy de Abrir encuentros en V1
+      assert.ok(html.includes('¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tu plan.'), 'Debe contener la explicación original de V1');
+      assert.ok(!html.includes('Abrí lugares en un encuentro que ya organizaste.'), 'NO debe mostrar la explicación V2 en V1');
+    });
+
+    test('B. Home V2 aplica los 4 cambios aprobados sin alterar la estructura ni añadir selectores visibles', () => {
+      const html = renderToString(React.createElement(MemoryRouter, { initialEntries: ['/?homeVariant=v2'] }, React.createElement(Home, { homeVariant: 'v2' })));
+      // 1. Hero copy V2
+      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título principal');
+      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe mostrar exactamente la nueva frase auxiliar V2');
+      assert.ok(!html.includes('Contanos tu idea y te ayudamos a coordinar'), 'NO debe mostrar el subtítulo original en V2');
+      // 2. Eliminación de badges Lanzamiento en V2
+      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe contener badges visibles de Lanzamiento en V2');
+      // 3. Copy Abrir encuentros V2
+      assert.ok(html.includes('¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.'), 'Debe mostrar exactamente el nuevo copy de V2');
+      assert.ok(!html.includes('para que otras personas puedan sumarse a tu plan'), 'NO debe contener el copy anterior de V1');
+      // 4. Ausencia de selectores o banners de desarrollo
+      assert.ok(!html.includes('home-variant-switcher'), 'No debe tener switchers visibles');
+    });
+
+    test('C. Helper formatBuildTimestamp formatea correctamente fecha y hora de compilación', () => {
+      const formatted = formatBuildTimestamp('7/10/2026, 07:45:00');
+      assert.strictEqual(formatted, '07/10/2026 07:45');
+      const formatted2 = formatBuildTimestamp('2026-10-07T10:45:00.000Z');
+      assert.strictEqual(formatted2, '07/10/2026 07:45');
     });
   });
 });

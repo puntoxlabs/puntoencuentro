@@ -236,10 +236,23 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+const DEFAULT_NOTIFICATIONS_CONTEXT: NotificationsContextValue = {
+  unreadCount: 0,
+  notifications: [],
+  loading: false,
+  loadingMore: false,
+  hasMore: false,
+  error: null,
+  isOpen: false,
+  setIsOpen: () => {},
+  fetchUnreadCount: async () => {},
+  fetchNotifications: async () => {},
+  marcarLeida: async () => false,
+  marcarTodasLeidas: async () => false,
+  cargarMas: async () => {},
+};
+
 export const useNotifications = () => {
   const context = useContext(NotificationsContext);
-  if (!context) {
-    throw new Error('useNotifications debe utilizarse dentro de un NotificationsProvider');
-  }
-  return context;
+  return context || DEFAULT_NOTIFICATIONS_CONTEXT;
 };

@@ -7,12 +7,16 @@ interface HomePillarsSectionProps {
   onCreateClick: () => void;
   className?: string;
   variant?: HomeVisualVariant;
+  showLaunchBadges?: boolean;
+  openEncountersExplanation?: string;
 }
 
 export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
   onCreateClick,
   className = '',
   variant,
+  showLaunchBadges = true,
+  openEncountersExplanation = '¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tu plan.',
 }) => {
   if (variant === 'stitch' || variant === 'gsap') {
     return (
@@ -24,7 +28,9 @@ export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
               <div className="home-pillar-icon-box home-pillar-icon-box--mint">
                 <Users size={20} className="home-pillar-icon" />
               </div>
-              <span className="home-pillar-status-tag home-pillar-status-tag--active">Lanzamiento</span>
+              {showLaunchBadges && (
+                <span className="home-pillar-status-tag home-pillar-status-tag--active">Lanzamiento</span>
+              )}
             </div>
 
             <div className="home-pillar-body">
@@ -52,13 +58,15 @@ export const HomePillarsSection: React.FC<HomePillarsSectionProps> = ({
               <div className="home-pillar-icon-box home-pillar-icon-box--blue">
                 <Megaphone size={20} className="home-pillar-icon" />
               </div>
-              <span className="home-pillar-badge home-pillar-badge--blue">Lanzamiento</span>
+              {showLaunchBadges && (
+                <span className="home-pillar-badge home-pillar-badge--blue">Lanzamiento</span>
+              )}
             </div>
 
             <div className="home-pillar-body">
               <h3 className="home-pillar-title">Abrir encuentros</h3>
               <p className="home-pillar-desc">
-                ¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tu plan.
+                {openEncountersExplanation}
               </p>
             </div>
 
