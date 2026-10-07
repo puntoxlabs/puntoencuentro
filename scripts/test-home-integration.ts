@@ -759,5 +759,46 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       const formatted2 = formatBuildTimestamp('2026-10-07T10:45:00.000Z');
       assert.strictEqual(formatted2, '07/10/2026 07:45');
     });
+
+    test('D. En entorno productivo (appEnv === "production"), ?homeVariant=v2 es ignorado y renderiza Home V1', () => {
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
+        )
+      );
+      // Debe ignorar V2 y renderizar V1 original
+      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título');
+      assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener el copy original de V1');
+      assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe activar el copy V2 en producción');
+      assert.ok(html.includes('Lanzamiento'), 'Debe mantener badges de Lanzamiento en producción');
+    });
+
+    test('E. En entorno no productivo (appEnv === "staging" o local), ?homeVariant=v2 activa V2', () => {
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+        )
+      );
+      // Debe activar V2 en staging
+      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe activar copy V2 en staging');
+      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 staging');
+    });
+
+    test('F. En entorno productivo sin parámetro, renderiza Home V1 normal por defecto', () => {
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
+        )
+      );
+      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título');
+      assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener copy V1');
+      assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe tener copy V2');
+    });
   });
 });

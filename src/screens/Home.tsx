@@ -301,10 +301,12 @@ export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
   enableOpenDiscovery?: boolean;
   homeVariant?: 'v1' | 'v2';
+  appEnv?: string;
 }
 
-const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant }) => {
+const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: propAppEnv }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
   const wizardStore = useWizardStore();
@@ -316,11 +318,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
 
-  // Variante V2 de revisión de la Home (acceso controlado vía ?homeVariant=v2 o prop)
-  const isV2Variant = propHomeVariant === 'v2' || (
-    propHomeVariant !== 'v1' &&
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('homeVariant') === 'v2'
+  // Variante V2 de revisión de la Home (restringida a entornos no productivos vía __APP_ENV__)
+  const currentEnv = propAppEnv || (typeof __APP_ENV__ !== 'undefined' ? __APP_ENV__ : 'development');
+  const isProductionEnv = currentEnv === 'production';
+  const queryHomeVariant = new URLSearchParams(
+    location?.search || (typeof window !== 'undefined' ? window.location.search : '')
+  ).get('homeVariant');
+
+  const isV2Variant = !isProductionEnv && (
+    propHomeVariant === 'v2' || (
+      propHomeVariant !== 'v1' && queryHomeVariant === 'v2'
+    )
   );
 
   // Variante de diseño visual de la Home (GSAP definitiva por defecto)
@@ -380,7 +388,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   // ── DEEP LINK "open_encounter" (Fase 2B) ──
   // Abre automáticamente el sheet de detalle seguro al navegar a /?open_encounter=<uuid>
-  const location = useLocation();
   const lastProcessedEncounterIdRef = useRef<string | null>(null);
 
   useEffect(() => {
