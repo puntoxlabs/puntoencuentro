@@ -20,6 +20,7 @@ import {
 } from '../src/components/home/index';
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
 import Home, { formatBuildTimestamp } from '../src/screens/Home';
+import { NotificationsProvider } from '../src/contexts/NotificationsContext';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
@@ -713,13 +714,13 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
   describe('15. Variante Paralela de Home (V1 vigente vs V2 en revisión)', () => {
     test('A. Home vigente (V1 default) mantiene copy original, badges de Lanzamiento y texto original de pilares', () => {
-      let html = '';
-      try {
-        html = renderToString(React.createElement(MemoryRouter, { initialEntries: ['/'] }, React.createElement(Home, { homeVariant: 'v1' })));
-      } catch (err: any) {
-        console.error('*** ERROR EN TEST 15 A RENDER ***:', err.message, err.stack);
-        throw err;
-      }
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+        )
+      );
       // Copy del Hero original
       assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título principal');
       assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener el subtítulo original de V1');
@@ -732,7 +733,13 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
     });
 
     test('B. Home V2 aplica los 4 cambios aprobados sin alterar la estructura ni añadir selectores visibles', () => {
-      const html = renderToString(React.createElement(MemoryRouter, { initialEntries: ['/?homeVariant=v2'] }, React.createElement(Home, { homeVariant: 'v2' })));
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2' }))
+        )
+      );
       // 1. Hero copy V2
       assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título principal');
       assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe mostrar exactamente la nueva frase auxiliar V2');
