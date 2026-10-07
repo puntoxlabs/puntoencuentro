@@ -1372,7 +1372,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       {isGsapPreview ? (
         <>
-          {/* 2. ENCUENTROS ABIERTOS (Discovery Carrousel inmediatamente debajo del Hero) */}
+          {/* Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Intenciones) inmediatamente después del Hero */}
+          {isV2Variant && isPermanentUser && personalActivitySection}
+
+          {/* ENCUENTROS ABIERTOS (Discovery Carrousel) */}
           <HomeOpenEncounters
             isV2Variant={isV2Variant}
             onOpenCreate={handleCreateClick}
@@ -1386,10 +1389,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             }}
           />
 
-          {/* 3. Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Intenciones) antes de pilares */}
-          {isV2Variant && isPermanentUser && personalActivitySection}
-
-          {/* 4. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
+          {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
           <HomePillarsSection
             onCreateClick={handleCreateClick}
             variant={effectiveVariant}
@@ -1402,7 +1402,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             <HomeValueProposition />
           )}
 
-          {/* 5. TUS ENCUENTROS & INTENCIONES para anónimos o V1 */}
+          {/* TUS ENCUENTROS & INTENCIONES para anónimos o V1 */}
           {(!isV2Variant || !isPermanentUser) && personalActivitySection}
 
           {/* Panel de filtros secundarios para Tus Encuentros */}
