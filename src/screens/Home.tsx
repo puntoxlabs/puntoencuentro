@@ -1181,7 +1181,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   return (
     <ScreenContainer
       style={{ background: 'var(--color-background)' }}
-      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}`}
+      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}`}
     >
       <header className="home-header">
         <div className="home-header-brand" onClick={handleTap}>

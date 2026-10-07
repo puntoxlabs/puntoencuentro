@@ -905,3 +905,91 @@ html, body {
   color: #ffffff;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   HOME V2 MOBILE: REFINAMIENTO DE RITMO Y SEPARACIÓN VISUAL ENTRE SECCIONES
+   Aplica exclusivamente a la variante V2 en viewports mobile (<768px).
+   V1 y desktop permanecen visualmente intactos.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  /* 1. Respiración entre Hero y Encuentros Abiertos */
+  .home-v2-variant .pe-discovery-section {
+    margin-top: 1.5rem;
+    padding-top: 0.25rem;
+  }
+
+  /* 2. Transición entre Encuentros Abiertos y Capacidades (Pilares) */
+  .home-v2-variant .home-pillars-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.05);
+  }
+
+  /* 3. Transición hacia "Cómo funciona" (Value Proposition) */
+  .home-v2-variant .home-value-prop {
+    margin-top: 2rem;
+    background-color: #fafbfc;
+    border-color: rgba(15, 23, 42, 0.06);
+    box-shadow: none;
+  }
+
+  /* 4. Transición hacia "Tus encuentros" */
+  .home-v2-variant.home-gsap-layout .home-encounters-section {
+    margin-top: 2.25rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  /* 5. Eliminación de wrapper pesado y borde discontinuo en "También puede interesarte" */
+  .home-v2-variant .pe-discovery-secondary-block {
+    margin-top: 1.5rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  .home-v2-variant .pe-discovery-secondary-header {
+    margin-bottom: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.05);
+  }
+
+  .home-v2-variant .pe-discovery-secondary-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+  }
+
+  .home-v2-variant .pe-discovery-secondary-subtitle {
+    font-size: 0.82rem;
+    color: var(--color-on-surface-variant, #64748b);
+  }
+
+  /* 6. Refinamiento del estado vacío de "Ganas de…" (sin apariencia de wireframe técnico) */
+  .home-v2-variant .pe-discovery-empty--subtle {
+    background-color: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 16px;
+    padding: 1.5rem 1.25rem;
+    gap: 6px;
+  }
+
+  .home-v2-variant .pe-discovery-empty--subtle .pe-discovery-empty-title {
+    font-size: 0.96rem;
+    color: #1e293b;
+    font-weight: 700;
+  }
+
+  .home-v2-variant .pe-discovery-empty--subtle .pe-discovery-empty-desc {
+    font-size: 0.84rem;
+    color: #64748b;
+  }
+
+  .home-v2-variant .pe-discovery-empty--subtle .pe-discovery-empty-btn--secondary {
+    margin-top: 8px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+}
+

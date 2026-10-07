@@ -800,5 +800,25 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener copy V1');
       assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe tener copy V2');
     });
+
+    test('G. Home V2 aplica clase home-v2-variant para aislamiento visual y V1 no la aplica', () => {
+      const htmlV1 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+        )
+      );
+      assert.ok(!htmlV1.includes('home-v2-variant'), 'V1 no debe contener clase home-v2-variant');
+
+      const htmlV2 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+        )
+      );
+      assert.ok(htmlV2.includes('home-v2-variant'), 'V2 debe contener clase home-v2-variant');
+    });
   });
 });
