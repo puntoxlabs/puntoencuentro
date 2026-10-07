@@ -143,6 +143,8 @@
     "discovery_empty_cta": "Tengo ganas de…",
     "secondary_title": "También puede interesarte",
     "secondary_context": "En otras zonas de Mar del Plata",
+    "carousel_prev": "Encuentros anteriores",
+    "carousel_next": "Encuentros siguientes",
     "no_zones_title": "Elegí tus zonas para ver encuentros cerca tuyo.",
     "no_zones_cta": "Configurar zonas",
     "demo_badge": "Lanzamiento · Demo",

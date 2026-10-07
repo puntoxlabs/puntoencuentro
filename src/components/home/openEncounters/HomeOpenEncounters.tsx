@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary, Localidad } from './types';
 import type { PublicIntencionSummary } from '@/types/intenciones';
@@ -48,6 +48,8 @@ export interface HomeOpenEncountersProps {
   isDemoMode?: boolean;
   /** Título personalizado para la sección de intenciones (por defecto "Ganas de…") */
   intentionsTitle?: string;
+  /** Si está activa la variante V2 (desktop carrusel con flechas, orden por fecha ascendente) */
+  isV2Variant?: boolean;
 }
 
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
@@ -63,6 +65,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   isDemoMode,
   onFocusIntentInput,
   intentionsTitle,
+  isV2Variant = false,
 }) => {
   const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -70,6 +73,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [discoveryTab, setDiscoveryTab] = useState<DiscoveryTab>('todo');
 
   const trackRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
   const [selectedEncounter, setSelectedEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
@@ -175,12 +181,26 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return hookIntentions || [];
   }, [propIntentions, hookIntentions]);
 
-  // Filtrado por zonas seleccionadas efectivas
+  // Filtrado por zonas seleccionadas efectivas con orden canónico ascendente (V2) o por defecto (V1)
   const visibleEncounters = useMemo(() => {
     if (!liveEncounters || liveEncounters.length === 0) return [];
-    if (!effectiveZones || effectiveZones.length === 0) return liveEncounters;
-    return liveEncounters.filter((e) => effectiveZones.includes(e.localityId));
-  }, [liveEncounters, effectiveZones]);
+    const filtered = effectiveZones && effectiveZones.length > 0
+      ? liveEncounters.filter((e) => effectiveZones.includes(e.localityId))
+      : liveEncounters;
+
+    // En V2: ordenar copia de los resultados de forma ascendente (más próximo -> más lejano)
+    if (isV2Variant) {
+      return [...filtered].sort((a, b) => {
+        const timeA = new Date(a.startsAt).getTime();
+        const timeB = new Date(b.startsAt).getTime();
+        const valA = isNaN(timeA) ? 0 : timeA;
+        const valB = isNaN(timeB) ? 0 : timeB;
+        return valA - valB;
+      });
+    }
+
+    return filtered;
+  }, [liveEncounters, effectiveZones, isV2Variant]);
 
   const visibleIntentions = useMemo(() => {
     if (!liveIntentions || liveIntentions.length === 0) return [];
@@ -359,15 +379,76 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }, temporaryMs);
   }, []);
 
-  // Asegurar que el carrusel comience siempre alineado en scrollLeft 0
+  // Actualizar estado de scroll (overflow y flechas anterior/siguiente)
+  const updateScrollState = useCallback(() => {
+    const track = trackRef.current;
+    if (!track) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      setHasOverflow(false);
+      return;
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = track;
+    const overflow = scrollWidth > clientWidth + 1;
+    setHasOverflow(overflow);
+    setCanScrollLeft(scrollLeft > 2);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 2);
+  }, []);
+
+  // Asegurar que el carrusel comience siempre alineado en scrollLeft 0 y actualizar estado de scroll
   useEffect(() => {
     if (trackRef.current) {
       trackRef.current.scrollLeft = 0;
     }
-  }, [visibleEncounters.length]);
+    updateScrollState();
+  }, [visibleEncounters.length, updateScrollState]);
 
-  // Auto-avance nativo
+  // Listener para scroll y resize de track
   useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const handleScrollEvent = () => {
+      updateScrollState();
+    };
+
+    track.addEventListener('scroll', handleScrollEvent, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+
+    updateScrollState();
+
+    return () => {
+      track.removeEventListener('scroll', handleScrollEvent);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [updateScrollState, visibleEncounters.length]);
+
+  // Manejadores de navegación por flechas desktop
+  const handleScrollPrev = useCallback(() => {
+    pauseAutoAdvance(30000);
+    const track = trackRef.current;
+    if (!track) return;
+
+    const firstCard = track.querySelector<HTMLElement>('.pe-discovery-item');
+    const step = firstCard ? firstCard.offsetWidth + 12 : 300;
+    track.scrollBy({ left: -step, behavior: 'smooth' });
+  }, [pauseAutoAdvance]);
+
+  const handleScrollNext = useCallback(() => {
+    pauseAutoAdvance(30000);
+    const track = trackRef.current;
+    if (!track) return;
+
+    const firstCard = track.querySelector<HTMLElement>('.pe-discovery-item');
+    const step = firstCard ? firstCard.offsetWidth + 12 : 300;
+    track.scrollBy({ left: step, behavior: 'smooth' });
+  }, [pauseAutoAdvance]);
+
+  // Auto-avance nativo (deshabilitado en V2: NO autoplay)
+  useEffect(() => {
+    if (isV2Variant) return;
+
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return;
     }
@@ -415,7 +496,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         window.clearTimeout(resumeTimerRef.current);
       }
     };
-  }, [visibleEncounters.length, isInteracting]);
+  }, [visibleEncounters.length, isInteracting, isV2Variant]);
 
   const handleCardClick = (encounter: OpenEncounterSummary) => {
     pauseAutoAdvance(30000);
@@ -745,7 +826,31 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             return (
               <div className="pe-discovery-groups">
                 <div className="pe-discovery-group">
-                  <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
+                  <div className="pe-discovery-subtitle-row">
+                    <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
+                    {isV2Variant && hasOverflow && (
+                      <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
+                        <button
+                          type="button"
+                          className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
+                          onClick={handleScrollPrev}
+                          disabled={!canScrollLeft}
+                          aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
+                        >
+                          <ChevronLeft size={16} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next"
+                          onClick={handleScrollNext}
+                          disabled={!canScrollRight}
+                          aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+                        >
+                          <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {renderEncountersGroup()}
                 </div>
 
@@ -764,6 +869,30 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           {/* Tab: Encuentros */}
           {discoveryTab === 'encuentros' && (
             <div className="pe-discovery-group">
+              {isV2Variant && hasOverflow && (
+                <div className="pe-discovery-subtitle-row pe-discovery-subtitle-row--controls-only">
+                  <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
+                    <button
+                      type="button"
+                      className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
+                      onClick={handleScrollPrev}
+                      disabled={!canScrollLeft}
+                      aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
+                    >
+                      <ChevronLeft size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next"
+                      onClick={handleScrollNext}
+                      disabled={!canScrollRight}
+                      aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+                    >
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
               {renderEncountersGroup()}
               {effectiveZones.length > 0 &&
                 visibleEncounters.length < OTHER_ZONES_SUGGESTION_THRESHOLD &&

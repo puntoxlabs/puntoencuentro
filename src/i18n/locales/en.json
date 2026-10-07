@@ -142,6 +142,8 @@
     "discovery_empty_cta": "I feel like…",
     "secondary_title": "You might also like",
     "secondary_context": "In other areas of Mar del Plata",
+    "carousel_prev": "Previous encounters",
+    "carousel_next": "Next encounters",
     "no_zones_title": "Choose your areas to find encounters near you.",
     "no_zones_cta": "Set up areas",
     "demo_badge": "Launch · Demo",

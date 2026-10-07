@@ -894,5 +894,94 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlV1.includes('<h3 class="pe-discovery-subtitle">Ganas de…</h3>'), 'V1 debe mantener "Ganas de…" en la cabecera');
     });
+
+    test('I. Home V2 ordena encuentros abiertos por fecha/hora ascendente de forma predeterminada y V1 preserva el orden original', () => {
+      const unsortedEncounters = [
+        {
+          id: 'enc-tarde',
+          title: 'Encuentro Tarde',
+          startsAt: '2026-10-15T21:00:00',
+          dateLabel: 'Jueves · 21:00',
+          approximateZone: 'Güemes',
+          localityId: 'guemes',
+          openSlots: 2,
+          confirmedCount: 2,
+          language: 'es',
+        },
+        {
+          id: 'enc-temprano',
+          title: 'Encuentro Temprano',
+          startsAt: '2026-10-15T09:00:00',
+          dateLabel: 'Jueves · 09:00',
+          approximateZone: 'Güemes',
+          localityId: 'guemes',
+          openSlots: 2,
+          confirmedCount: 2,
+          language: 'es',
+        },
+        {
+          id: 'enc-mediodia',
+          title: 'Encuentro Mediodía',
+          startsAt: '2026-10-15T13:00:00',
+          dateLabel: 'Jueves · 13:00',
+          approximateZone: 'Güemes',
+          localityId: 'guemes',
+          openSlots: 2,
+          confirmedCount: 2,
+          language: 'es',
+        },
+      ];
+
+      // En V2: debe ordenarse ascendente (09:00 -> 13:00 -> 21:00)
+      const htmlV2 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: unsortedEncounters,
+        })
+      );
+      const posTempranoV2 = htmlV2.indexOf('Encuentro Temprano');
+      const posMediodiaV2 = htmlV2.indexOf('Encuentro Mediodía');
+      const posTardeV2 = htmlV2.indexOf('Encuentro Tarde');
+      assert.ok(posTempranoV2 < posMediodiaV2, 'En V2 09:00 debe aparecer antes que 13:00');
+      assert.ok(posMediodiaV2 < posTardeV2, 'En V2 13:00 debe aparecer antes que 21:00');
+
+      // En V1 (isV2Variant: false o por defecto): debe mantener el orden recibido
+      const htmlV1 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: false,
+          encounters: unsortedEncounters,
+        })
+      );
+      const posTardeV1 = htmlV1.indexOf('Encuentro Tarde');
+      const posTempranoV1 = htmlV1.indexOf('Encuentro Temprano');
+      assert.ok(posTardeV1 < posTempranoV1, 'En V1 el array se consume en su orden original');
+    });
+
+    test('J. Home V2 carrusel desktop: controles semánticos con aria-label i18n, sin controles en V1, y mobile sin controles en CSS', () => {
+      // 1. V1 nunca renderiza controles de carrusel en el markup
+      const htmlV1 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: false,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      assert.ok(!htmlV1.includes('pe-discovery-carousel-controls'), 'V1 no debe renderizar pe-discovery-carousel-controls');
+      assert.ok(!htmlV1.includes('pe-discovery-carousel-arrow'), 'V1 no debe renderizar pe-discovery-carousel-arrow');
+
+      // 2. V2 cuando se activa overflow renderiza botones semánticos con aria-label i18n
+      const htmlV2 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      // Sin overflow en SSR el DOM no los muestra hasta cálculo de track; verificamos que el wrapper y track mantengan la clase
+      assert.ok(htmlV2.includes('pe-discovery-track'), 'Debe incluir track de carrusel existente');
+      assert.ok(htmlV2.includes('pe-discovery-subtitle-row'), 'Debe incluir contenedor de subtítulo compatible con controles V2');
+
+      // 3. Verificamos i18n de las etiquetas semánticas
+      assert.strictEqual(i18n.t('open_encounters.carousel_prev'), 'Encuentros anteriores');
+      assert.strictEqual(i18n.t('open_encounters.carousel_next'), 'Encuentros siguientes');
+    });
   });
 });

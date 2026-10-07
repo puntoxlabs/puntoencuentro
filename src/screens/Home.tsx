@@ -1322,6 +1322,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         <>
           {/* 2. ENCUENTROS ABIERTOS (Discovery Carrousel inmediatamente debajo del Hero) */}
           <HomeOpenEncounters
+            isV2Variant={isV2Variant}
             onOpenCreate={handleCreateClick}
             intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title') : undefined}
             onFocusIntentInput={() => {
