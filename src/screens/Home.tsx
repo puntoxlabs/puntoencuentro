@@ -1180,6 +1180,58 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     );
   };
 
+  const personalActivitySection = (
+    <div className="home-encounters-section">
+      <div className="pe-encounters-inner">
+        <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={userSectionTab === 'encuentros'}
+            className={`home-user-tab ${userSectionTab === 'encuentros' ? 'home-user-tab--active' : ''}`}
+            onClick={() => setUserSectionTab('encuentros')}
+          >
+            Tus encuentros
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={userSectionTab === 'intenciones'}
+            className={`home-user-tab ${userSectionTab === 'intenciones' ? 'home-user-tab--active' : ''}`}
+            onClick={() => setUserSectionTab('intenciones')}
+          >
+            Intenciones
+          </button>
+        </div>
+
+        {userSectionTab === 'encuentros' ? (
+          <>
+            <HomeEncountersToolbar
+              activeScope={activeScope}
+              onScopeChange={setActiveScope}
+              isLoggedIn={Boolean(user)}
+              totalTodosCount={allUniqueTodosCount}
+              totalOrganizedCount={organizedEncuentros.length}
+              totalParticipatedCount={participatedEncuentros.length}
+              totalProximosCount={totalProximos}
+              totalPasadosCount={totalPasados}
+              activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
+              onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+            />
+
+            <div className="pe-gsap-encounters-container">
+              {renderGsapContent()}
+            </div>
+          </>
+        ) : (
+          <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
+            <HomeIntencionesSection />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <ScreenContainer
       style={{ background: 'var(--color-background)' }}
@@ -1334,7 +1386,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             }}
           />
 
-          {/* 3. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
+          {/* 3. Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Intenciones) antes de pilares */}
+          {isV2Variant && isPermanentUser && personalActivitySection}
+
+          {/* 4. CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
           <HomePillarsSection
             onCreateClick={handleCreateClick}
             variant={effectiveVariant}
@@ -1342,61 +1397,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             openEncountersExplanation={isV2Variant ? '¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.' : undefined}
           />
 
-          {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" */}
-          {!loading && rawEncuentros.length === 0 && !user && (
+          {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" (para logueados en V2 no se muestra) */}
+          {(isV2Variant ? !isPermanentUser : (!loading && rawEncuentros.length === 0 && !user)) && (
             <HomeValueProposition />
           )}
 
-          {/* 4. TUS ENCUENTROS & INTENCIONES */}
-          <div className="home-encounters-section">
-            <div className="pe-encounters-inner">
-              <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={userSectionTab === 'encuentros'}
-                  className={`home-user-tab ${userSectionTab === 'encuentros' ? 'home-user-tab--active' : ''}`}
-                  onClick={() => setUserSectionTab('encuentros')}
-                >
-                  Tus encuentros
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={userSectionTab === 'intenciones'}
-                  className={`home-user-tab ${userSectionTab === 'intenciones' ? 'home-user-tab--active' : ''}`}
-                  onClick={() => setUserSectionTab('intenciones')}
-                >
-                  Intenciones
-                </button>
-              </div>
-
-              {userSectionTab === 'encuentros' ? (
-                <>
-                  <HomeEncountersToolbar
-                    activeScope={activeScope}
-                    onScopeChange={setActiveScope}
-                    isLoggedIn={Boolean(user)}
-                    totalTodosCount={allUniqueTodosCount}
-                    totalOrganizedCount={organizedEncuentros.length}
-                    totalParticipatedCount={participatedEncuentros.length}
-                    totalProximosCount={totalProximos}
-                    totalPasadosCount={totalPasados}
-                    activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
-                    onOpenFilters={() => setIsSecondaryFilterOpen(true)}
-                  />
-
-                  <div className="pe-gsap-encounters-container">
-                    {renderGsapContent()}
-                  </div>
-                </>
-              ) : (
-                <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
-                  <HomeIntencionesSection />
-                </div>
-              )}
-            </div>
-          </div>
+          {/* 5. TUS ENCUENTROS & INTENCIONES para anónimos o V1 */}
+          {(!isV2Variant || !isPermanentUser) && personalActivitySection}
 
           {/* Panel de filtros secundarios para Tus Encuentros */}
           <HomeEncountersFilterSheet

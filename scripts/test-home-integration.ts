@@ -20,6 +20,7 @@ import {
 } from '../src/components/home/index';
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
 import Home, { formatBuildTimestamp } from '../src/screens/Home';
+import { AuthContext } from '../src/contexts/AuthContext';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../src/i18n/i18n';
@@ -983,5 +984,112 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.strictEqual(i18n.t('open_encounters.carousel_prev'), 'Encuentros anteriores');
       assert.strictEqual(i18n.t('open_encounters.carousel_next'), 'Encuentros siguientes');
     });
+
+    test('K. Home V2 adaptativa: usuario anónimo conserva flujo explicativo completo y usuario logueado eleva actividad personal y oculta bloque educativo', () => {
+      // Auth context para usuario anónimo
+      const anonAuthValue = {
+        user: null,
+        session: null,
+        loading: false,
+        isAuthenticated: false,
+        isAnonymousUser: false,
+        isPermanentUser: false,
+        signInWithGoogle: async () => ({ ok: false as const, error: 'oauth_start_failed' }),
+        signInWithGoogleForCoordination: async () => ({ ok: false as const, error: 'oauth_start_failed' }),
+        signInWithGoogleForDiscovery: async () => ({ ok: false as const, error: 'oauth_start_failed' }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'not_initialized' }),
+        signOut: async () => {},
+      };
+
+      // Auth context para usuario logueado (permanente)
+      const loggedAuthValue = {
+        user: { id: 'usr-123', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      // 1. V2 Anónimo:
+      // - Hero presente ("¿Qué querés hacer?")
+      // - Bloque educativo visible ("Organizar un encuentro es simple")
+      // - Pilares / Cards Organizar / Abrir visibles
+      // - Orden: Hero -> Encuentros abiertos -> Pilares -> Bloque educativo -> Tus encuentros
+      const htmlV2Anon = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: anonAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      assert.ok(htmlV2Anon.includes('¿Qué querés hacer?'), 'V2 Anónimo debe conservar el Hero');
+      assert.ok(htmlV2Anon.includes('Organizar un encuentro es simple'), 'V2 Anónimo debe mostrar el bloque educativo "Cómo funciona"');
+      assert.ok(htmlV2Anon.includes('home-pillars-section'), 'V2 Anónimo debe mostrar la sección de pilares (Organizar / Abrir)');
+      assert.ok(htmlV2Anon.includes('home-encounters-section'), 'V2 Anónimo debe conservar la sección personal');
+
+      const posPillarsAnon = htmlV2Anon.indexOf('home-pillars-section');
+      const posValuePropAnon = htmlV2Anon.indexOf('Organizar un encuentro es simple');
+      const posEncountersAnon = htmlV2Anon.indexOf('home-encounters-section');
+      assert.ok(posPillarsAnon < posValuePropAnon, 'En V2 anónimo los pilares aparecen antes que el bloque educativo');
+      assert.ok(posValuePropAnon < posEncountersAnon, 'En V2 anónimo el bloque educativo aparece antes de Tus encuentros');
+
+      // 2. V2 Logueado:
+      // - Hero presente ("¿Qué querés hacer?")
+      // - Bloque educativo NO se renderiza ("Organizar un encuentro es simple")
+      // - Actividad personal elevada ANTES de los pilares
+      // - Pilares / Cards Organizar / Abrir se conservan
+      const htmlV2Logged = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      assert.ok(htmlV2Logged.includes('¿Qué querés hacer?'), 'V2 Logueado debe conservar el Hero');
+      assert.ok(!htmlV2Logged.includes('Organizar un encuentro es simple'), 'V2 Logueado NO debe mostrar el bloque educativo repetitivo');
+      assert.ok(htmlV2Logged.includes('home-pillars-section'), 'V2 Logueado debe mantener las cards Organizar / Abrir');
+      assert.ok(htmlV2Logged.includes('home-encounters-section'), 'V2 Logueado debe tener la sección de actividad personal');
+
+      const posEncountersLogged = htmlV2Logged.indexOf('home-encounters-section');
+      const posPillarsLogged = htmlV2Logged.indexOf('home-pillars-section');
+      assert.ok(posEncountersLogged < posPillarsLogged, 'En V2 logueado la actividad personal debe preceder a las cards Organizar/Abrir');
+
+      // 3. V1 intacta:
+      // Para V1, tanto logueado como anónimo, el orden clásico se conserva
+      const htmlV1 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          )
+        )
+      );
+      assert.ok(htmlV1.includes('¿Qué querés hacer?'), 'V1 debe conservar el Hero');
+      const posPillarsV1 = htmlV1.indexOf('home-pillars-section');
+      const posEncountersV1 = htmlV1.indexOf('home-encounters-section');
+      assert.ok(posPillarsV1 < posEncountersV1, 'En V1 los pilares siguen antes que tus encuentros');
+    });
   });
 });
+
