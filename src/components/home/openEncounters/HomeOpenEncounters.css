@@ -427,25 +427,25 @@
   box-shadow: none;
 }
 
-/* Indicador / Affordance mobile sutil en borde derecho */
+/* Indicador / Affordance mobile sutil en borde derecho (pista de navegación discreta, no CTA) */
 .pe-discovery-carousel-mobile-indicator {
   position: absolute;
-  right: 4px;
+  right: 2px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 48px;
-  border-radius: 8px 0 0 8px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  width: 20px;
+  height: 38px;
+  border-radius: 6px 0 0 6px;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border: 1px solid rgba(226, 232, 240, 0.5);
   border-right: none;
-  box-shadow: -2px 2px 8px rgba(15, 23, 42, 0.08);
-  color: var(--color-on-surface-variant, #475569);
+  box-shadow: -1px 1px 4px rgba(15, 23, 42, 0.04);
+  color: var(--color-on-surface-variant, #64748b);
   cursor: pointer;
   z-index: 5;
   padding: 0;
@@ -453,9 +453,19 @@
   touch-action: manipulation;
 }
 
+/* Hit-area táctil expandido (~44px) sin agrandar el elemento visible */
+.pe-discovery-carousel-mobile-indicator::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -12px;
+  right: 0;
+}
+
 .pe-discovery-carousel-mobile-indicator:active {
-  transform: translateY(-50%) scale(0.94);
-  background: rgba(241, 245, 249, 0.95);
+  transform: translateY(-50%) scale(0.92);
+  background: rgba(241, 245, 249, 0.85);
   color: var(--color-primary, #059669);
 }
 

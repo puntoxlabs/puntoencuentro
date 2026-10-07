@@ -654,7 +654,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
             title={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
           >
-            <ChevronRight size={18} aria-hidden="true" />
+            <ChevronRight size={14} aria-hidden="true" />
           </button>
         )}
       </div>
