@@ -430,9 +430,20 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     const track = trackRef.current;
     if (!track) return;
 
-    const firstCard = track.querySelector<HTMLElement>('.pe-discovery-item');
-    const step = firstCard ? firstCard.offsetWidth + 12 : 300;
-    track.scrollBy({ left: -step, behavior: 'smooth' });
+    const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
+    if (cards.length === 0) return;
+
+    const currentScroll = track.scrollLeft;
+    // Encontrar la card anterior cuyo offsetLeft sea menor al scroll actual
+    let targetLeft = 0;
+    for (let i = cards.length - 1; i >= 0; i--) {
+      if (cards[i].offsetLeft < currentScroll - 10) {
+        targetLeft = cards[i].offsetLeft;
+        break;
+      }
+    }
+
+    track.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
   }, [pauseAutoAdvance]);
 
   const handleScrollNext = useCallback(() => {
@@ -440,9 +451,21 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     const track = trackRef.current;
     if (!track) return;
 
-    const firstCard = track.querySelector<HTMLElement>('.pe-discovery-item');
-    const step = firstCard ? firstCard.offsetWidth + 12 : 300;
-    track.scrollBy({ left: step, behavior: 'smooth' });
+    const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
+    if (cards.length === 0) return;
+
+    const currentScroll = track.scrollLeft;
+    const maxScrollLeft = track.scrollWidth - track.clientWidth;
+    // Encontrar la siguiente card cuyo offsetLeft sea mayor al scroll actual
+    let targetLeft = maxScrollLeft;
+    for (let i = 0; i < cards.length; i++) {
+      if (cards[i].offsetLeft > currentScroll + 10) {
+        targetLeft = cards[i].offsetLeft;
+        break;
+      }
+    }
+
+    track.scrollTo({ left: Math.min(maxScrollLeft, targetLeft), behavior: 'smooth' });
   }, [pauseAutoAdvance]);
 
   // Auto-avance nativo (deshabilitado en V2: NO autoplay)
@@ -827,7 +850,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
               <div className="pe-discovery-groups">
                 <div className="pe-discovery-group">
                   <div className="pe-discovery-subtitle-row">
-                    <h3 className="pe-discovery-subtitle">Encuentros próximos</h3>
+                    <h3 className={`pe-discovery-subtitle${isV2Variant ? ' pe-discovery-subtitle--v2' : ''}`}>
+                      Encuentros próximos
+                    </h3>
                     {isV2Variant && hasOverflow && (
                       <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
                         <button
@@ -855,7 +880,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
                 </div>
 
                 <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
-                  <h3 className="pe-discovery-subtitle">
+                  <h3 className={`pe-discovery-subtitle${isV2Variant ? ' pe-discovery-subtitle--v2 pe-discovery-subtitle--intentions' : ''}`}>
                     {intentionsTitle || t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
                   </h3>
                   {renderIntentionsGroup()}

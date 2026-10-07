@@ -360,6 +360,25 @@
   gap: 6px;
 }
 
+/* Home V2: Jerarquía visual refinada de encabezados (sentence case, peso 600, color fuerte neutro) */
+.pe-discovery-subtitle--v2 {
+  font-size: 1.05rem; /* ~17px */
+  font-weight: 600;
+  color: var(--color-on-surface, #0f172a);
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+.pe-discovery-subtitle--intentions {
+  color: var(--color-on-surface, #0f172a);
+}
+
+@media (min-width: 768px) {
+  .pe-discovery-subtitle--v2 {
+    font-size: 1.08rem; /* ~17.5px */
+  }
+}
+
 /* Controles de carrusel desktop */
 .pe-discovery-carousel-controls {
   display: none;
