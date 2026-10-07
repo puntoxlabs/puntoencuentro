@@ -823,7 +823,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlV2.includes('home-v2-variant'), 'V2 debe contener clase home-v2-variant');
     });
 
-    test('H. En Home V2 la sección personal muestra traducción correspondiente (ES: "Tengo ganas de…", EN: "I feel like…") y descubrimiento mantiene tab original', async () => {
+    test('H. En Home V2 la sección personal muestra traducción correspondiente (ES, EN, PT-BR, PT) y descubrimiento mantiene tab original', async () => {
       // 1. Probar en Español (idioma por defecto)
       await i18n.changeLanguage('es');
       const htmlV2Es = renderToString(
@@ -856,7 +856,37 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlV2En.includes('I feel like…'), 'EN: Debe mostrar "I feel like…" en la sección personal de V2');
       assert.ok(htmlV2En.includes('>Feel like…<'), 'EN: El tab/filtro de descubrimiento debe conservar "Feel like…"');
 
-      // 3. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
+      // 3. Probar en Portugués de Brasil (PT-BR)
+      await i18n.changeLanguage('pt-BR');
+      const htmlV2PtBr = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(htmlV2PtBr.includes('Estou com vontade de…'), 'PT-BR: Debe mostrar "Estou com vontade de…" en la sección personal de V2');
+
+      // 4. Probar en Portugués de Portugal (PT)
+      await i18n.changeLanguage('pt');
+      const htmlV2Pt = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(htmlV2Pt.includes('Tenho vontade de…'), 'PT: Debe mostrar "Tenho vontade de…" en la sección personal de V2');
+
+      // 5. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
       await i18n.changeLanguage('es');
       const htmlV1 = renderToString(
         React.createElement(
