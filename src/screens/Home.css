@@ -637,6 +637,27 @@ html, body {
   line-height: 1.45;
   max-width: 360px;
 }
+
+/* Empty State compacto para V2 (reduce competencia visual con FAB global) */
+.home-empty--compact {
+  padding: 14px 12px 12px;
+}
+.home-empty--compact .home-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.home-empty--compact .home-empty-title {
+  font-size: 1.02rem;
+  margin-bottom: 4px;
+}
+.home-empty--compact .home-empty-desc {
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+  max-width: 320px;
+  line-height: 1.35;
+}
 .home-empty-past {
   text-align: center;
   padding: 48px 20px;
@@ -999,6 +1020,31 @@ html, body {
 
   .home-v2-variant .pe-gsap-encounters-container {
     padding-bottom: 12px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HOME V2 DESKTOP: ALIGERAMIENTO DEL CONTENEDOR DE ACTIVIDAD PERSONAL
+   Elimina la sensación de caja administrativa cerrada (box-in-box).
+   V1 permanece completamente intacta.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  .home-v2-variant .pe-encounters-inner {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 8px 4px 16px;
+    box-shadow: none;
+  }
+
+  .home-v2-variant .pe-encounters-inner .pe-toolbar-container {
+    padding: 0;
+    margin: 0 auto 0.5rem;
+  }
+
+  .home-v2-variant .home-user-tabs {
+    padding: 0;
+    margin-bottom: 0.75rem;
   }
 }
 

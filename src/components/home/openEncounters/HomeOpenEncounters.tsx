@@ -636,6 +636,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           role="region"
           aria-label="Carrusel de encuentros abiertos"
           tabIndex={0}
+          onScroll={updateScrollState}
         >
           {visibleEncounters.map((encounter) => (
             <div key={encounter.id} className="pe-discovery-item">
@@ -643,6 +644,19 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             </div>
           ))}
         </div>
+
+        {/* Indicador / affordance mobile V2 hacia la derecha */}
+        {isV2Variant && hasOverflow && canScrollRight && (
+          <button
+            type="button"
+            className="pe-discovery-carousel-mobile-indicator"
+            onClick={handleScrollNext}
+            aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+            title={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+          >
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        )}
       </div>
     );
   };

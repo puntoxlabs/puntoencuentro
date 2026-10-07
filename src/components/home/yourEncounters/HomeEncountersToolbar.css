@@ -24,12 +24,24 @@
   margin-bottom: 0.75rem;
 }
 
+.pe-toolbar-header-row--no-title {
+  margin-bottom: 0.5rem;
+}
+
+.pe-toolbar-container--no-title {
+  margin-top: 0.5rem;
+}
+
 @media (min-width: 600px) {
   .pe-toolbar-header-row {
     flex-direction: row;
     align-items: baseline;
     gap: 12px;
     margin-bottom: 0.85rem;
+  }
+
+  .pe-toolbar-header-row--no-title {
+    margin-bottom: 0.6rem;
   }
 }
 

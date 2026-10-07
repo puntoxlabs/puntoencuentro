@@ -14,6 +14,7 @@ export interface HomeEncountersToolbarProps {
   totalPasadosCount?: number;
   activeFilterCount: number;
   onOpenFilters: () => void;
+  hideTitle?: boolean;
 }
 
 export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
@@ -27,15 +28,18 @@ export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
   totalPasadosCount,
   activeFilterCount,
   onOpenFilters,
+  hideTitle = false,
 }) => {
   const { t } = useTranslation();
 
   return (
-    <div className="pe-toolbar-container">
-      <div className="pe-toolbar-header-row">
-        <h2 className="pe-toolbar-title">
-          {t('your_encounters.section_title', { defaultValue: 'Tus encuentros' })}
-        </h2>
+    <div className={`pe-toolbar-container${hideTitle ? ' pe-toolbar-container--no-title' : ''}`}>
+      <div className={`pe-toolbar-header-row${hideTitle ? ' pe-toolbar-header-row--no-title' : ''}`}>
+        {!hideTitle && (
+          <h2 className="pe-toolbar-title">
+            {t('your_encounters.section_title', { defaultValue: 'Tus encuentros' })}
+          </h2>
+        )}
         {typeof totalProximosCount === 'number' && typeof totalPasadosCount === 'number' && (
           <span className="pe-toolbar-summary-count">
             {totalProximosCount} próximo{totalProximosCount !== 1 ? 's' : ''} • {totalPasadosCount} anterior{totalPasadosCount !== 1 ? 'es' : ''}

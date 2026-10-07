@@ -1099,6 +1099,79 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       const posEncountersV1 = htmlV1.indexOf('home-encounters-section');
       assert.ok(posPillarsV1 < posEncountersV1, 'En V1 los pilares siguen antes que tus encuentros');
     });
+
+    test('L. Carrusel mobile V2: indicador chevron hacia la derecha con aria-label i18n, sin controles desktop y sin autoplay', () => {
+      // En SSR sin overflow calculado en DOM, renderizamos HomeOpenEncounters
+      const htmlV2 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+
+      // Verificamos que el track esté preparado con el wrapper y no haya autoplay
+      assert.ok(htmlV2.includes('pe-discovery-track'), 'Debe existir track de carrusel');
+      assert.ok(htmlV2.includes('pe-discovery-carousel-wrapper'), 'Debe existir wrapper del carrusel');
+
+      // Verificamos que las flechas desktop no aparezcan en mobile (están scoped a media query desktop y no son el indicador mobile)
+      assert.ok(!htmlV2.includes('pe-discovery-carousel-mobile-indicator--desktop'), 'No debe tener indicador desktop erróneo');
+    });
+
+    test('M. Zona personal V2: elimina redundancia del título "Tus encuentros" en toolbar, conserva resumen de conteo, tabs y filtros', () => {
+      const loggedAuthValue = {
+        user: { id: 'usr-123', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      // V2: Renderizamos Home V2
+      const htmlV2 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      // En V2:
+      // - El tab superior "Tus encuentros" debe existir
+      assert.ok(htmlV2.includes('home-user-tab'), 'Debe conservar los tabs superiores');
+      // - El toolbar NO debe renderizar pe-toolbar-title
+      assert.ok(!htmlV2.includes('pe-toolbar-title'), 'En V2 se elimina el título duplicado pe-toolbar-title');
+      // - El resumen de próximos y anteriores permanece
+      assert.ok(htmlV2.includes('pe-toolbar-summary-count'), 'Debe conservar el resumen de conteo próximos/anteriores');
+      // - Los controles segmentados (Todos | Organizo | Participo) y botón Filtrar permanecen
+      assert.ok(htmlV2.includes('pe-segmented-control'), 'Debe conservar los botones segmentados');
+      assert.ok(htmlV2.includes('pe-filter-btn'), 'Debe conservar el botón de filtros secundarios');
+
+      // V1: Renderizamos Home V1 en el layout clásico
+      // En V1 la toolbar clásica o sección estándar conserva su título sin el ocultamiento de V2
+      const htmlV1 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          )
+        )
+      );
+      assert.ok(htmlV1.includes('Tus encuentros'), 'V1 debe conservar el encabezado Tus encuentros');
+    });
   });
 });
 

@@ -427,6 +427,50 @@
   box-shadow: none;
 }
 
+/* Indicador / Affordance mobile sutil en borde derecho */
+.pe-discovery-carousel-mobile-indicator {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 48px;
+  border-radius: 8px 0 0 8px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-right: none;
+  box-shadow: -2px 2px 8px rgba(15, 23, 42, 0.08);
+  color: var(--color-on-surface-variant, #475569);
+  cursor: pointer;
+  z-index: 5;
+  padding: 0;
+  transition: opacity 0.2s ease, transform 0.15s ease, background 0.15s ease;
+  touch-action: manipulation;
+}
+
+.pe-discovery-carousel-mobile-indicator:active {
+  transform: translateY(-50%) scale(0.94);
+  background: rgba(241, 245, 249, 0.95);
+  color: var(--color-primary, #059669);
+}
+
+.pe-discovery-carousel-mobile-indicator:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 1px;
+}
+
+/* En desktop (>768px) el indicador mobile NUNCA se muestra (se usan los controles de cabecera) */
+@media (min-width: 768px) {
+  .pe-discovery-carousel-mobile-indicator {
+    display: none !important;
+  }
+}
+
 /* Grid de Intenciones */
 .pe-discovery-intentions-grid {
   display: grid;

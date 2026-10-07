@@ -1074,9 +1074,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     if (rawEncuentros.length === 0) {
       const isOrganizo = activeScope === 'organizo';
       return (
-        <div className="home-empty">
+        <div className={`home-empty${isV2Variant ? ' home-empty--compact' : ''}`}>
           <div className="home-empty-icon">
-            <Calendar size={40} color="var(--color-primary)" />
+            <Calendar size={isV2Variant ? 32 : 40} color="var(--color-primary)" />
           </div>
           <h2 className="home-empty-title">
             {isOrganizo
@@ -1091,8 +1091,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               : 'Cuando confirmes asistencia, aparecerán acá.'}
           </p>
           <Button
-            variant="primary"
-            style={{ minWidth: 200, maxWidth: 260, height: 48, fontSize: 15, fontWeight: 700, marginTop: 14, alignSelf: 'center' }}
+            variant={isV2Variant ? 'outline' : 'primary'}
+            style={
+              isV2Variant
+                ? { minWidth: 170, maxWidth: 220, height: 40, fontSize: 14, fontWeight: 600, marginTop: 8, alignSelf: 'center' }
+                : { minWidth: 200, maxWidth: 260, height: 48, fontSize: 15, fontWeight: 700, marginTop: 14, alignSelf: 'center' }
+            }
             onClick={handleCreateClick}
           >
             + Crear encuentro
@@ -1217,6 +1221,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               totalPasadosCount={totalPasados}
               activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
               onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+              hideTitle={isV2Variant}
             />
 
             <div className="pe-gsap-encounters-container">
