@@ -123,6 +123,7 @@
     "tab_encounters": "Encounters",
     "tab_intentions": "Feel like…",
     "intentions_title": "Feel like…",
+    "personal_intentions_title": "I feel like…",
     "badge_intention": "Feel like…",
     "card_aria_label": "Feel like…: {{title}}",
     "slot_single": "1 spot left",

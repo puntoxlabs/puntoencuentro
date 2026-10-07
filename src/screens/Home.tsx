@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -305,6 +306,7 @@ export interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: propAppEnv }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
@@ -1321,7 +1323,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {/* 2. ENCUENTROS ABIERTOS (Discovery Carrousel inmediatamente debajo del Hero) */}
           <HomeOpenEncounters
             onOpenCreate={handleCreateClick}
-            intentionsTitle={isV2Variant ? 'Tengo ganas de…' : undefined}
+            intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title', { defaultValue: 'Tengo ganas de…' }) : undefined}
             onFocusIntentInput={() => {
               const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
               if (textarea) {

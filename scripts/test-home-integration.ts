@@ -21,6 +21,8 @@ import {
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
 import Home, { formatBuildTimestamp } from '../src/screens/Home';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
+import { I18nextProvider } from 'react-i18next';
+import i18n from '../src/i18n/i18n';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
@@ -821,25 +823,50 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlV2.includes('home-v2-variant'), 'V2 debe contener clase home-v2-variant');
     });
 
-    test('H. En Home V2 la sección personal muestra "Tengo ganas de…" mientras el tab de descubrimiento conserva "Ganas de…"', () => {
-      const htmlV2 = renderToString(
+    test('H. En Home V2 la sección personal muestra traducción correspondiente (ES: "Tengo ganas de…", EN: "I feel like…") y descubrimiento mantiene tab original', async () => {
+      // 1. Probar en Español (idioma por defecto)
+      await i18n.changeLanguage('es');
+      const htmlV2Es = renderToString(
         React.createElement(
-          MemoryRouter,
-          { initialEntries: ['/?homeVariant=v2'] },
-          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
         )
       );
-      // 1. Sección personal con nuevo título en V2
-      assert.ok(htmlV2.includes('Tengo ganas de…'), 'Debe mostrar "Tengo ganas de…" en la sección personal de V2');
-      // 2. Tab de descubrimiento en Encuentros Abiertos conserva "Ganas de…"
-      assert.ok(htmlV2.includes('role="tab"'), 'Debe contener pestañas de descubrimiento');
-      assert.ok(htmlV2.includes('>Ganas de…<'), 'El tab/filtro de descubrimiento debe conservar "Ganas de…"');
-      // 3. En Home V1 se mantiene el título original "Ganas de…"
+      assert.ok(htmlV2Es.includes('Tengo ganas de…'), 'ES: Debe mostrar "Tengo ganas de…" en la sección personal de V2');
+      assert.ok(htmlV2Es.includes('>Ganas de…<'), 'ES: El tab/filtro de descubrimiento debe conservar "Ganas de…"');
+
+      // 2. Probar en Inglés (EN)
+      await i18n.changeLanguage('en');
+      const htmlV2En = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(htmlV2En.includes('I feel like…'), 'EN: Debe mostrar "I feel like…" en la sección personal de V2');
+      assert.ok(htmlV2En.includes('>Feel like…<'), 'EN: El tab/filtro de descubrimiento debe conservar "Feel like…"');
+
+      // 3. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
+      await i18n.changeLanguage('es');
       const htmlV1 = renderToString(
         React.createElement(
-          MemoryRouter,
-          { initialEntries: ['/'] },
-          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          )
         )
       );
       assert.ok(htmlV1.includes('<h3 class="pe-discovery-subtitle">Ganas de…</h3>'), 'V1 debe mantener "Ganas de…" en la cabecera');
