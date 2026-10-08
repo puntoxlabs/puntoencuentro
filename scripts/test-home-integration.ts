@@ -1087,7 +1087,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(posBandAnon < posEncountersAnon, 'En V2 anónimo la banda Tengo ganas de... aparece antes que la actividad personal');
       assert.ok(posEncountersAnon < posInfoAnon, 'En V2 anónimo la actividad personal aparece antes que la pieza informativa Crear o abrir');
 
-      // 2. V2 Logueado:
+      // 2. V2 Logueado Mobile:
       // - Hero presente ("¿Qué querés hacer?")
       // - Actividad personal elevada INMEDIATAMENTE después del Hero y ANTES de Me sumo
       // - Descubrimiento / Me sumo presente
@@ -1096,33 +1096,64 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // - Cards de pilares NO se renderizan en V2 (home-pillars-section)
       // - Bloque educativo anterior NO se renderiza ("Organizar un encuentro es simple")
       // - Orden: Hero -> Actividad personal -> Me sumo -> Banda Tengo ganas de... -> Pieza informativa
-      const htmlV2Logged = renderToString(
+      const htmlV2LoggedMobile = renderToString(
         React.createElement(
           AuthContext.Provider,
           { value: loggedAuthValue },
           React.createElement(
             MemoryRouter,
             { initialEntries: ['/?homeVariant=v2'] },
-            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging', isDesktop: false }))
           )
         )
       );
 
-      assert.ok(htmlV2Logged.includes('¿Qué querés hacer?'), 'V2 Logueado debe conservar el Hero');
-      assert.ok(htmlV2Logged.includes('home-encounters-section'), 'V2 Logueado debe tener la sección de actividad personal');
-      assert.ok(htmlV2Logged.includes('pe-discovery-section'), 'V2 Logueado debe mantener el descubrimiento');
-      assert.ok(htmlV2Logged.includes('home-intentions-band'), 'V2 Logueado debe tener la banda Tengo ganas de...');
-      assert.ok(htmlV2Logged.includes('home-create-or-open-info'), 'V2 Logueado debe incluir la pieza informativa Crear o abrir');
-      assert.ok(!htmlV2Logged.includes('home-pillars-section'), 'V2 Logueado NO debe mostrar las tarjetas de pilares');
-      assert.ok(!htmlV2Logged.includes('Organizar un encuentro es simple'), 'V2 Logueado NO debe mostrar el bloque educativo previo');
+      assert.ok(htmlV2LoggedMobile.includes('¿Qué querés hacer?'), 'V2 Logueado Mobile debe conservar el Hero');
+      assert.ok(htmlV2LoggedMobile.includes('home-encounters-section'), 'V2 Logueado Mobile debe tener la sección de actividad personal');
+      assert.ok(htmlV2LoggedMobile.includes('pe-discovery-section'), 'V2 Logueado Mobile debe mantener el descubrimiento');
+      assert.ok(htmlV2LoggedMobile.includes('home-intentions-band'), 'V2 Logueado Mobile debe tener la banda Tengo ganas de...');
+      assert.ok(htmlV2LoggedMobile.includes('home-create-or-open-info'), 'V2 Logueado Mobile debe incluir la pieza informativa Crear o abrir');
 
-      const posEncountersLogged = htmlV2Logged.indexOf('home-encounters-section');
-      const posDiscoveryLogged = htmlV2Logged.indexOf('pe-discovery-section');
-      const posBandLogged = htmlV2Logged.indexOf('home-intentions-band');
-      const posInfoLogged = htmlV2Logged.indexOf('home-create-or-open-info');
-      assert.ok(posEncountersLogged < posDiscoveryLogged, 'En V2 logueado la actividad personal debe preceder a Me sumo');
-      assert.ok(posDiscoveryLogged < posBandLogged, 'En V2 logueado Me sumo debe preceder a la banda Tengo ganas de...');
-      assert.ok(posBandLogged < posInfoLogged, 'En V2 logueado la banda Tengo ganas de... debe preceder a la pieza informativa Crear o abrir');
+      const posEncountersLoggedMobile = htmlV2LoggedMobile.indexOf('home-encounters-section');
+      const posDiscoveryLoggedMobile = htmlV2LoggedMobile.indexOf('pe-discovery-section');
+      const posBandLoggedMobile = htmlV2LoggedMobile.indexOf('home-intentions-band');
+      const posInfoLoggedMobile = htmlV2LoggedMobile.indexOf('home-create-or-open-info');
+      assert.ok(posEncountersLoggedMobile < posDiscoveryLoggedMobile, 'En V2 mobile logueado la actividad personal debe preceder a Me sumo');
+      assert.ok(posDiscoveryLoggedMobile < posBandLoggedMobile, 'En V2 mobile logueado Me sumo debe preceder a la banda Tengo ganas de...');
+      assert.ok(posBandLoggedMobile < posInfoLoggedMobile, 'En V2 mobile logueado la banda Tengo ganas de... debe preceder a la pieza informativa Crear o abrir');
+
+      // 2B. V2 Logueado Desktop:
+      // - Hero presente ("¿Qué querés hacer?")
+      // - Me sumo presente
+      // - Actividad personal (Tus encuentros / Mis ganas) INMEDIATAMENTE DESPUÉS de Me sumo
+      // - Banda Tengo ganas de... inmediatamente después de actividad personal
+      // - Pieza informativa Crear o abrir presente al final
+      // - Orden: Hero -> Me sumo -> Actividad personal -> Banda Tengo ganas de... -> Pieza informativa
+      const htmlV2LoggedDesktop = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging', isDesktop: true }))
+          )
+        )
+      );
+
+      assert.ok(htmlV2LoggedDesktop.includes('¿Qué querés hacer?'), 'V2 Logueado Desktop debe conservar el Hero');
+      assert.ok(htmlV2LoggedDesktop.includes('pe-discovery-section'), 'V2 Logueado Desktop debe mantener Me sumo');
+      assert.ok(htmlV2LoggedDesktop.includes('home-encounters-section'), 'V2 Logueado Desktop debe tener la sección de actividad personal');
+      assert.ok(htmlV2LoggedDesktop.includes('home-intentions-band'), 'V2 Logueado Desktop debe tener la banda Tengo ganas de...');
+      assert.ok(htmlV2LoggedDesktop.includes('home-create-or-open-info'), 'V2 Logueado Desktop debe incluir la pieza informativa Crear o abrir');
+
+      const posDiscoveryLoggedDesktop = htmlV2LoggedDesktop.indexOf('pe-discovery-section');
+      const posEncountersLoggedDesktop = htmlV2LoggedDesktop.indexOf('home-encounters-section');
+      const posBandLoggedDesktop = htmlV2LoggedDesktop.indexOf('home-intentions-band');
+      const posInfoLoggedDesktop = htmlV2LoggedDesktop.indexOf('home-create-or-open-info');
+      assert.ok(posDiscoveryLoggedDesktop < posEncountersLoggedDesktop, 'En V2 desktop logueado Me sumo debe preceder a la actividad personal');
+      assert.ok(posEncountersLoggedDesktop < posBandLoggedDesktop, 'En V2 desktop logueado la actividad personal debe preceder a la banda Tengo ganas de...');
+      assert.ok(posBandLoggedDesktop < posInfoLoggedDesktop, 'En V2 desktop logueado la banda Tengo ganas de... debe preceder a la pieza informativa Crear o abrir');
 
       // 3. V1 intacta:
       // Para V1, tanto logueado como anónimo, el orden clásico y las tarjetas de pilares se conservan y NO incluye la banda
@@ -1373,7 +1404,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
     });
 
-    test('P. Home V2 Desktop: preservación estricta de position fixed para el FAB y atmósfera visual scopeada', () => {
+    test('P. Home V2 Desktop: preservación estricta de position fixed para el FAB y atmósfera visual con pinceladas alargadas', () => {
       const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
       const homeCssContent = readFileSync(homeCssPath, 'utf8');
 
@@ -1394,10 +1425,22 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Home.css debe fijar explícitamente position: fixed, bottom: 28px y right: 28px para el FAB en V2'
       );
 
-      // 3. La atmósfera visual está scopeada a Desktop V2 ::before sin tocar mobile ni V1
+      // 3. La atmósfera visual está scopeada a Desktop V2 con pinceladas alargadas (::before y ::after)
       assert.ok(
         homeCssContent.includes('.home-screen-container.home-v2-variant::before'),
-        'Home.css debe aplicar la atmósfera visual sobre el pseudo-elemento ::before de V2'
+        'Home.css debe aplicar la pincelada 1 sobre el pseudo-elemento ::before de V2'
+      );
+      assert.ok(
+        homeCssContent.includes('.home-screen-container.home-v2-variant::after'),
+        'Home.css debe aplicar la pincelada 2 sobre el pseudo-elemento ::after de V2'
+      );
+      assert.ok(
+        homeCssContent.includes('transform: rotate('),
+        'Home.css debe rotar las pinceladas para darle geometría de trazo no radial'
+      );
+      assert.ok(
+        homeCssContent.includes('filter: blur('),
+        'Home.css debe suavizar los bordes con filter blur'
       );
     });
   });

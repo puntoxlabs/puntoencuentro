@@ -305,9 +305,10 @@ export interface HomeProps {
   enableOpenDiscovery?: boolean;
   homeVariant?: 'v1' | 'v2';
   appEnv?: string;
+  isDesktop?: boolean;
 }
 
-const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: propAppEnv }) => {
+const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: propAppEnv, isDesktop: propIsDesktop }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -321,6 +322,36 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const staleOrganized = storeState.encuentros;
   const staleParticipated = storeState.participatedEncuentros;
   const { handleTap } = useHiddenDiscovery();
+
+  // Detección responsive reactiva de Desktop (>= 768px estándar de Home)
+  const [isDesktopState, setIsDesktopState] = useState(() => {
+    if (typeof propIsDesktop === 'boolean') return propIsDesktop;
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(min-width: 768px)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof propIsDesktop === 'boolean') {
+      setIsDesktopState(propIsDesktop);
+      return;
+    }
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsDesktopState(e.matches);
+    };
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, [propIsDesktop]);
+
+  const isDesktop = typeof propIsDesktop === 'boolean' ? propIsDesktop : isDesktopState;
 
   // Variante V2 de revisión de la Home (restringida a entornos no productivos vía __APP_ENV__)
   const currentEnv = propAppEnv || (typeof __APP_ENV__ !== 'undefined' ? __APP_ENV__ : 'development');
@@ -1391,8 +1422,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       {isGsapPreview ? (
         <>
-          {/* Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Mis ganas) inmediatamente después del Hero */}
-          {isV2Variant && isPermanentUser && personalActivitySection}
+          {/* Para usuario logueado en V2 Mobile: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después del Hero */}
+          {isV2Variant && isPermanentUser && !isDesktop && personalActivitySection}
 
           {/* ENCUENTROS ABIERTOS (Discovery Carrousel / Me sumo) */}
           <HomeOpenEncounters
@@ -1408,12 +1439,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             }}
           />
 
-          {/* Banda Tengo ganas de... inmediatamente después de Me sumo en Home V2 */}
+          {/* Para usuario logueado en V2 Desktop: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
+          {isV2Variant && isPermanentUser && isDesktop && personalActivitySection}
+
+          {/* Banda Tengo ganas de... inmediatamente después de Me sumo (o de actividad personal en desktop logueado) en Home V2 */}
           {isV2Variant && (
             <HomeIntentionsBand onExpressIntent={handleOpenIntentionFlow} />
           )}
 
-          {/* Para usuario anónimo en V2: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de la banda */}
+          {/* Para usuario anónimo en V2 (Mobile y Desktop): Actividad personal inmediatamente después de la banda Tengo ganas de... */}
           {isV2Variant && !isPermanentUser && personalActivitySection}
 
           {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) (Solo V1) */}

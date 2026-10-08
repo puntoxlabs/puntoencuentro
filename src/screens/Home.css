@@ -1039,27 +1039,53 @@
     overflow-x: clip;
   }
 
-  /* Atmósfera visual Home V2 Desktop: pinceladas y veladuras suaves de color orgánico */
+  /* Atmósfera visual Home V2 Desktop: pinceladas y veladuras orgánicas con geometría de trazo alargado */
+  /* Pincelada 1: Brochazo alargado azul/menta (lateral izquierdo, área Me sumo) */
   .home-screen-container.home-v2-variant::before {
     content: '';
     position: absolute;
-    top: 320px;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 360px;
+    left: -120px;
+    width: 800px;
+    height: 160px;
+    border-radius: 90px 180px 80px 140px / 60px 90px 50px 80px;
+    background: linear-gradient(108deg, rgba(37, 99, 235, 0.11) 0%, rgba(59, 130, 246, 0.08) 45%, rgba(16, 185, 129, 0.055) 85%, transparent 100%);
+    transform: rotate(-6deg);
+    filter: blur(32px);
     pointer-events: none;
     z-index: 0;
-    background:
-      /* Pincelada A1: Brochazo azul UI apaisado entrando desde lateral izquierdo (área Me sumo) */
-      radial-gradient(ellipse 920px 320px at -2% 16%, rgba(37, 99, 235, 0.08) 0%, rgba(59, 130, 246, 0.04) 40%, rgba(14, 165, 233, 0.015) 65%, transparent 80%),
-      /* Pincelada A2: Velo menta muy suave en contraposición sutil */
-      radial-gradient(ellipse 640px 220px at -4% 23%, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.015) 50%, transparent 75%),
-      /* Pincelada B1: Veladura lila/violeta apaisada desde lateral derecho (área Tengo ganas de... / Mis ganas) */
-      radial-gradient(ellipse 960px 360px at 102% 43%, rgba(124, 58, 237, 0.075) 0%, rgba(168, 85, 247, 0.04) 45%, rgba(192, 132, 252, 0.015) 65%, transparent 82%),
-      /* Pincelada B2: Apoyo índigo sutil en el borde derecho superior */
-      radial-gradient(ellipse 720px 260px at 98% 37%, rgba(79, 70, 229, 0.045) 0%, transparent 70%),
-      /* Pincelada C: Veladura inferior en verde esmeralda y azul desaturado (área Crear o abrir) */
-      radial-gradient(ellipse 820px 300px at 8% 80%, rgba(16, 185, 129, 0.055) 0%, rgba(14, 165, 233, 0.02) 50%, transparent 75%);
+  }
+
+  /* Pincelada 2: Brochazo alargado lila/índigo (lateral derecho, área interacción central) */
+  .home-screen-container.home-v2-variant::after {
+    content: '';
+    position: absolute;
+    top: 740px;
+    right: -110px;
+    width: 840px;
+    height: 170px;
+    border-radius: 140px 80px 180px 90px / 80px 50px 90px 60px;
+    background: linear-gradient(115deg, transparent 0%, rgba(124, 58, 237, 0.095) 25%, rgba(168, 85, 247, 0.07) 65%, rgba(79, 70, 229, 0.045) 95%);
+    transform: rotate(5deg);
+    filter: blur(34px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Pincelada 3: Apoyo tenue verde/azul inferior (área Crear o abrir) */
+  .home-v2-variant .home-create-or-open-info::before {
+    content: '';
+    position: absolute;
+    bottom: -20px;
+    left: -70px;
+    width: 680px;
+    height: 130px;
+    border-radius: 120px 160px 90px 140px / 70px 80px 60px 90px;
+    background: linear-gradient(102deg, rgba(16, 185, 129, 0.07) 0%, rgba(14, 165, 233, 0.04) 60%, transparent 100%);
+    transform: rotate(-4deg);
+    filter: blur(28px);
+    pointer-events: none;
+    z-index: -1;
   }
 
   /* Elevar secciones de contenido para que se sitúen por encima del lienzo ambiental */
