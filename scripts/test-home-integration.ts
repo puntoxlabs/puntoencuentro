@@ -17,6 +17,7 @@ import {
   HomeVariantSwitcher,
   HomeCreateOrOpenInfo,
   HomeIntentionsBand,
+  HomeAmbientBrushes,
   FLOATING_TAGS_CATALOG,
   ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
@@ -1404,7 +1405,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
     });
 
-    test('P. Home V2 Desktop: preservación estricta de position fixed para el FAB y atmósfera visual con pinceladas alargadas', () => {
+    test('P. Home V2 Desktop: preservación estricta de position fixed para el FAB y atmósfera visual con pinceladas vectoriales SVG', () => {
       const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
       const homeCssContent = readFileSync(homeCssPath, 'utf8');
 
@@ -1425,23 +1426,28 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Home.css debe fijar explícitamente position: fixed, bottom: 28px y right: 28px para el FAB en V2'
       );
 
-      // 3. La atmósfera visual está scopeada a Desktop V2 con pinceladas alargadas (::before y ::after)
+      // 3. La atmósfera visual utiliza wrapper relativo post-Hero y capa SVG (.home-ambient-brushes-container)
       assert.ok(
-        homeCssContent.includes('.home-screen-container.home-v2-variant::before'),
-        'Home.css debe aplicar la pincelada 1 sobre el pseudo-elemento ::before de V2'
+        homeCssContent.includes('.home-v2-main-sections-wrapper'),
+        'Home.css debe definir el wrapper relativo para anclaje post-Hero en V2'
       );
       assert.ok(
-        homeCssContent.includes('.home-screen-container.home-v2-variant::after'),
-        'Home.css debe aplicar la pincelada 2 sobre el pseudo-elemento ::after de V2'
+        homeCssContent.includes('.home-ambient-brushes-container'),
+        'Home.css debe contener los estilos de la capa SVG .home-ambient-brushes-container'
       );
       assert.ok(
-        homeCssContent.includes('transform: rotate('),
-        'Home.css debe rotar las pinceladas para darle geometría de trazo no radial'
+        homeCssContent.includes('.home-ambient-brushes-svg'),
+        'Home.css debe contener los estilos para el SVG de pinceladas'
       );
-      assert.ok(
-        homeCssContent.includes('filter: blur('),
-        'Home.css debe suavizar los bordes con filter blur'
-      );
+
+      // 4. Verificación de renderizado de HomeAmbientBrushes (SVG inline accesible y pointer-events none)
+      const brushesHtml = renderToString(React.createElement(HomeAmbientBrushes));
+      assert.ok(brushesHtml.includes('aria-hidden="true"'), 'La capa debe tener aria-hidden="true"');
+      assert.ok(brushesHtml.includes('<path'), 'Debe renderizar trazos <path> vectoriales');
+      assert.ok(brushesHtml.includes('pe-brush-path--a'), 'Debe incluir la pincelada A');
+      assert.ok(brushesHtml.includes('pe-brush-path--b'), 'Debe incluir la pincelada B');
+      assert.ok(brushesHtml.includes('linearGradient'), 'Debe usar linearGradient para gradación interna');
+      assert.ok(!brushesHtml.includes('<circle') && !brushesHtml.includes('<ellipse'), 'NO debe usar formas circulares o elípticas como trazo');
     });
   });
 });

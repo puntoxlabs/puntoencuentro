@@ -1039,53 +1039,36 @@
     overflow-x: clip;
   }
 
-  /* Atmósfera visual Home V2 Desktop: pinceladas y veladuras orgánicas con geometría de trazo alargado */
-  /* Pincelada 1: Brochazo alargado azul/menta (lateral izquierdo, área Me sumo) */
-  .home-screen-container.home-v2-variant::before {
-    content: '';
+  /* Wrapper relativo post-Hero para anclaje reactivo de la atmósfera visual sin números mágicos */
+  .home-v2-main-sections-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Capa de pinceladas ambientales SVG vectoriales (Home V2 Desktop) */
+  .home-ambient-brushes-container {
     position: absolute;
-    top: 360px;
-    left: -120px;
-    width: 800px;
-    height: 160px;
-    border-radius: 90px 180px 80px 140px / 60px 90px 50px 80px;
-    background: linear-gradient(108deg, rgba(37, 99, 235, 0.11) 0%, rgba(59, 130, 246, 0.08) 45%, rgba(16, 185, 129, 0.055) 85%, transparent 100%);
-    transform: rotate(-6deg);
-    filter: blur(32px);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     pointer-events: none;
     z-index: 0;
   }
 
-  /* Pincelada 2: Brochazo alargado lila/índigo (lateral derecho, área interacción central) */
-  .home-screen-container.home-v2-variant::after {
-    content: '';
+  .home-ambient-brushes-svg {
     position: absolute;
-    top: 740px;
-    right: -110px;
-    width: 840px;
-    height: 170px;
-    border-radius: 140px 80px 180px 90px / 80px 50px 90px 60px;
-    background: linear-gradient(115deg, transparent 0%, rgba(124, 58, 237, 0.095) 25%, rgba(168, 85, 247, 0.07) 65%, rgba(79, 70, 229, 0.045) 95%);
-    transform: rotate(5deg);
-    filter: blur(34px);
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 1540px;
+    height: 100%;
+    min-height: 850px;
     pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Pincelada 3: Apoyo tenue verde/azul inferior (área Crear o abrir) */
-  .home-v2-variant .home-create-or-open-info::before {
-    content: '';
-    position: absolute;
-    bottom: -20px;
-    left: -70px;
-    width: 680px;
-    height: 130px;
-    border-radius: 120px 160px 90px 140px / 70px 80px 60px 90px;
-    background: linear-gradient(102deg, rgba(16, 185, 129, 0.07) 0%, rgba(14, 165, 233, 0.04) 60%, transparent 100%);
-    transform: rotate(-4deg);
-    filter: blur(28px);
-    pointer-events: none;
-    z-index: -1;
   }
 
   /* Elevar secciones de contenido para que se sitúen por encima del lienzo ambiental */

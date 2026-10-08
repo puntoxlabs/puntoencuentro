@@ -55,6 +55,7 @@ import {
   HomeDynamicCanvas,
   HomeCreateOrOpenInfo,
   HomeIntentionsBand,
+  HomeAmbientBrushes,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -1421,7 +1422,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       )}
 
       {isGsapPreview ? (
-        <>
+        <div className={`home-main-sections-wrapper${isV2Variant ? ' home-v2-main-sections-wrapper' : ''}`}>
+          {/* Capa de pinceladas ambientales SVG vectoriales: exclusiva para Home V2 Desktop */}
+          {isV2Variant && isDesktop && <HomeAmbientBrushes />}
+
           {/* Para usuario logueado en V2 Mobile: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después del Hero */}
           {isV2Variant && isPermanentUser && !isDesktop && personalActivitySection}
 
@@ -1480,7 +1484,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             onApply={setSecondaryFilters}
             onClose={() => setIsSecondaryFilterOpen(false)}
           />
-        </>
+        </div>
       ) : (
         <>
           {/* Modalidades de encuentro (Los 3 Pilares V2 / 2 Pilares en Lanzamiento Variante D) */}

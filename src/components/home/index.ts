@@ -12,3 +12,4 @@ export type { HomeVisualVariant, FloatingTagItem, AnimatedPhotoItem } from './Ho
 export { HomeVariantSwitcher } from './HomeVariantSwitcher';
 export { HomeCreateOrOpenInfo } from './HomeCreateOrOpenInfo';
 export { HomeIntentionsBand } from './HomeIntentionsBand';
+export { HomeAmbientBrushes } from './HomeAmbientBrushes';
