@@ -400,6 +400,18 @@
   margin-top: 0;
 }
 
+/* Full-bleed desktop para el carrusel de Me sumo en Home V2 */
+@media (min-width: 768px) {
+  .pe-discovery-section--v2 .pe-discovery-carousel-wrapper {
+    width: calc(100% + (50vw - 50% + 1.5rem));
+    margin-right: calc(-1 * (50vw - 50% + 1.5rem));
+  }
+
+  .pe-discovery-section--v2 .pe-discovery-track {
+    padding-right: max(2.5rem, calc(50vw - 50%));
+  }
+}
+
 .pe-discovery-carousel-arrow {
   display: inline-flex;
   align-items: center;

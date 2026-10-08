@@ -1,0 +1,101 @@
+/* HomeCreateOrOpenInfo.css - Pieza informativa compacta V2 */
+
+.home-create-or-open-info {
+  width: 100%;
+  max-width: var(--pe-rail-width, 1060px);
+  margin: 1.5rem auto 2.5rem;
+  padding: 1.15rem 1.25rem;
+  background: rgba(248, 250, 252, 0.75);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s ease;
+}
+
+@media (min-width: 768px) {
+  .home-create-or-open-info {
+    padding: 1.25rem 1.5rem;
+    margin: 1.75rem auto 3rem;
+  }
+}
+
+.home-create-or-open-info__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (min-width: 768px) {
+  .home-create-or-open-info:not(.home-create-or-open-info--anonymous) .home-create-or-open-info__main {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 16px;
+  }
+}
+
+.home-create-or-open-info__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.home-create-or-open-info__icon {
+  color: var(--color-primary, #6366f1);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.home-create-or-open-info__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #1e293b);
+  letter-spacing: -0.01em;
+  white-space: normal;
+}
+
+.home-create-or-open-info__desc {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--color-on-surface-variant, #64748b);
+  word-break: break-word;
+}
+
+/* Onboarding compacto para usuarios no autenticados */
+.home-create-or-open-info__onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+@media (min-width: 768px) {
+  .home-create-or-open-info__onboarding {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+}
+
+.home-create-or-open-info__step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant, #475569);
+  line-height: 1.35;
+  flex: 1 1 0;
+}
+
+.home-create-or-open-info__step-icon {
+  color: var(--color-primary, #6366f1);
+  flex-shrink: 0;
+  opacity: 0.75;
+}

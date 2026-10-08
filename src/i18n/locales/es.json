@@ -269,5 +269,12 @@
     "action_pause": "Pausar",
     "action_reactivate": "Reactivar",
     "action_cancel": "Cancelar"
+  },
+  "create_or_open": {
+    "title_v2": "Crear o abrir un encuentro",
+    "desc_v2": "Organizá algo con los tuyos o abrí lugares en un encuentro que ya creaste.",
+    "step1_v2": "Elegí fecha u opciones para coordinar",
+    "step2_v2": "Invitá con un link, sin registro previo",
+    "step3_v2": "Abrí lugares en tus zonas si te falta gente"
   }
 }

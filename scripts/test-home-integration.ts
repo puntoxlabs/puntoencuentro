@@ -750,9 +750,11 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!html.includes('Contanos tu idea y te ayudamos a coordinar'), 'NO debe mostrar el subtítulo original en V2');
       // 2. Eliminación de badges Lanzamiento en V2
       assert.ok(!html.includes('>Lanzamiento<'), 'NO debe contener badges visibles de Lanzamiento en V2');
-      // 3. Copy Abrir encuentros V2
-      assert.ok(html.includes('¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.'), 'Debe mostrar exactamente el nuevo copy de V2');
-      assert.ok(!html.includes('para que otras personas puedan sumarse a tu plan'), 'NO debe contener el copy anterior de V1');
+      // 3. Reemplazo de cards por pieza informativa compacta en V2 (sin botones de acción)
+      assert.ok(html.includes('Crear o abrir un encuentro'), 'Debe mostrar el título de la pieza informativa V2');
+      assert.ok(html.includes('Organizá algo con los tuyos o abrí lugares en un encuentro que ya creaste.'), 'Debe mostrar el texto de la pieza informativa V2');
+      assert.ok(!html.includes('home-pillars-section'), 'En V2 NO deben existir las cards grandes home-pillars-section');
+      assert.ok(!html.includes('home-pillar-cta'), 'En V2 NO deben existir los botones home-pillar-cta');
       // 4. Ausencia de selectores o banners de desarrollo
       assert.ok(!html.includes('home-variant-switcher'), 'No debe tener switchers visibles');
     });
@@ -1030,11 +1032,12 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       // 1. V2 Anónimo:
       // - Hero presente ("¿Qué querés hacer?")
-      // - Descubrimiento visible
-      // - Pilares / Cards Organizar / Abrir visibles
-      // - Bloque educativo visible ("Organizar un encuentro es simple")
-      // - Actividad personal visible
-      // - Orden: Hero -> Encuentros abiertos -> Pilares -> Bloque educativo -> Tus encuentros
+      // - Descubrimiento visible ("Me sumo" / pe-discovery-section)
+      // - Actividad personal visible (home-encounters-section)
+      // - Pieza informativa visible (home-create-or-open-info / "Crear o abrir un encuentro")
+      // - Cards de pilares NO se renderizan en V2 (home-pillars-section)
+      // - Bloque educativo anterior NO se renderiza ("Organizar un encuentro es simple")
+      // - Orden: Hero -> Me sumo -> Actividad personal -> Pieza informativa
       const htmlV2Anon = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1048,25 +1051,27 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
 
       assert.ok(htmlV2Anon.includes('¿Qué querés hacer?'), 'V2 Anónimo debe conservar el Hero');
-      assert.ok(htmlV2Anon.includes('Organizar un encuentro es simple'), 'V2 Anónimo debe mostrar el bloque educativo "Cómo funciona"');
-      assert.ok(htmlV2Anon.includes('home-pillars-section'), 'V2 Anónimo debe mostrar la sección de pilares (Organizar / Abrir)');
+      assert.ok(htmlV2Anon.includes('pe-discovery-section'), 'V2 Anónimo debe incluir descubrimiento / Me sumo');
       assert.ok(htmlV2Anon.includes('home-encounters-section'), 'V2 Anónimo debe conservar la sección personal');
-      assert.ok(htmlV2Anon.includes('pe-discovery-section'), 'V2 Anónimo debe incluir descubrimiento / encuentros abiertos');
+      assert.ok(htmlV2Anon.includes('home-create-or-open-info'), 'V2 Anónimo debe incluir pieza informativa Crear o abrir');
+      assert.ok(htmlV2Anon.includes('Crear o abrir un encuentro'), 'V2 Anónimo debe tener el título de la pieza informativa');
+      assert.ok(!htmlV2Anon.includes('home-pillars-section'), 'V2 Anónimo NO debe mostrar las tarjetas de pilares');
+      assert.ok(!htmlV2Anon.includes('Organizar un encuentro es simple'), 'V2 Anónimo NO debe mostrar el bloque educativo separado');
 
       const posDiscoveryAnon = htmlV2Anon.indexOf('pe-discovery-section');
-      const posPillarsAnon = htmlV2Anon.indexOf('home-pillars-section');
-      const posValuePropAnon = htmlV2Anon.indexOf('Organizar un encuentro es simple');
       const posEncountersAnon = htmlV2Anon.indexOf('home-encounters-section');
-      assert.ok(posDiscoveryAnon < posPillarsAnon, 'En V2 anónimo el descubrimiento aparece antes que los pilares');
-      assert.ok(posPillarsAnon < posValuePropAnon, 'En V2 anónimo los pilares aparecen antes que el bloque educativo');
-      assert.ok(posValuePropAnon < posEncountersAnon, 'En V2 anónimo el bloque educativo aparece antes de Tus encuentros');
+      const posInfoAnon = htmlV2Anon.indexOf('home-create-or-open-info');
+      assert.ok(posDiscoveryAnon < posEncountersAnon, 'En V2 anónimo Me sumo aparece antes que la actividad personal');
+      assert.ok(posEncountersAnon < posInfoAnon, 'En V2 anónimo la actividad personal aparece antes que la pieza informativa Crear o abrir');
 
       // 2. V2 Logueado:
       // - Hero presente ("¿Qué querés hacer?")
-      // - Actividad personal elevada INMEDIATAMENTE después del Hero y ANTES de Encuentros abiertos
-      // - Descubrimiento / Encuentros abiertos presente
-      // - Pilares / Cards Organizar / Abrir se conservan
-      // - Bloque educativo NO se renderiza ("Organizar un encuentro es simple")
+      // - Actividad personal elevada INMEDIATAMENTE después del Hero y ANTES de Me sumo
+      // - Descubrimiento / Me sumo presente
+      // - Pieza informativa Crear o abrir presente al final
+      // - Cards de pilares NO se renderizan en V2 (home-pillars-section)
+      // - Bloque educativo anterior NO se renderiza ("Organizar un encuentro es simple")
+      // - Orden: Hero -> Actividad personal -> Me sumo -> Pieza informativa
       const htmlV2Logged = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1080,19 +1085,20 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
 
       assert.ok(htmlV2Logged.includes('¿Qué querés hacer?'), 'V2 Logueado debe conservar el Hero');
-      assert.ok(!htmlV2Logged.includes('Organizar un encuentro es simple'), 'V2 Logueado NO debe mostrar el bloque educativo repetitivo');
       assert.ok(htmlV2Logged.includes('home-encounters-section'), 'V2 Logueado debe tener la sección de actividad personal');
       assert.ok(htmlV2Logged.includes('pe-discovery-section'), 'V2 Logueado debe mantener el descubrimiento');
-      assert.ok(htmlV2Logged.includes('home-pillars-section'), 'V2 Logueado debe mantener las cards Organizar / Abrir');
+      assert.ok(htmlV2Logged.includes('home-create-or-open-info'), 'V2 Logueado debe incluir la pieza informativa Crear o abrir');
+      assert.ok(!htmlV2Logged.includes('home-pillars-section'), 'V2 Logueado NO debe mostrar las tarjetas de pilares');
+      assert.ok(!htmlV2Logged.includes('Organizar un encuentro es simple'), 'V2 Logueado NO debe mostrar el bloque educativo previo');
 
       const posEncountersLogged = htmlV2Logged.indexOf('home-encounters-section');
       const posDiscoveryLogged = htmlV2Logged.indexOf('pe-discovery-section');
-      const posPillarsLogged = htmlV2Logged.indexOf('home-pillars-section');
-      assert.ok(posEncountersLogged < posDiscoveryLogged, 'En V2 logueado la actividad personal debe preceder a Encuentros abiertos');
-      assert.ok(posDiscoveryLogged < posPillarsLogged, 'En V2 logueado Encuentros abiertos debe preceder a las cards Organizar/Abrir');
+      const posInfoLogged = htmlV2Logged.indexOf('home-create-or-open-info');
+      assert.ok(posEncountersLogged < posDiscoveryLogged, 'En V2 logueado la actividad personal debe preceder a Me sumo');
+      assert.ok(posDiscoveryLogged < posInfoLogged, 'En V2 logueado Me sumo debe preceder a la pieza informativa Crear o abrir');
 
       // 3. V1 intacta:
-      // Para V1, tanto logueado como anónimo, el orden clásico se conserva
+      // Para V1, tanto logueado como anónimo, el orden clásico y las tarjetas de pilares se conservan
       const htmlV1 = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1105,6 +1111,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         )
       );
       assert.ok(htmlV1.includes('¿Qué querés hacer?'), 'V1 debe conservar el Hero');
+      assert.ok(htmlV1.includes('home-pillars-section'), 'V1 debe conservar las tarjetas de pilares');
+      assert.ok(!htmlV1.includes('home-create-or-open-info'), 'V1 NO debe incluir la pieza informativa Crear o abrir de V2');
       const posPillarsV1 = htmlV1.indexOf('home-pillars-section');
       const posEncountersV1 = htmlV1.indexOf('home-encounters-section');
       assert.ok(posPillarsV1 < posEncountersV1, 'En V1 los pilares siguen antes que tus encuentros');

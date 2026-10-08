@@ -756,7 +756,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
   return (
-    <section className="pe-discovery-section" aria-label="Encuentros abiertos y planes para sumarte">
+    <section className={`pe-discovery-section${isV2Variant ? ' pe-discovery-section--v2' : ''}`} aria-label="Encuentros abiertos y planes para sumarte">
       {/* Cabecera de la Sección */}
       <div className="pe-discovery-header">
         <div className="pe-discovery-title-group">

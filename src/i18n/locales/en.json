@@ -268,5 +268,12 @@
     "action_pause": "Pause",
     "action_reactivate": "Reactivate",
     "action_cancel": "Cancel"
+  },
+  "create_or_open": {
+    "title_v2": "Create or open an encounter",
+    "desc_v2": "Organize something with your people or open spots in an encounter you've already created.",
+    "step1_v2": "Choose dates or propose options to coordinate",
+    "step2_v2": "Invite with a simple link, no signup required",
+    "step3_v2": "Open spots in your areas if you need more people"
   }
 }

@@ -53,6 +53,7 @@ import {
   HomeFlankingVisuals,
   HomePillarsSection,
   HomeDynamicCanvas,
+  HomeCreateOrOpenInfo,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -1378,10 +1379,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       {isGsapPreview ? (
         <>
-          {/* Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Intenciones) inmediatamente después del Hero */}
+          {/* Para usuario logueado en V2: Elevar actividad personal (Tus encuentros & Mis ganas) inmediatamente después del Hero */}
           {isV2Variant && isPermanentUser && personalActivitySection}
 
-          {/* ENCUENTROS ABIERTOS (Discovery Carrousel) */}
+          {/* ENCUENTROS ABIERTOS (Discovery Carrousel / Me sumo) */}
           <HomeOpenEncounters
             isV2Variant={isV2Variant}
             onOpenCreate={handleCreateClick}
@@ -1395,21 +1396,31 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             }}
           />
 
-          {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) */}
-          <HomePillarsSection
-            onCreateClick={handleCreateClick}
-            variant={effectiveVariant}
-            showLaunchBadges={!isV2Variant}
-            openEncountersExplanation={isV2Variant ? '¿Te falta gente? Abrí lugares en un encuentro que ya organizaste.' : undefined}
-          />
+          {/* Para usuario anónimo en V2: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
+          {isV2Variant && !isPermanentUser && personalActivitySection}
 
-          {/* Si es visitante sin encuentros: Mostrar bloque "Cómo funciona" (para logueados en V2 no se muestra) */}
-          {(isV2Variant ? !isPermanentUser : (!loading && rawEncuentros.length === 0 && !user)) && (
+          {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) (Solo V1) */}
+          {!isV2Variant && (
+            <HomePillarsSection
+              onCreateClick={handleCreateClick}
+              variant={effectiveVariant}
+              showLaunchBadges={true}
+              openEncountersExplanation="¿Te falta gente? Abrí lugares para que otras personas puedan sumarse a tu plan."
+            />
+          )}
+
+          {/* Si es visitante sin encuentros en V1: Mostrar bloque "Cómo funciona" */}
+          {!isV2Variant && !loading && rawEncuentros.length === 0 && !user && (
             <HomeValueProposition />
           )}
 
-          {/* TUS ENCUENTROS & INTENCIONES para anónimos o V1 */}
-          {(!isV2Variant || !isPermanentUser) && personalActivitySection}
+          {/* TUS ENCUENTROS & INTENCIONES para V1 */}
+          {!isV2Variant && personalActivitySection}
+
+          {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2) */}
+          {isV2Variant && (
+            <HomeCreateOrOpenInfo isAnonymous={!isPermanentUser} />
+          )}
 
           {/* Panel de filtros secundarios para Tus Encuentros */}
           <HomeEncountersFilterSheet

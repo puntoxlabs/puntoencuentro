@@ -212,5 +212,12 @@
     "sort_name_desc": "Nome: Z-A",
     "clear_filters": "Limpar filtros",
     "apply_filters": "Aplicar"
+  },
+  "create_or_open": {
+    "title_v2": "Criar ou abrir um encontro",
+    "desc_v2": "Organize algo com a sua turma ou abra vagas em um encontro que você já criou.",
+    "step1_v2": "Escolha datas ou proponha opções para combinar",
+    "step2_v2": "Convide com um link, sem cadastro prévio",
+    "step3_v2": "Abra vagas nas suas regiões se faltar gente"
   }
 }

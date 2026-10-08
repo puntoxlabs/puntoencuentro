@@ -9,6 +9,7 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: 80px;
   padding-top: 16px;
 }
@@ -1048,9 +1049,9 @@ html, body {
     margin-bottom: 0.75rem;
   }
 
-  /* Compactación del ritmo vertical interno de Encuentros Abiertos ("Me sumo") en Desktop V2 */
+  /* Ritmo vertical consolidado entre macrosecciones de Home V2 (32-48px) */
   .home-v2-variant .pe-discovery-section {
-    margin-top: 1.25rem;
+    margin-top: 1.5rem;
     margin-bottom: 2rem;
   }
 
@@ -1060,6 +1061,16 @@ html, body {
 
   .home-v2-variant .pe-discovery-group--v2 {
     margin-top: 0;
+  }
+
+  .home-v2-variant .home-encounters-section {
+    margin-top: 1.5rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .home-v2-variant .home-create-or-open-info {
+    margin-top: 1.5rem;
+    margin-bottom: 2.5rem;
   }
 }
 
