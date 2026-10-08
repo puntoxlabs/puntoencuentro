@@ -11,3 +11,4 @@ export { HomeDynamicCanvas, FLOATING_TAGS_CATALOG, ANIMATED_PHOTOS_CATALOG } fro
 export type { HomeVisualVariant, FloatingTagItem, AnimatedPhotoItem } from './HomeDynamicCanvas';
 export { HomeVariantSwitcher } from './HomeVariantSwitcher';
 export { HomeCreateOrOpenInfo } from './HomeCreateOrOpenInfo';
+export { HomeIntentionsBand } from './HomeIntentionsBand';

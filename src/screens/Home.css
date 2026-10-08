@@ -1,15 +1,10 @@
 /* Home.css - Base Visual Profesional */
 
-html, body {
-  overflow-x: hidden;
-}
-
 .home-scroll-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  overflow-x: hidden;
   padding-bottom: 80px;
   padding-top: 16px;
 }
@@ -1030,7 +1025,28 @@ html, body {
    Reduce espaciado interno (~20-30%) para mayor cohesión visual como bloque.
    V1 y mobile permanecen completamente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
+/* Contención de overflow scopeada exclusivamente a Home V2 (cero scrollbar horizontal sin tocar html/body) */
+.home-screen-container.home-v2-variant {
+  overflow-x: clip;
+}
+
 @media (min-width: 768px) {
+  .home-screen-container.home-v2-variant {
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+    overflow-x: clip;
+  }
+
+  .home-v2-variant .home-header {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    box-sizing: border-box;
+  }
+
   .home-v2-variant .pe-encounters-inner {
     background: transparent;
     border: none;

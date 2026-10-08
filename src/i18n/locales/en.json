@@ -275,5 +275,9 @@
     "step1_v2": "Choose dates or propose options to coordinate",
     "step2_v2": "Invite with a simple link, no signup required",
     "step3_v2": "Open spots in your areas if you need more people"
+  },
+  "intentions_band": {
+    "title": "I feel like…",
+    "desc": "Say what you'd like to do, even if it's not a plan yet."
   }
 }

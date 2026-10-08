@@ -15,10 +15,14 @@ import {
   HomePillarsSection,
   HomeDynamicCanvas,
   HomeVariantSwitcher,
+  HomeCreateOrOpenInfo,
+  HomeIntentionsBand,
   FLOATING_TAGS_CATALOG,
   ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import Home, { formatBuildTimestamp } from '../src/screens/Home';
 import { AuthContext } from '../src/contexts/AuthContext';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
@@ -1033,11 +1037,12 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // 1. V2 Anónimo:
       // - Hero presente ("¿Qué querés hacer?")
       // - Descubrimiento visible ("Me sumo" / pe-discovery-section)
+      // - Banda Tengo ganas de... visible (home-intentions-band)
       // - Actividad personal visible (home-encounters-section)
       // - Pieza informativa visible (home-create-or-open-info / "Crear o abrir un encuentro")
       // - Cards de pilares NO se renderizan en V2 (home-pillars-section)
       // - Bloque educativo anterior NO se renderiza ("Organizar un encuentro es simple")
-      // - Orden: Hero -> Me sumo -> Actividad personal -> Pieza informativa
+      // - Orden: Hero -> Me sumo -> Banda Tengo ganas de... -> Actividad personal -> Pieza informativa
       const htmlV2Anon = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1052,6 +1057,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       assert.ok(htmlV2Anon.includes('¿Qué querés hacer?'), 'V2 Anónimo debe conservar el Hero');
       assert.ok(htmlV2Anon.includes('pe-discovery-section'), 'V2 Anónimo debe incluir descubrimiento / Me sumo');
+      assert.ok(htmlV2Anon.includes('home-intentions-band'), 'V2 Anónimo debe incluir la banda Tengo ganas de...');
+      assert.ok(htmlV2Anon.includes('Tengo ganas de…'), 'V2 Anónimo debe mostrar el copy de la banda Tengo ganas de...');
       assert.ok(htmlV2Anon.includes('home-encounters-section'), 'V2 Anónimo debe conservar la sección personal');
       assert.ok(htmlV2Anon.includes('home-create-or-open-info'), 'V2 Anónimo debe incluir pieza informativa Crear o abrir');
       assert.ok(htmlV2Anon.includes('Crear o abrir un encuentro'), 'V2 Anónimo debe tener el título de la pieza informativa');
@@ -1059,19 +1066,22 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!htmlV2Anon.includes('Organizar un encuentro es simple'), 'V2 Anónimo NO debe mostrar el bloque educativo separado');
 
       const posDiscoveryAnon = htmlV2Anon.indexOf('pe-discovery-section');
+      const posBandAnon = htmlV2Anon.indexOf('home-intentions-band');
       const posEncountersAnon = htmlV2Anon.indexOf('home-encounters-section');
       const posInfoAnon = htmlV2Anon.indexOf('home-create-or-open-info');
-      assert.ok(posDiscoveryAnon < posEncountersAnon, 'En V2 anónimo Me sumo aparece antes que la actividad personal');
+      assert.ok(posDiscoveryAnon < posBandAnon, 'En V2 anónimo Me sumo aparece antes que la banda Tengo ganas de...');
+      assert.ok(posBandAnon < posEncountersAnon, 'En V2 anónimo la banda Tengo ganas de... aparece antes que la actividad personal');
       assert.ok(posEncountersAnon < posInfoAnon, 'En V2 anónimo la actividad personal aparece antes que la pieza informativa Crear o abrir');
 
       // 2. V2 Logueado:
       // - Hero presente ("¿Qué querés hacer?")
       // - Actividad personal elevada INMEDIATAMENTE después del Hero y ANTES de Me sumo
       // - Descubrimiento / Me sumo presente
+      // - Banda Tengo ganas de... inmediatamente después de Me sumo
       // - Pieza informativa Crear o abrir presente al final
       // - Cards de pilares NO se renderizan en V2 (home-pillars-section)
       // - Bloque educativo anterior NO se renderiza ("Organizar un encuentro es simple")
-      // - Orden: Hero -> Actividad personal -> Me sumo -> Pieza informativa
+      // - Orden: Hero -> Actividad personal -> Me sumo -> Banda Tengo ganas de... -> Pieza informativa
       const htmlV2Logged = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1087,18 +1097,21 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlV2Logged.includes('¿Qué querés hacer?'), 'V2 Logueado debe conservar el Hero');
       assert.ok(htmlV2Logged.includes('home-encounters-section'), 'V2 Logueado debe tener la sección de actividad personal');
       assert.ok(htmlV2Logged.includes('pe-discovery-section'), 'V2 Logueado debe mantener el descubrimiento');
+      assert.ok(htmlV2Logged.includes('home-intentions-band'), 'V2 Logueado debe tener la banda Tengo ganas de...');
       assert.ok(htmlV2Logged.includes('home-create-or-open-info'), 'V2 Logueado debe incluir la pieza informativa Crear o abrir');
       assert.ok(!htmlV2Logged.includes('home-pillars-section'), 'V2 Logueado NO debe mostrar las tarjetas de pilares');
       assert.ok(!htmlV2Logged.includes('Organizar un encuentro es simple'), 'V2 Logueado NO debe mostrar el bloque educativo previo');
 
       const posEncountersLogged = htmlV2Logged.indexOf('home-encounters-section');
       const posDiscoveryLogged = htmlV2Logged.indexOf('pe-discovery-section');
+      const posBandLogged = htmlV2Logged.indexOf('home-intentions-band');
       const posInfoLogged = htmlV2Logged.indexOf('home-create-or-open-info');
       assert.ok(posEncountersLogged < posDiscoveryLogged, 'En V2 logueado la actividad personal debe preceder a Me sumo');
-      assert.ok(posDiscoveryLogged < posInfoLogged, 'En V2 logueado Me sumo debe preceder a la pieza informativa Crear o abrir');
+      assert.ok(posDiscoveryLogged < posBandLogged, 'En V2 logueado Me sumo debe preceder a la banda Tengo ganas de...');
+      assert.ok(posBandLogged < posInfoLogged, 'En V2 logueado la banda Tengo ganas de... debe preceder a la pieza informativa Crear o abrir');
 
       // 3. V1 intacta:
-      // Para V1, tanto logueado como anónimo, el orden clásico y las tarjetas de pilares se conservan
+      // Para V1, tanto logueado como anónimo, el orden clásico y las tarjetas de pilares se conservan y NO incluye la banda
       const htmlV1 = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1112,6 +1125,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlV1.includes('¿Qué querés hacer?'), 'V1 debe conservar el Hero');
       assert.ok(htmlV1.includes('home-pillars-section'), 'V1 debe conservar las tarjetas de pilares');
+      assert.ok(!htmlV1.includes('home-intentions-band'), 'V1 NO debe incluir la banda Tengo ganas de... de V2');
       assert.ok(!htmlV1.includes('home-create-or-open-info'), 'V1 NO debe incluir la pieza informativa Crear o abrir de V2');
       const posPillarsV1 = htmlV1.indexOf('home-pillars-section');
       const posEncountersV1 = htmlV1.indexOf('home-encounters-section');
@@ -1303,6 +1317,48 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // V1 debe conservar subtítulo "Encuentros próximos"
       assert.ok(htmlV1.includes('Encuentros próximos'), 'V1 debe conservar subtítulo Encuentros próximos');
     });
+
+    test('P. Banda Tengo ganas de...: botón semántico accesible sin anidamientos, y contención de overflow scopeada a V2 sin reglas globales html/body', () => {
+      // 1. Renderizado de HomeIntentionsBand como botón interactivo semántico
+      const htmlBand = renderToString(
+        React.createElement(HomeIntentionsBand, {
+          onExpressIntent: () => {},
+        })
+      );
+      assert.ok(htmlBand.startsWith('<button'), 'HomeIntentionsBand debe ser un botón raíz accesible');
+      assert.ok(htmlBand.includes('class="home-intentions-band"'), 'Debe incluir clase home-intentions-band');
+      assert.ok(htmlBand.includes('Tengo ganas de…'), 'Debe incluir título Tengo ganas de…');
+      assert.ok(htmlBand.includes('Decí qué te gustaría hacer, aunque todavía no sea un encuentro.'), 'Debe incluir descripción');
+      assert.ok(htmlBand.includes('aria-label='), 'Debe tener aria-label accesible');
+      // No debe contener botones internos anidados (violación de validez HTML y a11y)
+      const buttonMatches = htmlBand.match(/<button/g);
+      assert.strictEqual(buttonMatches?.length, 1, 'No debe tener botones anidados en su interior');
+
+      // 2. Validación de scope de contención en Home.css
+      const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
+      const homeCssContent = readFileSync(homeCssPath, 'utf8');
+
+      // NO debe tener reglas globales en html/body para overflow
+      assert.ok(
+        !homeCssContent.includes('html, body {\n  overflow-x: hidden;'),
+        'Home.css NO debe imponer overflow-x: hidden global sobre html, body'
+      );
+      assert.ok(
+        !homeCssContent.includes('html, body {\r\n  overflow-x: hidden;'),
+        'Home.css NO debe imponer overflow-x: hidden global sobre html, body (CRLF)'
+      );
+
+      // SÍ debe scopear la contención de overflow a Home V2
+      assert.ok(
+        homeCssContent.includes('.home-screen-container.home-v2-variant'),
+        'Home.css debe scopear la contención a .home-screen-container.home-v2-variant'
+      );
+      assert.ok(
+        homeCssContent.includes('overflow-x: clip;'),
+        'Home.css debe utilizar overflow-x: clip para la contención en V2'
+      );
+    });
   });
 });
+
 

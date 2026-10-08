@@ -219,5 +219,9 @@
     "step1_v2": "Escolha datas ou proponha opções para combinar",
     "step2_v2": "Convide com um link, sem cadastro prévio",
     "step3_v2": "Abra vagas nas suas regiões se faltar gente"
+  },
+  "intentions_band": {
+    "title": "Estou a fim de…",
+    "desc": "Diga o que gostaria de fazer, mesmo que ainda não seja um encontro."
   }
 }

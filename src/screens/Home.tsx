@@ -54,6 +54,7 @@ import {
   HomePillarsSection,
   HomeDynamicCanvas,
   HomeCreateOrOpenInfo,
+  HomeIntentionsBand,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -372,6 +373,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
     return 'encuentros';
   });
+  const [intentionCreateTrigger, setIntentionCreateTrigger] = useState(0);
+
+  const handleOpenIntentionFlow = () => {
+    setUserSectionTab('intenciones');
+    setIntentionCreateTrigger(Date.now());
+    const personalSection = document.querySelector('.home-encounters-section');
+    if (personalSection) {
+      personalSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const [imgError, setImgError] = useState(false);
 
   // Filtros secundarios simplificados para Preview GSAP
@@ -1232,7 +1244,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           </>
         ) : (
           <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
-            <HomeIntencionesSection />
+            <HomeIntencionesSection triggerCreateTimestamp={intentionCreateTrigger} />
           </div>
         )}
       </div>
@@ -1396,7 +1408,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             }}
           />
 
-          {/* Para usuario anónimo en V2: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
+          {/* Banda Tengo ganas de... inmediatamente después de Me sumo en Home V2 */}
+          {isV2Variant && (
+            <HomeIntentionsBand onExpressIntent={handleOpenIntentionFlow} />
+          )}
+
+          {/* Para usuario anónimo en V2: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de la banda */}
           {isV2Variant && !isPermanentUser && personalActivitySection}
 
           {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) (Solo V1) */}

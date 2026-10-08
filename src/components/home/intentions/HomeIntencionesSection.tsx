@@ -30,9 +30,12 @@ function useSafeNavigate() {
 
 export interface HomeIntencionesSectionProps {
   onOpenCreateTrigger?: () => void;
+  triggerCreateTimestamp?: number;
 }
 
-export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () => {
+export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
+  triggerCreateTimestamp,
+}) => {
   const navigate = useSafeNavigate();
   const { user, signInWithGoogleForDiscovery } = useAuth();
   const {
@@ -101,6 +104,13 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = () 
     setRestoredDraft(null);
     setIsFormOpen(true);
   };
+
+  // Disparador externo reutilizado (ej. banda Tengo ganas de...)
+  useEffect(() => {
+    if (triggerCreateTimestamp && triggerCreateTimestamp > 0) {
+      handleOpenCreate();
+    }
+  }, [triggerCreateTimestamp]);
 
   const handleEdit = (intencion: Intencion) => {
     setRestoredDraft(null);

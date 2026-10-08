@@ -276,5 +276,9 @@
     "step1_v2": "Elegí fecha u opciones para coordinar",
     "step2_v2": "Invitá con un link, sin registro previo",
     "step3_v2": "Abrí lugares en tus zonas si te falta gente"
+  },
+  "intentions_band": {
+    "title": "Tengo ganas de…",
+    "desc": "Decí qué te gustaría hacer, aunque todavía no sea un encuentro."
   }
 }

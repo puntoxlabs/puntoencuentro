@@ -1,0 +1,114 @@
+/* HomeIntentionsBand.css - Banda compacta de intención V2 */
+
+.home-intentions-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: var(--pe-rail-width, 1060px);
+  margin: 0.75rem auto;
+  padding: 10px 14px;
+  background-color: #faf5ff;
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-radius: 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  gap: 12px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  min-height: 48px;
+}
+
+.home-intentions-band:hover {
+  background-color: #f3e8ff;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.home-intentions-band:active {
+  transform: scale(0.995);
+}
+
+.home-intentions-band:focus-visible {
+  outline: 2px solid var(--color-primary, #7c3aed);
+  outline-offset: 2px;
+}
+
+.home-intentions-band__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.home-intentions-band__icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.home-intentions-band__text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-intentions-band__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e1b4b;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.home-intentions-band__desc {
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.home-intentions-band__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c3aed;
+  flex-shrink: 0;
+  padding-right: 2px;
+  transition: transform 0.15s ease;
+}
+
+.home-intentions-band:hover .home-intentions-band__action {
+  transform: translateX(2px);
+}
+
+@media (min-width: 768px) {
+  .home-intentions-band {
+    padding: 10px 18px;
+    margin: 0.85rem auto;
+  }
+
+  .home-intentions-band__text-group {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .home-intentions-band__title {
+    font-size: 0.92rem;
+    flex-shrink: 0;
+  }
+
+  .home-intentions-band__desc {
+    font-size: 0.84rem;
+  }
+}
