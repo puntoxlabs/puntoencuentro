@@ -4,26 +4,21 @@ import React from 'react';
  * HomeAmbientBrushes
  * Capa vectorial de pinceladas ambientales para Home V2 Desktop.
  * 
- * Reemplaza la técnica anterior de gradientes difusos con blur extremo por
- * trazos SVG vectoriales con geometría orgánica, tapering en extremos y curvatura.
- * 
- * Cumple estrictamente:
- * - Renderizado exclusivamente en Home V2 Desktop (>= 768px).
+ * Composición orgánica basada en el VACÍO REAL de la Home:
+ * - Ocupa huecos blancos laterales y zonas de transición libres.
+ * - Despeja el centro funcional (títulos, loading states, empty states, tabs, filtros, CTA).
+ * - Exactamente 2 pinceladas principales:
+ *   1. Pincelada A: Azul marca -> Menta suave (área lateral/vacío superior izquierdo).
+ *   2. Pincelada B: Lila -> Índigo suave (área lateral/vacío derecho en transición).
+ *   (Se eliminó la tercera pincelada inferior para preservar aire y evitar ruidos aislados).
  * - SVG inline con aria-hidden="true", focusable="false", pointer-events: none.
- * - Fuera del flujo, posicionado absolutamente en el wrapper relativo post-hero.
- * - Pincelada A: lateral izquierdo (área Me sumo), azul marca (#2563eb / #3b82f6) a menta (#10b981),
- *   recorrido horizontal con leve inclinación ascendente, silueta de trazo alargado (~880px x 135px).
- * - Pincelada B: lateral derecho (área transición intermedia), lila (#8b5cf6 / #a855f7) a índigo (#6366f1),
- *   inclinación contraria, silueta de trazo irregular (~920px x 140px).
- * - Pincelada C secundaria: apoyo inferior tenue cerca de Crear/Abrir (~640px x 100px).
- * - Núcleo visual al 12%-18%, sin blur o blur mínimo (4px) para suavizar bordes sin perder la silueta de trazo.
  */
 export const HomeAmbientBrushes: React.FC = () => {
   return (
     <div className="home-ambient-brushes-container" aria-hidden="true">
       <svg
         className="home-ambient-brushes-svg"
-        viewBox="0 0 1440 1050"
+        viewBox="0 0 1440 900"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         preserveAspectRatio="none"
@@ -49,33 +44,26 @@ export const HomeAmbientBrushes: React.FC = () => {
             <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
           </linearGradient>
 
-          {/* Gradiente Pincelada C: Verde esmeralda -> Azul desaturado suave */}
-          <linearGradient id="pe-brush-grad-c" x1="0%" y1="50%" x2="100%" y2="50%">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.03" />
-            <stop offset="25%" stopColor="#10b981" stopOpacity="0.10" />
-            <stop offset="70%" stopColor="#0ea5e9" stopOpacity="0.07" />
-            <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-          </linearGradient>
-
-          {/* Filtro blur mínimo/moderado (4px) solo para suavizar el filo vectorial sin convertirlo en neblina */}
+          {/* Filtro blur mínimo/moderado (4px) para suavizar filos sin perder la silueta de trazo */}
           <filter id="pe-brush-soften" x="-10%" y="-10%" width="120%" height="120%">
             <feGaussianBlur stdDeviation="4" />
           </filter>
         </defs>
 
         {/* 
-          PINCELADA A (Área "Me sumo", flanco izquierdo):
-          Trazo alargado orgánico, entra desde la izquierda (-60px), leve inclinación ascendente,
-          taper en la punta y cuerpo de ancho variable (~120-145px).
+          PINCELADA A (Flanco izquierdo exterior / espacio libre alrededor de Me sumo):
+          Nace fuera de pantalla en el flanco izquierdo (-90px), recorre el margen blanco
+          con inclinación orgánica y se afina antes de interferir con el eje funcional central.
+          Largo visual: ~800px, alto variable: ~120-140px.
         */}
         <path
-          d="M -50,115
-             C 120,95 280,105 450,85
-             C 580,70 710,50 830,42
-             C 870,40 895,46 905,56
-             C 912,65 895,74 855,84
-             C 740,112 605,145 460,165
-             C 320,185 160,205 -50,225
+          d="M -90,75
+             C 80,55 240,65 410,45
+             C 540,30 670,10 790,2
+             C 830,0 855,6 865,16
+             C 872,25 855,34 815,44
+             C 700,72 565,105 420,125
+             C 280,145 120,165 -90,185
              Z"
           fill="url(#pe-brush-grad-a)"
           filter="url(#pe-brush-soften)"
@@ -83,40 +71,23 @@ export const HomeAmbientBrushes: React.FC = () => {
         />
 
         {/* 
-          PINCELADA B (Transición intermedia, flanco derecho):
-          Trazo alargado orgánico, entra desde el lateral derecho (1500px), inclinación contraria descendente/ondulada,
-          taper suave en extremos y cuerpo variable (~110-140px).
+          PINCELADA B (Flanco derecho exterior / transición intermedia):
+          Nace fuera de pantalla en el flanco derecho (1530px), entra ocupando el vacío blanco lateral
+          entre las macrosecciones sin invadir el centro (cards, tabs, filtros o empty/loading states).
+          Largo visual: ~840px, alto variable: ~110-135px.
         */}
         <path
-          d="M 1490,440
-             C 1330,425 1180,450 1020,470
-             C 870,490 730,525 610,555
-             C 575,564 555,575 550,586
-             C 545,597 565,604 605,602
-             C 725,595 860,575 1010,550
-             C 1170,525 1325,510 1490,520
+          d="M 1530,370
+             C 1370,355 1220,380 1060,400
+             C 910,420 780,455 670,485
+             C 635,494 615,505 610,516
+             C 605,527 625,534 665,532
+             C 785,525 920,505 1070,480
+             C 1230,455 1385,440 1530,450
              Z"
           fill="url(#pe-brush-grad-b)"
           filter="url(#pe-brush-soften)"
           className="pe-brush-path pe-brush-path--b"
-        />
-
-        {/* 
-          PINCELADA C (Apoyo inferior tenue cerca de "Crear o abrir"):
-          Trazo secundario más contenido y de menor contraste (~620px).
-        */}
-        <path
-          d="M -30,860
-             C 110,845 250,860 380,840
-             C 470,825 550,808 610,802
-             C 635,800 645,806 648,814
-             C 650,822 638,829 608,838
-             C 515,865 405,890 290,905
-             C 160,920 40,935 -30,945
-             Z"
-          fill="url(#pe-brush-grad-c)"
-          filter="url(#pe-brush-soften)"
-          className="pe-brush-path pe-brush-path--c"
         />
       </svg>
     </div>
