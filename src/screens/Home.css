@@ -1035,7 +1035,7 @@ html, body {
     background: transparent;
     border: none;
     border-radius: 0;
-    padding: 8px 4px 16px;
+    padding: 6px 4px 10px;
     box-shadow: none;
   }
 
@@ -1049,10 +1049,10 @@ html, body {
     margin-bottom: 0.75rem;
   }
 
-  /* Ritmo vertical consolidado entre macrosecciones de Home V2 (32-48px) */
+  /* Ritmo vertical consolidado entre macrosecciones de Home V2 (24-32px) */
   .home-v2-variant .pe-discovery-section {
-    margin-top: 1.5rem;
-    margin-bottom: 2rem;
+    margin-top: 1.25rem;
+    margin-bottom: 1.5rem;
   }
 
   .home-v2-variant .pe-discovery-header {
@@ -1064,13 +1064,56 @@ html, body {
   }
 
   .home-v2-variant .home-encounters-section {
-    margin-top: 1.5rem;
-    margin-bottom: 1.75rem;
+    margin-top: 1.25rem;
+    margin-bottom: 1.5rem;
+    padding-top: 0;
+  }
+
+  .home-v2-variant .pe-gsap-encounters-container {
+    padding-bottom: 0;
+  }
+
+  /* Compactación del Empty State personal en Desktop V2 */
+  .home-v2-variant .pe-gsap-encounters-container .home-empty {
+    min-height: auto;
+    padding: 16px 16px 12px;
+  }
+
+  .home-v2-variant .pe-gsap-encounters-container .home-empty-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+
+  .home-v2-variant .pe-gsap-encounters-container .home-empty-title {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+
+  .home-v2-variant .pe-gsap-encounters-container .home-empty-desc {
+    font-size: 0.84rem;
+    margin-bottom: 10px;
+    max-width: 380px;
+    line-height: 1.35;
+  }
+
+  /* Compactación del Loading State en Desktop V2 */
+  .home-v2-variant .home-loading {
+    flex: initial;
+    min-height: auto;
+    padding: 1.25rem 0;
+    gap: 8px;
+  }
+
+  .home-v2-variant .pe-intenciones-loading,
+  .home-v2-variant .pe-intenciones-empty {
+    padding: 1.5rem 1.25rem;
   }
 
   .home-v2-variant .home-create-or-open-info {
-    margin-top: 1.5rem;
-    margin-bottom: 2.5rem;
+    margin-top: 1.25rem;
+    margin-bottom: 2rem;
   }
 }
 
