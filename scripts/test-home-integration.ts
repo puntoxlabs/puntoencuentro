@@ -32,7 +32,7 @@ import ptJson from '../src/i18n/locales/pt.json';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
-import { HomeOpenEncounters } from '../src/components/home/openEncounters/HomeOpenEncounters';
+import { HomeOpenEncounters, getCardScrollTargets } from '../src/components/home/openEncounters/HomeOpenEncounters';
 import { HomeOpenEncounterCard } from '../src/components/home/openEncounters/HomeOpenEncounterCard';
 import { HomeOpenEncounterDetailSheet } from '../src/components/home/openEncounters/HomeOpenEncounterDetailSheet';
 import { OPEN_ENCOUNTERS_DEMO } from '../src/components/home/openEncounters/demoData';
@@ -999,6 +999,20 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // 3. Verificamos i18n de las etiquetas semánticas
       assert.strictEqual(i18n.t('open_encounters.carousel_prev'), 'Encuentros anteriores');
       assert.strictEqual(i18n.t('open_encounters.carousel_next'), 'Encuentros siguientes');
+
+      // 4. Verificamos que getCardScrollTargets retorne posiciones canónicas puras e invariantes
+      const mockTrack = {
+        scrollLeft: 100,
+        getBoundingClientRect: () => ({ left: 50, top: 0, width: 800, height: 300, right: 850, bottom: 300 } as DOMRect),
+        querySelectorAll: () => [
+          { getBoundingClientRect: () => ({ left: -50, top: 0, width: 280, height: 280, right: 230, bottom: 280 } as DOMRect) },
+          { getBoundingClientRect: () => ({ left: 242, top: 0, width: 280, height: 280, right: 522, bottom: 280 } as DOMRect) },
+          { getBoundingClientRect: () => ({ left: 534, top: 0, width: 280, height: 280, right: 814, bottom: 280 } as DOMRect) },
+        ],
+      } as unknown as HTMLElement;
+
+      const targets = getCardScrollTargets(mockTrack);
+      assert.deepStrictEqual(targets, [0, 292, 584], 'getCardScrollTargets debe calcular posiciones exactas de cards independientes del scroll actual');
     });
 
     test('K. Home V2 adaptativa: usuario anónimo conserva flujo explicativo completo y usuario logueado eleva actividad personal y oculta bloque educativo', () => {

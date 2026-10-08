@@ -1065,9 +1065,14 @@
     margin-bottom: 0.75rem;
   }
 
-  /* Ritmo vertical consolidado entre macrosecciones de Home V2 (24-32px) */
+  /* Ritmo vertical consolidado entre macrosecciones de Home V2 */
   .home-v2-variant .pe-discovery-section {
     margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .home-v2-variant .home-intentions-band {
+    margin-top: 0.5rem;
     margin-bottom: 1.5rem;
   }
 

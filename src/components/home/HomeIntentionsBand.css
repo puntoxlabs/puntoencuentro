@@ -6,7 +6,7 @@
   justify-content: space-between;
   width: 100%;
   max-width: var(--pe-rail-width, 1060px);
-  margin: 0.75rem auto;
+  margin: 0.5rem auto 1.25rem;
   padding: 10px 14px;
   background-color: #faf5ff;
   border: 1px solid rgba(168, 85, 247, 0.22);
@@ -94,7 +94,7 @@
 @media (min-width: 768px) {
   .home-intentions-band {
     padding: 10px 18px;
-    margin: 0.85rem auto;
+    margin: 0.5rem auto 1.5rem;
   }
 
   .home-intentions-band__text-group {

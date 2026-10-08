@@ -52,6 +52,26 @@ export interface HomeOpenEncountersProps {
   isV2Variant?: boolean;
 }
 
+/**
+ * Helper para calcular las posiciones canónicas absolutas de scroll (scrollLeft) de cada tarjeta
+ * relativas al sistema de coordenadas de desplazamiento del track.
+ * Invariante ante offsets relativos, breakout full-bleed, paddings o transformaciones CSS.
+ */
+export const getCardScrollTargets = (track: HTMLElement): number[] => {
+  const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
+  if (cards.length === 0) return [];
+
+  const trackRect = track.getBoundingClientRect();
+  const currentScroll = track.scrollLeft;
+  const firstCardLeft = cards[0].getBoundingClientRect().left - trackRect.left + currentScroll;
+
+  return cards.map((card, idx) => {
+    if (idx === 0) return 0;
+    const cardLeft = card.getBoundingClientRect().left - trackRect.left + currentScroll;
+    return Math.max(0, Math.round(cardLeft - firstCardLeft));
+  });
+};
+
 export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   encounters: propEncounters,
   intentions: propIntentions,
@@ -79,7 +99,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [selectedEncounter, setSelectedEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
-  const [isInteracting, setIsInteracting] = useState(false);
+  const isInteractingRef = useRef(false);
+  const isDetailOpenRef = useRef(false);
+  const autoplayTimerRef = useRef<number | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
 
   // Auth Guard Sheet & Pending Action
@@ -368,16 +390,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   };
 
-  // Pausa de auto-avance
-  const pauseAutoAdvance = useCallback((temporaryMs = 12000) => {
-    setIsInteracting(true);
-    if (resumeTimerRef.current) {
-      window.clearTimeout(resumeTimerRef.current);
-    }
-    resumeTimerRef.current = window.setTimeout(() => {
-      setIsInteracting(false);
-    }, temporaryMs);
-  }, []);
+  useEffect(() => {
+    isDetailOpenRef.current = isDetailOpen;
+  }, [isDetailOpen]);
 
   // Actualizar estado de scroll (overflow y flechas anterior/siguiente)
   const updateScrollState = useCallback(() => {
@@ -424,105 +439,155 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     };
   }, [updateScrollState, visibleEncounters.length]);
 
+  // Avanza un paso en el carrusel (reutilizado por autoplay y flecha siguiente)
+  const advanceCarousel = useCallback((track: HTMLElement) => {
+    const targets = getCardScrollTargets(track);
+    if (targets.length <= 1) return;
+
+    const currentScroll = track.scrollLeft;
+    const maxScrollLeft = track.scrollWidth - track.clientWidth;
+
+    // Buscar la siguiente tarjeta a la derecha (+10px para tolerancia a subpíxeles o snap)
+    const nextTarget = targets.find((t) => t > currentScroll + 10);
+    if (nextTarget !== undefined && nextTarget <= maxScrollLeft + 2) {
+      track.scrollTo({ left: Math.min(maxScrollLeft, nextTarget), behavior: 'smooth' });
+    } else {
+      // Fin del carrusel: reiniciar suavemente a la primera card en el siguiente ciclo
+      track.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  // Programar o reiniciar el temporizador de auto-avance (~10s)
+  const resetAutoplayTimer = useCallback((delayMs = 10000) => {
+    if (autoplayTimerRef.current) {
+      window.clearTimeout(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+    }
+
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    if (visibleEncounters.length <= 1) return;
+
+    autoplayTimerRef.current = window.setTimeout(() => {
+      if (isInteractingRef.current || isDetailOpenRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        // Si la pestaña no está visible, esperar y volver a programar para cuando el usuario regrese
+        resetAutoplayTimer(delayMs);
+        return;
+      }
+
+      const track = trackRef.current;
+      if (track) {
+        advanceCarousel(track);
+      }
+      resetAutoplayTimer(delayMs);
+    }, delayMs);
+  }, [visibleEncounters.length, advanceCarousel]);
+
+  // Pausa temporal de auto-avance con reanudación diferida que reinicia el timer completo de ~10s
+  const pauseAutoAdvance = useCallback((resumeDelayMs = 10000) => {
+    isInteractingRef.current = true;
+    if (autoplayTimerRef.current) {
+      window.clearTimeout(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+    }
+    if (resumeTimerRef.current) {
+      window.clearTimeout(resumeTimerRef.current);
+    }
+    resumeTimerRef.current = window.setTimeout(() => {
+      isInteractingRef.current = false;
+      resetAutoplayTimer(10000);
+    }, resumeDelayMs);
+  }, [resetAutoplayTimer]);
+
   // Manejadores de navegación por flechas desktop
   const handleScrollPrev = useCallback(() => {
-    pauseAutoAdvance(30000);
     const track = trackRef.current;
     if (!track) return;
 
-    const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
-    if (cards.length === 0) return;
+    const targets = getCardScrollTargets(track);
+    if (targets.length === 0) return;
 
     const currentScroll = track.scrollLeft;
-    // Encontrar la card anterior cuyo offsetLeft sea menor al scroll actual
     let targetLeft = 0;
-    for (let i = cards.length - 1; i >= 0; i--) {
-      if (cards[i].offsetLeft < currentScroll - 10) {
-        targetLeft = cards[i].offsetLeft;
+    for (let i = targets.length - 1; i >= 0; i--) {
+      if (targets[i] < currentScroll - 10) {
+        targetLeft = targets[i];
         break;
       }
     }
 
     track.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+    // Al interactuar manualmente con la flecha, se reinicia el timer completo de 10s
+    pauseAutoAdvance(10000);
   }, [pauseAutoAdvance]);
 
   const handleScrollNext = useCallback(() => {
-    pauseAutoAdvance(30000);
     const track = trackRef.current;
     if (!track) return;
 
-    const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
-    if (cards.length === 0) return;
+    const targets = getCardScrollTargets(track);
+    if (targets.length === 0) return;
 
     const currentScroll = track.scrollLeft;
     const maxScrollLeft = track.scrollWidth - track.clientWidth;
-    // Encontrar la siguiente card cuyo offsetLeft sea mayor al scroll actual
-    let targetLeft = maxScrollLeft;
-    for (let i = 0; i < cards.length; i++) {
-      if (cards[i].offsetLeft > currentScroll + 10) {
-        targetLeft = cards[i].offsetLeft;
-        break;
-      }
-    }
+    const nextTarget = targets.find((t) => t > currentScroll + 10);
+    const targetLeft = nextTarget !== undefined ? nextTarget : maxScrollLeft;
 
     track.scrollTo({ left: Math.min(maxScrollLeft, targetLeft), behavior: 'smooth' });
+    // Al interactuar manualmente con la flecha, se reinicia el timer completo de 10s
+    pauseAutoAdvance(10000);
   }, [pauseAutoAdvance]);
 
-  // Auto-avance nativo (deshabilitado en V2: NO autoplay)
+  // Ciclo de Autoplay accesible:
+  // - Intervalo de ~10s
+  // - Avanza 1 card a la vez con el mismo cálculo de paso que la flecha derecha
+  // - Se pausa en hover, focus, touch o swipe
+  // - No se reanuda de golpe al soltar: reinicia el timer completo de ~10s
+  // - Desactivado completamente si prefers-reduced-motion: reduce
+  // - Se suspende cuando document.visibilityState !== 'visible'
+  // - Al llegar al final, vuelve a 0 suavemente en el siguiente ciclo
   useEffect(() => {
-    if (isV2Variant) return;
+    resetAutoplayTimer(10000);
 
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
-
-    if (visibleEncounters.length <= 1) return;
-
-    let intervalId: number | null = null;
-    const initialDelayTimer = window.setTimeout(() => {
-      intervalId = window.setInterval(() => {
-        if (isInteracting) return;
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-
-        const track = trackRef.current;
-        if (!track) return;
-
-        const cards = Array.from(track.querySelectorAll('.pe-discovery-item')) as HTMLElement[];
-        if (cards.length <= 1) return;
-
-        const currentScroll = track.scrollLeft;
-        let currentIndex = 0;
-        let minDiff = Infinity;
-        cards.forEach((card, idx) => {
-          const diff = Math.abs(card.offsetLeft - currentScroll);
-          if (diff < minDiff) {
-            minDiff = diff;
-            currentIndex = idx;
-          }
-        });
-
-        const maxScrollLeft = track.scrollWidth - track.clientWidth;
-        const nextIndex = currentIndex + 1;
-
-        if (nextIndex >= cards.length || cards[nextIndex].offsetLeft > maxScrollLeft + 2) {
-          track.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          track.scrollTo({ left: cards[nextIndex].offsetLeft, behavior: 'smooth' });
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        resetAutoplayTimer(10000);
+      } else {
+        if (autoplayTimerRef.current) {
+          window.clearTimeout(autoplayTimerRef.current);
+          autoplayTimerRef.current = null;
         }
-      }, 7000);
-    }, 10000);
-
-    return () => {
-      window.clearTimeout(initialDelayTimer);
-      if (intervalId) window.clearInterval(intervalId);
-      if (resumeTimerRef.current) {
-        window.clearTimeout(resumeTimerRef.current);
       }
     };
-  }, [visibleEncounters.length, isInteracting, isV2Variant]);
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (autoplayTimerRef.current) {
+        window.clearTimeout(autoplayTimerRef.current);
+        autoplayTimerRef.current = null;
+      }
+      if (resumeTimerRef.current) {
+        window.clearTimeout(resumeTimerRef.current);
+        resumeTimerRef.current = null;
+      }
+    };
+  }, [visibleEncounters.length, resetAutoplayTimer]);
 
   const handleCardClick = (encounter: OpenEncounterSummary) => {
-    pauseAutoAdvance(30000);
+    isDetailOpenRef.current = true;
+    if (autoplayTimerRef.current) {
+      window.clearTimeout(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+    }
     setSelectedEncounter(encounter);
     setIsDetailOpen(true);
   };
@@ -530,6 +595,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const handleCloseDetail = () => {
     setIsDetailOpen(false);
     setSelectedEncounter(null);
+    isDetailOpenRef.current = false;
+    resetAutoplayTimer(10000);
   };
 
   const handleOpenZoneModal = () => {
@@ -623,12 +690,46 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return (
       <div
         className="pe-discovery-carousel-wrapper"
-        onMouseEnter={() => setIsInteracting(true)}
-        onMouseLeave={() => pauseAutoAdvance(3000)}
-        onFocus={() => setIsInteracting(true)}
-        onBlur={() => pauseAutoAdvance(3000)}
-        onTouchStart={() => pauseAutoAdvance(15000)}
-        onScroll={() => pauseAutoAdvance(12000)}
+        onMouseEnter={() => {
+          isInteractingRef.current = true;
+          if (autoplayTimerRef.current) {
+            window.clearTimeout(autoplayTimerRef.current);
+            autoplayTimerRef.current = null;
+          }
+          if (resumeTimerRef.current) {
+            window.clearTimeout(resumeTimerRef.current);
+            resumeTimerRef.current = null;
+          }
+        }}
+        onMouseLeave={() => {
+          isInteractingRef.current = false;
+          resetAutoplayTimer(10000);
+        }}
+        onFocus={() => {
+          isInteractingRef.current = true;
+          if (autoplayTimerRef.current) {
+            window.clearTimeout(autoplayTimerRef.current);
+            autoplayTimerRef.current = null;
+          }
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            isInteractingRef.current = false;
+            resetAutoplayTimer(10000);
+          }
+        }}
+        onTouchStart={() => {
+          isInteractingRef.current = true;
+          if (autoplayTimerRef.current) {
+            window.clearTimeout(autoplayTimerRef.current);
+            autoplayTimerRef.current = null;
+          }
+        }}
+        onTouchEnd={() => {
+          isInteractingRef.current = false;
+          resetAutoplayTimer(10000);
+        }}
+        onScroll={() => pauseAutoAdvance(10000)}
       >
         <div
           ref={trackRef}
