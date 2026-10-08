@@ -1039,23 +1039,27 @@
     overflow-x: clip;
   }
 
-  /* Capa ambiental de fondo Home V2 Desktop: atmósfera visual sutil sin competir con cards */
+  /* Atmósfera visual Home V2 Desktop: pinceladas y veladuras suaves de color orgánico */
   .home-screen-container.home-v2-variant::before {
     content: '';
     position: absolute;
-    top: 340px;
+    top: 320px;
     left: 0;
     right: 0;
     bottom: 0;
     pointer-events: none;
     z-index: 0;
     background:
-      /* Halo 1: Azul UI sutil entrando desde lateral izquierdo (zona Me sumo) */
-      radial-gradient(ellipse 680px 420px at 0% 16%, rgba(59, 130, 246, 0.04) 0%, rgba(59, 130, 246, 0.012) 55%, transparent 75%),
-      /* Halo 2: Lila/violeta suave hacia lateral derecho (zona Tengo ganas de...) */
-      radial-gradient(ellipse 720px 460px at 100% 40%, rgba(168, 85, 247, 0.035) 0%, rgba(168, 85, 247, 0.01) 55%, transparent 80%),
-      /* Halo 3: Apoyo muy tenue verde/esmeralda en zona inferior izquierda (identidad PuntoEncuentro) */
-      radial-gradient(ellipse 640px 400px at 8% 76%, rgba(16, 185, 129, 0.025) 0%, transparent 70%);
+      /* Pincelada A1: Brochazo azul UI apaisado entrando desde lateral izquierdo (área Me sumo) */
+      radial-gradient(ellipse 920px 320px at -2% 16%, rgba(37, 99, 235, 0.08) 0%, rgba(59, 130, 246, 0.04) 40%, rgba(14, 165, 233, 0.015) 65%, transparent 80%),
+      /* Pincelada A2: Velo menta muy suave en contraposición sutil */
+      radial-gradient(ellipse 640px 220px at -4% 23%, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.015) 50%, transparent 75%),
+      /* Pincelada B1: Veladura lila/violeta apaisada desde lateral derecho (área Tengo ganas de... / Mis ganas) */
+      radial-gradient(ellipse 960px 360px at 102% 43%, rgba(124, 58, 237, 0.075) 0%, rgba(168, 85, 247, 0.04) 45%, rgba(192, 132, 252, 0.015) 65%, transparent 82%),
+      /* Pincelada B2: Apoyo índigo sutil en el borde derecho superior */
+      radial-gradient(ellipse 720px 260px at 98% 37%, rgba(79, 70, 229, 0.045) 0%, transparent 70%),
+      /* Pincelada C: Veladura inferior en verde esmeralda y azul desaturado (área Crear o abrir) */
+      radial-gradient(ellipse 820px 300px at 8% 80%, rgba(16, 185, 129, 0.055) 0%, rgba(14, 165, 233, 0.02) 50%, transparent 75%);
   }
 
   /* Elevar secciones de contenido para que se sitúen por encima del lienzo ambiental */
@@ -1064,10 +1068,18 @@
   .home-v2-variant .home-intentions-band,
   .home-v2-variant .home-encounters-section,
   .home-v2-variant .home-create-or-open-info,
-  .home-v2-variant .home-fab-container,
   .home-v2-variant .home-build-info {
     position: relative;
     z-index: 1;
+  }
+
+  /* FAB Desktop V2: preservar de forma estricta el anclaje fixed en esquina inferior derecha */
+  .home-v2-variant .home-fab-container {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    left: auto;
+    z-index: 100;
   }
 
   .home-v2-variant .home-header {

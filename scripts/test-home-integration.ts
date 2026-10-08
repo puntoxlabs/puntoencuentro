@@ -1372,6 +1372,34 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Home.css debe utilizar overflow-x: clip para la contención en V2'
       );
     });
+
+    test('P. Home V2 Desktop: preservación estricta de position fixed para el FAB y atmósfera visual scopeada', () => {
+      const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
+      const homeCssContent = readFileSync(homeCssPath, 'utf8');
+
+      // 1. El FAB en Desktop V2 no debe ser forzado a position: relative
+      assert.ok(
+        !homeCssContent.includes('.home-v2-variant .home-fab-container,\n  .home-v2-variant .home-build-info {\n    position: relative;'),
+        'Home.css NO debe aplicar position: relative a .home-fab-container'
+      );
+      assert.ok(
+        !homeCssContent.includes('.home-v2-variant .home-fab-container,\r\n  .home-v2-variant .home-build-info {\r\n    position: relative;'),
+        'Home.css NO debe aplicar position: relative a .home-fab-container (CRLF)'
+      );
+
+      // 2. El FAB en Desktop V2 debe preservar anclaje fixed en esquina inferior derecha
+      assert.ok(
+        homeCssContent.includes('.home-v2-variant .home-fab-container {\n    position: fixed;\n    bottom: 28px;\n    right: 28px;') ||
+        homeCssContent.includes('.home-v2-variant .home-fab-container {\r\n    position: fixed;\r\n    bottom: 28px;\r\n    right: 28px;'),
+        'Home.css debe fijar explícitamente position: fixed, bottom: 28px y right: 28px para el FAB en V2'
+      );
+
+      // 3. La atmósfera visual está scopeada a Desktop V2 ::before sin tocar mobile ni V1
+      assert.ok(
+        homeCssContent.includes('.home-screen-container.home-v2-variant::before'),
+        'Home.css debe aplicar la atmósfera visual sobre el pseudo-elemento ::before de V2'
+      );
+    });
   });
 });
 
