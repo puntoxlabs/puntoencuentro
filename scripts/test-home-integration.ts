@@ -825,75 +825,85 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlV2.includes('home-v2-variant'), 'V2 debe contener clase home-v2-variant');
     });
 
-    test('H. En Home V2 la sección personal muestra traducción correspondiente (ES, EN, PT-BR, PT) y descubrimiento mantiene tab original', async () => {
-      // 1. Probar en Español (idioma por defecto)
-      await i18n.changeLanguage('es');
-      const htmlV2Es = renderToString(
-        React.createElement(
-          I18nextProvider,
-          { i18n },
+    test('H. En Home V2 la sección personal muestra traducción correspondiente (ES, EN, PT-BR, PT) y descubrimiento se titula con su variante V2', async () => {
+      try {
+        // 1. Probar en Español (idioma por defecto)
+        await i18n.changeLanguage('es');
+        const htmlV2Es = renderToString(
           React.createElement(
-            MemoryRouter,
-            { initialEntries: ['/?homeVariant=v2'] },
-            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            I18nextProvider,
+            { i18n },
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: ['/?homeVariant=v2'] },
+              React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            )
           )
-        )
-      );
-      assert.ok(htmlV2Es.includes('Tengo ganas de…'), 'ES: Debe mostrar "Tengo ganas de…" en la sección personal de V2');
-      assert.ok(htmlV2Es.includes('>Ganas de…<'), 'ES: El tab/filtro de descubrimiento debe conservar "Ganas de…"');
+        );
+        assert.ok(htmlV2Es.includes('Tengo ganas de…'), 'ES: Debe mostrar "Tengo ganas de…" en la sección personal de V2');
+        assert.ok(htmlV2Es.includes('Me sumo'), 'ES: El bloque público en V2 debe titularse "Me sumo"');
 
-      // 2. Probar en Inglés (EN)
-      await i18n.changeLanguage('en');
-      const htmlV2En = renderToString(
-        React.createElement(
-          I18nextProvider,
-          { i18n },
+        // 2. Probar en Inglés (EN)
+        await i18n.changeLanguage('en');
+        const htmlV2En = renderToString(
           React.createElement(
-            MemoryRouter,
-            { initialEntries: ['/?homeVariant=v2'] },
-            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            I18nextProvider,
+            { i18n },
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: ['/?homeVariant=v2'] },
+              React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            )
           )
-        )
-      );
-      assert.ok(htmlV2En.includes('I feel like…'), 'EN: Debe mostrar "I feel like…" en la sección personal de V2');
-      assert.ok(htmlV2En.includes('>Feel like…<'), 'EN: El tab/filtro de descubrimiento debe conservar "Feel like…"');
+        );
+        assert.ok(htmlV2En.includes('I feel like…'), 'EN: Debe mostrar "I feel like…" en la sección personal de V2');
+        assert.ok(htmlV2En.includes('I&#x27;m in') || htmlV2En.includes("I'm in"), 'EN: El bloque público en V2 debe titularse "I\'m in"');
 
-      // 3. Probar en Portugués de Brasil (PT-BR: locale activo en runtime)
-      await i18n.changeLanguage('pt-BR');
-      const htmlV2PtBr = renderToString(
-        React.createElement(
-          I18nextProvider,
-          { i18n },
+        // 3. Probar en Portugués de Brasil (PT-BR: locale activo en runtime)
+        await i18n.changeLanguage('pt-BR');
+        const htmlV2PtBr = renderToString(
           React.createElement(
-            MemoryRouter,
-            { initialEntries: ['/?homeVariant=v2'] },
-            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            I18nextProvider,
+            { i18n },
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: ['/?homeVariant=v2'] },
+              React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+            )
           )
-        )
-      );
-      assert.ok(htmlV2PtBr.includes('Estou com vontade de…'), 'PT-BR: Debe mostrar "Estou com vontade de…" en la sección personal de V2');
+        );
+        assert.ok(htmlV2PtBr.includes('Quero fazer'), 'PT-BR: Debe mostrar "Quero fazer" en el tab personal de V2');
+        assert.ok(htmlV2PtBr.includes('Quero participar'), 'PT-BR: El bloque público en V2 debe titularse "Quero participar"');
 
-      // 4. Probar Portugués de Portugal (PT: catálogo preparado en pt.json)
-      assert.equal(
-        (ptJson as any).open_encounters?.personal_intentions_title,
-        'Tenho vontade de…',
-        'PT: pt.json debe tener "Tenho vontade de…" preparado'
-      );
+        // 4. Probar Portugués de Portugal (PT: catálogo preparado en pt.json)
+        assert.equal(
+          (ptJson as any).open_encounters?.personal_intentions_title,
+          'Tenho vontade de…',
+          'PT: pt.json debe tener "Tenho vontade de…" preparado'
+        );
+        assert.equal(
+          (ptJson as any).open_encounters?.section_title_v2,
+          'Quero participar',
+          'PT: pt.json debe tener "Quero participar" preparado'
+        );
 
-      // 5. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
-      await i18n.changeLanguage('es');
-      const htmlV1 = renderToString(
-        React.createElement(
-          I18nextProvider,
-          { i18n },
+        // 5. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
+        await i18n.changeLanguage('es');
+        const htmlV1 = renderToString(
           React.createElement(
-            MemoryRouter,
-            { initialEntries: ['/'] },
-            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+            I18nextProvider,
+            { i18n },
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: ['/'] },
+              React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+            )
           )
-        )
-      );
-      assert.ok(htmlV1.includes('<h3 class="pe-discovery-subtitle">Ganas de…</h3>'), 'V1 debe mantener "Ganas de…" en la cabecera');
+        );
+        assert.ok(htmlV1.includes('<h3 class="pe-discovery-subtitle">Ganas de…</h3>'), 'V1 debe mantener "Ganas de…" en la cabecera');
+      } finally {
+        await i18n.changeLanguage('es');
+      }
     });
 
     test('I. Home V2 ordena encuentros abiertos por fecha/hora ascendente de forma predeterminada y V1 preserva el orden original', () => {
@@ -978,7 +988,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       // Sin overflow en SSR el DOM no los muestra hasta cálculo de track; verificamos que el wrapper y track mantengan la clase
       assert.ok(htmlV2.includes('pe-discovery-track'), 'Debe incluir track de carrusel existente');
-      assert.ok(htmlV2.includes('pe-discovery-subtitle-row'), 'Debe incluir contenedor de subtítulo compatible con controles V2');
+      assert.ok(htmlV2.includes('pe-discovery-header-actions'), 'Debe incluir contenedor de acciones de cabecera compatible con controles V2');
 
       // 3. Verificamos i18n de las etiquetas semánticas
       assert.strictEqual(i18n.t('open_encounters.carousel_prev'), 'Encuentros anteriores');
@@ -1241,6 +1251,49 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlToolbarV2.includes('pe-toolbar-header-row--v2'), 'Debe incluir clase de fila V2');
       assert.ok(htmlToolbarV2.includes('pe-filter-btn--icon-only'), 'Debe renderizar botón icono mobile');
       assert.ok(htmlToolbarV2.includes('pe-filter-btn--desktop'), 'Debe marcar el botón textual con clase desktop');
+    });
+
+    test('O. Bloque público Home V2: simplificado como "Me sumo" directo sin solapas ni subtítulos redundantes, preservando V1', () => {
+      // 1. HomeOpenEncounters en V2
+      const htmlV2 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+
+      // Título en V2 debe ser "Me sumo"
+      assert.ok(htmlV2.includes('<h2 class="pe-discovery-title">Me sumo</h2>'), 'V2 debe titularse "Me sumo"');
+      assert.ok(!htmlV2.includes('<h2 class="pe-discovery-title">Encuentros abiertos</h2>'), 'V2 NO debe titularse "Encuentros abiertos"');
+
+      // En V2 NO debe renderizar solapas de descubrimiento (Todo, Encuentros, Ganas de…)
+      assert.ok(!htmlV2.includes('pe-discovery-tabs'), 'V2 no debe incluir barra de solapas pe-discovery-tabs');
+
+      // En V2 NO debe renderizar subtítulo redundante "Encuentros próximos"
+      assert.ok(!htmlV2.includes('Encuentros próximos'), 'V2 no debe incluir subtítulo Encuentros próximos');
+
+      // Las tarjetas de encuentros deben renderizarse directamente
+      assert.ok(htmlV2.includes('pe-discovery-group--v2'), 'V2 debe renderizar grupo directo pe-discovery-group--v2');
+      assert.ok(htmlV2.includes('Pádel'), 'V2 debe renderizar tarjetas de encuentros directamente');
+
+      // 2. HomeOpenEncounters en V1
+      const htmlV1 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: false,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+
+      // Título en V1 debe ser "Encuentros abiertos"
+      assert.ok(htmlV1.includes('Encuentros abiertos'), 'V1 debe conservar el título Encuentros abiertos');
+      assert.ok(!htmlV1.includes('Me sumo'), 'V1 NO debe titularse Me sumo');
+
+      // V1 debe conservar solapas
+      assert.ok(htmlV1.includes('pe-discovery-tabs'), 'V1 debe conservar pe-discovery-tabs');
+      assert.ok(htmlV1.includes('Todo'), 'V1 debe incluir solapa Todo');
+
+      // V1 debe conservar subtítulo "Encuentros próximos"
+      assert.ok(htmlV1.includes('Encuentros próximos'), 'V1 debe conservar subtítulo Encuentros próximos');
     });
   });
 });

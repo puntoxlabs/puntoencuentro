@@ -390,6 +390,14 @@
   .pe-discovery-carousel-controls {
     display: inline-flex;
   }
+
+  .pe-discovery-header-actions .pe-discovery-carousel-controls {
+    margin-left: 6px;
+  }
+}
+
+.pe-discovery-group--v2 {
+  margin-top: 0;
 }
 
 .pe-discovery-carousel-arrow {

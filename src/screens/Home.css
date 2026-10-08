@@ -1048,25 +1048,18 @@ html, body {
     margin-bottom: 0.75rem;
   }
 
-  /* Compactación del ritmo vertical interno de Encuentros Abiertos en Desktop V2 */
+  /* Compactación del ritmo vertical interno de Encuentros Abiertos ("Me sumo") en Desktop V2 */
+  .home-v2-variant .pe-discovery-section {
+    margin-top: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
   .home-v2-variant .pe-discovery-header {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.65rem;
   }
 
-  .home-v2-variant .pe-discovery-tabs {
-    margin-bottom: 0.55rem;
-  }
-
-  .home-v2-variant .pe-discovery-subtitle-row {
-    margin: 0.75rem 0 0.45rem 0;
-  }
-
-  .home-v2-variant .pe-discovery-subtitle-row:first-of-type {
-    margin-top: 0.15rem;
-  }
-
-  .home-v2-variant .pe-discovery-group + .pe-discovery-group {
-    margin-top: 1.15rem !important;
+  .home-v2-variant .pe-discovery-group--v2 {
+    margin-top: 0;
   }
 }
 

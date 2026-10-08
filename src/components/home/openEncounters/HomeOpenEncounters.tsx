@@ -761,7 +761,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       <div className="pe-discovery-header">
         <div className="pe-discovery-title-group">
           <h2 className="pe-discovery-title">
-            {t('open_encounters.section_title', { defaultValue: 'Encuentros abiertos' })}
+            {isV2Variant
+              ? t('open_encounters.section_title_v2', { defaultValue: 'Me sumo' })
+              : t('open_encounters.section_title', { defaultValue: 'Encuentros abiertos' })}
           </h2>
           <button
             type="button"
@@ -798,39 +800,64 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
             <ChevronRight size={14} aria-hidden="true" />
           </button>
+
+          {isV2Variant && hasOverflow && (
+            <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
+              <button
+                type="button"
+                className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
+                onClick={handleScrollPrev}
+                disabled={!canScrollLeft}
+                aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next"
+                onClick={handleScrollNext}
+                disabled={!canScrollRight}
+                aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] */}
-      <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Encuentros Abiertos">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={discoveryTab === 'todo'}
-          className={`pe-discovery-tab ${discoveryTab === 'todo' ? 'pe-discovery-tab--active' : ''}`}
-          onClick={() => setDiscoveryTab('todo')}
-        >
-          {t('open_encounters.tab_all', { defaultValue: 'Todo' })}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={discoveryTab === 'encuentros'}
-          className={`pe-discovery-tab ${discoveryTab === 'encuentros' ? 'pe-discovery-tab--active' : ''}`}
-          onClick={() => setDiscoveryTab('encuentros')}
-        >
-          {t('open_encounters.tab_encounters', { defaultValue: 'Encuentros' })}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={discoveryTab === 'intenciones'}
-          className={`pe-discovery-tab ${discoveryTab === 'intenciones' ? 'pe-discovery-tab--active' : ''}`}
-          onClick={() => setDiscoveryTab('intenciones')}
-        >
-          {t('open_encounters.tab_intentions', { defaultValue: 'Ganas de…' })}
-        </button>
-      </div>
+      {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] (Solo V1) */}
+      {!isV2Variant && (
+        <div className="pe-discovery-tabs" role="tablist" aria-label="Filtro de tipo de contenido en Encuentros Abiertos">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={discoveryTab === 'todo'}
+            className={`pe-discovery-tab ${discoveryTab === 'todo' ? 'pe-discovery-tab--active' : ''}`}
+            onClick={() => setDiscoveryTab('todo')}
+          >
+            {t('open_encounters.tab_all', { defaultValue: 'Todo' })}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={discoveryTab === 'encuentros'}
+            className={`pe-discovery-tab ${discoveryTab === 'encuentros' ? 'pe-discovery-tab--active' : ''}`}
+            onClick={() => setDiscoveryTab('encuentros')}
+          >
+            {t('open_encounters.tab_encounters', { defaultValue: 'Encuentros' })}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={discoveryTab === 'intenciones'}
+            className={`pe-discovery-tab ${discoveryTab === 'intenciones' ? 'pe-discovery-tab--active' : ''}`}
+            onClick={() => setDiscoveryTab('intenciones')}
+          >
+            {t('open_encounters.tab_intentions', { defaultValue: 'Ganas de…' })}
+          </button>
+        </div>
+      )}
 
       {/* Contenido según Tab y Estado de Error General */}
       {isGeneralError ? (
@@ -845,6 +872,14 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             <RefreshCw size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
             Reintentar
           </button>
+        </div>
+      ) : isV2Variant ? (
+        <div className="pe-discovery-group pe-discovery-group--v2">
+          {renderEncountersGroup()}
+          {effectiveZones.length > 0 &&
+            visibleEncounters.length < OTHER_ZONES_SUGGESTION_THRESHOLD &&
+            visibleSecondaryEncounters.length > 0 &&
+            renderSecondarySection(visibleSecondaryEncounters, [])}
         </div>
       ) : (
         <>
@@ -864,37 +899,15 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
               <div className="pe-discovery-groups">
                 <div className="pe-discovery-group">
                   <div className="pe-discovery-subtitle-row">
-                    <h3 className={`pe-discovery-subtitle${isV2Variant ? ' pe-discovery-subtitle--v2' : ''}`}>
+                    <h3 className="pe-discovery-subtitle">
                       Encuentros próximos
                     </h3>
-                    {isV2Variant && hasOverflow && (
-                      <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
-                        <button
-                          type="button"
-                          className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
-                          onClick={handleScrollPrev}
-                          disabled={!canScrollLeft}
-                          aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
-                        >
-                          <ChevronLeft size={16} aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next"
-                          onClick={handleScrollNext}
-                          disabled={!canScrollRight}
-                          aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
-                        >
-                          <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                      </div>
-                    )}
                   </div>
                   {renderEncountersGroup()}
                 </div>
 
                 <div className="pe-discovery-group" style={{ marginTop: '1.25rem' }}>
-                  <h3 className={`pe-discovery-subtitle${isV2Variant ? ' pe-discovery-subtitle--v2 pe-discovery-subtitle--intentions' : ''}`}>
+                  <h3 className="pe-discovery-subtitle">
                     {intentionsTitle || t('open_encounters.intentions_title', { defaultValue: 'Ganas de…' })}
                   </h3>
                   {renderIntentionsGroup()}
@@ -908,30 +921,6 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           {/* Tab: Encuentros */}
           {discoveryTab === 'encuentros' && (
             <div className="pe-discovery-group">
-              {isV2Variant && hasOverflow && (
-                <div className="pe-discovery-subtitle-row pe-discovery-subtitle-row--controls-only">
-                  <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
-                    <button
-                      type="button"
-                      className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
-                      onClick={handleScrollPrev}
-                      disabled={!canScrollLeft}
-                      aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
-                    >
-                      <ChevronLeft size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next"
-                      onClick={handleScrollNext}
-                      disabled={!canScrollRight}
-                      aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
-                    >
-                      <ChevronRight size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-              )}
               {renderEncountersGroup()}
               {effectiveZones.length > 0 &&
                 visibleEncounters.length < OTHER_ZONES_SUGGESTION_THRESHOLD &&

@@ -116,6 +116,7 @@
   },
   "open_encounters": {
     "section_title": "Open encounters",
+    "section_title_v2": "I'm in",
     "subtitle_zones": "In your areas",
     "subtitle_near": "Near you",
     "see_all": "View all",
