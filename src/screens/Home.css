@@ -1024,9 +1024,10 @@ html, body {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   HOME V2 DESKTOP: ALIGERAMIENTO DEL CONTENEDOR DE ACTIVIDAD PERSONAL
-   Elimina la sensación de caja administrativa cerrada (box-in-box).
-   V1 permanece completamente intacta.
+   HOME V2 DESKTOP: ALIGERAMIENTO DEL CONTENEDOR DE ACTIVIDAD PERSONAL Y
+   COMPACTACIÓN ARMÓNICA DEL RITMO INTERNO DE ENCUENTROS ABIERTOS
+   Reduce espaciado interno (~20-30%) para mayor cohesión visual como bloque.
+   V1 y mobile permanecen completamente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
   .home-v2-variant .pe-encounters-inner {
@@ -1045,6 +1046,27 @@ html, body {
   .home-v2-variant .home-user-tabs {
     padding: 0;
     margin-bottom: 0.75rem;
+  }
+
+  /* Compactación del ritmo vertical interno de Encuentros Abiertos en Desktop V2 */
+  .home-v2-variant .pe-discovery-header {
+    margin-bottom: 0.5rem;
+  }
+
+  .home-v2-variant .pe-discovery-tabs {
+    margin-bottom: 0.55rem;
+  }
+
+  .home-v2-variant .pe-discovery-subtitle-row {
+    margin: 0.75rem 0 0.45rem 0;
+  }
+
+  .home-v2-variant .pe-discovery-subtitle-row:first-of-type {
+    margin-top: 0.15rem;
+  }
+
+  .home-v2-variant .pe-discovery-group + .pe-discovery-group {
+    margin-top: 1.15rem !important;
   }
 }
 

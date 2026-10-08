@@ -1172,6 +1172,76 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlV1.includes('Tus encuentros'), 'V1 debe conservar el encabezado Tus encuentros');
     });
+
+    test('N. Microiteración UX V2: Copy humano "Mis ganas", botón de filtro compacto para mobile y accesibilidad', () => {
+      const loggedAuthValue = {
+        user: { id: 'usr-123', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      // 1. Home V2 en Español
+      const htmlV2Es = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      // En V2 el tab personal debe decir "Mis ganas" y no "Intenciones"
+      assert.ok(htmlV2Es.includes('Mis ganas'), 'En V2 el tab de intenciones debe decir "Mis ganas"');
+      // Debe contener el botón de filtro compacto para mobile con aria-label y title
+      assert.ok(htmlV2Es.includes('pe-filter-btn--icon-only'), 'En V2 debe renderizar el botón de filtro con sólo icono para mobile');
+      assert.ok(htmlV2Es.includes('Filtrar encuentros'), 'Debe incluir aria-label accesible para el botón de filtro');
+
+      // 2. Home V1 en Español
+      const htmlV1Es = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          )
+        )
+      );
+      assert.ok(htmlV1Es.includes('Intenciones'), 'En V1 el tab debe conservar "Intenciones"');
+      assert.ok(!htmlV1Es.includes('Mis ganas'), 'En V1 no debe mostrarse el copy "Mis ganas"');
+      assert.ok(!htmlV1Es.includes('pe-filter-btn--icon-only'), 'En V1 no debe existir pe-filter-btn--icon-only');
+
+      // 3. Toolbar aislado con isV2Variant
+      const htmlToolbarV2 = renderToString(
+        React.createElement(HomeEncountersToolbar, {
+          activeScope: 'todos',
+          onScopeChange: () => {},
+          isLoggedIn: true,
+          totalProximosCount: 2,
+          totalPasadosCount: 1,
+          activeFilterCount: 0,
+          onOpenFilters: () => {},
+          hideTitle: true,
+          isV2Variant: true,
+        })
+      );
+      assert.ok(htmlToolbarV2.includes('pe-toolbar-header-row--v2'), 'Debe incluir clase de fila V2');
+      assert.ok(htmlToolbarV2.includes('pe-filter-btn--icon-only'), 'Debe renderizar botón icono mobile');
+      assert.ok(htmlToolbarV2.includes('pe-filter-btn--desktop'), 'Debe marcar el botón textual con clase desktop');
+    });
   });
 });
 

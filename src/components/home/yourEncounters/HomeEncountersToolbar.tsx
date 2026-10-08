@@ -15,6 +15,7 @@ export interface HomeEncountersToolbarProps {
   activeFilterCount: number;
   onOpenFilters: () => void;
   hideTitle?: boolean;
+  isV2Variant?: boolean;
 }
 
 export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
@@ -29,12 +30,17 @@ export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
   activeFilterCount,
   onOpenFilters,
   hideTitle = false,
+  isV2Variant = false,
 }) => {
   const { t } = useTranslation();
 
+  const filterAriaLabel = activeFilterCount > 0
+    ? `${t('your_encounters.filter_aria_label', { defaultValue: 'Filtrar encuentros' })}, ${activeFilterCount} activos`
+    : t('your_encounters.filter_aria_label', { defaultValue: 'Filtrar encuentros' });
+
   return (
     <div className={`pe-toolbar-container${hideTitle ? ' pe-toolbar-container--no-title' : ''}`}>
-      <div className={`pe-toolbar-header-row${hideTitle ? ' pe-toolbar-header-row--no-title' : ''}`}>
+      <div className={`pe-toolbar-header-row${hideTitle ? ' pe-toolbar-header-row--no-title' : ''}${isV2Variant ? ' pe-toolbar-header-row--v2' : ''}`}>
         {!hideTitle && (
           <h2 className="pe-toolbar-title">
             {t('your_encounters.section_title', { defaultValue: 'Tus encuentros' })}
@@ -44,6 +50,20 @@ export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
           <span className="pe-toolbar-summary-count">
             {totalProximosCount} próximo{totalProximosCount !== 1 ? 's' : ''} • {totalPasadosCount} anterior{totalPasadosCount !== 1 ? 'es' : ''}
           </span>
+        )}
+        {isV2Variant && (
+          <button
+            type="button"
+            onClick={onOpenFilters}
+            className={`pe-filter-btn pe-filter-btn--icon-only ${activeFilterCount > 0 ? 'pe-filter-btn--active' : ''}`}
+            aria-label={filterAriaLabel}
+            title={filterAriaLabel}
+          >
+            <Sliders size={16} aria-hidden="true" />
+            {activeFilterCount > 0 && (
+              <span className="pe-filter-badge">{activeFilterCount}</span>
+            )}
+          </button>
         )}
       </div>
 
@@ -94,11 +114,11 @@ export const HomeEncountersToolbar: React.FC<HomeEncountersToolbarProps> = ({
           </button>
         </div>
 
-        {/* Botón Filtrar con badge discreto si hay filtros secundarios activos */}
+        {/* Botón Filtrar con badge discreto si hay filtros secundarios activos (en V2 se oculta en mobile ya que se renderiza el botón compacto en la fila superior) */}
         <button
           type="button"
           onClick={onOpenFilters}
-          className={`pe-filter-btn ${activeFilterCount > 0 ? 'pe-filter-btn--active' : ''}`}
+          className={`pe-filter-btn${isV2Variant ? ' pe-filter-btn--desktop' : ''} ${activeFilterCount > 0 ? 'pe-filter-btn--active' : ''}`}
           aria-label={
             activeFilterCount > 0
               ? `Filtros secundarios, ${activeFilterCount} activos`

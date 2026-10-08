@@ -1204,7 +1204,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             className={`home-user-tab ${userSectionTab === 'intenciones' ? 'home-user-tab--active' : ''}`}
             onClick={() => setUserSectionTab('intenciones')}
           >
-            Intenciones
+            {isV2Variant ? t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' }) : 'Intenciones'}
           </button>
         </div>
 
@@ -1222,6 +1222,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
               onOpenFilters={() => setIsSecondaryFilterOpen(true)}
               hideTitle={isV2Variant}
+              isV2Variant={isV2Variant}
             />
 
             <div className="pe-gsap-encounters-container">
