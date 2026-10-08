@@ -234,15 +234,16 @@
   box-sizing: border-box;
 }
 
-/* Botón de filtro sólo ícono en Mobile V2 (~40-44px tap target, relativo para badge) */
+/* Botón de filtro sólo ícono en Mobile V2 (mínimo 44x44px hit-area accesible, relativo para badge) */
 .pe-filter-btn--icon-only {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: 12px;
   margin-left: auto;
@@ -256,14 +257,14 @@
   border: 2px solid #ffffff;
 }
 
-/* En V2: el botón de filtro con texto se oculta en mobile (< 600px) y el de icono se oculta en desktop (>= 600px) */
-@media (max-width: 599px) {
+/* En V2: el botón de filtro con texto se oculta en mobile (<= 767px) y el de icono se oculta en desktop (>= 768px) */
+@media (max-width: 767px) {
   .pe-filter-btn--desktop {
     display: none !important;
   }
 }
 
-@media (min-width: 600px) {
+@media (min-width: 768px) {
   .pe-filter-btn--icon-only {
     display: none !important;
   }
