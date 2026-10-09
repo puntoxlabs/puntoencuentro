@@ -132,6 +132,9 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -142,32 +145,73 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload = (await req.json()) as ModerateContentRequest;
-    if (!payload || !payload.title) {
+    if (!payload || (!payload.title && !payload.encounter_id)) {
       return new Response(
         JSON.stringify({ ok: false, error: "invalid_payload" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 1. Reglas deterministas conservadoras primero
-    const detResult = evaluateDeterministic(payload.title, payload.description || "");
-    if (detResult) {
-      return new Response(
-        JSON.stringify({ ok: true, data: detResult }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let titleToEvaluate = payload.title || "";
+    let descToEvaluate = payload.description || "";
+
+    // Si no se proveyó título pero sí encounter_id, leerlo directamente de DB con service_role
+    if (!titleToEvaluate && payload.encounter_id && supabaseUrl && serviceRoleKey) {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+      const { data: enc } = await supabaseAdmin
+        .from("encuentros")
+        .select("titulo, open_description")
+        .eq("id", payload.encounter_id)
+        .single();
+      if (enc) {
+        titleToEvaluate = enc.titulo || "";
+        if (!descToEvaluate) descToEvaluate = enc.open_description || "";
+      }
     }
 
-    // 2. Si no hay disparadores de riesgo y no hay modelo externo configurado, veredicto limpio
-    const cleanResult: ModerateContentResult = {
+    // 1. Reglas deterministas conservadoras primero
+    const detResult = evaluateDeterministic(titleToEvaluate, descToEvaluate);
+
+    const finalResult: ModerateContentResult = detResult || {
       decision: "allow",
       categories: [],
       confidence: 0.95,
       reason_code: "clean_social_meetup",
     };
 
+    // 2. Choke point: si la decisión es ALLOW o BLOCK, aplicar resolución en BD con service_role
+    if (payload.encounter_id && supabaseUrl && serviceRoleKey) {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+      if (finalResult.decision === "allow") {
+        await supabaseAdmin.rpc("resolver_moderacion_encuentro_seguro", {
+          p_encuentro_id: payload.encounter_id,
+          p_action: "approve",
+          p_note: `Automated moderation allow: ${finalResult.reason_code}`,
+        });
+      } else if (finalResult.decision === "block") {
+        await supabaseAdmin.rpc("resolver_moderacion_encuentro_seguro", {
+          p_encuentro_id: payload.encounter_id,
+          p_action: "reject",
+          p_note: `Automated moderation block: ${finalResult.reason_code}`,
+        });
+      }
+      // Si finalResult.decision === "review", no se aprueba: permanece seguro en review_pending
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, data: cleanResult }),
+      JSON.stringify({
+        ok: true,
+        data: {
+          ...finalResult,
+          is_open: finalResult.decision === "allow",
+          moderation_status:
+            finalResult.decision === "allow"
+              ? "approved"
+              : finalResult.decision === "block"
+              ? "rejected"
+              : "review_pending",
+        },
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
@@ -181,7 +225,14 @@ Deno.serve(async (req: Request) => {
     };
 
     return new Response(
-      JSON.stringify({ ok: true, data: fallbackResult }),
+      JSON.stringify({
+        ok: true,
+        data: {
+          ...fallbackResult,
+          is_open: false,
+          moderation_status: "review_pending",
+        },
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

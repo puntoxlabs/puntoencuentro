@@ -22,8 +22,8 @@ BEGIN;
 -- ------------------------------------------------------------------------------
 
 ALTER TABLE public.encuentros
-    ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'unmoderated'
-        CHECK (moderation_status IN ('unmoderated', 'approved', 'review_pending', 'hidden_pending_review', 'rejected', 'removed')),
+    ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (moderation_status IN ('draft', 'approved', 'review_pending', 'hidden_pending_review', 'rejected', 'removed')),
     ADD COLUMN IF NOT EXISTS moderation_reason TEXT NULL,
     ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS moderation_decision_source TEXT NULL,
@@ -36,7 +36,7 @@ UPDATE public.encuentros
 SET moderation_status = 'approved',
     moderated_at = COALESCE(opened_at, creado_en),
     moderation_decision_source = 'legacy_backfill'
-WHERE is_open = true AND estado = 'activo' AND moderation_status = 'unmoderated';
+WHERE is_open = true AND estado = 'activo';
 
 -- Índice optimizado para Discovery con el nuevo choke point
 CREATE INDEX IF NOT EXISTS idx_encuentros_discovery_moderated
@@ -156,13 +156,7 @@ DECLARE
     v_letter_count INT := 0;
     v_caps_ratio NUMERIC := 0;
 BEGIN
-    -- 1. Validación de longitud básica
-    IF pg_catalog.length(v_clean_title) < 3 THEN
-        RETURN QUERY SELECT 'block'::TEXT, 'title_too_short'::TEXT, ARRAY['garbage']::TEXT[];
-        RETURN;
-    END IF;
-
-    -- 2. Detección de payloads maliciosos evidentes
+    -- 1. Detección de payloads maliciosos evidentes
     IF v_full_text ~* '<\s*script|javascript\s*:|data\s*:\s*text\/html|<\s*iframe|<\s*object|<[^>]+href' THEN
         RETURN QUERY SELECT 'block'::TEXT, 'malicious_payload'::TEXT, ARRAY['garbage']::TEXT[];
         RETURN;
@@ -295,6 +289,15 @@ BEGIN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'encuentro_inactive');
     END IF;
 
+    -- Validaciones de entrada de datos (no son eventos de abuso/moderación)
+    IF v_encuentro.titulo IS NULL OR pg_catalog.length(pg_catalog.btrim(v_encuentro.titulo)) < 3 THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'title_too_short');
+    END IF;
+
+    IF p_open_description IS NULL OR pg_catalog.length(pg_catalog.btrim(p_open_description)) < 3 THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'description_too_short');
+    END IF;
+
     -- Validar que la ubicación privada no esté vacía
     IF v_encuentro.modalidad = 'presencial' THEN
         IF v_encuentro.lugar_texto IS NULL OR pg_catalog.btrim(v_encuentro.lugar_texto) = '' THEN
@@ -374,129 +377,38 @@ BEGIN
         );
     END IF;
 
-    -- CASO 2: REVIEW (Ambigüedad o sospecha) -> Guardar datos pero NO publicar
-    IF v_eval.decision = 'review' THEN
-        UPDATE public.encuentros
-        SET moderation_status = 'review_pending',
-            moderation_reason = v_eval.reason,
-            moderated_at = v_now,
-            moderation_decision_source = 'deterministic',
-            moderation_categories = v_eval.categories,
-            is_open = false,
-            open_description = NULLIF(pg_catalog.btrim(p_open_description), ''),
-            max_participants = p_max_participants,
-            locality_id = v_final_locality_id,
-            open_public_zone = v_final_public_zone,
-            closed_at = CASE WHEN v_was_open THEN v_now ELSE closed_at END
-        WHERE id = p_encuentro_id;
-
-        INSERT INTO public.public_content_moderation_audit (
-            encuentro_id, moderator_id, action, previous_status, new_status,
-            reason, categories, source, metadata
-        ) VALUES (
-            p_encuentro_id, v_user_id, 'deterministic_review', v_encuentro.moderation_status, 'review_pending',
-            v_eval.reason, v_eval.categories, 'deterministic',
-            pg_catalog.jsonb_build_object('title', v_encuentro.titulo, 'open_description', p_open_description)
-        );
-
-        RETURN pg_catalog.json_build_object(
-            'ok', true,
-            'encuentro_id', p_encuentro_id,
-            'is_open', false,
-            'moderation_status', 'review_pending',
-            'message', 'Estamos revisando esta publicación antes de mostrarla públicamente.',
-            'max_participants', p_max_participants,
-            'locality_id', v_final_locality_id,
-            'open_public_zone', v_final_public_zone
-        );
-    END IF;
-
-    -- CASO 3: ALLOW (Contenido social verificado y limpio) -> Publicar
-    IF NOT v_was_open THEN
-        -- Transición cerrado -> abierto
-        UPDATE public.encuentros
-        SET is_open = true,
-            moderation_status = 'approved',
-            moderation_reason = 'clean',
-            moderated_at = v_now,
-            moderation_decision_source = 'deterministic',
-            moderation_categories = ARRAY[]::TEXT[],
-            open_description = NULLIF(pg_catalog.btrim(p_open_description), ''),
-            max_participants = p_max_participants,
-            locality_id = v_final_locality_id,
-            open_public_zone = v_final_public_zone,
-            opened_at = v_now,
-            closed_at = NULL
-        WHERE id = p_encuentro_id;
-
-        -- Emitir alertas outbox para intenciones convertidas previamente si existieran
-        FOR v_conv_intencion IN
-            SELECT id
-            FROM public.intenciones
-            WHERE encuentro_id = p_encuentro_id
-              AND estado = 'convertida'
-        LOOP
-            PERFORM public.emitir_alertas_intencion_convertida_outbox(v_conv_intencion.id, p_encuentro_id);
-        END LOOP;
-
-        -- Emisión del Domain Event: encounter.opened.v1 (Transactional Outbox)
-        INSERT INTO public.domain_events_outbox (
-            event_type,
-            event_version,
-            aggregate_type,
-            aggregate_id,
-            actor_user_id,
-            payload,
-            dedup_key,
-            status
-        ) VALUES (
-            'encounter.opened.v1',
-            1,
-            'encounter',
-            p_encuentro_id,
-            v_user_id,
-            pg_catalog.jsonb_build_object(
-                'encounter_id', p_encuentro_id,
-                'host_id', v_user_id,
-                'modalidad', v_encuentro.modalidad,
-                'locality_id', v_final_locality_id,
-                'max_participants', p_max_participants,
-                'opened_at', v_now
-            ),
-            pg_catalog.format('encounter:%s:opened:%s', p_encuentro_id, extract(epoch from v_now)::text),
-            'pending'
-        )
-        ON CONFLICT (dedup_key) DO NOTHING;
-    ELSE
-        -- Ya estaba abierto: actualizar sin alterar opened_at
-        UPDATE public.encuentros
-        SET is_open = true,
-            moderation_status = 'approved',
-            moderation_reason = 'clean',
-            moderated_at = v_now,
-            moderation_decision_source = 'deterministic',
-            moderation_categories = ARRAY[]::TEXT[],
-            open_description = NULLIF(pg_catalog.btrim(p_open_description), ''),
-            max_participants = p_max_participants,
-            locality_id = v_final_locality_id,
-            open_public_zone = v_final_public_zone
-        WHERE id = p_encuentro_id;
-    END IF;
+    -- CASO 2: NO BLOQUEADO -> Preparar para publicación pero dejar en REVIEW_PENDING e IS_OPEN = FALSE (CHOKE POINT)
+    -- Ningún cliente directo puede establecer is_open = true mediante este RPC.
+    -- La aprobación final a approved / is_open = true requiere obligatoriamente resolver_moderacion_encuentro_seguro.
+    UPDATE public.encuentros
+    SET moderation_status = 'review_pending',
+        moderation_reason = v_eval.reason,
+        moderated_at = v_now,
+        moderation_decision_source = 'deterministic',
+        moderation_categories = v_eval.categories,
+        is_open = false,
+        open_description = NULLIF(pg_catalog.btrim(p_open_description), ''),
+        max_participants = p_max_participants,
+        locality_id = v_final_locality_id,
+        open_public_zone = v_final_public_zone,
+        closed_at = CASE WHEN v_was_open THEN v_now ELSE closed_at END
+    WHERE id = p_encuentro_id;
 
     INSERT INTO public.public_content_moderation_audit (
         encuentro_id, moderator_id, action, previous_status, new_status,
         reason, categories, source, metadata
     ) VALUES (
-        p_encuentro_id, v_user_id, 'deterministic_approve', v_encuentro.moderation_status, 'approved',
-        'clean', ARRAY[]::TEXT[], 'deterministic',
+        p_encuentro_id, v_user_id, 'publish_requested', v_encuentro.moderation_status, 'review_pending',
+        v_eval.reason, v_eval.categories, 'user_request',
         pg_catalog.jsonb_build_object('title', v_encuentro.titulo, 'open_description', p_open_description)
     );
 
     RETURN pg_catalog.json_build_object(
         'ok', true,
         'encuentro_id', p_encuentro_id,
-        'is_open', true,
-        'moderation_status', 'approved',
+        'is_open', false,
+        'moderation_status', 'review_pending',
+        'message', 'Solicitud de apertura recibida. En proceso de moderación.',
         'max_participants', p_max_participants,
         'locality_id', v_final_locality_id,
         'open_public_zone', v_final_public_zone
@@ -713,6 +625,8 @@ DECLARE
     v_is_open BOOLEAN;
     v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
     v_clean_note TEXT;
+    v_conv_intencion RECORD;
+    v_source TEXT := CASE WHEN auth.role() = 'service_role' THEN 'automated_moderation' ELSE 'admin' END;
 BEGIN
     -- Verificación de rol administrativo o service_role
     IF auth.role() = 'service_role' THEN
@@ -756,13 +670,22 @@ BEGIN
     SET moderation_status = v_new_status,
         is_open = v_is_open,
         moderated_at = v_now,
-        moderation_decision_source = 'admin',
+        moderation_decision_source = v_source,
         closed_at = CASE WHEN NOT v_is_open AND v_encuentro.is_open THEN v_now ELSE closed_at END,
         opened_at = CASE WHEN v_is_open AND opened_at IS NULL THEN v_now ELSE opened_at END
     WHERE id = p_encuentro_id;
 
-    -- Si se aprueba y no estaba abierto, emitir evento de dominio
+    -- Si se aprueba y no estaba abierto, emitir alertas y evento de dominio
     IF v_is_open AND NOT v_encuentro.is_open THEN
+        FOR v_conv_intencion IN
+            SELECT id
+            FROM public.intenciones
+            WHERE encuentro_id = p_encuentro_id
+              AND estado = 'convertida'
+        LOOP
+            PERFORM public.emitir_alertas_intencion_convertida_outbox(v_conv_intencion.id, p_encuentro_id);
+        END LOOP;
+
         INSERT INTO public.domain_events_outbox (
             event_type, event_version, aggregate_type, aggregate_id,
             actor_user_id, payload, dedup_key, status
@@ -797,7 +720,7 @@ BEGIN
         reason, categories, source, metadata
     ) VALUES (
         p_encuentro_id, v_user_id, p_action, v_encuentro.moderation_status, v_new_status,
-        v_clean_note, ARRAY[]::TEXT[], 'admin',
+        v_clean_note, ARRAY[]::TEXT[], v_source,
         pg_catalog.jsonb_build_object('moderator_role', CASE WHEN auth.role() = 'service_role' THEN 'service_role' ELSE 'admin_qa' END)
     );
 

@@ -19,13 +19,14 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
   const adminUser = '44444444-4444-4444-4444-444444444444';
   const anonUser = '55555555-5555-5555-5555-555555555555';
 
-  const setAuthContext = async (userId: string | null, isAnon: boolean = false) => {
+  const setAuthContext = async (userId: string | null, isAnon: boolean = false, role: string = 'authenticated') => {
+    await db.query(`SELECT set_config('request.jwt.claim.role', '${role}', false);`);
     if (!userId) {
       await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
       await db.query(`SELECT set_config('request.jwt.claims', '{}', false);`);
     } else {
       await db.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
-      await db.query(`SELECT set_config('request.jwt.claims', '{"sub": "${userId}", "is_anonymous": ${isAnon}}', false);`);
+      await db.query(`SELECT set_config('request.jwt.claims', '{"sub": "${userId}", "is_anonymous": ${isAnon}, "role": "${role}"}', false);`);
     }
   };
 
@@ -269,10 +270,11 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     return res.rows[0].id;
   };
 
-  test('Caso A: Contenido normal legítimo -> ALLOW y publicación exitosa', async () => {
+  test('Caso A: Choke point server-side -> apertura entra en review_pending y sólo backend autorizado aprueba a Discovery', async () => {
     const encId = await createTestEncounter('Picnic y juegos de mesa en la plaza');
     await setAuthContext(hostUser);
 
+    // 1. Host solicita abrir -> Choke point: queda en review_pending e is_open = false
     const res = await db.query<{ abrir_encuentro_seguro: any }>(`
       SELECT public.abrir_encuentro_seguro(
         '${encId}', '${hostUser}', 'Traigan cartas, mate y galletitas para compartir', 5, 'guemes', NULL
@@ -280,18 +282,51 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     `);
     const r = res.rows[0].abrir_encuentro_seguro;
     assert.equal(r.ok, true);
-    assert.equal(r.is_open, true);
-    assert.equal(r.moderation_status, 'approved');
+    assert.equal(r.is_open, false, 'Choke point: cliente nunca puede auto-publicar directo');
+    assert.equal(r.moderation_status, 'review_pending');
 
-    // Verificar en Discovery
-    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+    // 2. Comprobar que en Discovery NO aparece mientras está en review_pending
+    let disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    assert.equal(disc.rows[0].get_discovery_encuentros_abiertos.some((e: any) => e.id === encId), false);
+
+    // 3. Backend interno autorizado (service_role) aprueba tras clasificar el contenido
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'automated allow');
+    `);
+    const modObj = modRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(modObj.ok, true);
+    assert.equal(modObj.is_open, true);
+    assert.equal(modObj.new_status, 'approved');
+
+    // 4. Ahora sí aparece en Discovery
+    disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
       SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
     `);
     const list = disc.rows[0].get_discovery_encuentros_abiertos;
     assert.equal(list.some((e: any) => e.id === encId), true);
   });
 
-  test('Caso B: Basura evidente (gibberish/repetición) -> BLOCK', async () => {
+  test('Validación de input: título corto no genera status rejected en moderación', async () => {
+    const encId = await createTestEncounter('DJ');
+    await setAuthContext(hostUser);
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Música en vivo', 4, 'guemes', NULL);
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'title_too_short');
+
+    // Comprobar que en BD NO quedó en rejected sino en draft inicial
+    const row = await db.query<{ moderation_status: string }>(`
+      SELECT moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].moderation_status, 'draft');
+  });
+
+  test('Caso B: Basura evidente (gibberish/repetición) -> BLOCK determinista persistido', async () => {
     const encId = await createTestEncounter('asdfasdfasdfasdfasdf');
     await setAuthContext(hostUser);
 
@@ -305,7 +340,7 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     assert.equal(r.error, 'content_moderation_blocked');
     assert.equal(r.moderation_status, 'rejected');
 
-    // Comprobar que en BD quedó en rejected y cerrado
+    // Comprobar que en BD quedó en rejected y cerrado sin rollback
     const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
       SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
     `);
@@ -358,7 +393,7 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     assert.equal(r.reason, 'violence_threat');
   });
 
-  test('Caso F: Texto romántico legítimo -> ALLOW (sin falso positivo)', async () => {
+  test('Caso F: Texto romántico legítimo -> entra en review_pending y aprueba sin falso positivo', async () => {
     const encId = await createTestEncounter('Cita romántica para ver el atardecer');
     await setAuthContext(hostUser);
 
@@ -369,11 +404,18 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     `);
     const r = res.rows[0].abrir_encuentro_seguro;
     assert.equal(r.ok, true);
-    assert.equal(r.is_open, true);
-    assert.equal(r.moderation_status, 'approved');
+    assert.equal(r.is_open, false);
+    assert.equal(r.moderation_status, 'review_pending');
+
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'social legitimo');
+    `);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
   });
 
-  test('Caso G: Pride y diversidad legítima -> ALLOW (sin falso positivo)', async () => {
+  test('Caso G: Pride y diversidad legítima -> entra en review_pending y aprueba sin falso positivo', async () => {
     const encId = await createTestEncounter('Comunidad LGBTQIA+ Pride y Amistad');
     await setAuthContext(hostUser);
 
@@ -384,8 +426,15 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     `);
     const r = res.rows[0].abrir_encuentro_seguro;
     assert.equal(r.ok, true);
-    assert.equal(r.is_open, true);
-    assert.equal(r.moderation_status, 'approved');
+    assert.equal(r.is_open, false);
+    assert.equal(r.moderation_status, 'review_pending');
+
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'pride legitimo');
+    `);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
   });
 
   test('Caso H & I: Patrón ambiguo (1 link) genera REVIEW_PENDING y NO publica a Me sumo', async () => {
@@ -435,6 +484,9 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         '${encId}', '${hostUser}', 'Plan normal abierto', 4, 'guemes', NULL
       );
     `);
+    // Aprobar vía pipeline autorizado
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto');`);
 
     // Reportero 1 reporta
     await setAuthContext(reporterUser1);
@@ -455,6 +507,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         '${encId}', '${hostUser}', 'Plan normal', 4, 'guemes', NULL
       );
     `);
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto');`);
 
     await setAuthContext(reporterUser1);
     // Primer reporte
@@ -485,6 +539,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         '${encId}', '${hostUser}', 'Descripción pública inicial', 4, 'guemes', NULL
       );
     `);
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto');`);
 
     // Reporter 1
     await setAuthContext(reporterUser1);
@@ -586,6 +642,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         '${encId}', '${hostUser}', 'Descripción pública segura', 4, 'guemes', NULL
       );
     `);
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto');`);
 
     // Consultar Discovery
     const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`

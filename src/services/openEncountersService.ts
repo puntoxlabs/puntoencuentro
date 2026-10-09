@@ -175,6 +175,8 @@ export const openEncountersService = {
     reason?: string;
     error?: string;
   }> {
+    // 1. Choke point server-side: valida permisos, datos privados y aplica reglas deterministas.
+    // El RPC SIEMPRE deja el encuentro no bloqueado en review_pending e is_open = false.
     const { data, error } = await supabase.rpc('abrir_encuentro_seguro', {
       p_encuentro_id: encuentroId,
       p_host_id: hostId,
@@ -189,7 +191,47 @@ export const openEncountersService = {
       throw error;
     }
 
-    return data as any;
+    const rpcResult = data as any;
+    if (!rpcResult?.ok) {
+      return rpcResult;
+    }
+
+    // 2. Choke point: Invocar pipeline de moderación semántica en Edge Function
+    try {
+      const funcRes = await supabase.functions.invoke('moderate-public-content', {
+        body: {
+          encounter_id: encuentroId,
+          description: payload.open_description,
+        },
+      });
+
+      if (funcRes.data?.ok && funcRes.data?.data?.decision === 'allow' && funcRes.data?.data?.is_open) {
+        return {
+          ok: true,
+          is_open: true,
+          moderation_status: 'approved',
+          message: 'Encuentro moderado y publicado exitosamente.',
+        };
+      } else if (funcRes.data?.ok && funcRes.data?.data?.decision === 'block') {
+        return {
+          ok: false,
+          is_open: false,
+          moderation_status: 'rejected',
+          error: 'content_moderation_blocked',
+          reason: funcRes.data?.data?.reason_code,
+        };
+      }
+    } catch (fnErr) {
+      console.warn('[openEncountersService] Edge function moderation diferida o fallida; permanece en review_pending:', fnErr);
+    }
+
+    // Si permanece en review_pending (por decisión de revisión o fail-safe por timeout/error de función)
+    return {
+      ok: true,
+      is_open: false,
+      moderation_status: 'review_pending',
+      message: rpcResult.message || 'Estamos revisando esta publicación antes de mostrarla públicamente.',
+    };
   },
 
   /**
