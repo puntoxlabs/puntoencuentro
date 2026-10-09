@@ -1706,43 +1706,37 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!htmlProdV2Query.includes('home-v2-variant'), 'En Producción con query ?homeVariant=v2 debe permanecer en V1 blindado');
     });
 
-    test('S. Layout resiliente Mobile V2: Header en flujo normal, precedencia de capas y cero solapamiento con Hero', () => {
+    test('S. Layout resiliente Mobile V2: Header sticky, precedencia de capas sobre Hero y fondo sólido', () => {
       const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
       const homeCssContent = readFileSync(homeCssPath, 'utf8');
 
-      // 1. En Home V2, el header debe usar flujo normal (position: relative, top: auto) y precedencia de capas
+      // 1. En Home V2 Mobile, el header debe ser sticky (position: sticky, top: 0) con fondo sólido y z-index 30
       assert.ok(
         homeCssContent.includes('.home-v2-variant .home-header'),
         'Home.css debe definir regla para .home-v2-variant .home-header'
       );
       assert.ok(
-        homeCssContent.includes('position: relative;'),
-        'El header en V2 debe fluir con position: relative'
+        homeCssContent.includes('position: sticky;'),
+        'El header en V2 debe ser sticky'
       );
       assert.ok(
-        homeCssContent.includes('top: auto;'),
-        'El header en V2 debe anular sticky top: 0 con top: auto'
+        homeCssContent.includes('top: 0;'),
+        'El header en V2 debe fijarse a top: 0'
       );
       assert.ok(
-        homeCssContent.includes('z-index: 20;'),
-        'El header en V2 debe tener precedencia de capas (z-index: 20) sobre el Hero'
+        homeCssContent.includes('z-index: 30;'),
+        'El header en V2 debe tener precedencia de capas (z-index: 30) claramente superior al Hero (z-index: 10)'
+      );
+      assert.ok(
+        homeCssContent.includes('background: var(--color-background, #F5F7FA);'),
+        'El header en V2 debe tener fondo sólido para evitar que el contenido que scrollea por debajo se transparente'
       );
       assert.ok(
         homeCssContent.includes('flex-shrink: 0;'),
         'El header en V2 debe protegerse contra compresión de viewport con flex-shrink: 0'
       );
 
-      // 2. En Mobile V2 (<768px), el hero wrapper debe adaptarse con min-height: auto
-      assert.ok(
-        homeCssContent.includes('.home-v2-variant .home-hero-wrapper'),
-        'Home.css debe definir regla para .home-v2-variant .home-hero-wrapper en mobile'
-      );
-      assert.ok(
-        homeCssContent.includes('padding-top: clamp(3.75rem, 9vw, 4.75rem);'),
-        'El hero wrapper en mobile V2 debe tener padding-top adaptativo'
-      );
-
-      // 3. Render SSR: confirma orden estricto de elementos en el DOM (Header precede al Hero)
+      // 2. Render SSR: confirma orden estricto de elementos en el DOM (Header precede al Hero)
       const htmlMobileV2 = renderToString(
         React.createElement(
           MemoryRouter,

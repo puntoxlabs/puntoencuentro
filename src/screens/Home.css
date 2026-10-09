@@ -928,24 +928,15 @@
    V1 y desktop permanecen visualmente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
-  /* 0. Header y Hero en Mobile V2: flujo normal del documento, altura real y cero solapamiento */
+  /* 0. Header sticky en Mobile V2: visible al scrollear, sin solapamiento con Hero y precedencia absoluta */
   .home-v2-variant .home-header {
-    position: relative;
-    top: auto;
-    z-index: 20;
+    position: sticky;
+    top: 0;
+    z-index: 30;
     width: 100%;
     box-sizing: border-box;
     flex-shrink: 0;
-  }
-
-  .home-v2-variant .home-hero-wrapper {
-    min-height: auto;
-  }
-
-  .home-v2-variant .home-hero-wrapper--gsap {
-    padding-top: clamp(3.75rem, 9vw, 4.75rem);
-    padding-bottom: 2rem;
-    min-height: auto;
+    background: var(--color-background, #F5F7FA);
   }
 
   /* 1. Respiración equilibrada entre Hero y Encuentros Abiertos */
@@ -1050,14 +1041,15 @@
   overflow-x: clip;
 }
 
-/* Header en Home V2: flujo normal del documento, altura real de bloque y precedencia de capas */
+/* Header en Home V2: sticky en mobile, z-index 30 con precedencia absoluta sobre Hero y fondo sólido */
 .home-v2-variant .home-header {
-  position: relative;
-  top: auto;
-  z-index: 20;
+  position: sticky;
+  top: 0;
+  z-index: 30;
   width: 100%;
   box-sizing: border-box;
   flex-shrink: 0;
+  background: var(--color-background, #F5F7FA);
 }
 
 @media (min-width: 768px) {
