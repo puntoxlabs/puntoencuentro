@@ -211,12 +211,11 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         PRIMARY KEY (action, identifier, window_epoch)
       );
 
-      CREATE OR REPLACE FUNCTION public.check_rate_limit_and_increment(
+      CREATE OR REPLACE FUNCTION public.check_rate_limit_internal(
         p_action TEXT,
-        p_identifier TEXT,
-        p_scope_key TEXT DEFAULT NULL
+        p_scope_key TEXT DEFAULT ''
       )
-      RETURNS JSON
+      RETURNS JSONB
       LANGUAGE plpgsql
       SECURITY DEFINER
       SET search_path = ''
@@ -225,36 +224,60 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         v_policy RECORD;
         v_epoch BIGINT;
         v_count INT;
+        v_user_id UUID := auth.uid();
       BEGIN
+        IF v_user_id IS NULL THEN
+          RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'authentication_required');
+        END IF;
+
         SELECT * INTO v_policy FROM public.rate_limit_policies WHERE action = p_action;
         IF NOT FOUND OR NOT v_policy.enabled THEN
-          RETURN pg_catalog.json_build_object('allowed', true, 'count', 1);
+          RETURN pg_catalog.jsonb_build_object('allowed', true, 'count', 1);
         END IF;
 
         v_epoch := (extract(epoch from pg_catalog.now())::bigint / v_policy.window_seconds);
 
         INSERT INTO public.rate_limit_buckets (action, identifier, window_epoch, count)
-        VALUES (p_action, p_identifier, v_epoch, 1)
+        VALUES (p_action, v_user_id::text, v_epoch, 1)
         ON CONFLICT (action, identifier, window_epoch)
         DO UPDATE SET count = public.rate_limit_buckets.count + 1
         RETURNING count INTO v_count;
 
         IF v_count > v_policy.max_requests THEN
-          RETURN pg_catalog.json_build_object('allowed', false, 'count', v_count);
+          RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'rate_limit_exceeded');
         END IF;
 
-        RETURN pg_catalog.json_build_object('allowed', true, 'count', v_count);
+        RETURN pg_catalog.jsonb_build_object('allowed', true, 'count', v_count);
       END;
+      $$;
+
+      CREATE OR REPLACE FUNCTION public.check_rate_limit_and_increment(
+        p_action TEXT,
+        p_identifier TEXT,
+        p_scope_key TEXT DEFAULT NULL
+      )
+      RETURNS JSON
+      LANGUAGE sql AS $$
+        SELECT public.check_rate_limit_internal(p_action, COALESCE(p_scope_key, ''))::json;
       $$;
     `);
 
-    // 2. Cargar la migración de Moderación Pública v1
+    // 2. Cargar las migraciones de Moderación Pública v1
     const migrationPath = path.resolve(
       __dirname,
       '../supabase/migrations/20261009160000_public_content_moderation_v1.sql'
     );
     const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
     await db.exec(migrationSql);
+
+    const fixMigrationPath = path.resolve(
+      __dirname,
+      '../supabase/migrations/20261009195000_fix_reportar_encuentro_rate_limit_call.sql'
+    );
+    if (fs.existsSync(fixMigrationPath)) {
+      const fixSql = fs.readFileSync(fixMigrationPath, 'utf-8');
+      await db.exec(fixSql);
+    }
   });
 
   const createTestEncounter = async (title: string, desc?: string): Promise<string> => {
