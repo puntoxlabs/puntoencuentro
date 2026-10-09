@@ -6,13 +6,16 @@ import type { OpenEncounterSummary } from './types';
 import { getSlotLabel } from './types';
 import { openEncountersService } from '@/services/openEncountersService';
 import { getHostAlias } from '@/lib/hostAliasStorage';
+import { getEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
+import type { PublicContentReportReason } from '@/types/trust';
 import './HomeOpenEncounterDetailSheet.css';
 
 // Clave de sessionStorage para persistir contexto de solicitud entre redirect OAuth
 const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
+const PENDING_OPEN_REPORT_KEY = 'pending_open_report';
 
 export interface HomeOpenEncounterDetailSheetProps {
   isOpen: boolean;
@@ -35,6 +38,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   }
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const reportBtnRef = useRef<HTMLButtonElement>(null);
 
   // Estados de solicitud
   const [requestState, setRequestState] = useState<{
@@ -51,8 +55,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isReported, setIsReported] = useState(false);
+  const [pendingReportData, setPendingReportData] = useState<{
+    reason?: PublicContentReportReason | null;
+    comment?: string;
+  } | null>(null);
 
   const isDemo = encounter?.id?.startsWith('demo-') ?? false;
+  const isHost = Boolean(
+    encounter?.id && (getEncuentroHost(encounter.id) || (user?.id && (encounter as any)?.hostId === user.id))
+  );
 
   // userId solo para consultar estado de solicitud propio — SOLO si es permanente
   const userId = isPermanentUser ? user?.id ?? null : null;
@@ -109,6 +120,23 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         }
       } catch {
         sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+      }
+
+      try {
+        const rawReport = sessionStorage.getItem(PENDING_OPEN_REPORT_KEY);
+        if (rawReport) {
+          const pendingReport = JSON.parse(rawReport) as { encounterId: string; reason?: PublicContentReportReason; comment?: string };
+          if (pendingReport.encounterId === encounter.id) {
+            setPendingReportData({
+              reason: pendingReport.reason || null,
+              comment: pendingReport.comment || '',
+            });
+            setIsReportModalOpen(true);
+            sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
+          }
+        }
+      } catch {
+        sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
       }
     }
   }, [isOpen, encounter?.id, isDemo, userId, isPermanentUser]);
@@ -359,30 +387,26 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
         </p>
 
-        {!isDemo && (
-          <div className="pe-detail-sheet__report-row" style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+        {!isDemo && !isHost && (
+          <div className="pe-detail-sheet__report-row">
             <button
+              ref={reportBtnRef}
               type="button"
-              className="pe-detail-sheet__btn-report"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.8rem',
-                color: isReported ? '#16a34a' : '#94a3b8',
-                background: 'transparent',
-                border: 'none',
-                cursor: isReported ? 'default' : 'pointer',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                transition: 'color 0.15s ease',
-              }}
+              className={`pe-detail-sheet__btn-report ${isReported ? 'pe-detail-sheet__btn-report--reported' : ''}`}
               onClick={() => !isReported && setIsReportModalOpen(true)}
               disabled={isReported}
-              title={isReported ? 'Publicación reportada' : 'Reportar esta publicación'}
+              title={
+                isReported
+                  ? t('open_encounters.reported_status', { defaultValue: 'Reportada' })
+                  : t('open_encounters.report_action', { defaultValue: 'Reportar publicación' })
+              }
             >
               <Flag size={13} aria-hidden="true" />
-              <span>{isReported ? 'Reportada' : 'Reportar publicación'}</span>
+              <span>
+                {isReported
+                  ? t('open_encounters.reported_status', { defaultValue: 'Reportada' })
+                  : t('open_encounters.report_action', { defaultValue: 'Reportar publicación' })}
+              </span>
             </button>
           </div>
         )}
@@ -536,11 +560,19 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       {encounter && !isDemo && (
         <ReportPublicEncounterModal
           isOpen={isReportModalOpen}
-          onClose={() => setIsReportModalOpen(false)}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setTimeout(() => {
+              reportBtnRef.current?.focus();
+            }, 50);
+          }}
           encuentroId={encounter.id}
           encounterTitle={encounter.title}
+          initialReason={pendingReportData?.reason}
+          initialComment={pendingReportData?.comment}
           onReportSuccess={() => {
             setIsReported(true);
+            setPendingReportData(null);
           }}
         />
       )}

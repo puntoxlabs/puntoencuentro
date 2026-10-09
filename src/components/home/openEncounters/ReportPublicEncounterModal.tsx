@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { openEncountersService } from '@/services/openEncountersService';
 import type { PublicContentReportReason } from '@/types/trust';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,63 +12,86 @@ export interface ReportPublicEncounterModalProps {
   onClose: () => void;
   encuentroId: string;
   encounterTitle?: string;
+  initialReason?: PublicContentReportReason | null;
+  initialComment?: string;
   onReportSuccess?: () => void;
 }
-
-const MOTIVOS_REPORTE: Array<{ value: PublicContentReportReason; label: string; description: string }> = [
-  {
-    value: 'spam',
-    label: 'Spam o publicidad no deseada',
-    description: 'Promociones no solicitadas, cadenas repetidas o venta comercial.',
-  },
-  {
-    value: 'inappropriate_content',
-    label: 'Contenido inapropiado',
-    description: 'Contenido sexual explícito, lenguaje agresivo o inapropiado para cartelera pública.',
-  },
-  {
-    value: 'fraud_scam',
-    label: 'Engaño o estafa',
-    description: 'Ofertas fraudulentas, pedidos de dinero o información sospechosa.',
-  },
-  {
-    value: 'harassment',
-    label: 'Acoso o amenazas',
-    description: 'Hostigamiento, insultos o intimidaciones a personas o grupos.',
-  },
-  {
-    value: 'other',
-    label: 'Otro motivo',
-    description: 'Cualquier otra infracción que deba ser revisada por el equipo.',
-  },
-];
 
 export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProps> = ({
   isOpen,
   onClose,
   encuentroId,
   encounterTitle = '',
+  initialReason = null,
+  initialComment = '',
   onReportSuccess,
 }) => {
+  const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
-  const [reason, setReason] = useState<PublicContentReportReason | null>(null);
-  const [comment, setComment] = useState('');
+  const [reason, setReason] = useState<PublicContentReportReason | null>(initialReason);
+  const [comment, setComment] = useState(initialComment);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  const motivosReporte: Array<{ value: PublicContentReportReason; label: string; description: string }> = [
+    {
+      value: 'spam',
+      label: t('open_encounters.report_reason_spam', { defaultValue: 'Spam' }),
+      description: t('open_encounters.report_reason_spam_desc', {
+        defaultValue: 'Promociones no solicitadas, cadenas repetidas o venta comercial.',
+      }),
+    },
+    {
+      value: 'inappropriate_content',
+      label: t('open_encounters.report_reason_inappropriate', { defaultValue: 'Contenido inapropiado' }),
+      description: t('open_encounters.report_reason_inappropriate_desc', {
+        defaultValue: 'Contenido explícito o no apto para una cartelera pública.',
+      }),
+    },
+    {
+      value: 'fraud_scam',
+      label: t('open_encounters.report_reason_fraud', { defaultValue: 'Engaño o estafa' }),
+      description: t('open_encounters.report_reason_fraud_desc', {
+        defaultValue: 'Ofertas fraudulentas, pedidos de dinero o información sospechosa.',
+      }),
+    },
+    {
+      value: 'harassment',
+      label: t('open_encounters.report_reason_harassment', { defaultValue: 'Acoso' }),
+      description: t('open_encounters.report_reason_harassment_desc', {
+        defaultValue: 'Hostigamiento, insultos o intimidaciones.',
+      }),
+    },
+    {
+      value: 'other',
+      label: t('open_encounters.report_reason_other', { defaultValue: 'Otro' }),
+      description: t('open_encounters.report_reason_other_desc', {
+        defaultValue: 'Cualquier otra situación que deba ser revisada por el equipo.',
+      }),
+    },
+  ];
+
   useEffect(() => {
     if (isOpen) {
-      setReason(null);
-      setComment('');
+      setReason(initialReason || null);
+      setComment(initialComment || '');
       setSubmitting(false);
       setErrorMessage(null);
       setIsSuccess(false);
       setIsLoginRequired(false);
+
+      // Foco accesible al montar
+      setTimeout(() => {
+        closeBtnRef.current?.focus();
+      }, 50);
     }
-  }, [isOpen, encuentroId]);
+  }, [isOpen, encuentroId, initialReason, initialComment]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -91,6 +115,18 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
     if (!reason || submitting) return;
 
     if (!isPermanentUser) {
+      try {
+        sessionStorage.setItem(
+          'pending_open_report',
+          JSON.stringify({
+            encounterId: encuentroId,
+            reason,
+            comment,
+          })
+        );
+      } catch {
+        /* storage disabled fallback */
+      }
       setIsLoginRequired(true);
       return;
     }
@@ -112,19 +148,39 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
         }
       } else {
         if (res.error === 'already_reported') {
-          setErrorMessage('Ya enviaste un reporte sobre esta publicación.');
+          setErrorMessage(
+            t('open_encounters.report_already_reported', {
+              defaultValue: 'Ya reportaste este encuentro.',
+            })
+          );
         } else if (res.error === 'rate_limit_exceeded') {
-          setErrorMessage('Hiciste varios reportes en poco tiempo. Esperá un momento e intentá nuevamente.');
+          setErrorMessage(
+            t('open_encounters.report_rate_limited', {
+              defaultValue: 'Hiciste varios reportes en poco tiempo. Esperá un momento e intentá nuevamente.',
+            })
+          );
         } else if (res.error === 'cannot_report_own_encounter') {
-          setErrorMessage('No podés reportar tu propia publicación.');
+          setErrorMessage(
+            t('open_encounters.report_cannot_report_own', {
+              defaultValue: 'No podés reportar tu propia publicación.',
+            })
+          );
         } else if (res.error === 'permanent_account_required') {
           setIsLoginRequired(true);
         } else {
-          setErrorMessage(res.error || 'No se pudo enviar el reporte.');
+          setErrorMessage(
+            t('open_encounters.report_error_generic', {
+              defaultValue: 'No se pudo enviar el reporte en este momento. Intentá nuevamente.',
+            })
+          );
         }
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Error de conexión al enviar reporte.');
+      setErrorMessage(
+        t('open_encounters.report_error_generic', {
+          defaultValue: 'No se pudo enviar el reporte en este momento. Intentá nuevamente.',
+        })
+      );
     } finally {
       setSubmitting(false);
     }
@@ -143,46 +199,53 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
     <>
       <div className="pe-report-public-backdrop" onClick={() => !submitting && onClose()}>
         <div
+          ref={cardRef}
           className="pe-report-public-card"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="pe-report-public-title"
+          tabIndex={-1}
         >
           <button
+            ref={closeBtnRef}
             type="button"
             className="pe-report-public-close"
             onClick={onClose}
             disabled={submitting}
-            aria-label="Cerrar"
+            aria-label={t('open_encounters.coverage_close', { defaultValue: 'Cerrar' })}
           >
             <X size={18} />
           </button>
 
           {isSuccess ? (
             <div className="pe-report-public-success">
-              <CheckCircle2 size={44} className="pe-report-public-success__icon" />
-              <h3 className="pe-report-public-success__title">Reporte recibido</h3>
+              <CheckCircle2 size={44} className="pe-report-public-success__icon" aria-hidden="true" />
+              <h3 className="pe-report-public-success__title">
+                {t('open_encounters.report_success_title', { defaultValue: 'Gracias. Recibimos tu reporte.' })}
+              </h3>
               <p className="pe-report-public-success__desc">
-                Gracias por avisarnos. Nuestro equipo revisará la publicación para cuidar la cartelera pública.
+                {t('open_encounters.report_success_desc', {
+                  defaultValue: 'Vamos a revisar este encuentro para cuidar la cartelera pública.',
+                })}
               </p>
               <button
                 type="button"
-                className="pe-report-public-btn pe-report-public-btn--primary"
+                className="pe-report-public-btn pe-report-public-btn--neutral"
                 onClick={onClose}
               >
-                Cerrar
+                {t('open_encounters.coverage_close', { defaultValue: 'Cerrar' })}
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="pe-report-public-form">
               <div className="pe-report-public-header">
-                <div className="pe-report-public-header__icon-box">
+                <div className="pe-report-public-header__icon-box" aria-hidden="true">
                   <ShieldAlert size={20} />
                 </div>
                 <div>
                   <h3 id="pe-report-public-title" className="pe-report-public-title">
-                    Reportar publicación
+                    {t('open_encounters.report_modal_title', { defaultValue: 'Reportar encuentro' })}
                   </h3>
                   {encounterTitle && (
                     <p className="pe-report-public-subtitle">
@@ -192,50 +255,61 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
                 </div>
               </div>
 
+              <p className="pe-report-public-intro">
+                {t('open_encounters.report_modal_intro', { defaultValue: 'Contanos qué problema encontraste.' })}
+              </p>
+
               {errorMessage && (
                 <div className="pe-report-public-alert pe-report-public-alert--error" role="alert">
-                  <AlertCircle size={16} />
+                  <AlertCircle size={16} aria-hidden="true" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              <div className="pe-report-public-reasons">
-                <label className="pe-report-public-field-label">¿Por qué motivo reportás esta publicación?</label>
-                {MOTIVOS_REPORTE.map((item) => (
-                  <label
-                    key={item.value}
-                    className={`pe-report-public-reason-item ${reason === item.value ? 'pe-report-public-reason-item--selected' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="report_reason"
-                      value={item.value}
-                      checked={reason === item.value}
-                      onChange={() => {
-                        setReason(item.value);
-                        setErrorMessage(null);
-                      }}
-                      disabled={submitting}
-                      className="pe-report-public-radio"
-                    />
-                    <div className="pe-report-public-reason-text">
-                      <span className="pe-report-public-reason-title">{item.label}</span>
-                      <span className="pe-report-public-reason-desc">{item.description}</span>
-                    </div>
-                  </label>
-                ))}
+              <div className="pe-report-public-reasons" role="radiogroup" aria-labelledby="pe-report-public-title">
+                {motivosReporte.map((item) => {
+                  const inputId = `report-reason-${item.value}`;
+                  const isSelected = reason === item.value;
+                  return (
+                    <label
+                      key={item.value}
+                      htmlFor={inputId}
+                      className={`pe-report-public-reason-item ${isSelected ? 'pe-report-public-reason-item--selected' : ''}`}
+                    >
+                      <input
+                        id={inputId}
+                        type="radio"
+                        name="report_reason"
+                        value={item.value}
+                        checked={isSelected}
+                        onChange={() => {
+                          setReason(item.value);
+                          setErrorMessage(null);
+                        }}
+                        disabled={submitting}
+                        className="pe-report-public-radio"
+                      />
+                      <div className="pe-report-public-reason-text">
+                        <span className="pe-report-public-reason-title">{item.label}</span>
+                        <span className="pe-report-public-reason-desc">{item.description}</span>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
 
               <div className="pe-report-public-field">
                 <label className="pe-report-public-field-label" htmlFor="report-comment-input">
-                  Detalle adicional (opcional)
+                  {t('open_encounters.report_comment_label', { defaultValue: 'Comentario (opcional)' })}
                 </label>
                 <textarea
                   id="report-comment-input"
                   className="pe-report-public-textarea"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Aportá cualquier información que ayude a revisar el contenido…"
+                  placeholder={t('open_encounters.report_comment_placeholder', {
+                    defaultValue: 'Aportá cualquier detalle que ayude a revisar el contenido…',
+                  })}
                   maxLength={500}
                   rows={3}
                   disabled={submitting}
@@ -250,14 +324,16 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
                   onClick={onClose}
                   disabled={submitting}
                 >
-                  Cancelar
+                  {t('open_encounters.report_cancel', { defaultValue: 'Cancelar' })}
                 </button>
                 <button
                   type="submit"
-                  className="pe-report-public-btn pe-report-public-btn--danger"
+                  className="pe-report-public-btn pe-report-public-btn--primary"
                   disabled={!reason || submitting}
                 >
-                  {submitting ? 'Enviando…' : 'Enviar reporte'}
+                  {submitting
+                    ? t('open_encounters.report_sending', { defaultValue: 'Enviando…' })
+                    : t('open_encounters.report_submit', { defaultValue: 'Enviar reporte' })}
                 </button>
               </div>
             </form>
@@ -270,7 +346,7 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
         onClose={() => setIsLoginRequired(false)}
         onContinueWithGoogle={handleLoginWithGoogle}
         loading={loginLoading}
-        action="request_join"
+        action="report_encounter"
       />
     </>
   );

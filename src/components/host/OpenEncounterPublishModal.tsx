@@ -15,9 +15,11 @@ export interface OpenEncounterPublishModalProps {
   lugarTexto?: string;
   linkVirtual?: string;
   defaultDescription?: string;
+  defaultSlots?: number;
+  defaultLocalityId?: string;
   confirmedCount: number;
   onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
-  onPublished: () => void;
+  onPublished: (result?: { ok: boolean; moderation_status?: string; message?: string }) => void;
 }
 
 export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps> = ({
@@ -29,6 +31,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   lugarTexto = '',
   linkVirtual = '',
   defaultDescription = '',
+  defaultSlots,
+  defaultLocalityId,
   confirmedCount,
   onUpdateLocation,
   onPublished,
@@ -36,8 +40,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   const { t } = useTranslation();
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [description, setDescription] = useState(defaultDescription);
-  const [slotsInput, setSlotsInput] = useState<string>('2');
-  const [localityId, setLocalityId] = useState<string>('guemes');
+  const [slotsInput, setSlotsInput] = useState<string>(defaultSlots ? String(defaultSlots) : '2');
+  const [localityId, setLocalityId] = useState<string>(defaultLocalityId || 'guemes');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -76,6 +80,15 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
     setCurrentLink(linkVirtual);
     setTempLocation(isVirtual ? linkVirtual : lugarTexto);
   }, [lugarTexto, linkVirtual, isVirtual]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDescription(defaultDescription || '');
+      setSlotsInput(defaultSlots ? String(defaultSlots) : '2');
+      if (defaultLocalityId) setLocalityId(defaultLocalityId);
+      setErrorMsg(null);
+    }
+  }, [isOpen, defaultDescription, defaultSlots, defaultLocalityId]);
 
   useEffect(() => {
     if (!isOpen || isVirtual) return;
@@ -178,11 +191,16 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       });
 
       if (res.ok) {
-        onPublished();
+        onPublished(res);
         onClose();
       } else {
         if (res.error === 'content_moderation_blocked') {
-          setErrorMsg('Esta publicación no puede mostrarse públicamente con el contenido actual.');
+          setErrorMsg(
+            t('open_encounters.rejected_notice', {
+              defaultValue:
+                'Esta publicación no puede mostrarse públicamente con el contenido actual. Podés editarla e intentarlo nuevamente.',
+            })
+          );
         } else if (res.error === 'private_location_required') {
           setErrorMsg('El lugar y dirección privada es requerido para abrir el encuentro.');
           setIsEditingLocation(true);

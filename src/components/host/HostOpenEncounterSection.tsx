@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Flag,
   AlertCircle,
+  Edit2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
@@ -61,8 +62,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     contexto: ContextoReporte;
   } | null>(null);
   const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
+  const [postEditNotice, setPostEditNotice] = useState<string | null>(null);
 
   const isOpen = Boolean(encuentro?.is_open);
+  const hasActiveModeration = Boolean(
+    encuentro?.moderation_status && encuentro?.moderation_status !== 'draft'
+  );
   const isPast = isEncuentroPasado(
     encuentro?.fecha,
     encuentro?.hora,
@@ -72,6 +77,18 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   // Cupo total ocupado: 1 host + confirmados
   const totalOccupied = confirmedCount + 1;
   const availableSlots = Math.max(0, maxParticipants - totalOccupied);
+
+  const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string }) => {
+    if (res?.moderation_status === 'review_pending') {
+      setPostEditNotice(
+        t('open_encounters.post_edit_review_notice', {
+          defaultValue: 'Guardamos los cambios. La publicación se está revisando nuevamente.',
+        })
+      );
+      setTimeout(() => setPostEditNotice(null), 8000);
+    }
+    onRefresh();
+  };
 
   const loadSolicitudes = useCallback(async () => {
     if (!encuentro?.id || !hostId) return;
@@ -198,7 +215,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     }
   };
 
-  if (!isOpen && solicitudes.length === 0) {
+  if (!isOpen && solicitudes.length === 0 && !hasActiveModeration) {
     if (isPast) return null;
 
     return (
@@ -230,12 +247,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           modalidad={encuentro.modalidad || 'presencial'}
           lugarTexto={encuentro.lugar_texto || ''}
           linkVirtual={encuentro.link_virtual || ''}
-          defaultDescription={encuentro.descripcion || ''}
+          defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
+          defaultSlots={availableSlots > 0 ? availableSlots : 2}
+          defaultLocalityId={encuentro.locality_id || 'guemes'}
           confirmedCount={confirmedCount}
           onUpdateLocation={onUpdateLocation}
-          onPublished={() => {
-            onRefresh();
-          }}
+          onPublished={handlePublished}
         />
 
         <LoginRequiredSheet
@@ -257,6 +274,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
             className={`pe-host-open-card__badge ${
               isOpen
                 ? 'pe-host-open-card__badge--active'
+                : encuentro?.moderation_status === 'review_pending'
+                ? 'pe-host-open-card__badge--review'
+                : encuentro?.moderation_status === 'hidden_pending_review'
+                ? 'pe-host-open-card__badge--hidden'
+                : encuentro?.moderation_status === 'rejected'
+                ? 'pe-host-open-card__badge--rejected'
                 : 'pe-host-open-card__badge--inactive'
             }`}
           >
@@ -266,10 +289,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
               : isPast
               ? 'Finalizado'
               : encuentro?.moderation_status === 'review_pending'
-              ? 'En revisión previa'
+              ? t('open_encounters.status_review_badge', { defaultValue: 'En revisión' })
               : encuentro?.moderation_status === 'hidden_pending_review'
-              ? 'En revisión por reportes'
-              : 'No visible en Encuentros Abiertos'}
+              ? t('open_encounters.status_hidden_badge', { defaultValue: 'En revisión' })
+              : encuentro?.moderation_status === 'rejected'
+              ? t('open_encounters.status_rejected_badge', { defaultValue: 'No publicada' })
+              : t('open_encounters.open_status_closed', { defaultValue: 'No visible en Encuentros Abiertos' })}
           </span>
           <span className="pe-host-open-card__zone">
             <MapPin size={12} />
@@ -277,43 +302,117 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           </span>
         </div>
 
-        {isOpen && (
-          <button
-            type="button"
-            className="pe-host-open-card__close-btn"
-            onClick={handleCloseDiscovery}
-            disabled={closing}
-            title="Dejar de mostrar sin afectar participantes"
-          >
-            <DoorClosed size={14} />
-            <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Dejar de mostrar' })}</span>
-          </button>
-        )}
+        <div className="pe-host-open-card__actions-row">
+          {isOpen && (
+            <>
+              <button
+                type="button"
+                className="pe-host-open-card__action-btn"
+                onClick={handleStartPublish}
+                title="Modificar los datos de la publicación"
+              >
+                <Edit2 size={13} aria-hidden="true" />
+                <span>{t('open_encounters.action_edit_publication', { defaultValue: 'Editar publicación' })}</span>
+              </button>
+              <button
+                type="button"
+                className="pe-host-open-card__close-btn"
+                onClick={handleCloseDiscovery}
+                disabled={closing}
+                title="Dejar de mostrar sin afectar participantes"
+              >
+                <DoorClosed size={14} aria-hidden="true" />
+                <span>{closing ? 'Cerrando…' : t('open_encounters.open_close_btn', { defaultValue: 'Dejar de mostrar' })}</span>
+              </button>
+            </>
+          )}
 
-        {!isOpen && !isPast && (
-          <button
-            type="button"
-            className="pe-host-open-card__close-btn"
-            onClick={handleStartPublish}
-            title="Reabrir este encuentro para sumarse"
-          >
-            <Sparkles size={14} />
-            <span>{t('open_encounters.open_encounter_action', { defaultValue: 'Abrir este encuentro' })}</span>
-          </button>
-        )}
+          {!isOpen && !isPast && (
+            <>
+              {encuentro?.moderation_status === 'review_pending' && (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn"
+                  onClick={handleStartPublish}
+                  title="Modificar los datos de la publicación"
+                >
+                  <Edit2 size={13} aria-hidden="true" />
+                  <span>{t('open_encounters.action_edit_publication', { defaultValue: 'Editar publicación' })}</span>
+                </button>
+              )}
+
+              {encuentro?.moderation_status === 'rejected' && (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn pe-host-open-card__action-btn--primary"
+                  onClick={handleStartPublish}
+                  title="Corregir los datos y volver a publicar"
+                >
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>{t('open_encounters.action_edit_publication', { defaultValue: 'Editar publicación' })}</span>
+                </button>
+              )}
+
+              {encuentro?.moderation_status === 'hidden_pending_review' && (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn"
+                  onClick={handleStartPublish}
+                  title="Modificar los datos de la publicación"
+                >
+                  <Edit2 size={13} aria-hidden="true" />
+                  <span>{t('open_encounters.action_edit_publication', { defaultValue: 'Editar publicación' })}</span>
+                </button>
+              )}
+
+              {(!encuentro?.moderation_status || encuentro?.moderation_status === 'draft' || (!isOpen && encuentro?.moderation_status === 'approved')) && (
+                <button
+                  type="button"
+                  className="pe-host-open-card__close-btn"
+                  onClick={handleStartPublish}
+                  title="Reabrir este encuentro para sumarse"
+                >
+                  <Sparkles size={14} aria-hidden="true" />
+                  <span>{t('open_encounters.open_encounter_action', { defaultValue: 'Abrir este encuentro' })}</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
+      {postEditNotice && (
+        <div className="pe-host-open-card__notice pe-host-open-card__notice--post-edit" role="status">
+          <CheckCircle2 size={16} aria-hidden="true" />
+          <span>{postEditNotice}</span>
+        </div>
+      )}
+
       {encuentro?.moderation_status === 'review_pending' && (
-        <div style={{ padding: '8px 14px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: 10, margin: '10px 16px', fontSize: '0.85rem', color: '#854d0e', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Clock size={16} />
-          <span>Estamos revisando esta publicación antes de mostrarla públicamente.</span>
+        <div className="pe-host-open-card__notice pe-host-open-card__notice--review" role="status">
+          <Clock size={16} aria-hidden="true" />
+          <div className="pe-host-open-card__notice-text">
+            <strong>{t('open_encounters.review_pending_notice', { defaultValue: 'Estamos revisando esta publicación antes de mostrarla públicamente.' })}</strong>
+            <span>{t('open_encounters.review_pending_helper', { defaultValue: 'Mientras tanto, tu encuentro sigue activo y no necesitás volver a publicarlo.' })}</span>
+          </div>
         </div>
       )}
 
       {encuentro?.moderation_status === 'hidden_pending_review' && (
-        <div style={{ padding: '8px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, margin: '10px 16px', fontSize: '0.85rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AlertCircle size={16} />
-          <span>Esta publicación fue pausada temporalmente para revisión tras reportes de la comunidad.</span>
+        <div className="pe-host-open-card__notice pe-host-open-card__notice--hidden" role="status">
+          <AlertCircle size={16} aria-hidden="true" />
+          <div className="pe-host-open-card__notice-text">
+            <span>{t('open_encounters.hidden_review_notice', { defaultValue: 'Esta publicación está temporalmente en revisión. Mientras la revisamos, no se muestra en Me sumo.' })}</span>
+          </div>
+        </div>
+      )}
+
+      {encuentro?.moderation_status === 'rejected' && (
+        <div className="pe-host-open-card__notice pe-host-open-card__notice--rejected" role="status">
+          <AlertCircle size={16} aria-hidden="true" />
+          <div className="pe-host-open-card__notice-text">
+            <span>{t('open_encounters.rejected_notice', { defaultValue: 'Esta publicación no puede mostrarse públicamente con el contenido actual. Podés editarla e intentarlo nuevamente.' })}</span>
+          </div>
         </div>
       )}
 
@@ -519,12 +618,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         modalidad={encuentro.modalidad || 'presencial'}
         lugarTexto={encuentro.lugar_texto || ''}
         linkVirtual={encuentro.link_virtual || ''}
-        defaultDescription={encuentro.descripcion || ''}
+        defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
+        defaultSlots={availableSlots > 0 ? availableSlots : 2}
+        defaultLocalityId={encuentro.locality_id || 'guemes'}
         confirmedCount={confirmedCount}
         onUpdateLocation={onUpdateLocation}
-        onPublished={() => {
-          onRefresh();
-        }}
+        onPublished={handlePublished}
       />
 
       <LoginRequiredSheet

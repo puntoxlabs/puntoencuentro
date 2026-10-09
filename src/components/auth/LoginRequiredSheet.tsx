@@ -12,7 +12,7 @@ export interface LoginRequiredSheetProps {
   /** Cargando la operación OAuth */
   loading?: boolean;
   /** Contexto de acción: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert' */
-  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert';
+  action?: 'request_join' | 'open_encounter' | 'create_ai' | 'create_intention' | 'interest_intention' | 'create_alert' | 'report_encounter';
 }
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
@@ -39,6 +39,10 @@ const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: st
   create_alert: {
     title: 'Para crear un aviso necesitás una cuenta',
     body: 'Una cuenta nos permite notificarte en tu inbox cuando se abra un encuentro que coincida con lo que buscás.',
+  },
+  report_encounter: {
+    title: 'Para reportar un encuentro necesitás una cuenta',
+    body: 'Esto nos permite cuidar la calidad de la cartelera pública y prevenir reportes automáticos.',
   },
 };
 
@@ -72,6 +76,11 @@ const BENEFITS_BY_ACTION: Record<NonNullable<LoginRequiredSheetProps['action']>,
     'Recibir avisos cuando coincida un encuentro',
     'Gestionar y pausar tus alertas activas',
     'Sin spam ni mensajes innecesarios',
+  ],
+  report_encounter: [
+    'Cuidar la comunidad de PuntoEncuentro',
+    'Prevenir spam y reportes falsos',
+    'Conservar tus encuentros',
   ],
 };
 
