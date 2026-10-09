@@ -44,6 +44,8 @@ import {
   countActiveSecondaryFilters,
   type EncountersFilterValues,
 } from '../src/components/home/yourEncounters/HomeEncountersFilterSheet';
+import { HomeIntencionesSection } from '../src/components/home/intentions/HomeIntencionesSection';
+import { IntencionFormSheet } from '../src/components/home/intentions/IntencionFormSheet';
 
 describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Componentes', () => {
   describe('1. Componente HomeHero', () => {
@@ -1454,6 +1456,93 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.equal(pathCount, 6, 'Deben existir exactamente 6 pinceladas vectoriales en vacíos libres');
       assert.ok(brushesHtml.includes('linearGradient'), 'Debe usar linearGradient para gradación interna');
       assert.ok(!brushesHtml.includes('<circle') && !brushesHtml.includes('<ellipse'), 'NO debe usar formas circulares o elípticas como trazo');
+    });
+
+    test('Q. Coherencia verbal y UX en Home V2: "Mis ganas" y "Tengo ganas de…", sin lenguaje heredado y preservando V1', () => {
+      // 1. HomeIntencionesSection en V2 (Empty State y Loading)
+      const htmlSectionV2 = renderToString(
+        React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: false })
+      );
+      assert.ok(!htmlSectionV2.includes('Mis intenciones'), 'En V2 NO debe aparecer el texto "Mis intenciones"');
+      assert.ok(!htmlSectionV2.includes('Expresar intención'), 'En V2 NO debe aparecer "Expresar intención"');
+      assert.ok(htmlSectionV2.includes('+ Tengo ganas de…'), 'En V2 el CTA debe usar "+ Tengo ganas de…"');
+      assert.ok(htmlSectionV2.includes('Todavía no contaste qué tenés ganas de hacer'), 'En V2 el empty state debe ser humano y natural');
+      assert.ok(htmlSectionV2.includes('Decí qué te gustaría hacer y guardalo para más adelante.'), 'En V2 la descripción del empty state explica la acción');
+      assert.ok(htmlSectionV2.includes('aria-label="Mis ganas"'), 'En V2 la sección debe tener aria-label="Mis ganas"');
+
+      const htmlSectionV2Loading = renderToString(
+        React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: true })
+      );
+      assert.ok(htmlSectionV2Loading.includes('Cargando tus ganas…'), 'En V2 el loading debe decir "Cargando tus ganas…"');
+
+      // 2. HomeIntencionesSection en V1
+      const htmlSectionV1 = renderToString(
+        React.createElement(HomeIntencionesSection, { isV2Variant: false, initialLoading: false })
+      );
+      assert.ok(htmlSectionV1.includes('Mis intenciones'), 'En V1 debe conservar "Mis intenciones"');
+      assert.ok(htmlSectionV1.includes('+ Expresar intención'), 'En V1 debe conservar "+ Expresar intención"');
+      assert.ok(htmlSectionV1.includes('Todavía no expresaste intenciones'), 'En V1 debe conservar el empty state de intenciones');
+      assert.ok(htmlSectionV1.includes('aria-label="Sección de Intenciones"'), 'En V1 debe conservar aria-label="Sección de Intenciones"');
+      assert.ok(!htmlSectionV1.includes('Todavía no contaste qué tenés ganas de hacer'), 'En V1 NO debe tener el copy de V2');
+
+      const htmlSectionV1Loading = renderToString(
+        React.createElement(HomeIntencionesSection, { isV2Variant: false, initialLoading: true })
+      );
+      assert.ok(htmlSectionV1Loading.includes('Cargando tus intenciones…'), 'En V1 el loading debe decir "Cargando tus intenciones…"');
+
+      // 3. IntencionFormSheet en V2 (Crear y Editar)
+      const htmlSheetCreateV2 = renderToString(
+        React.createElement(IntencionFormSheet, {
+          isOpen: true,
+          onClose: () => {},
+          onSave: async () => true,
+          localidades: [],
+          isEditing: false,
+          isV2Variant: true,
+        })
+      );
+      assert.ok(htmlSheetCreateV2.includes('Tengo ganas de…'), 'En V2 el título de creación debe ser "Tengo ganas de…"');
+      assert.ok(htmlSheetCreateV2.includes('+ Tengo ganas de…'), 'En V2 el botón de submit debe ser "+ Tengo ganas de…"');
+      assert.ok(!htmlSheetCreateV2.includes('Expresar intención'), 'En V2 NO debe decir "Expresar intención"');
+
+      const htmlSheetEditV2 = renderToString(
+        React.createElement(IntencionFormSheet, {
+          isOpen: true,
+          onClose: () => {},
+          onSave: async () => true,
+          localidades: [],
+          isEditing: true,
+          isV2Variant: true,
+        })
+      );
+      assert.ok(htmlSheetEditV2.includes('Editar lo que tenés ganas de hacer'), 'En V2 el título de edición debe ser natural');
+      assert.ok(!htmlSheetEditV2.includes('Editar intención'), 'En V2 NO debe decir "Editar intención"');
+
+      // 4. IntencionFormSheet en V1 (Crear y Editar)
+      const htmlSheetCreateV1 = renderToString(
+        React.createElement(IntencionFormSheet, {
+          isOpen: true,
+          onClose: () => {},
+          onSave: async () => true,
+          localidades: [],
+          isEditing: false,
+          isV2Variant: false,
+        })
+      );
+      assert.ok(htmlSheetCreateV1.includes('Expresar intención'), 'En V1 debe conservar "Expresar intención"');
+      assert.ok(htmlSheetCreateV1.includes('+ Expresar intención'), 'En V1 debe conservar "+ Expresar intención"');
+
+      const htmlSheetEditV1 = renderToString(
+        React.createElement(IntencionFormSheet, {
+          isOpen: true,
+          onClose: () => {},
+          onSave: async () => true,
+          localidades: [],
+          isEditing: true,
+          isV2Variant: false,
+        })
+      );
+      assert.ok(htmlSheetEditV1.includes('Editar intención'), 'En V1 debe conservar "Editar intención"');
     });
   });
 });

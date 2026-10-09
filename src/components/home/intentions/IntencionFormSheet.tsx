@@ -12,6 +12,7 @@ import {
   resolverTemporalidadIntencion,
   type TemporalidadChip,
 } from '../../../lib/temporalidadIntencion';
+import { useTranslation } from 'react-i18next';
 import './IntencionFormSheet.css';
 
 export interface IntencionFormSheetProps {
@@ -22,6 +23,7 @@ export interface IntencionFormSheetProps {
   localidades: Localidad[];
   isEditing?: boolean;
   isSubmitting?: boolean;
+  isV2Variant?: boolean;
 }
 
 export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
@@ -32,7 +34,9 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
   localidades,
   isEditing = false,
   isSubmitting = false,
+  isV2Variant = false,
 }) => {
+  const { t } = useTranslation();
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [selectedChip, setSelectedChip] = useState<TemporalidadChip>('flexible');
@@ -140,7 +144,12 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
         onClose();
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'No pudimos guardar la intención. Intentá nuevamente.');
+      setErrorMsg(
+        err?.message ||
+          (isV2Variant
+            ? 'No pudimos guardarlo. Intentá nuevamente.'
+            : 'No pudimos guardar la intención. Intentá nuevamente.')
+      );
     }
   };
 
@@ -157,7 +166,17 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
 
         <div className="pe-intencion-sheet__header">
           <h2 id="intencion-sheet-title" className="pe-intencion-sheet__title">
-            {isEditing ? 'Editar intención' : 'Expresar intención'}
+            {isEditing
+              ? isV2Variant
+                ? t('your_encounters.intentions_sheet_edit_title_v2', {
+                    defaultValue: 'Editar lo que tenés ganas de hacer',
+                  })
+                : 'Editar intención'
+              : isV2Variant
+              ? t('your_encounters.intentions_sheet_create_title_v2', {
+                  defaultValue: 'Tengo ganas de…',
+                })
+              : 'Expresar intención'}
           </h2>
           <button
             type="button"
@@ -321,6 +340,10 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
                 ? 'Guardando...'
                 : isEditing
                 ? 'Guardar cambios'
+                : isV2Variant
+                ? t('your_encounters.intentions_sheet_submit_create_v2', {
+                    defaultValue: '+ Tengo ganas de…',
+                  })
                 : '+ Expresar intención'}
             </button>
           </div>

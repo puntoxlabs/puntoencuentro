@@ -11,6 +11,7 @@ export interface IntencionCardProps {
   onCerrar: (id: string) => void;
   onOrganizar?: (intencion: Intencion) => void;
   disabled?: boolean;
+  isV2Variant?: boolean;
 }
 
 export const IntencionCard: React.FC<IntencionCardProps> = ({
@@ -21,6 +22,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
   onCerrar,
   onOrganizar,
   disabled = false,
+  isV2Variant = false,
 }) => {
   const isPausada = intencion.estado === 'pausada';
   const isActiva = intencion.estado === 'activa';
@@ -41,7 +43,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
   return (
     <article
       className={`pe-intencion-card ${isPausada ? 'pe-intencion-card--pausada' : ''}`}
-      aria-label={`Intención: ${intencion.titulo}`}
+      aria-label={isV2Variant ? intencion.titulo : `Intención: ${intencion.titulo}`}
     >
       <div className="pe-intencion-card__header">
         <h3 className="pe-intencion-card__title">{intencion.titulo}</h3>
@@ -99,7 +101,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
           onClick={() => onEdit(intencion)}
           disabled={disabled}
           className="pe-intencion-card__btn pe-intencion-card__btn--edit"
-          aria-label={`Editar intención ${intencion.titulo}`}
+          aria-label={isV2Variant ? `Editar ${intencion.titulo}` : `Editar intención ${intencion.titulo}`}
         >
           <Edit3 size={14} aria-hidden="true" />
           <span>Editar</span>
@@ -111,7 +113,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
             onClick={() => onPausar(intencion.id)}
             disabled={disabled}
             className="pe-intencion-card__btn pe-intencion-card__btn--pause"
-            aria-label={`Pausar intención ${intencion.titulo}`}
+            aria-label={isV2Variant ? `Pausar ${intencion.titulo}` : `Pausar intención ${intencion.titulo}`}
           >
             <PauseCircle size={14} aria-hidden="true" />
             <span>Pausar</span>
@@ -124,7 +126,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
             onClick={() => onReactivar(intencion.id)}
             disabled={disabled}
             className="pe-intencion-card__btn pe-intencion-card__btn--reactivate"
-            aria-label={`Reactivar intención ${intencion.titulo}`}
+            aria-label={isV2Variant ? `Reactivar ${intencion.titulo}` : `Reactivar intención ${intencion.titulo}`}
           >
             <PlayCircle size={14} aria-hidden="true" />
             <span>Reactivar</span>
@@ -136,7 +138,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
           onClick={() => onCerrar(intencion.id)}
           disabled={disabled}
           className="pe-intencion-card__btn pe-intencion-card__btn--close"
-          aria-label={`Cerrar intención ${intencion.titulo}`}
+          aria-label={isV2Variant ? `Cerrar ${intencion.titulo}` : `Cerrar intención ${intencion.titulo}`}
         >
           <XCircle size={14} aria-hidden="true" />
           <span>Cerrar</span>

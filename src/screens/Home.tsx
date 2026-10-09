@@ -1276,7 +1276,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           </>
         ) : (
           <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
-            <HomeIntencionesSection triggerCreateTimestamp={intentionCreateTrigger} />
+            <HomeIntencionesSection
+              triggerCreateTimestamp={intentionCreateTrigger}
+              isV2Variant={isV2Variant}
+            />
           </div>
         )}
       </div>

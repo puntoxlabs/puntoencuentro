@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useIntenciones } from '../../../hooks/useIntenciones';
 import { openEncountersService } from '../../../services/openEncountersService';
@@ -31,11 +32,16 @@ function useSafeNavigate() {
 export interface HomeIntencionesSectionProps {
   onOpenCreateTrigger?: () => void;
   triggerCreateTimestamp?: number;
+  isV2Variant?: boolean;
+  initialLoading?: boolean;
 }
 
 export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   triggerCreateTimestamp,
+  isV2Variant = false,
+  initialLoading,
 }) => {
+  const { t } = useTranslation();
   const navigate = useSafeNavigate();
   const { user, signInWithGoogleForDiscovery } = useAuth();
   const {
@@ -49,6 +55,8 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     reactivarIntencion,
     cerrarIntencion,
   } = useIntenciones();
+
+  const effectiveLoading = initialLoading !== undefined ? initialLoading : loading;
 
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -172,11 +180,15 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
         const res = await editarIntencion(payload as EditarIntencionPayload);
         if (!res.ok) {
           const errCode = res.error;
-          let friendly = 'No se pudo actualizar la intención. Intentá nuevamente.';
+          let friendly = isV2Variant
+            ? 'No pudimos guardar lo que tenés ganas de hacer. Intentá nuevamente.'
+            : 'No se pudo actualizar la intención. Intentá nuevamente.';
           if (errCode === 'rate_limit_exceeded') {
             friendly = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
           } else if (errCode === 'rate_limit_unavailable') {
-            friendly = 'No pudimos actualizar la intención en este momento. Intentá nuevamente en unos minutos.';
+            friendly = isV2Variant
+              ? 'No pudimos guardar en este momento. Intentá nuevamente en unos minutos.'
+              : 'No pudimos actualizar la intención en este momento. Intentá nuevamente en unos minutos.';
           }
           throw new Error(friendly);
         }
@@ -184,11 +196,15 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
         const res = await crearIntencion(payload as CrearIntencionPayload);
         if (!res.ok) {
           const errCode = res.error;
-          let friendly = 'No se pudo crear la intención. Intentá nuevamente.';
+          let friendly = isV2Variant
+            ? 'No pudimos guardar lo que tenés ganas de hacer. Intentá nuevamente.'
+            : 'No se pudo crear la intención. Intentá nuevamente.';
           if (errCode === 'rate_limit_exceeded') {
             friendly = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
           } else if (errCode === 'rate_limit_unavailable') {
-            friendly = 'No pudimos crear la intención en este momento. Intentá nuevamente en unos minutos.';
+            friendly = isV2Variant
+              ? 'No pudimos guardar en este momento. Intentá nuevamente en unos minutos.'
+              : 'No pudimos crear la intención en este momento. Intentá nuevamente en unos minutos.';
           }
           throw new Error(friendly);
         }
@@ -226,13 +242,24 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   );
 
   return (
-    <section className="pe-intenciones-section" aria-label="Sección de Intenciones">
+    <section
+      className="pe-intenciones-section"
+      aria-label={isV2Variant ? t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' }) : 'Sección de Intenciones'}
+    >
       {/* Cabecera */}
       <div className="pe-intenciones-header">
         <div className="pe-intenciones-title-group">
-          <h2 className="pe-intenciones-title">Mis intenciones</h2>
+          {!isV2Variant ? (
+            <h2 className="pe-intenciones-title">Mis intenciones</h2>
+          ) : (
+            <h2 className="sr-only">{t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' })}</h2>
+          )}
           <p className="pe-intenciones-subtitle">
-            Cosas que tenés ganas de hacer, antes de organizar un encuentro.
+            {isV2Variant
+              ? t('your_encounters.intentions_subtitle_v2', {
+                  defaultValue: 'Cosas que tenés ganas de hacer, antes de organizar un encuentro.',
+                })
+              : 'Cosas que tenés ganas de hacer, antes de organizar un encuentro.'}
           </p>
         </div>
 
@@ -240,17 +267,29 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           type="button"
           onClick={handleOpenCreate}
           className="pe-intenciones-add-btn"
-          aria-label="Expresar intención"
+          aria-label={
+            isV2Variant
+              ? t('your_encounters.intentions_cta_v2', { defaultValue: '+ Tengo ganas de…' })
+              : 'Expresar intención'
+          }
         >
           <Plus size={16} aria-hidden="true" />
-          <span>+ Expresar intención</span>
+          <span>
+            {isV2Variant
+              ? t('your_encounters.intentions_cta_v2', { defaultValue: '+ Tengo ganas de…' })
+              : '+ Expresar intención'}
+          </span>
         </button>
       </div>
 
       {/* Estados */}
-      {loading ? (
+      {effectiveLoading ? (
         <div className="pe-intenciones-loading">
-          <p className="pe-intenciones-loading-text">Cargando tus intenciones…</p>
+          <p className="pe-intenciones-loading-text">
+            {isV2Variant
+              ? t('your_encounters.intentions_loading_v2', { defaultValue: 'Cargando tus ganas…' })
+              : 'Cargando tus intenciones…'}
+          </p>
         </div>
       ) : error ? (
         <div className="pe-intenciones-error">
@@ -268,18 +307,34 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           <div className="pe-intenciones-empty__icon" aria-hidden="true">
             <Sparkles size={28} />
           </div>
-          <h3 className="pe-intenciones-empty__title">Todavía no expresaste intenciones</h3>
+          <h3 className="pe-intenciones-empty__title">
+            {isV2Variant
+              ? t('your_encounters.intentions_empty_title_v2', {
+                  defaultValue: 'Todavía no contaste qué tenés ganas de hacer',
+                })
+              : 'Todavía no expresaste intenciones'}
+          </h3>
           <p className="pe-intenciones-empty__desc">
-            ¿Tenés ganas de hacer algo pero todavía no armaste un encuentro? Expresá tu
-            intención para recordarla o coordinar con otros más adelante.
+            {isV2Variant
+              ? t('your_encounters.intentions_empty_desc_v2', {
+                  defaultValue: 'Decí qué te gustaría hacer y guardalo para más adelante.',
+                })
+              : '¿Tenés ganas de hacer algo pero todavía no armaste un encuentro? Expresá tu intención para recordarla o coordinar con otros más adelante.'}
           </p>
           <button
             type="button"
             onClick={handleOpenCreate}
             className="pe-intenciones-add-btn"
             style={{ margin: '0 auto' }}
+            aria-label={
+              isV2Variant
+                ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: '+ Tengo ganas de…' })
+                : 'Expresar intención'
+            }
           >
-            + Expresar intención
+            {isV2Variant
+              ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: '+ Tengo ganas de…' })
+              : '+ Expresar intención'}
           </button>
         </div>
       ) : (
@@ -294,6 +349,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
               onCerrar={handleCerrar}
               onOrganizar={handleOrganizar}
               disabled={actionInProgressId === intencion.id}
+              isV2Variant={isV2Variant}
             />
           ))}
         </div>
@@ -312,6 +368,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
         localidades={localidades}
         isEditing={Boolean(editingIntencion)}
         isSubmitting={isSubmitting}
+        isV2Variant={isV2Variant}
       />
 
       {/* Auth Guard Sheet */}
