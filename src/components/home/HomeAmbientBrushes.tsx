@@ -17,6 +17,14 @@ import React from 'react';
  *   Apoyo atmosférico muy sutil en el vacío inferior izquierdo, cerca de "Crear o abrir un encuentro",
  *   acompañando el margen libre inferior sin interferir en el centro de lectura.
  * 
+ * - Pincelada D: Azul marca -> Menta suave.
+ *   Ubicada en el vacío lateral izquierdo central-bajo: debajo de Tus encuentros / Mis ganas + filtros
+ *   y por encima/alrededor de Crear o abrir un encuentro, sin pasar por debajo del contenido principal.
+ * 
+ * - Pincelada E: Lila / Violeta suave -> Índigo.
+ *   Ubicada en el vacío lateral derecho de la zona del empty state / previa a Crear o abrir,
+ *   llenando aire lateral sin invadir el centro ni competir con el FAB.
+ * 
  * - Centro funcional 100% limpio (cero interferencia con textos, cards, empty states, botones).
  * - SVG inline con aria-hidden="true", focusable="false", pointer-events: none.
  */
@@ -33,7 +41,7 @@ export const HomeAmbientBrushes: React.FC = () => {
         aria-hidden="true"
       >
         <defs>
-          {/* Gradiente Pincelada A: Azul marca -> Menta suave */}
+          {/* Gradiente Pinceladas A y D: Azul marca -> Menta suave */}
           <linearGradient id="pe-brush-grad-a" x1="0%" y1="40%" x2="100%" y2="60%">
             <stop offset="0%" stopColor="#2563eb" stopOpacity="0.04" />
             <stop offset="18%" stopColor="#2563eb" stopOpacity="0.16" />
@@ -42,7 +50,7 @@ export const HomeAmbientBrushes: React.FC = () => {
             <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
           </linearGradient>
 
-          {/* Gradiente Pincelada B: Lila/Violeta -> Índigo suave */}
+          {/* Gradiente Pinceladas B y E: Lila/Violeta -> Índigo suave */}
           <linearGradient id="pe-brush-grad-b" x1="100%" y1="35%" x2="0%" y2="65%">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.04" />
             <stop offset="20%" stopColor="#8b5cf6" stopOpacity="0.15" />
@@ -123,6 +131,51 @@ export const HomeAmbientBrushes: React.FC = () => {
           fill="url(#pe-brush-grad-c)"
           filter="url(#pe-brush-soften)"
           className="pe-brush-path pe-brush-path--c"
+        />
+
+        {/* 
+          PINCELADA D (Vacío lateral izquierdo central-bajo):
+          Ubicada en el espacio blanco lateral izquierdo que queda debajo del bloque
+          "Tus encuentros / Mis ganas" + filtros y por encima/alrededor de "Crear o abrir".
+          Nace fuera de la pantalla en -80px, avanza de forma ascendente-ondulada hasta ~410px,
+          permaneciendo en el margen lateral exterior sin tocar el contenido central.
+          Largo visual: ~490px, alto variable: ~80-105px.
+        */}
+        <path
+          d="M -80,590
+             C 35,578 140,588 235,572
+             C 310,560 375,544 408,536
+             C 422,532 430,537 426,544
+             C 420,551 402,558 372,567
+             C 302,588 220,608 135,622
+             C 50,635 -15,648 -80,658
+             Z"
+          fill="url(#pe-brush-grad-a)"
+          filter="url(#pe-brush-soften)"
+          className="pe-brush-path pe-brush-path--d"
+        />
+
+        {/* 
+          PINCELADA E (Vacío lateral derecho de la zona previa a "Crear o abrir"):
+          Ubicada en el lateral derecho adyacente al empty state / transición hacia "Crear o abrir",
+          equilibrando visualmente la composición respecto al lateral izquierdo.
+          Nace fuera de la pantalla en 1520px y se proyecta hacia la izquierda deteniéndose en 1050px,
+          dejando un margen libre de más de 200px respecto al eje central y sin interferir con el FAB
+          (que se sitúa en la esquina inferior derecha fija).
+          Largo visual: ~470px, alto variable: ~75-100px.
+        */}
+        <path
+          d="M 1520,670
+             C 1410,658 1315,672 1215,684
+             C 1145,694 1090,708 1062,718
+             C 1050,723 1045,729 1052,735
+             C 1058,740 1074,741 1102,738
+             C 1175,730 1260,718 1345,708
+             C 1425,698 1480,704 1520,715
+             Z"
+          fill="url(#pe-brush-grad-b)"
+          filter="url(#pe-brush-soften)"
+          className="pe-brush-path pe-brush-path--e"
         />
       </svg>
     </div>
