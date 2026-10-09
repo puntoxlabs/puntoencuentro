@@ -4,13 +4,20 @@ import React from 'react';
  * HomeAmbientBrushes
  * Capa vectorial de pinceladas ambientales para Home V2 Desktop.
  * 
- * Composición orgánica basada en el VACÍO REAL de la Home:
- * - Ocupa huecos blancos laterales y zonas de transición libres.
- * - Despeja el centro funcional (títulos, loading states, empty states, tabs, filtros, CTA).
- * - Exactamente 2 pinceladas principales:
- *   1. Pincelada A: Azul marca -> Menta suave (área lateral/vacío superior izquierdo).
- *   2. Pincelada B: Lila -> Índigo suave (área lateral/vacío derecho en transición).
- *   (Se eliminó la tercera pincelada inferior para preservar aire y evitar ruidos aislados).
+ * Composición orgánica basada estrictamente en los VACÍOS REALES de la Home:
+ * - Pincelada A: Azul marca -> Menta suave.
+ *   Ubicada en el vacío superior izquierdo acompañando el inicio del bloque "Me sumo".
+ *   Nace fuera del viewport (-90px) y se afina hacia adentro sin cruzar el eje central.
+ * 
+ * - Pincelada B: Lila -> Índigo suave.
+ *   Ubicada en el vacío lateral derecho intermedio, en la transición entre "Tengo ganas de..."
+ *   y la actividad personal, sin cruzar tabs, filtros, CTA, loaders ni el empty state.
+ * 
+ * - Pincelada C: Verde esmeralda -> Menta/Azul tenue.
+ *   Apoyo atmosférico muy sutil en el vacío inferior izquierdo, cerca de "Crear o abrir un encuentro",
+ *   acompañando el margen libre inferior sin interferir en el centro de lectura.
+ * 
+ * - Centro funcional 100% limpio (cero interferencia con textos, cards, empty states, botones).
  * - SVG inline con aria-hidden="true", focusable="false", pointer-events: none.
  */
 export const HomeAmbientBrushes: React.FC = () => {
@@ -18,7 +25,7 @@ export const HomeAmbientBrushes: React.FC = () => {
     <div className="home-ambient-brushes-container" aria-hidden="true">
       <svg
         className="home-ambient-brushes-svg"
-        viewBox="0 0 1440 900"
+        viewBox="0 0 1440 960"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         preserveAspectRatio="none"
@@ -44,6 +51,14 @@ export const HomeAmbientBrushes: React.FC = () => {
             <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
           </linearGradient>
 
+          {/* Gradiente Pincelada C: Verde esmeralda -> Menta/Azul tenue */}
+          <linearGradient id="pe-brush-grad-c" x1="0%" y1="50%" x2="100%" y2="50%">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.03" />
+            <stop offset="25%" stopColor="#10b981" stopOpacity="0.10" />
+            <stop offset="70%" stopColor="#0ea5e9" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
+          </linearGradient>
+
           {/* Filtro blur mínimo/moderado (4px) para suavizar filos sin perder la silueta de trazo */}
           <filter id="pe-brush-soften" x="-10%" y="-10%" width="120%" height="120%">
             <feGaussianBlur stdDeviation="4" />
@@ -51,19 +66,19 @@ export const HomeAmbientBrushes: React.FC = () => {
         </defs>
 
         {/* 
-          PINCELADA A (Flanco izquierdo exterior / espacio libre alrededor de Me sumo):
-          Nace fuera de pantalla en el flanco izquierdo (-90px), recorre el margen blanco
-          con inclinación orgánica y se afina antes de interferir con el eje funcional central.
-          Largo visual: ~800px, alto variable: ~120-140px.
+          PINCELADA A (Vacío superior izquierdo libre / margen exterior de "Me sumo"):
+          Nace fuera del viewport en el flanco izquierdo (-90px), acompaña la entrada superior
+          con curvatura orgánica y se afina a ~420px de la pantalla antes de acercarse al contenido central.
+          Largo visual: ~530px, alto variable: ~90-120px.
         */}
         <path
           d="M -90,75
-             C 80,55 240,65 410,45
-             C 540,30 670,10 790,2
-             C 830,0 855,6 865,16
-             C 872,25 855,34 815,44
-             C 700,72 565,105 420,125
-             C 280,145 120,165 -90,185
+             C 40,60 160,65 270,50
+             C 340,40 400,28 430,22
+             C 445,19 455,23 452,30
+             C 448,37 430,44 400,52
+             C 330,70 250,90 160,105
+             C 70,120 0,135 -90,150
              Z"
           fill="url(#pe-brush-grad-a)"
           filter="url(#pe-brush-soften)"
@@ -71,23 +86,43 @@ export const HomeAmbientBrushes: React.FC = () => {
         />
 
         {/* 
-          PINCELADA B (Flanco derecho exterior / transición intermedia):
-          Nace fuera de pantalla en el flanco derecho (1530px), entra ocupando el vacío blanco lateral
-          entre las macrosecciones sin invadir el centro (cards, tabs, filtros o empty/loading states).
-          Largo visual: ~840px, alto variable: ~110-135px.
+          PINCELADA B (Vacío lateral derecho intermedio / margen exterior de la transición):
+          Nace en el lateral exterior derecho (1530px), entra solo hasta el margen libre derecho (1020px),
+          manteniéndose a más de 300px fuera del contenedor central de cards/tabs/empty state (máx 1100px centrado).
+          Largo visual: ~510px, alto variable: ~85-115px.
         */}
         <path
           d="M 1530,370
-             C 1370,355 1220,380 1060,400
-             C 910,420 780,455 670,485
-             C 635,494 615,505 610,516
-             C 605,527 625,534 665,532
-             C 785,525 920,505 1070,480
-             C 1230,455 1385,440 1530,450
+             C 1420,358 1310,375 1200,390
+             C 1120,402 1060,420 1030,432
+             C 1018,437 1012,444 1018,450
+             C 1025,456 1040,457 1070,454
+             C 1150,446 1240,432 1330,420
+             C 1420,408 1485,412 1530,425
              Z"
           fill="url(#pe-brush-grad-b)"
           filter="url(#pe-brush-soften)"
           className="pe-brush-path pe-brush-path--b"
+        />
+
+        {/* 
+          PINCELADA C (Vacío inferior izquierdo libre / margen exterior de "Crear o abrir"):
+          Apoyo ambiental tenue en el margen blanco inferior izquierdo. Nace fuera de pantalla (-70px),
+          se extiende hacia el interior sin cruzar el eje central ni tocar la caja de Crear o abrir.
+          Largo visual: ~480px, alto variable: ~70-95px.
+        */}
+        <path
+          d="M -70,780
+             C 30,770 130,780 220,768
+             C 290,758 350,746 395,740
+             C 412,738 418,742 415,748
+             C 410,754 395,760 365,768
+             C 300,785 220,802 140,814
+             C 60,825 -10,835 -70,845
+             Z"
+          fill="url(#pe-brush-grad-c)"
+          filter="url(#pe-brush-soften)"
+          className="pe-brush-path pe-brush-path--c"
         />
       </svg>
     </div>
