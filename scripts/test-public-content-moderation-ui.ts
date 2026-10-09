@@ -333,4 +333,117 @@ describe('Moderación Pública v1: Tests de UX / UI Frontend', () => {
       );
     });
   });
+
+  describe('6. pending_open_report — Ciclo de Vida y Descarte Estricto', () => {
+    const modalPath = path.resolve(
+      process.cwd(),
+      'src/components/home/openEncounters/ReportPublicEncounterModal.tsx'
+    );
+    const modalCode = fs.readFileSync(modalPath, 'utf-8');
+
+    const sheetPath = path.resolve(
+      process.cwd(),
+      'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'
+    );
+    const sheetCode = fs.readFileSync(sheetPath, 'utf-8');
+
+    test('ReportPublicEncounterModal guarda draft antes de pedir login con Google', () => {
+      assert.ok(
+        modalCode.includes('sessionStorage.setItem') && modalCode.includes("'pending_open_report'"),
+        'Debe guardar pending_open_report en sessionStorage para usuarios no permanentes'
+      );
+      assert.ok(
+        modalCode.includes('setIsLoginRequired(true)'),
+        'Debe activar el sheet de login tras almacenar el draft'
+      );
+    });
+
+    test('ReportPublicEncounterModal elimina draft al cancelar, cerrar o presionar escape', () => {
+      assert.ok(
+        modalCode.includes('const handleClose = () => {'),
+        'Debe definir función unificada handleClose'
+      );
+      assert.ok(
+        modalCode.includes("sessionStorage.removeItem('pending_open_report')"),
+        'handleClose debe invocar removeItem para pending_open_report'
+      );
+    });
+
+    test('ReportPublicEncounterModal elimina draft al reportar exitosamente', () => {
+      assert.ok(
+        modalCode.includes('res.ok') && modalCode.includes("sessionStorage.removeItem('pending_open_report')"),
+        'Debe eliminar el draft de sessionStorage cuando el reporte es exitoso'
+      );
+    });
+
+    test('ReportPublicEncounterModal elimina draft si se descarta LoginRequiredSheet', () => {
+      assert.ok(
+        modalCode.includes('setIsLoginRequired(false)') &&
+        modalCode.includes("sessionStorage.removeItem('pending_open_report')"),
+        'Debe descartar el draft si el usuario cierra el login sheet sin continuar'
+      );
+    });
+
+    test('HomeOpenEncounterDetailSheet consume draft con uso único estricto (single-use)', () => {
+      assert.ok(
+        sheetCode.includes('PENDING_OPEN_REPORT_KEY'),
+        'Debe definir clave PENDING_OPEN_REPORT_KEY'
+      );
+      assert.ok(
+        sheetCode.includes('sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY)'),
+        'Debe eliminar la clave tras la lectura inicial post-OAuth'
+      );
+    });
+  });
+
+  describe('7. Focus Trap y Accesibilidad de Teclado', () => {
+    const modalPath = path.resolve(
+      process.cwd(),
+      'src/components/home/openEncounters/ReportPublicEncounterModal.tsx'
+    );
+    const modalCode = fs.readFileSync(modalPath, 'utf-8');
+
+    const sheetPath = path.resolve(
+      process.cwd(),
+      'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'
+    );
+    const sheetCode = fs.readFileSync(sheetPath, 'utf-8');
+
+    test('ReportPublicEncounterModal implementa Focus Trap confinando tecla Tab', () => {
+      assert.ok(
+        modalCode.includes("e.key === 'Tab'"),
+        'Debe capturar evento de tecla Tab'
+      );
+      assert.ok(
+        modalCode.includes('getFocusableElements'),
+        'Debe consultar elementos focuseables dentro del modal'
+      );
+      assert.ok(
+        modalCode.includes('e.shiftKey'),
+        'Debe soportar ciclo en reversa con Shift+Tab'
+      );
+      assert.ok(
+        modalCode.includes('firstElement.focus()') && modalCode.includes('lastElement.focus()'),
+        'Debe ciclar foco entre el primer y último elemento focuseable'
+      );
+    });
+
+    test('ReportPublicEncounterModal sitúa foco inicial en elemento seguro al abrir', () => {
+      assert.ok(
+        modalCode.includes('closeBtnRef.current?.focus()'),
+        'Debe mover el foco a closeBtnRef al montar'
+      );
+    });
+
+    test('HomeOpenEncounterDetailSheet retorna foco de manera accesible al cerrar el modal', () => {
+      assert.ok(
+        sheetCode.includes('reportBtnRef.current.focus()'),
+        'Debe retornar el foco al botón de reporte si está habilitado'
+      );
+      assert.ok(
+        sheetCode.includes('closeBtnRef.current?.focus()'),
+        'Debe tener fallback al botón de cerrar del sheet si el botón reporte quedó deshabilitado'
+      );
+    });
+  });
 });

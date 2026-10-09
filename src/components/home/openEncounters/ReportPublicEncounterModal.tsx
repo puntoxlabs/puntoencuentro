@@ -77,6 +77,30 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
     },
   ];
 
+  const handleClose = () => {
+    try {
+      sessionStorage.removeItem('pending_open_report');
+    } catch {
+      /* storage disabled fallback */
+    }
+    onClose();
+  };
+
+  const getFocusableElements = (): HTMLElement[] => {
+    if (!cardRef.current) return [];
+    const selector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+    return Array.from(cardRef.current.querySelectorAll<HTMLElement>(selector)).filter(
+      (el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0 || el === closeBtnRef.current
+    );
+  };
+
   useEffect(() => {
     if (isOpen) {
       setReason(initialReason || null);
@@ -87,26 +111,52 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
       setIsLoginRequired(false);
 
       // Foco accesible al montar
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         closeBtnRef.current?.focus();
       }, 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, encuentroId, initialReason, initialComment]);
 
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isLoginRequired) return;
+
       if (e.key === 'Escape' && !submitting) {
-        if (isLoginRequired) {
-          setIsLoginRequired(false);
+        e.preventDefault();
+        handleClose();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusables = getFocusableElements();
+        if (focusables.length === 0) {
+          e.preventDefault();
+          return;
+        }
+
+        const firstElement = focusables[0];
+        const lastElement = focusables[focusables.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement || !cardRef.current?.contains(document.activeElement)) {
+            e.preventDefault();
+            lastElement.focus();
+          }
         } else {
-          onClose();
+          if (document.activeElement === lastElement || !cardRef.current?.contains(document.activeElement)) {
+            e.preventDefault();
+            firstElement.focus();
+          }
         }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, submitting, isLoginRequired]);
+  }, [isOpen, submitting, isLoginRequired]);
 
   if (!isOpen) return null;
 
@@ -142,6 +192,11 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
       );
 
       if (res.ok) {
+        try {
+          sessionStorage.removeItem('pending_open_report');
+        } catch {
+          /* storage disabled fallback */
+        }
         setIsSuccess(true);
         if (onReportSuccess) {
           onReportSuccess();
@@ -189,15 +244,28 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
   const handleLoginWithGoogle = async () => {
     setLoginLoading(true);
     try {
-      await signInWithGoogleForDiscovery();
+      const res = await signInWithGoogleForDiscovery();
+      if (!res.ok) {
+        setLoginLoading(false);
+        try {
+          sessionStorage.removeItem('pending_open_report');
+        } catch {
+          /* storage fallback */
+        }
+      }
     } catch {
       setLoginLoading(false);
+      try {
+        sessionStorage.removeItem('pending_open_report');
+      } catch {
+        /* storage fallback */
+      }
     }
   };
 
   return (
     <>
-      <div className="pe-report-public-backdrop" onClick={() => !submitting && onClose()}>
+      <div className="pe-report-public-backdrop" onClick={() => !submitting && handleClose()}>
         <div
           ref={cardRef}
           className="pe-report-public-card"
@@ -211,7 +279,7 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
             ref={closeBtnRef}
             type="button"
             className="pe-report-public-close"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={submitting}
             aria-label={t('open_encounters.coverage_close', { defaultValue: 'Cerrar' })}
           >
@@ -232,7 +300,7 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
               <button
                 type="button"
                 className="pe-report-public-btn pe-report-public-btn--neutral"
-                onClick={onClose}
+                onClick={handleClose}
               >
                 {t('open_encounters.coverage_close', { defaultValue: 'Cerrar' })}
               </button>
@@ -321,7 +389,7 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
                 <button
                   type="button"
                   className="pe-report-public-btn pe-report-public-btn--secondary"
-                  onClick={onClose}
+                  onClick={handleClose}
                   disabled={submitting}
                 >
                   {t('open_encounters.report_cancel', { defaultValue: 'Cancelar' })}
@@ -343,7 +411,14 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
 
       <LoginRequiredSheet
         isOpen={isLoginRequired}
-        onClose={() => setIsLoginRequired(false)}
+        onClose={() => {
+          setIsLoginRequired(false);
+          try {
+            sessionStorage.removeItem('pending_open_report');
+          } catch {
+            /* storage fallback */
+          }
+        }}
         onContinueWithGoogle={handleLoginWithGoogle}
         loading={loginLoading}
         action="report_encounter"

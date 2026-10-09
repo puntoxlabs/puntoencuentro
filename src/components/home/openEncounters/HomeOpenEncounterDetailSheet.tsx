@@ -132,8 +132,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               comment: pendingReport.comment || '',
             });
             setIsReportModalOpen(true);
-            sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
           }
+          sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
         }
       } catch {
         sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
@@ -562,8 +562,18 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           isOpen={isReportModalOpen}
           onClose={() => {
             setIsReportModalOpen(false);
+            setPendingReportData(null);
+            try {
+              sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
+            } catch {
+              /* storage fallback */
+            }
             setTimeout(() => {
-              reportBtnRef.current?.focus();
+              if (reportBtnRef.current && !reportBtnRef.current.disabled) {
+                reportBtnRef.current.focus();
+              } else {
+                closeBtnRef.current?.focus();
+              }
             }, 50);
           }}
           encuentroId={encounter.id}
@@ -573,6 +583,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           onReportSuccess={() => {
             setIsReported(true);
             setPendingReportData(null);
+            try {
+              sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
+            } catch {
+              /* storage fallback */
+            }
           }}
         />
       )}
