@@ -362,9 +362,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   ).get('homeVariant');
 
   const isV2Variant = !isProductionEnv && (
-    propHomeVariant === 'v2' || (
-      propHomeVariant !== 'v1' && queryHomeVariant === 'v2'
-    )
+    propHomeVariant !== 'v1' && queryHomeVariant !== 'v1'
   );
 
   // Variante de diseño visual de la Home (GSAP definitiva por defecto)
@@ -411,13 +409,29 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   });
   const [intentionCreateTrigger, setIntentionCreateTrigger] = useState(0);
 
+  const scrollToPersonalSection = () => {
+    const personalSection = document.querySelector('.home-encounters-section') || document.querySelector('.pe-intenciones-section');
+    if (personalSection) {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      personalSection.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    }
+  };
+
   const handleOpenIntentionFlow = () => {
     setUserSectionTab('intenciones');
     setIntentionCreateTrigger(Date.now());
-    const personalSection = document.querySelector('.home-encounters-section');
-    if (personalSection) {
-      personalSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    scrollToPersonalSection();
+  };
+
+  const handleIntentionSaved = () => {
+    setUserSectionTab('intenciones');
+    scrollToPersonalSection();
   };
 
   const [imgError, setImgError] = useState(false);
@@ -1283,6 +1297,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             <HomeIntencionesSection
               triggerCreateTimestamp={intentionCreateTrigger}
               isV2Variant={isV2Variant}
+              onSaveSuccess={handleIntentionSaved}
             />
           </div>
         )}

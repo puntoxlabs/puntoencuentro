@@ -35,6 +35,7 @@ export interface HomeIntencionesSectionProps {
   isV2Variant?: boolean;
   initialLoading?: boolean;
   mockIntenciones?: Intencion[];
+  onSaveSuccess?: () => void;
 }
 
 export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
@@ -42,6 +43,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   isV2Variant = false,
   initialLoading,
   mockIntenciones,
+  onSaveSuccess,
 }) => {
   const { t } = useTranslation();
   const navigate = useSafeNavigate();
@@ -218,6 +220,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
       }
       setRestoredDraft(null);
       setEditingIntencion(null);
+      onSaveSuccess?.();
       return true;
     } catch (err: any) {
       console.error('[HomeIntencionesSection] Error saving intention:', err);

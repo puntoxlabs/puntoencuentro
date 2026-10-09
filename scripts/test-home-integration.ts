@@ -1617,6 +1617,94 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlSheetEditV1.includes('Editar intención'), 'En V1 debe conservar "Editar intención"');
     });
+
+    test('R. Promoción de Home V2 por defecto en Staging, protección estricta de Producción (V1) y override técnico v1', () => {
+      const loggedAuthValue = {
+        user: { id: 'usr-456', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      // 1. En staging sin parámetros: V2 es la default activa
+      const htmlStagingDefault = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(htmlStagingDefault.includes('home-v2-variant'), 'En Staging sin parámetro, Home debe ser V2 por defecto');
+      assert.ok(htmlStagingDefault.includes('Mis ganas'), 'En Staging default debe mostrar solapa Mis ganas');
+
+      // 2. En staging con override técnico ?homeVariant=v1: activa Home V1
+      const htmlStagingV1Query = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v1'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(!htmlStagingV1Query.includes('home-v2-variant'), 'En Staging con ?homeVariant=v1 debe desactivar V2');
+
+      // 3. En staging con prop explícita homeVariant="v1": activa Home V1
+      const htmlStagingV1Prop = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(!htmlStagingV1Prop.includes('home-v2-variant'), 'En Staging con prop homeVariant="v1" debe desactivar V2');
+
+      // 4. En producción sin parámetros: SIEMPRE V1 (producción 100% protegida)
+      const htmlProdDefault = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
+          )
+        )
+      );
+      assert.ok(!htmlProdDefault.includes('home-v2-variant'), 'En Producción sin parámetro, Home debe permanecer en V1');
+
+      // 5. En producción incluso con query param ?homeVariant=v2: NUNCA activa V2 sin autorización explícita
+      const htmlProdV2Query = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
+          )
+        )
+      );
+      assert.ok(!htmlProdV2Query.includes('home-v2-variant'), 'En Producción con query ?homeVariant=v2 debe permanecer en V1 blindado');
+    });
   });
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type {
   CrearIntencionPayload,
@@ -153,7 +154,7 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <>
       <div className="pe-intencion-overlay" onClick={onClose} aria-hidden="true" />
       <div
@@ -351,4 +352,10 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
       </div>
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
