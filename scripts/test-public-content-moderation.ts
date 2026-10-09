@@ -664,6 +664,119 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     assert.equal(meta.link_virtual, undefined);
   });
 
+  test('Seguridad TOCTOU: contenido modificado después de ser leído rechaza aprobación por hash mismatch', async () => {
+    const encId = await createTestEncounter('Título original limpio');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción original limpia', 4, 'guemes', NULL);
+    `);
+
+    // Calcular hash del contenido en el momento de la lectura
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion('Título original limpio', 'Descripción original limpia');
+    `);
+    const initialHash = hashRes.rows[0].calcular_content_hash_moderacion;
+
+    // Carrera TOCTOU: El host o atacante altera el contenido en BD mientras modera
+    await db.query(`
+      UPDATE public.encuentros
+      SET titulo = 'Título modificado malicioso'
+      WHERE id = '${encId}';
+    `);
+
+    // El resolver con service_role intenta aprobar con el hash inicial
+    await setAuthContext(null, false, 'service_role');
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto', '${initialHash}');
+    `);
+    const r = modRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'content_hash_mismatch');
+
+    // Comprobar que en BD NO quedó aprobado ni abierto
+    const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'review_pending');
+  });
+
+  test('Seguridad Auto-Hide vs Moderación: approve retrasado no republica un encuentro auto-ocultado', async () => {
+    const encId = await createTestEncounter('Encuentro en carrera de auto-hide');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción pública', 4, 'guemes', NULL);
+    `);
+
+    // Simular que el encuentro pasó a hidden_pending_review por reportes concurrentes
+    await db.query(`
+      UPDATE public.encuentros
+      SET moderation_status = 'hidden_pending_review', is_open = false
+      WHERE id = '${encId}';
+    `);
+
+    // Moderación automatizada (service_role) intenta llamar approve posteriormente
+    await setAuthContext(null, false, 'service_role');
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'automated delayed allow');
+    `);
+    const r = modRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'invalid_status_transition');
+
+    // Sigue oculto en hidden_pending_review
+    const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'hidden_pending_review');
+  });
+
+  test('Seguridad Transiciones: service_role no puede aprobar un encuentro en rejected ni draft', async () => {
+    const encId = await createTestEncounter('Encuentro rechazado');
+    await db.query(`
+      UPDATE public.encuentros SET moderation_status = 'rejected', is_open = false WHERE id = '${encId}';
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'auto');
+    `);
+    const r = modRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'invalid_status_transition');
+
+    // Mismo control para estado draft
+    const draftId = await createTestEncounter('Encuentro borrador');
+    const draftRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${draftId}', 'approve', 'auto');
+    `);
+    assert.equal(draftRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+    assert.equal(draftRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'invalid_status_transition');
+  });
+
+  test('Aprobación exitosa con verificación de hash idéntico', async () => {
+    const encId = await createTestEncounter('Plan con hash válido');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción legítima', 4, 'guemes', NULL);
+    `);
+
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion('Plan con hash válido', 'Descripción legítima');
+    `);
+    const validHash = hashRes.rows[0].calcular_content_hash_moderacion;
+
+    await setAuthContext(null, false, 'service_role');
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'hash verificado', '${validHash}');
+    `);
+    const r = modRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.new_status, 'approved');
+    assert.equal(r.is_open, true);
+  });
+
   test('Caso R: Producción intacta', () => {
     // Verificar que todas las operaciones ejecutaron en motor local PGlite
     assert.ok(db);

@@ -196,12 +196,11 @@ export const openEncountersService = {
       return rpcResult;
     }
 
-    // 2. Choke point: Invocar pipeline de moderación semántica en Edge Function
+    // 2. Choke point: Invocar pipeline de moderación semántica en Edge Function (sólo encounter_id)
     try {
       const funcRes = await supabase.functions.invoke('moderate-public-content', {
         body: {
           encounter_id: encuentroId,
-          description: payload.open_description,
         },
       });
 

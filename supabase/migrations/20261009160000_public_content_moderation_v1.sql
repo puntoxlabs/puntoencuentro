@@ -607,10 +607,29 @@ $$;
 REVOKE ALL ON FUNCTION public.get_moderation_queue_seguro() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_moderation_queue_seguro() TO authenticated, postgres, service_role;
 
+-- Helper: cálculo de fingerprint/hash canónico sobre campos públicos moderables
+CREATE OR REPLACE FUNCTION public.calcular_content_hash_moderacion(
+    p_title TEXT,
+    p_open_description TEXT
+)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+    SELECT md5(COALESCE(pg_catalog.btrim(p_title), '') || '::' || COALESCE(pg_catalog.btrim(p_open_description), ''));
+$$;
+
+REVOKE ALL ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT) TO authenticated, anon, postgres, service_role;
+
+DROP FUNCTION IF EXISTS public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.resolver_moderacion_encuentro_seguro(
     p_encuentro_id UUID,
     p_action TEXT,
-    p_note TEXT DEFAULT NULL
+    p_note TEXT DEFAULT NULL,
+    p_expected_content_hash TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -627,6 +646,7 @@ DECLARE
     v_clean_note TEXT;
     v_conv_intencion RECORD;
     v_source TEXT := CASE WHEN auth.role() = 'service_role' THEN 'automated_moderation' ELSE 'admin' END;
+    v_current_hash TEXT;
 BEGIN
     -- Verificación de rol administrativo o service_role
     IF auth.role() = 'service_role' THEN
@@ -649,7 +669,39 @@ BEGIN
 
     v_clean_note := NULLIF(pg_catalog.btrim(p_note), '');
 
+    -- Control estricto de transiciones de estado para APPROVE
     IF p_action = 'approve' THEN
+        -- Moderación automatizada (service_role) SOLO puede aprobar si el estado actual es 'review_pending'
+        IF auth.role() = 'service_role' AND v_encuentro.moderation_status <> 'review_pending' THEN
+            RETURN pg_catalog.json_build_object(
+                'ok', false,
+                'error', 'invalid_status_transition',
+                'current_status', v_encuentro.moderation_status,
+                'message', 'Automated moderation can only approve encounters in review_pending'
+            );
+        END IF;
+
+        -- Admin/QA no puede aprobar un encuentro en 'rejected' o 'removed' sin revisión
+        IF auth.role() <> 'service_role' AND v_encuentro.moderation_status NOT IN ('review_pending', 'hidden_pending_review') THEN
+            RETURN pg_catalog.json_build_object(
+                'ok', false,
+                'error', 'invalid_status_transition',
+                'current_status', v_encuentro.moderation_status
+            );
+        END IF;
+
+        -- TOCTOU check: si se provee hash esperado, comparar atómicamente contra el contenido actual en BD
+        IF p_expected_content_hash IS NOT NULL THEN
+            v_current_hash := public.calcular_content_hash_moderacion(v_encuentro.titulo, v_encuentro.open_description);
+            IF v_current_hash <> p_expected_content_hash THEN
+                RETURN pg_catalog.json_build_object(
+                    'ok', false,
+                    'error', 'content_hash_mismatch',
+                    'message', 'El contenido fue modificado durante la evaluación de moderación'
+                );
+            END IF;
+        END IF;
+
         v_new_status := 'approved';
         v_is_open := true;
     ELSIF p_action = 'hide' THEN
@@ -734,8 +786,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT) TO authenticated, postgres, service_role;
+REVOKE ALL ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT, TEXT) TO authenticated, postgres, service_role;
 
 -- ------------------------------------------------------------------------------
 -- 10. ACTUALIZACIÓN DE RPC DISCOVERY: get_discovery_encuentros_abiertos

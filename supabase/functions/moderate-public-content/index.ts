@@ -134,8 +134,10 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
 
   try {
+    // 1. Autenticación estricta del caller mediante JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(
@@ -144,33 +146,95 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const payload = (await req.json()) as ModerateContentRequest;
-    if (!payload || (!payload.title && !payload.encounter_id)) {
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) {
       return new Response(
-        JSON.stringify({ ok: false, error: "invalid_payload" }),
+        JSON.stringify({ ok: false, error: "not_authenticated" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validar JWT con Supabase Auth
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: authData, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !authData?.user) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "not_authenticated" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const callerId = authData.user.id;
+
+    // 2. Extracción de encounter_id (NO confiar en texto enviado por cliente)
+    const payload = (await req.json().catch(() => ({}))) as Partial<ModerateContentRequest>;
+    if (!payload || !payload.encounter_id) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "invalid_payload", message: "encounter_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    let titleToEvaluate = payload.title || "";
-    let descToEvaluate = payload.description || "";
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error("Missing Supabase configuration");
+    }
 
-    // Si no se proveyó título pero sí encounter_id, leerlo directamente de DB con service_role
-    if (!titleToEvaluate && payload.encounter_id && supabaseUrl && serviceRoleKey) {
-      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-      const { data: enc } = await supabaseAdmin
-        .from("encuentros")
-        .select("titulo, open_description")
-        .eq("id", payload.encounter_id)
-        .single();
-      if (enc) {
-        titleToEvaluate = enc.titulo || "";
-        if (!descToEvaluate) descToEvaluate = enc.open_description || "";
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+    // 3. Fuente Canónica de Contenido: leer estrictamente desde DB
+    // Exclusión estricta de datos privados: NO se lee lugar_texto, link_virtual, public_token, etc.
+    const { data: enc, error: encErr } = await supabaseAdmin
+      .from("encuentros")
+      .select("id, titulo, open_description, modalidad, open_public_zone, host_id, moderation_status, is_open")
+      .eq("id", payload.encounter_id)
+      .single();
+
+    if (encErr || !enc) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "encuentro_not_found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 4. Autorización: sólo el host del encuentro o personal QA/Admin puede disparar moderación
+    if (enc.host_id !== callerId) {
+      const { data: isQa } = await supabaseAdmin
+        .from("qa_authorized_users")
+        .select("user_id")
+        .eq("user_id", callerId)
+        .in("role", ["admin", "qa"])
+        .maybeSingle();
+
+      if (!isQa) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "unauthorized", message: "Only the encounter host may trigger moderation" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
-    // 1. Reglas deterministas conservadoras primero
-    const detResult = evaluateDeterministic(titleToEvaluate, descToEvaluate);
+    // 5. State Machine Precondition: sólo puede moderarse si está en 'review_pending'
+    if (enc.moderation_status !== "review_pending") {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "invalid_status_transition",
+          current_status: enc.moderation_status,
+          message: "Encounter is not in review_pending status",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 6. TOCTOU Protection: calcular fingerprint canónico sobre los campos en DB
+    const { data: expectedHash } = await supabaseAdmin.rpc("calcular_content_hash_moderacion", {
+      p_title: enc.titulo,
+      p_open_description: enc.open_description,
+    });
+
+    // 7. Evaluación sobre contenido canónico exclusivamente
+    const detResult = evaluateDeterministic(enc.titulo, enc.open_description || "");
 
     const finalResult: ModerateContentResult = detResult || {
       decision: "allow",
@@ -179,25 +243,39 @@ Deno.serve(async (req: Request) => {
       reason_code: "clean_social_meetup",
     };
 
-    // 2. Choke point: si la decisión es ALLOW o BLOCK, aplicar resolución en BD con service_role
-    if (payload.encounter_id && supabaseUrl && serviceRoleKey) {
-      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-      if (finalResult.decision === "allow") {
-        await supabaseAdmin.rpc("resolver_moderacion_encuentro_seguro", {
+    // 8. Choke point: aplicar resolución atómica con service_role validando hash
+    if (finalResult.decision === "allow") {
+      const { data: resolveResult, error: resolveErr } = await supabaseAdmin.rpc(
+        "resolver_moderacion_encuentro_seguro",
+        {
           p_encuentro_id: payload.encounter_id,
           p_action: "approve",
           p_note: `Automated moderation allow: ${finalResult.reason_code}`,
-        });
-      } else if (finalResult.decision === "block") {
-        await supabaseAdmin.rpc("resolver_moderacion_encuentro_seguro", {
-          p_encuentro_id: payload.encounter_id,
-          p_action: "reject",
-          p_note: `Automated moderation block: ${finalResult.reason_code}`,
-        });
+          p_expected_content_hash: expectedHash,
+        }
+      );
+
+      if (resolveErr || !resolveResult?.ok) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: resolveResult?.error || "approval_failed",
+            moderation_status: "review_pending",
+            is_open: false,
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      // Si finalResult.decision === "review", no se aprueba: permanece seguro en review_pending
+    } else if (finalResult.decision === "block") {
+      await supabaseAdmin.rpc("resolver_moderacion_encuentro_seguro", {
+        p_encuentro_id: payload.encounter_id,
+        p_action: "reject",
+        p_note: `Automated moderation block: ${finalResult.reason_code}`,
+        p_expected_content_hash: expectedHash,
+      });
     }
 
+    // Si finalResult.decision === "review", no se aprueba: permanece seguro en review_pending
     return new Response(
       JSON.stringify({
         ok: true,
@@ -216,7 +294,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err: any) {
     console.error("[moderate-public-content] Fail-safe error:", err);
-    // FAIL-SAFE ESTRICTO: ante cualquier error no previsto, la decisión es review, jamás allow
+    // FAIL-SAFE ESTRICTO: ante cualquier error no previsto, jamás fail-open
     const fallbackResult: ModerateContentResult = {
       decision: "review",
       categories: [],
@@ -226,14 +304,15 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        ok: true,
+        ok: false,
+        error: "moderation_unavailable",
         data: {
           ...fallbackResult,
           is_open: false,
           moderation_status: "review_pending",
         },
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
