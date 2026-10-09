@@ -69,6 +69,15 @@ try {
   await server.ssrLoadModule('./scripts/test-open-encounters-coexistence-and-requests.ts');
   console.log('✅ Open Encounters coexistence, private location & join requests tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-fase-20c1-trust-generic-rate-limiting.ts');
+  console.log('✅ Generic server-side rate limiter tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-fase-20c1-trust-rate-limiting-enforcement.ts');
+  console.log('✅ Rate limiting enforcement on core social actions tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-t5-b3-rate-limit-ux.ts');
+  console.log('✅ Antiabuse UX and error feedback tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);
