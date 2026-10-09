@@ -673,7 +673,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
 
     // Calcular hash del contenido en el momento de la lectura
     const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
-      SELECT public.calcular_content_hash_moderacion('Título original limpio', 'Descripción original limpia');
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
     `);
     const initialHash = hashRes.rows[0].calcular_content_hash_moderacion;
 
@@ -763,7 +764,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     `);
 
     const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
-      SELECT public.calcular_content_hash_moderacion('Plan con hash válido', 'Descripción legítima');
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
     `);
     const validHash = hashRes.rows[0].calcular_content_hash_moderacion;
 
@@ -775,6 +777,343 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     assert.equal(r.ok, true);
     assert.equal(r.new_status, 'approved');
     assert.equal(r.is_open, true);
+  });
+
+  test('Caso A (Post-Edit): approved + editar titulo -> review_pending + is_open=false', async () => {
+    const encId = await createTestEncounter('Título original aprobado');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción legítima', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Host edita título con actualizar_encuentro_seguro
+    await setAuthContext(hostUser);
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "Nuevo título editado"}'::jsonb);
+    `);
+    const upd = updRes.rows[0].actualizar_encuentro_seguro;
+    assert.equal(upd.ok, true);
+    assert.equal(upd.moderation_invalidated, true);
+    assert.equal(upd.moderation_status, 'review_pending');
+    assert.equal(upd.is_open, false);
+
+    // Verificar en BD
+    const row = await db.query<{ is_open: boolean; moderation_status: string; titulo: string }>(`
+      SELECT is_open, moderation_status, titulo FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].titulo, 'Nuevo título editado');
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'review_pending');
+
+    // Verificar auditoría
+    const audit = await db.query<{ action: string; previous_status: string; new_status: string; reason: string }>(`
+      SELECT action, previous_status, new_status, reason FROM public.public_content_moderation_audit
+      WHERE encuentro_id = '${encId}' ORDER BY created_at DESC LIMIT 1;
+    `);
+    assert.equal(audit.rows[0].action, 'content_updated');
+    assert.equal(audit.rows[0].previous_status, 'approved');
+    assert.equal(audit.rows[0].new_status, 'review_pending');
+    assert.equal(audit.rows[0].reason, 'content_updated');
+  });
+
+  test('Caso B (Post-Edit): approved + editar open_description -> review_pending + is_open=false', async () => {
+    const encId = await createTestEncounter('Título para editar desc');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción v1', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Host edita open_description
+    await setAuthContext(hostUser);
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"open_description": "Descripción v2 modificada"}'::jsonb);
+    `);
+    const upd = updRes.rows[0].actualizar_encuentro_seguro;
+    assert.equal(upd.ok, true);
+    assert.equal(upd.moderation_invalidated, true);
+    assert.equal(upd.moderation_status, 'review_pending');
+    assert.equal(upd.is_open, false);
+
+    const row = await db.query<{ is_open: boolean; moderation_status: string; open_description: string }>(`
+      SELECT is_open, moderation_status, open_description FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].open_description, 'Descripción v2 modificada');
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'review_pending');
+  });
+
+  test('Caso C (Post-Edit): approved + editar campo privado -> no invalida si no corresponde', async () => {
+    const encId = await createTestEncounter('Encuentro con cambio privado');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción pública estable', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Host edita campos privados: lugar_texto, descripcion privada, tema_invitacion
+    await setAuthContext(hostUser);
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro(
+        '${encId}', '${hostUser}',
+        '{"lugar_texto": "Dirección privada actualizada 456", "descripcion": "Mensaje para invitados", "tema_invitacion": "friends"}'::jsonb
+      );
+    `);
+    const upd = updRes.rows[0].actualizar_encuentro_seguro;
+    assert.equal(upd.ok, true);
+    assert.equal(upd.moderation_invalidated, false);
+    assert.equal(upd.moderation_status, 'approved');
+    assert.equal(upd.is_open, true);
+
+    // Sigue apareciendo en Discovery
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const list = disc.rows[0].get_discovery_encuentros_abiertos;
+    assert.equal(list.some((e: any) => e.id === encId), true);
+  });
+
+  test('Caso D (Post-Edit): edición durante review_pending -> aprobación vieja falla por hash mismatch', async () => {
+    const encId = await createTestEncounter('Título inicial en revisión');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción inicial', 4, 'guemes', NULL);
+    `);
+
+    // Hash tomado por la Edge function al iniciar
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    const oldHash = hashRes.rows[0].calcular_content_hash_moderacion;
+
+    // Host edita título mientras estaba en review_pending
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "Título modificado en vuelo"}'::jsonb);
+    `);
+    assert.equal(updRes.rows[0].actualizar_encuentro_seguro.ok, true);
+
+    // Edge function rezagada intenta aprobar con oldHash
+    await setAuthContext(null, false, 'service_role');
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'rezagado', '${oldHash}');
+    `);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'content_hash_mismatch');
+
+    // Sigue protegido en review_pending
+    const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'review_pending');
+  });
+
+  test('Caso E (Post-Edit): cliente omite Edge Function después de editar -> contenido permanece oculto', async () => {
+    const encId = await createTestEncounter('Título para probar omisión');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción previa', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Host edita título pero el cliente no invoca nunca la Edge Function
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "Título editado sin Edge Function"}'::jsonb);
+    `);
+
+    // Discovery NO lo muestra
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const list = disc.rows[0].get_discovery_encuentros_abiertos;
+    assert.equal(list.some((e: any) => e.id === encId), false);
+  });
+
+  test('Caso F (Post-Edit): re-moderación posterior allow -> vuelve a approved + is_open=true', async () => {
+    const encId = await createTestEncounter('Título antes de re-aprobar');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción antes de re-aprobar', 4, 'guemes', NULL);
+    `);
+
+    // Aprobación 1
+    await setAuthContext(null, false, 'service_role');
+    let hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Edición legítima
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "Título re-editado limpio"}'::jsonb);
+    `);
+
+    // Nueva moderación con nuevo hash
+    await setAuthContext(null, false, 'service_role');
+    hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    const remoderateRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 're-aprobado', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+    assert.equal(remoderateRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+    assert.equal(remoderateRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
+    assert.equal(remoderateRes.rows[0].resolver_moderacion_encuentro_seguro.new_status, 'approved');
+
+    // Ahora SÍ aparece en Discovery con el nuevo título
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const item = disc.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === encId);
+    assert.ok(item);
+    assert.equal(item.title, 'Título re-editado limpio');
+  });
+
+  test('Caso G (Post-Edit): edición + block -> rejected/no visible', async () => {
+    const encId = await createTestEncounter('Título inicialmente aprobado');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción limpia', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Host intenta inyectar amenaza en el título mediante actualizar_encuentro_seguro
+    await setAuthContext(hostUser);
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"titulo": "te voy a matar amenaza de muerte"}'::jsonb);
+    `);
+    const upd = updRes.rows[0].actualizar_encuentro_seguro;
+    assert.equal(upd.ok, true);
+    assert.equal(upd.moderation_status, 'rejected');
+    assert.equal(upd.is_open, false);
+
+    // Auditoría registró deterministic_block
+    const audit = await db.query<{ action: string; new_status: string; reason: string }>(`
+      SELECT action, new_status, reason FROM public.public_content_moderation_audit
+      WHERE encuentro_id = '${encId}' ORDER BY created_at DESC LIMIT 1;
+    `);
+    assert.equal(audit.rows[0].action, 'deterministic_block');
+    assert.equal(audit.rows[0].new_status, 'rejected');
+    assert.equal(audit.rows[0].reason, 'violence_threat');
+
+    // Discovery NO lo muestra
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    assert.equal(disc.rows[0].get_discovery_encuentros_abiertos.some((e: any) => e.id === encId), false);
+  });
+
+  test('Caso H (Post-Edit): llamada directa a RPC no puede preservar approved', async () => {
+    const encId = await createTestEncounter('Título para probar payload malicioso en RPC');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción limpia', 4, 'guemes', NULL);
+    `);
+
+    await setAuthContext(null, false, 'service_role');
+    const hashRes = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(titulo, open_description, modalidad, open_public_zone)
+      FROM public.encuentros WHERE id = '${encId}';
+    `);
+    await db.query(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'inicial', '${hashRes.rows[0].calcular_content_hash_moderacion}');
+    `);
+
+    // Inyección de parámetros maliciosos en p_data para forzar status approved e is_open true
+    await setAuthContext(hostUser);
+    const updRes = await db.query<{ actualizar_encuentro_seguro: any }>(`
+      SELECT public.actualizar_encuentro_seguro(
+        '${encId}', '${hostUser}',
+        '{"titulo": "Título alterado", "moderation_status": "approved", "is_open": true}'::jsonb
+      );
+    `);
+    const upd = updRes.rows[0].actualizar_encuentro_seguro;
+    assert.equal(upd.ok, true);
+    // El RPC ignora la inyección y fuerza la invalidación server-side
+    assert.equal(upd.moderation_status, 'review_pending');
+    assert.equal(upd.is_open, false);
+
+    const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].moderation_status, 'review_pending');
+    assert.equal(row.rows[0].is_open, false);
+  });
+
+  test('Caso I (Post-Edit): Data API no permite UPDATE directo que saltee lógica', async () => {
+    const encId = await createTestEncounter('Título protegido contra Data API');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción inicial', 4, 'guemes', NULL);
+    `);
+
+    // Intentar UPDATE directo sobre la tabla como usuario autenticado normal
+    let directUpdateBlocked = false;
+    try {
+      await db.query(`
+        SET LOCAL ROLE authenticated;
+        UPDATE public.encuentros SET titulo = 'Bypass directo Data API' WHERE id = '${encId}';
+      `);
+      // Si la consulta no arrojó error de permisos, verificar si RLS previno la mutación
+      const check = await db.query<{ titulo: string }>(`SELECT titulo FROM public.encuentros WHERE id = '${encId}';`);
+      if (check.rows[0]?.titulo !== 'Bypass directo Data API') {
+        directUpdateBlocked = true;
+      }
+    } catch {
+      directUpdateBlocked = true;
+    } finally {
+      await db.query(`RESET ROLE;`);
+    }
+
+    assert.ok(directUpdateBlocked, 'El UPDATE directo vía Data API debe fallar o no modificar filas');
   });
 
   test('Caso R: Producción intacta', () => {

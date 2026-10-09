@@ -19,6 +19,9 @@ export interface CreateEncuentroDTO {
   invitation_template?: string | null;
   reemplaza_a?: string | null;
   post_event_active_minutes?: number;
+  open_description?: string;
+  locality_id?: string;
+  open_public_zone?: string;
 }
 
 export type VisibilidadRespuestas = 'hidden' | 'summary' | 'detail';
@@ -663,6 +666,19 @@ export const encuentrosService = {
     if (error) throw error;
     const res = result as any;
     if (!res?.ok) throw new Error(res?.error || 'update_failed');
+
+    // Si la edición modificó contenido público e invalidó la moderación previa,
+    // orquestar re-evaluación automática con la Edge Function existente.
+    if (res.moderation_invalidated) {
+      try {
+        await supabase.functions.invoke('moderate-public-content', {
+          body: { encounter_id: id }
+        });
+      } catch (modErr) {
+        console.warn('[encuentrosService] Edge function re-moderation diferida o fallida; permanece seguro en review_pending:', modErr);
+      }
+    }
+
     return res;
   },
 

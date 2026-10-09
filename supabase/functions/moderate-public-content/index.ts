@@ -231,6 +231,8 @@ Deno.serve(async (req: Request) => {
     const { data: expectedHash } = await supabaseAdmin.rpc("calcular_content_hash_moderacion", {
       p_title: enc.titulo,
       p_open_description: enc.open_description,
+      p_modalidad: enc.modalidad,
+      p_open_public_zone: enc.open_public_zone,
     });
 
     // 7. Evaluación sobre contenido canónico exclusivamente

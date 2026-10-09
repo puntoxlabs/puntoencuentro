@@ -608,20 +608,30 @@ REVOKE ALL ON FUNCTION public.get_moderation_queue_seguro() FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION public.get_moderation_queue_seguro() TO authenticated, postgres, service_role;
 
 -- Helper: cálculo de fingerprint/hash canónico sobre campos públicos moderables
+DROP FUNCTION IF EXISTS public.calcular_content_hash_moderacion(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.calcular_content_hash_moderacion(TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.calcular_content_hash_moderacion(
     p_title TEXT,
-    p_open_description TEXT
+    p_open_description TEXT,
+    p_modalidad TEXT DEFAULT NULL,
+    p_open_public_zone TEXT DEFAULT NULL
 )
 RETURNS TEXT
 LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-    SELECT md5(COALESCE(pg_catalog.btrim(p_title), '') || '::' || COALESCE(pg_catalog.btrim(p_open_description), ''));
+    SELECT md5(
+        COALESCE(pg_catalog.btrim(p_title), '') || '::' ||
+        COALESCE(pg_catalog.btrim(p_open_description), '') || '::' ||
+        COALESCE(pg_catalog.btrim(p_modalidad), '') || '::' ||
+        COALESCE(pg_catalog.btrim(p_open_public_zone), '')
+    );
 $$;
 
-REVOKE ALL ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT) TO authenticated, anon, postgres, service_role;
+REVOKE ALL ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.calcular_content_hash_moderacion(TEXT, TEXT, TEXT, TEXT) TO authenticated, anon, postgres, service_role;
 
 DROP FUNCTION IF EXISTS public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT);
 
@@ -692,7 +702,12 @@ BEGIN
 
         -- TOCTOU check: si se provee hash esperado, comparar atómicamente contra el contenido actual en BD
         IF p_expected_content_hash IS NOT NULL THEN
-            v_current_hash := public.calcular_content_hash_moderacion(v_encuentro.titulo, v_encuentro.open_description);
+            v_current_hash := public.calcular_content_hash_moderacion(
+                v_encuentro.titulo,
+                v_encuentro.open_description,
+                v_encuentro.modalidad,
+                v_encuentro.open_public_zone
+            );
             IF v_current_hash <> p_expected_content_hash THEN
                 RETURN pg_catalog.json_build_object(
                     'ok', false,
@@ -788,6 +803,224 @@ $$;
 
 REVOKE ALL ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resolver_moderacion_encuentro_seguro(UUID, TEXT, TEXT, TEXT) TO authenticated, postgres, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 9.1. RPC: ACTUALIZAR ENCUENTRO SEGURO (PROTECCIÓN CONTRA BYPASS POR EDICIÓN POST-APROBACIÓN)
+-- ------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.actualizar_encuentro_seguro(
+    p_encuentro_id uuid,
+    p_host_id      uuid,
+    p_data         jsonb
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+    v_user_id uuid := auth.uid();
+    v_encuentro public.encuentros%ROWTYPE;
+    v_new_title text;
+    v_new_open_desc text;
+    v_new_locality_id text;
+    v_new_public_zone text;
+    v_new_modalidad text;
+    v_loc_record public.localidades%ROWTYPE;
+    v_title_changed boolean := false;
+    v_open_desc_changed boolean := false;
+    v_modality_changed boolean := false;
+    v_locality_changed boolean := false;
+    v_zone_changed boolean := false;
+    v_moderation_invalidated boolean := false;
+    v_now timestamptz := pg_catalog.clock_timestamp();
+    v_eval record;
+    v_new_status text;
+    v_new_is_open boolean;
+    v_changed_fields text[] := ARRAY[]::text[];
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_authenticated');
+    END IF;
+
+    SELECT * INTO v_encuentro
+    FROM public.encuentros
+    WHERE id = p_encuentro_id AND host_id = v_user_id;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'Encuentro no encontrado o sin permisos');
+    END IF;
+
+    -- Si el encuentro está abierto, rechazar cambio de modalidad directamente (invariante existente)
+    IF v_encuentro.is_open = true AND p_data ? 'modalidad' AND (p_data->>'modalidad') <> v_encuentro.modalidad THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'cannot_change_modality_while_open');
+    END IF;
+
+    -- Extraer valores nuevos
+    v_new_title := CASE WHEN p_data ? 'titulo' THEN NULLIF(pg_catalog.btrim(p_data->>'titulo'), '') ELSE v_encuentro.titulo END;
+    v_new_open_desc := CASE WHEN p_data ? 'open_description' THEN NULLIF(pg_catalog.btrim(p_data->>'open_description'), '') ELSE v_encuentro.open_description END;
+    v_new_modalidad := COALESCE(p_data->>'modalidad', v_encuentro.modalidad);
+    v_new_locality_id := CASE WHEN p_data ? 'locality_id' THEN p_data->>'locality_id' ELSE v_encuentro.locality_id END;
+    v_new_public_zone := CASE WHEN p_data ? 'open_public_zone' THEN p_data->>'open_public_zone' ELSE v_encuentro.open_public_zone END;
+
+    -- Si se actualizó locality_id pero no open_public_zone, resolver zona desde localidades
+    IF p_data ? 'locality_id' AND v_new_locality_id IS NOT NULL AND NOT (p_data ? 'open_public_zone') THEN
+        SELECT * INTO v_loc_record FROM public.localidades WHERE id = v_new_locality_id AND activo = true;
+        IF FOUND THEN
+            v_new_public_zone := v_loc_record.nombre;
+        END IF;
+    END IF;
+
+    -- Detectar cambios en campos moderables públicos
+    IF p_data ? 'titulo' AND COALESCE(v_new_title, '') <> COALESCE(v_encuentro.titulo, '') THEN
+        v_title_changed := true;
+        v_changed_fields := pg_catalog.array_append(v_changed_fields, 'titulo');
+    END IF;
+
+    IF p_data ? 'open_description' AND COALESCE(v_new_open_desc, '') <> COALESCE(v_encuentro.open_description, '') THEN
+        v_open_desc_changed := true;
+        v_changed_fields := pg_catalog.array_append(v_changed_fields, 'open_description');
+    END IF;
+
+    IF p_data ? 'modalidad' AND v_new_modalidad <> v_encuentro.modalidad THEN
+        v_modality_changed := true;
+        v_changed_fields := pg_catalog.array_append(v_changed_fields, 'modalidad');
+    END IF;
+
+    IF p_data ? 'locality_id' AND COALESCE(v_new_locality_id, '') <> COALESCE(v_encuentro.locality_id, '') THEN
+        v_locality_changed := true;
+        v_changed_fields := pg_catalog.array_append(v_changed_fields, 'locality_id');
+    END IF;
+
+    IF p_data ? 'open_public_zone' AND COALESCE(v_new_public_zone, '') <> COALESCE(v_encuentro.open_public_zone, '') THEN
+        v_zone_changed := true;
+        v_changed_fields := pg_catalog.array_append(v_changed_fields, 'open_public_zone');
+    END IF;
+
+    v_new_status := v_encuentro.moderation_status;
+    v_new_is_open := v_encuentro.is_open;
+
+    -- REGLA OBLIGATORIA:
+    -- Si el encuentro está aprobado, abierto o en revisión y se modifica algún campo moderable:
+    -- Se invalida la aprobación anterior y se oculta de Discovery (is_open = false).
+    IF (v_encuentro.moderation_status = 'approved' OR v_encuentro.is_open = true OR v_encuentro.moderation_status = 'review_pending')
+       AND (v_title_changed OR v_open_desc_changed OR v_modality_changed OR v_locality_changed OR v_zone_changed) THEN
+
+        v_moderation_invalidated := true;
+
+        -- Evaluar reglas deterministas de inmediato
+        SELECT * INTO v_eval
+        FROM public.evaluar_contenido_publico_determinista(v_new_title, v_new_open_desc);
+
+        IF v_eval.decision = 'block' THEN
+            v_new_status := 'rejected';
+            v_new_is_open := false;
+
+            INSERT INTO public.public_content_moderation_audit (
+                encuentro_id, moderator_id, action, previous_status, new_status,
+                reason, categories, source, metadata
+            ) VALUES (
+                p_encuentro_id, v_user_id, 'deterministic_block', v_encuentro.moderation_status, 'rejected',
+                v_eval.reason, v_eval.categories, 'deterministic_edit',
+                pg_catalog.jsonb_build_object('changed_fields', v_changed_fields, 'title', v_new_title, 'open_description', v_new_open_desc)
+            );
+        ELSE
+            v_new_status := 'review_pending';
+            v_new_is_open := false;
+
+            INSERT INTO public.public_content_moderation_audit (
+                encuentro_id, moderator_id, action, previous_status, new_status,
+                reason, categories, source, metadata
+            ) VALUES (
+                p_encuentro_id, v_user_id, 'content_updated', v_encuentro.moderation_status, 'review_pending',
+                'content_updated', ARRAY[]::text[], 'user_edit',
+                pg_catalog.jsonb_build_object('changed_fields', v_changed_fields, 'title', v_new_title, 'open_description', v_new_open_desc)
+            );
+        END IF;
+    END IF;
+
+    UPDATE public.encuentros
+    SET
+        titulo = v_new_title,
+        descripcion = CASE
+            WHEN p_data ? 'descripcion'
+            THEN p_data->>'descripcion'
+            ELSE descripcion
+        END,
+        open_description = v_new_open_desc,
+        fecha = CASE
+            WHEN p_data ? 'fecha'
+            THEN (p_data->>'fecha')::date
+            ELSE fecha
+        END,
+        hora = CASE
+            WHEN p_data ? 'hora'
+            THEN (p_data->>'hora')::time
+            ELSE hora
+        END,
+        modalidad = v_new_modalidad,
+        locality_id = v_new_locality_id,
+        open_public_zone = v_new_public_zone,
+        lugar_texto = CASE WHEN p_data ? 'lugar_texto' THEN p_data->>'lugar_texto' ELSE lugar_texto END,
+        link_virtual = CASE WHEN p_data ? 'link_virtual' THEN p_data->>'link_virtual' ELSE link_virtual END,
+        tipo_invitacion = COALESCE(
+            p_data->>'tipo_invitacion',
+            tipo_invitacion
+        ),
+        estado = COALESCE(
+            p_data->>'estado',
+            estado
+        ),
+        tema = CASE WHEN p_data ? 'tema' THEN p_data->>'tema' ELSE tema END,
+        tema_invitacion = CASE
+            WHEN p_data ? 'tema_invitacion'
+                 AND p_data->>'tema_invitacion' IN (
+                    'classic', 'formal', 'friends', 'celebration', 'kids_birthday',
+                    'family', 'special', 'romantic', 'sports', 'entertainment',
+                    'learning', 'wellness', 'custom'
+                 )
+            THEN p_data->>'tema_invitacion'
+            ELSE tema_invitacion
+        END,
+        invitation_template = CASE WHEN p_data ? 'invitation_template' THEN p_data->>'invitation_template' ELSE invitation_template END,
+        reemplaza_a = CASE
+            WHEN p_data ? 'reemplaza_a'
+                 AND p_data->>'reemplaza_a' IS NOT NULL
+                 AND p_data->>'reemplaza_a' <> ''
+            THEN (p_data->>'reemplaza_a')::uuid
+            WHEN p_data ? 'reemplaza_a'
+            THEN NULL
+            ELSE reemplaza_a
+        END,
+        moderation_status = v_new_status,
+        is_open = v_new_is_open,
+        moderated_at = CASE WHEN v_moderation_invalidated THEN v_now ELSE moderated_at END,
+        moderation_reason = CASE
+            WHEN v_moderation_invalidated AND v_new_status = 'rejected' THEN v_eval.reason
+            WHEN v_moderation_invalidated THEN 'content_updated'
+            ELSE moderation_reason
+        END,
+        moderation_decision_source = CASE
+            WHEN v_moderation_invalidated AND v_new_status = 'rejected' THEN 'deterministic'
+            WHEN v_moderation_invalidated THEN 'content_update'
+            ELSE moderation_decision_source
+        END,
+        closed_at = CASE WHEN v_moderation_invalidated AND v_encuentro.is_open THEN v_now ELSE closed_at END
+    WHERE id = p_encuentro_id
+      AND host_id = v_user_id;
+
+    RETURN pg_catalog.json_build_object(
+        'ok', true,
+        'id', p_encuentro_id,
+        'moderation_invalidated', v_moderation_invalidated,
+        'moderation_status', v_new_status,
+        'is_open', v_new_is_open
+    );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.actualizar_encuentro_seguro(uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.actualizar_encuentro_seguro(uuid, uuid, jsonb) TO authenticated;
 
 -- ------------------------------------------------------------------------------
 -- 10. ACTUALIZACIÓN DE RPC DISCOVERY: get_discovery_encuentros_abiertos
