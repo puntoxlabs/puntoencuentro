@@ -1449,8 +1449,9 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(brushesHtml.includes('pe-brush-path--c'), 'Debe incluir la pincelada C de apoyo inferior');
       assert.ok(brushesHtml.includes('pe-brush-path--d'), 'Debe incluir la pincelada D del vacío lateral izquierdo central-bajo');
       assert.ok(brushesHtml.includes('pe-brush-path--e'), 'Debe incluir la pincelada E del vacío lateral derecho previo a Crear/Abrir');
+      assert.ok(brushesHtml.includes('pe-brush-path--f'), 'Debe incluir la pincelada F en el vacío superior izquierdo de actividad personal');
       const pathCount = (brushesHtml.match(/<path/g) || []).length;
-      assert.equal(pathCount, 5, 'Deben existir exactamente 5 pinceladas vectoriales en vacíos libres');
+      assert.equal(pathCount, 6, 'Deben existir exactamente 6 pinceladas vectoriales en vacíos libres');
       assert.ok(brushesHtml.includes('linearGradient'), 'Debe usar linearGradient para gradación interna');
       assert.ok(!brushesHtml.includes('<circle') && !brushesHtml.includes('<ellipse'), 'NO debe usar formas circulares o elípticas como trazo');
     });

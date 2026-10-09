@@ -10,7 +10,7 @@ import React from 'react';
  *   a los laterales (0px y 1920px+) proyectan los trazos hacia los bordes de pantalla.
  * - El centro funcional (los 1100px centrales: aprox. x=410 a x=1510 en un lienzo de 1920)
  *   permanece 100% limpio y libre de invasiones:
- *     * Pinceladas del flanco izquierdo (A, C, D) se afinan antes de x=450.
+ *     * Pinceladas del flanco izquierdo (A, C, D, F) se afinan antes de x=450.
  *     * Pinceladas del flanco derecho (B, E) se proyectan hacia la derecha y no avanzan antes de x=1460.
  * - Cero interferencia con títulos, tabs, filtros, cards, loaders, empty state o el FAB.
  * - SVG inline con aria-hidden="true", focusable="false", pointer-events: none.
@@ -52,6 +52,15 @@ export const HomeAmbientBrushes: React.FC = () => {
             <stop offset="25%" stopColor="#10b981" stopOpacity="0.10" />
             <stop offset="70%" stopColor="#0ea5e9" stopOpacity="0.07" />
             <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
+          </linearGradient>
+
+          {/* Gradiente Pincelada F: Menta / Aguamarina suave -> Azul translúcido */}
+          <linearGradient id="pe-brush-grad-f" x1="0%" y1="30%" x2="100%" y2="70%">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.03" />
+            <stop offset="22%" stopColor="#14b8a6" stopOpacity="0.15" />
+            <stop offset="60%" stopColor="#0ea5e9" stopOpacity="0.12" />
+            <stop offset="88%" stopColor="#38bdf8" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
           </linearGradient>
 
           {/* Filtro blur mínimo/moderado (4px) para suavizar filos sin perder la silueta de trazo */}
@@ -161,6 +170,32 @@ export const HomeAmbientBrushes: React.FC = () => {
           fill="url(#pe-brush-grad-b)"
           filter="url(#pe-brush-soften)"
           className="pe-brush-path pe-brush-path--e"
+        />
+
+        {/* 
+          PINCELADA F (Vacío superior izquierdo de actividad personal):
+          Ubicada específicamente en el vacío lateral que queda a la izquierda del inicio de
+          "Tus encuentros / Mis ganas" (y=320px): entre el borde izquierdo del viewport/contenedor,
+          la línea superior de la sección y el listado de cards.
+          Nace fuera de la pantalla en -100px, con un trazo más corto y orgánico (~460px de largo),
+          curvatura suave con leve conicidad que finaliza en x=360px con mini-cola orgánica y goteo muy sutil.
+          Color: Menta / Aguamarina suave -> Azul tenue, núcleo al 12%-15% con filtro suave de 4px.
+        */}
+        <path
+          d="M -100,310
+             C 10,298 110,305 200,295
+             C 260,288 310,280 345,274
+             C 358,272 364,276 360,282
+             C 354,290 338,298 315,306
+             C 270,322 245,338 238,348
+             C 234,354 238,358 244,354
+             C 252,348 268,334 290,324
+             C 230,344 150,358 70,368
+             C -15,378 -50,385 -100,390
+             Z"
+          fill="url(#pe-brush-grad-f)"
+          filter="url(#pe-brush-soften)"
+          className="pe-brush-path pe-brush-path--f"
         />
       </svg>
     </div>
