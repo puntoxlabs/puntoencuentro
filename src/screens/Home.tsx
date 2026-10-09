@@ -400,6 +400,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
   const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones'>(() => {
+    const sp = new URLSearchParams(location?.search || (typeof window !== 'undefined' ? window.location.search : ''));
+    if (sp.get('tab') === 'intenciones' || sp.get('section') === 'intenciones') {
+      return 'intenciones';
+    }
     if (typeof window !== 'undefined' && window.sessionStorage?.getItem('puntoencuentro_pending_intention')) {
       return 'intenciones';
     }
@@ -1450,7 +1454,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {isV2Variant && isPermanentUser && isDesktop && personalActivitySection}
 
           {/* Banda Tengo ganas de... inmediatamente después de Me sumo (o de actividad personal en desktop logueado) en Home V2 */}
-          {isV2Variant && (
+          {isV2Variant && userSectionTab !== 'intenciones' && (
             <HomeIntentionsBand onExpressIntent={handleOpenIntentionFlow} />
           )}
 

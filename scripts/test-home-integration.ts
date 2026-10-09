@@ -1460,15 +1460,44 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
     test('Q. Coherencia verbal y UX en Home V2: "Mis ganas" y "Tengo ganas de…", sin lenguaje heredado y preservando V1', () => {
       // 1. HomeIntencionesSection en V2 (Empty State y Loading)
-      const htmlSectionV2 = renderToString(
-        React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: false })
+      const htmlSectionV2Empty = renderToString(
+        React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: false, mockIntenciones: [] })
       );
-      assert.ok(!htmlSectionV2.includes('Mis intenciones'), 'En V2 NO debe aparecer el texto "Mis intenciones"');
-      assert.ok(!htmlSectionV2.includes('Expresar intención'), 'En V2 NO debe aparecer "Expresar intención"');
-      assert.ok(htmlSectionV2.includes('+ Tengo ganas de…'), 'En V2 el CTA debe usar "+ Tengo ganas de…"');
-      assert.ok(htmlSectionV2.includes('Todavía no contaste qué tenés ganas de hacer'), 'En V2 el empty state debe ser humano y natural');
-      assert.ok(htmlSectionV2.includes('Decí qué te gustaría hacer y guardalo para más adelante.'), 'En V2 la descripción del empty state explica la acción');
-      assert.ok(htmlSectionV2.includes('aria-label="Mis ganas"'), 'En V2 la sección debe tener aria-label="Mis ganas"');
+      assert.ok(!htmlSectionV2Empty.includes('Mis intenciones'), 'En V2 NO debe aparecer el texto "Mis intenciones"');
+      assert.ok(!htmlSectionV2Empty.includes('Expresar intención'), 'En V2 NO debe aparecer "Expresar intención"');
+      assert.ok(!htmlSectionV2Empty.includes('+ +'), 'NO debe haber doble signo + + en V2');
+      // En estado vacío, el CTA superior NO se muestra (solo el CTA del empty state)
+      assert.ok(htmlSectionV2Empty.includes('pe-intenciones-empty'), 'En estado vacío debe renderizar empty state');
+      assert.ok(htmlSectionV2Empty.includes('Todavía no contaste qué tenés ganas de hacer'), 'En V2 el empty state debe ser humano y natural');
+      assert.ok(htmlSectionV2Empty.includes('Decí qué te gustaría hacer y guardalo para más adelante.'), 'En V2 la descripción del empty state explica la acción');
+      assert.ok(htmlSectionV2Empty.includes('aria-label="Mis ganas"'), 'En V2 la sección debe tener aria-label="Mis ganas"');
+      // Verificamos que sólo hay 1 botón interactivo en la sección (el del empty state)
+      const emptyButtonsCount = (htmlSectionV2Empty.match(/pe-intenciones-add-btn/g) || []).length;
+      assert.equal(emptyButtonsCount, 1, 'En V2 vacío debe existir EXACTAMENTE un botón para Tengo ganas de… (en empty state)');
+
+      // 1B. HomeIntencionesSection en V2 con contenido
+      const mockGanaItem = {
+        id: 'gana-1',
+        titulo: 'Jugar al tenis',
+        descripcion: 'En el club los sábados',
+        estado: 'activa' as const,
+        modalidad: 'presencial' as const,
+        user_id: 'usr-123',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const htmlSectionV2Content = renderToString(
+        React.createElement(HomeIntencionesSection, {
+          isV2Variant: true,
+          initialLoading: false,
+          mockIntenciones: [mockGanaItem],
+        })
+      );
+      // Con contenido: el CTA superior SÍ se muestra en la cabecera
+      assert.ok(htmlSectionV2Content.includes('pe-intenciones-add-btn'), 'Con contenido debe mostrar CTA superior');
+      assert.ok(!htmlSectionV2Content.includes('pe-intenciones-empty'), 'Con contenido NO debe mostrar empty state');
+      assert.ok(!htmlSectionV2Content.includes('+ +'), 'Con contenido NO debe haber doble signo + +');
+      assert.ok(htmlSectionV2Content.includes('Jugar al tenis'), 'Debe mostrar la gana del listado');
 
       const htmlSectionV2Loading = renderToString(
         React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: true })
@@ -1490,7 +1519,51 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(htmlSectionV1Loading.includes('Cargando tus intenciones…'), 'En V1 el loading debe decir "Cargando tus intenciones…"');
 
-      // 3. IntencionFormSheet en V2 (Crear y Editar)
+      // 3. Jerarquía y visibilidad de Banda Tengo ganas de... en Home V2
+      const loggedAuthValue = {
+        user: { id: 'usr-123', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      // V2 con pestaña "encuentros": la banda global Tengo ganas de... DEBE ser visible
+      const htmlHomeV2Encuentros = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2&tab=encuentros'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(htmlHomeV2Encuentros.includes('home-intentions-band'), 'En pestaña encuentros la banda Tengo ganas de... debe ser visible');
+
+      // V2 con pestaña "intenciones" (Mis ganas): la banda global Tengo ganas de... DEBE OCULTARSE
+      const htmlHomeV2MisGanas = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2&tab=intenciones'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+      assert.ok(!htmlHomeV2MisGanas.includes('home-intentions-band'), 'En pestaña Mis ganas la banda global Tengo ganas de... DEBE OCULTARSE');
+
+      // 4. IntencionFormSheet en V2 (Crear y Editar)
       const htmlSheetCreateV2 = renderToString(
         React.createElement(IntencionFormSheet, {
           isOpen: true,
@@ -1502,8 +1575,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
       assert.ok(htmlSheetCreateV2.includes('Tengo ganas de…'), 'En V2 el título de creación debe ser "Tengo ganas de…"');
-      assert.ok(htmlSheetCreateV2.includes('+ Tengo ganas de…'), 'En V2 el botón de submit debe ser "+ Tengo ganas de…"');
       assert.ok(!htmlSheetCreateV2.includes('Expresar intención'), 'En V2 NO debe decir "Expresar intención"');
+      assert.ok(!htmlSheetCreateV2.includes('+ +'), 'En V2 sheet no debe haber doble +');
 
       const htmlSheetEditV2 = renderToString(
         React.createElement(IntencionFormSheet, {
@@ -1518,7 +1591,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlSheetEditV2.includes('Editar lo que tenés ganas de hacer'), 'En V2 el título de edición debe ser natural');
       assert.ok(!htmlSheetEditV2.includes('Editar intención'), 'En V2 NO debe decir "Editar intención"');
 
-      // 4. IntencionFormSheet en V1 (Crear y Editar)
+      // 5. IntencionFormSheet en V1 (Crear y Editar)
       const htmlSheetCreateV1 = renderToString(
         React.createElement(IntencionFormSheet, {
           isOpen: true,

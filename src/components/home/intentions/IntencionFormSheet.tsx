@@ -342,7 +342,7 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
                 ? 'Guardar cambios'
                 : isV2Variant
                 ? t('your_encounters.intentions_sheet_submit_create_v2', {
-                    defaultValue: '+ Tengo ganas de…',
+                    defaultValue: 'Tengo ganas de…',
                   })
                 : '+ Expresar intención'}
             </button>

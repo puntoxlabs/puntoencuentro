@@ -34,12 +34,14 @@ export interface HomeIntencionesSectionProps {
   triggerCreateTimestamp?: number;
   isV2Variant?: boolean;
   initialLoading?: boolean;
+  mockIntenciones?: Intencion[];
 }
 
 export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   triggerCreateTimestamp,
   isV2Variant = false,
   initialLoading,
+  mockIntenciones,
 }) => {
   const { t } = useTranslation();
   const navigate = useSafeNavigate();
@@ -236,8 +238,10 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     }
   };
 
+  const effectiveIntencionesList = mockIntenciones !== undefined ? mockIntenciones : intenciones;
+
   // Filtrar cerradas: sólo mostrar activas y pausadas
-  const visibleIntenciones = intenciones.filter(
+  const visibleIntenciones = effectiveIntencionesList.filter(
     (i) => i.estado === 'activa' || i.estado === 'pausada'
   );
 
@@ -263,23 +267,25 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="pe-intenciones-add-btn"
-          aria-label={
-            isV2Variant
-              ? t('your_encounters.intentions_cta_v2', { defaultValue: '+ Tengo ganas de…' })
-              : 'Expresar intención'
-          }
-        >
-          <Plus size={16} aria-hidden="true" />
-          <span>
-            {isV2Variant
-              ? t('your_encounters.intentions_cta_v2', { defaultValue: '+ Tengo ganas de…' })
-              : '+ Expresar intención'}
-          </span>
-        </button>
+        {(!isV2Variant || visibleIntenciones.length > 0) && (
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="pe-intenciones-add-btn"
+            aria-label={
+              isV2Variant
+                ? t('your_encounters.intentions_cta_v2', { defaultValue: 'Tengo ganas de…' })
+                : 'Expresar intención'
+            }
+          >
+            <Plus size={16} aria-hidden="true" />
+            <span>
+              {isV2Variant
+                ? t('your_encounters.intentions_cta_v2', { defaultValue: 'Tengo ganas de…' })
+                : '+ Expresar intención'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Estados */}
@@ -328,13 +334,16 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
             style={{ margin: '0 auto' }}
             aria-label={
               isV2Variant
-                ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: '+ Tengo ganas de…' })
+                ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: 'Tengo ganas de…' })
                 : 'Expresar intención'
             }
           >
-            {isV2Variant
-              ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: '+ Tengo ganas de…' })
-              : '+ Expresar intención'}
+            {isV2Variant && <Plus size={16} aria-hidden="true" />}
+            <span>
+              {isV2Variant
+                ? t('your_encounters.intentions_empty_cta_v2', { defaultValue: 'Tengo ganas de…' })
+                : '+ Expresar intención'}
+            </span>
           </button>
         </div>
       ) : (
