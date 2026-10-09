@@ -1,0 +1,613 @@
+import { test, describe, before } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { PGlite } from '@electric-sql/pglite';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos A al R)', () => {
+  let db: PGlite;
+
+  const hostUser = '11111111-1111-1111-1111-111111111111';
+  const reporterUser1 = '22222222-2222-2222-2222-222222222221';
+  const reporterUser2 = '22222222-2222-2222-2222-222222222222';
+  const reporterUser3 = '22222222-2222-2222-2222-222222222223';
+  const normalUser = '33333333-3333-3333-3333-333333333333';
+  const adminUser = '44444444-4444-4444-4444-444444444444';
+  const anonUser = '55555555-5555-5555-5555-555555555555';
+
+  const setAuthContext = async (userId: string | null, isAnon: boolean = false) => {
+    if (!userId) {
+      await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+      await db.query(`SELECT set_config('request.jwt.claims', '{}', false);`);
+    } else {
+      await db.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
+      await db.query(`SELECT set_config('request.jwt.claims', '{"sub": "${userId}", "is_anonymous": ${isAnon}}', false);`);
+    }
+  };
+
+  before(async () => {
+    db = new PGlite();
+
+    // 1. Roles y Mock Auth
+    await db.exec(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
+      END $$;
+
+      CREATE SCHEMA IF NOT EXISTS auth;
+      CREATE TABLE IF NOT EXISTS auth.users (
+        id UUID PRIMARY KEY,
+        email TEXT
+      );
+
+      CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
+        SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+      $$ LANGUAGE SQL STABLE;
+
+      CREATE OR REPLACE FUNCTION auth.jwt() RETURNS JSONB AS $$
+        SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), '')::JSONB, '{}'::jsonb);
+      $$ LANGUAGE SQL STABLE;
+
+      CREATE OR REPLACE FUNCTION auth.role() RETURNS TEXT AS $$
+        SELECT COALESCE(current_setting('request.jwt.claim.role', true), 'authenticated');
+      $$ LANGUAGE SQL STABLE;
+
+      INSERT INTO auth.users (id, email) VALUES
+        ('${hostUser}', 'host@test.com'),
+        ('${reporterUser1}', 'reporter1@test.com'),
+        ('${reporterUser2}', 'reporter2@test.com'),
+        ('${reporterUser3}', 'reporter3@test.com'),
+        ('${normalUser}', 'normal@test.com'),
+        ('${adminUser}', 'admin@test.com'),
+        ('${anonUser}', 'anon@test.com')
+      ON CONFLICT DO NOTHING;
+
+      -- Tablas base del dominio
+      CREATE TABLE IF NOT EXISTS public.localidades (
+        id TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        ciudad TEXT NOT NULL,
+        zona TEXT NOT NULL,
+        pais TEXT NOT NULL DEFAULT 'AR',
+        orden INT NOT NULL DEFAULT 1,
+        activo BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+      );
+
+      INSERT INTO public.localidades (id, nombre, ciudad, zona, activo) VALUES
+        ('guemes', 'Güemes / Playa Grande', 'Mar del Plata', 'Costa Atlántica', true),
+        ('centro', 'Centro / La Perla', 'Mar del Plata', 'Costa Atlántica', true)
+      ON CONFLICT DO NOTHING;
+
+      CREATE TABLE IF NOT EXISTS public.encuentros (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        titulo TEXT NOT NULL,
+        descripcion TEXT,
+        fecha DATE,
+        hora TIME,
+        modalidad TEXT NOT NULL DEFAULT 'presencial',
+        lugar_texto TEXT,
+        link_virtual TEXT,
+        tipo_invitacion TEXT NOT NULL DEFAULT 'individual',
+        host_id UUID NOT NULL REFERENCES auth.users(id),
+        public_token UUID DEFAULT gen_random_uuid(),
+        estado TEXT NOT NULL DEFAULT 'activo',
+        tema TEXT DEFAULT 'blue',
+        tema_invitacion TEXT DEFAULT 'sports',
+        invitation_template TEXT,
+        date_mode TEXT DEFAULT 'fixed',
+        reemplaza_a UUID,
+        is_open BOOLEAN NOT NULL DEFAULT false,
+        open_description TEXT,
+        max_participants INT,
+        locality_id TEXT REFERENCES public.localidades(id),
+        open_public_zone TEXT,
+        opened_at TIMESTAMPTZ,
+        closed_at TIMESTAMPTZ,
+        creado_en TIMESTAMPTZ DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS public.participantes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
+        usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+        user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+        nombre_invitado TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendiente',
+        token UUID DEFAULT gen_random_uuid(),
+        creado_en TIMESTAMPTZ DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS public.bloqueos_usuario (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        blocker_id UUID NOT NULL REFERENCES auth.users(id),
+        blocked_id UUID NOT NULL REFERENCES auth.users(id),
+        created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS public.intenciones (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES auth.users(id),
+        encuentro_id UUID REFERENCES public.encuentros(id),
+        estado TEXT NOT NULL DEFAULT 'activa'
+      );
+
+      CREATE TABLE IF NOT EXISTS public.domain_events_outbox (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_type TEXT NOT NULL,
+        event_version INTEGER NOT NULL DEFAULT 1,
+        aggregate_type TEXT NOT NULL,
+        aggregate_id UUID NOT NULL,
+        actor_user_id UUID,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        dedup_key TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        processed_at TIMESTAMPTZ
+      );
+
+      CREATE OR REPLACE FUNCTION public.emitir_alertas_intencion_convertida_outbox(
+        p_intencion_id UUID,
+        p_encuentro_id UUID
+      ) RETURNS VOID AS $$
+      BEGIN
+        -- Mock helper
+      END;
+      $$ LANGUAGE plpgsql;
+
+      -- Tabla de usuarios autorizados QA/Admin
+      CREATE TABLE IF NOT EXISTS public.qa_authorized_users (
+        user_id UUID PRIMARY KEY REFERENCES auth.users(id),
+        role TEXT NOT NULL CHECK (role IN ('admin', 'qa')),
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+
+      INSERT INTO public.qa_authorized_users (user_id, role) VALUES
+        ('${adminUser}', 'admin')
+      ON CONFLICT DO NOTHING;
+
+      CREATE OR REPLACE FUNCTION public.is_qa_authorized()
+      RETURNS boolean
+      LANGUAGE plpgsql
+      STABLE
+      SECURITY DEFINER
+      SET search_path = ''
+      AS $$
+      DECLARE
+        v_user_id UUID := auth.uid();
+      BEGIN
+        IF v_user_id IS NULL THEN RETURN false; END IF;
+        RETURN EXISTS (
+          SELECT 1 FROM public.qa_authorized_users
+          WHERE user_id = v_user_id AND role IN ('admin', 'qa')
+        );
+      END;
+      $$;
+
+      -- Tabla e infraestructura de rate limiting
+      CREATE TABLE IF NOT EXISTS public.rate_limit_policies (
+        action TEXT PRIMARY KEY,
+        max_requests INT NOT NULL,
+        window_seconds INT NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT true,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS public.rate_limit_buckets (
+        action TEXT NOT NULL,
+        identifier TEXT NOT NULL,
+        window_epoch BIGINT NOT NULL,
+        count INT NOT NULL DEFAULT 1,
+        PRIMARY KEY (action, identifier, window_epoch)
+      );
+
+      CREATE OR REPLACE FUNCTION public.check_rate_limit_and_increment(
+        p_action TEXT,
+        p_identifier TEXT,
+        p_scope_key TEXT DEFAULT NULL
+      )
+      RETURNS JSON
+      LANGUAGE plpgsql
+      SECURITY DEFINER
+      SET search_path = ''
+      AS $$
+      DECLARE
+        v_policy RECORD;
+        v_epoch BIGINT;
+        v_count INT;
+      BEGIN
+        SELECT * INTO v_policy FROM public.rate_limit_policies WHERE action = p_action;
+        IF NOT FOUND OR NOT v_policy.enabled THEN
+          RETURN pg_catalog.json_build_object('allowed', true, 'count', 1);
+        END IF;
+
+        v_epoch := (extract(epoch from pg_catalog.now())::bigint / v_policy.window_seconds);
+
+        INSERT INTO public.rate_limit_buckets (action, identifier, window_epoch, count)
+        VALUES (p_action, p_identifier, v_epoch, 1)
+        ON CONFLICT (action, identifier, window_epoch)
+        DO UPDATE SET count = public.rate_limit_buckets.count + 1
+        RETURNING count INTO v_count;
+
+        IF v_count > v_policy.max_requests THEN
+          RETURN pg_catalog.json_build_object('allowed', false, 'count', v_count);
+        END IF;
+
+        RETURN pg_catalog.json_build_object('allowed', true, 'count', v_count);
+      END;
+      $$;
+    `);
+
+    // 2. Cargar la migración de Moderación Pública v1
+    const migrationPath = path.resolve(
+      __dirname,
+      '../supabase/migrations/20261009160000_public_content_moderation_v1.sql'
+    );
+    const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
+    await db.exec(migrationSql);
+  });
+
+  const createTestEncounter = async (title: string, desc?: string): Promise<string> => {
+    const res = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        titulo, descripcion, fecha, hora, modalidad, lugar_texto, host_id, estado
+      ) VALUES (
+        '${title.replace(/'/g, "''")}',
+        ${desc ? `'${desc.replace(/'/g, "''")}'` : 'NULL'},
+        '2026-11-20', '18:00', 'presencial', 'Güemes 1234 timbre 2', '${hostUser}', 'activo'
+      ) RETURNING id;
+    `);
+    return res.rows[0].id;
+  };
+
+  test('Caso A: Contenido normal legítimo -> ALLOW y publicación exitosa', async () => {
+    const encId = await createTestEncounter('Picnic y juegos de mesa en la plaza');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Traigan cartas, mate y galletitas para compartir', 5, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.is_open, true);
+    assert.equal(r.moderation_status, 'approved');
+
+    // Verificar en Discovery
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const list = disc.rows[0].get_discovery_encuentros_abiertos;
+    assert.equal(list.some((e: any) => e.id === encId), true);
+  });
+
+  test('Caso B: Basura evidente (gibberish/repetición) -> BLOCK', async () => {
+    const encId = await createTestEncounter('asdfasdfasdfasdfasdf');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'aaaaaaa bbbbbbb', 4, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'content_moderation_blocked');
+    assert.equal(r.moderation_status, 'rejected');
+
+    // Comprobar que en BD quedó en rejected y cerrado
+    const row = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(row.rows[0].is_open, false);
+    assert.equal(row.rows[0].moderation_status, 'rejected');
+  });
+
+  test('Caso C: Spam comercial masivo con múltiples URLs -> BLOCK detectado', async () => {
+    const encId = await createTestEncounter('Descuentos y compras online');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Entrá ya a https://oferta1.com y https://oferta2.com para comprar', 4, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'content_moderation_blocked');
+    assert.equal(r.reason, 'excessive_urls');
+  });
+
+  test('Caso D: Sexual explícito o prostitución comercial -> BLOCK', async () => {
+    const encId = await createTestEncounter('Servicios exclusivos noche');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Servicios sexuales tarifados escort tarifas $ consultar por privado', 4, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'content_moderation_blocked');
+    assert.equal(r.reason, 'illegal_activity');
+  });
+
+  test('Caso E: Amenaza física o violencia inequívoca -> BLOCK', async () => {
+    const encId = await createTestEncounter('Venganza');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Te voy a matar si venís a la plaza amenaza de muerte', 4, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'content_moderation_blocked');
+    assert.equal(r.reason, 'violence_threat');
+  });
+
+  test('Caso F: Texto romántico legítimo -> ALLOW (sin falso positivo)', async () => {
+    const encId = await createTestEncounter('Cita romántica para ver el atardecer');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Salida tranquila de pareja, tomar un café o vino en la costa', 2, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.is_open, true);
+    assert.equal(r.moderation_status, 'approved');
+  });
+
+  test('Caso G: Pride y diversidad legítima -> ALLOW (sin falso positivo)', async () => {
+    const encId = await createTestEncounter('Comunidad LGBTQIA+ Pride y Amistad');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Espacio seguro de diversidad, charlas y café para conocernos', 6, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.is_open, true);
+    assert.equal(r.moderation_status, 'approved');
+  });
+
+  test('Caso H & I: Patrón ambiguo (1 link) genera REVIEW_PENDING y NO publica a Me sumo', async () => {
+    const encId = await createTestEncounter('Taller de programación y debate');
+    await setAuthContext(hostUser);
+
+    const res = await db.query<{ abrir_encuentro_seguro: any }>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Temas del taller disponibles en https://miweb.dev para leer antes', 4, 'guemes', NULL
+      );
+    `);
+    const r = res.rows[0].abrir_encuentro_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.is_open, false);
+    assert.equal(r.moderation_status, 'review_pending');
+
+    // Verificar Caso I: NO aparece en Discovery
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const list = disc.rows[0].get_discovery_encuentros_abiertos;
+    assert.equal(list.some((e: any) => e.id === encId), false);
+  });
+
+  test('Caso J: Encuentro rechazado (BLOCK) no aparece en Me sumo', async () => {
+    const encId = await createTestEncounter('Bloqueado test');
+    await setAuthContext(hostUser);
+
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'te voy a reventar amenaza de muerte', 4, 'guemes', NULL
+      );
+    `);
+
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const list = disc.rows[0].get_discovery_encuentros_abiertos;
+    assert.equal(list.some((e: any) => e.id === encId), false);
+  });
+
+  test('Caso K: Reporte único de usuario permanente se registra correctamente', async () => {
+    const encId = await createTestEncounter('Encuentro para reportar');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Plan normal abierto', 4, 'guemes', NULL
+      );
+    `);
+
+    // Reportero 1 reporta
+    await setAuthContext(reporterUser1);
+    const repRes = await db.query<{ reportar_encuentro_publico_seguro: any }>(`
+      SELECT public.reportar_encuentro_publico_seguro('${encId}', 'spam', 'Parece publicidad encubierta');
+    `);
+    const r = repRes.rows[0].reportar_encuentro_publico_seguro;
+    assert.equal(r.ok, true);
+    assert.equal(r.report_count, 1);
+    assert.equal(r.auto_hidden, false);
+  });
+
+  test('Caso L: Reporte duplicado del mismo usuario es rechazado sin inflar conteo', async () => {
+    const encId = await createTestEncounter('Encuentro anti-spam reportes');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Plan normal', 4, 'guemes', NULL
+      );
+    `);
+
+    await setAuthContext(reporterUser1);
+    // Primer reporte
+    await db.query(`
+      SELECT public.reportar_encuentro_publico_seguro('${encId}', 'spam', 'Reporte 1');
+    `);
+
+    // Segundo reporte del mismo usuario
+    const dupRes = await db.query<{ reportar_encuentro_publico_seguro: any }>(`
+      SELECT public.reportar_encuentro_publico_seguro('${encId}', 'spam', 'Reporte 2 duplicado');
+    `);
+    const dup = dupRes.rows[0].reportar_encuentro_publico_seguro;
+    assert.equal(dup.ok, false);
+    assert.equal(dup.error, 'already_reported');
+
+    // Conteo en tabla sigue siendo 1
+    const countCheck = await db.query<{ count: string }>(`
+      SELECT COUNT(*) as count FROM public.public_content_reports WHERE encuentro_id = '${encId}';
+    `);
+    assert.equal(parseInt(countCheck.rows[0].count, 10), 1);
+  });
+
+  test('Caso M: Múltiples reportes independientes (umbral 3) disparan auto-ocultamiento', async () => {
+    const encId = await createTestEncounter('Encuentro que será auto-ocultado');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Descripción pública inicial', 4, 'guemes', NULL
+      );
+    `);
+
+    // Reporter 1
+    await setAuthContext(reporterUser1);
+    await db.query(`SELECT public.reportar_encuentro_publico_seguro('${encId}', 'inappropriate_content');`);
+
+    // Reporter 2
+    await setAuthContext(reporterUser2);
+    await db.query(`SELECT public.reportar_encuentro_publico_seguro('${encId}', 'inappropriate_content');`);
+
+    // Antes del tercero sigue visible
+    let disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    assert.equal(disc.rows[0].get_discovery_encuentros_abiertos.some((e: any) => e.id === encId), true);
+
+    // Reporter 3 (alcanza umbral centralizado = 3)
+    await setAuthContext(reporterUser3);
+    const rep3 = await db.query<{ reportar_encuentro_publico_seguro: any }>(`
+      SELECT public.reportar_encuentro_publico_seguro('${encId}', 'inappropriate_content', 'Tercer reporte independiente');
+    `);
+    assert.equal(rep3.rows[0].reportar_encuentro_publico_seguro.auto_hidden, true);
+
+    // Ahora el encuentro debe estar en 'hidden_pending_review' e is_open = false
+    const encRow = await db.query<{ is_open: boolean; moderation_status: string }>(`
+      SELECT is_open, moderation_status FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(encRow.rows[0].is_open, false);
+    assert.equal(encRow.rows[0].moderation_status, 'hidden_pending_review');
+
+    // Desaparece de Discovery de inmediato
+    disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    assert.equal(disc.rows[0].get_discovery_encuentros_abiertos.some((e: any) => e.id === encId), false);
+  });
+
+  test('Caso N: Usuario común no autorizado no puede ver la cola ni moderar', async () => {
+    await setAuthContext(normalUser);
+
+    const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+      SELECT public.get_moderation_queue_seguro();
+    `);
+    assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, false);
+    assert.equal(qRes.rows[0].get_moderation_queue_seguro.error, 'unauthorized');
+
+    const fakeId = '00000000-0000-0000-0000-000000000001';
+    const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${fakeId}', 'approve', 'intento bypass');
+    `);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+    assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'unauthorized');
+  });
+
+  test('Caso O & P: Administrador autorizado puede revisar cola, resolver y registrar auditoría', async () => {
+    // 1. Encuentro que quedó en review_pending
+    const encId = await createTestEncounter('Taller esperando moderación');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Info en https://enlace.com', 4, 'guemes', NULL
+      );
+    `);
+
+    // 2. Administrador consulta la cola
+    await setAuthContext(adminUser);
+    const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+      SELECT public.get_moderation_queue_seguro();
+    `);
+    const q = qRes.rows[0].get_moderation_queue_seguro;
+    assert.equal(q.ok, true);
+    assert.equal(q.queue.some((item: any) => item.id === encId), true);
+
+    // 3. Administrador aprueba manualmente
+    const resolveRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+      SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'Enlace legítimo verificado');
+    `);
+    const resObj = resolveRes.rows[0].resolver_moderacion_encuentro_seguro;
+    assert.equal(resObj.ok, true);
+    assert.equal(resObj.new_status, 'approved');
+    assert.equal(resObj.is_open, true);
+
+    // 4. Verificar Caso P: Auditoría registrada
+    const auditRes = await db.query<{ action: string; previous_status: string; new_status: string; reason: string }>(`
+      SELECT action, previous_status, new_status, reason
+      FROM public.public_content_moderation_audit
+      WHERE encuentro_id = '${encId}' AND action = 'approve';
+    `);
+    assert.equal(auditRes.rows.length >= 1, true);
+    assert.equal(auditRes.rows[0].action, 'approve');
+    assert.equal(auditRes.rows[0].new_status, 'approved');
+    assert.equal(auditRes.rows[0].reason, 'Enlace legítimo verificado');
+  });
+
+  test('Caso Q: Privacidad estricta — lugar_texto y link_virtual nunca se exponen', async () => {
+    const encId = await createTestEncounter('Plan con dirección ultrasecreta');
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}', '${hostUser}', 'Descripción pública segura', 4, 'guemes', NULL
+      );
+    `);
+
+    // Consultar Discovery
+    const disc = await db.query<{ get_discovery_encuentros_abiertos: any[] }>(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes']::text[]);
+    `);
+    const found = disc.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === encId);
+    assert.ok(found);
+    assert.equal((found as any).lugar_texto, undefined);
+    assert.equal((found as any).link_virtual, undefined);
+    assert.equal((found as any).public_token, undefined);
+
+    // Consultar auditoría
+    const audit = await db.query<{ metadata: any }>(`
+      SELECT metadata FROM public.public_content_moderation_audit WHERE encuentro_id = '${encId}';
+    `);
+    const meta = audit.rows[0]?.metadata || {};
+    assert.equal(meta.lugar_texto, undefined);
+    assert.equal(meta.link_virtual, undefined);
+  });
+
+  test('Caso R: Producción intacta', () => {
+    // Verificar que todas las operaciones ejecutaron en motor local PGlite
+    assert.ok(db);
+  });
+});

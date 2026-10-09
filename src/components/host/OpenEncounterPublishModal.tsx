@@ -181,7 +181,9 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         onPublished();
         onClose();
       } else {
-        if (res.error === 'private_location_required') {
+        if (res.error === 'content_moderation_blocked') {
+          setErrorMsg('Esta publicación no puede mostrarse públicamente con el contenido actual.');
+        } else if (res.error === 'private_location_required') {
           setErrorMsg('El lugar y dirección privada es requerido para abrir el encuentro.');
           setIsEditingLocation(true);
         } else if (res.error === 'private_virtual_link_required') {

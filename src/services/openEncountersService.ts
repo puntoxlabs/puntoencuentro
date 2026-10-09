@@ -5,6 +5,11 @@ import type {
   OpenEncounterRequest,
   AbrirEncuentroPayload,
 } from '@/components/home/openEncounters/types';
+import type {
+  PublicContentReportReason,
+  ReportPublicEncounterResult,
+  ModerationQueueItem,
+} from '@/types/trust';
 
 const USER_ZONES_LOCAL_STORAGE_KEY = 'puntoencuentro_user_zones';
 
@@ -162,7 +167,14 @@ export const openEncountersService = {
     encuentroId: string,
     hostId: string,
     payload: AbrirEncuentroPayload
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{
+    ok: boolean;
+    is_open?: boolean;
+    moderation_status?: string;
+    message?: string;
+    reason?: string;
+    error?: string;
+  }> {
     const { data, error } = await supabase.rpc('abrir_encuentro_seguro', {
       p_encuentro_id: encuentroId,
       p_host_id: hostId,
@@ -318,5 +330,72 @@ export const openEncountersService = {
     }
 
     return data as any;
+  },
+
+  /**
+   * Reporta un encuentro público desde Discovery o detalle con deduplicación y rate limiting.
+   */
+  async reportarEncuentroPublico(
+    encuentroId: string,
+    reason: PublicContentReportReason,
+    comment?: string
+  ): Promise<ReportPublicEncounterResult> {
+    try {
+      const { data, error } = await supabase.rpc('reportar_encuentro_publico_seguro', {
+        p_encuentro_id: encuentroId,
+        p_reason: reason,
+        p_comment: comment ?? null,
+      });
+
+      if (error) {
+        console.error('[openEncountersService] Error reportando encuentro:', error);
+        return { ok: false, error: error.message };
+      }
+
+      return data as ReportPublicEncounterResult;
+    } catch (err: any) {
+      console.error('[openEncountersService] Exception reportando encuentro:', err);
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene la cola de moderación administrativa (requiere admin/qa).
+   */
+  async getModerationQueue(): Promise<{ ok: boolean; queue: ModerationQueueItem[]; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('get_moderation_queue_seguro');
+      if (error) {
+        return { ok: false, queue: [], error: error.message };
+      }
+      return data as { ok: boolean; queue: ModerationQueueItem[] };
+    } catch (err: any) {
+      return { ok: false, queue: [], error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Resuelve una decisión administrativa de moderación (aprobar, ocultar, eliminar, rechazar).
+   */
+  async resolverModeracionEncuentro(
+    encuentroId: string,
+    action: 'approve' | 'hide' | 'remove' | 'reject',
+    note?: string
+  ): Promise<{ ok: boolean; new_status?: string; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('resolver_moderacion_encuentro_seguro', {
+        p_encuentro_id: encuentroId,
+        p_action: action,
+        p_note: note ?? null,
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      return data as { ok: boolean; new_status?: string };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
   },
 };

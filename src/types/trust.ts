@@ -69,3 +69,50 @@ export interface ContextualBlockActionResult {
   blocked: boolean;
   error?: string;
 }
+
+/**
+ * Tipos de moderación y reportes de contenido público (Moderación Pública v1).
+ */
+export type ModerationStatus =
+  | 'unmoderated'
+  | 'approved'
+  | 'review_pending'
+  | 'hidden_pending_review'
+  | 'rejected'
+  | 'removed';
+
+export type PublicContentReportReason =
+  | 'spam'
+  | 'inappropriate_content'
+  | 'fraud_scam'
+  | 'harassment'
+  | 'other';
+
+export interface ReportPublicEncounterParams {
+  encuentroId: string;
+  reason: PublicContentReportReason;
+  comment?: string;
+}
+
+export interface ReportPublicEncounterResult {
+  ok: boolean;
+  auto_hidden?: boolean;
+  report_count?: number;
+  error?: string;
+}
+
+export interface ModerationQueueItem {
+  id: string;
+  titulo: string;
+  open_description: string | null;
+  host_id: string;
+  moderation_status: ModerationStatus;
+  moderation_reason: string | null;
+  moderation_categories: string[] | null;
+  moderation_decision_source: string | null;
+  moderated_at: string | null;
+  created_at: string;
+  opened_at: string | null;
+  report_count: number;
+  report_reasons: string[];
+}

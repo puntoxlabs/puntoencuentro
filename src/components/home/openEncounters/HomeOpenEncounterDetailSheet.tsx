@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight } from 'lucide-react';
+import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { OpenEncounterSummary } from './types';
@@ -8,6 +8,7 @@ import { openEncountersService } from '@/services/openEncountersService';
 import { getHostAlias } from '@/lib/hostAliasStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
+import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
 import './HomeOpenEncounterDetailSheet.css';
 
 // Clave de sessionStorage para persistir contexto de solicitud entre redirect OAuth
@@ -48,6 +49,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [applicantMessage, setApplicantMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReported, setIsReported] = useState(false);
 
   const isDemo = encounter?.id?.startsWith('demo-') ?? false;
 
@@ -60,6 +63,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     // Resetear formulario y estado de login
     setIsFormOpen(false);
     setIsLoginRequired(false);
+    setIsReportModalOpen(false);
+    setIsReported(false);
     setErrorMsg(null);
     setApplicantName(getHostAlias() || '');
     setApplicantMessage('');
@@ -354,6 +359,34 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
         </p>
 
+        {!isDemo && (
+          <div className="pe-detail-sheet__report-row" style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="pe-detail-sheet__btn-report"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                color: isReported ? '#16a34a' : '#94a3b8',
+                background: 'transparent',
+                border: 'none',
+                cursor: isReported ? 'default' : 'pointer',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                transition: 'color 0.15s ease',
+              }}
+              onClick={() => !isReported && setIsReportModalOpen(true)}
+              disabled={isReported}
+              title={isReported ? 'Publicación reportada' : 'Reportar esta publicación'}
+            >
+              <Flag size={13} aria-hidden="true" />
+              <span>{isReported ? 'Reportada' : 'Reportar publicación'}</span>
+            </button>
+          </div>
+        )}
+
         {/* Error global (fuera del form) */}
         {errorMsg && !isFormOpen && (
           <div className="pe-detail-sheet__form-error" style={{ margin: '0 1rem 0.75rem' }}>
@@ -499,6 +532,18 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         loading={loginLoading}
         action="request_join"
       />
+
+      {encounter && !isDemo && (
+        <ReportPublicEncounterModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          encuentroId={encounter.id}
+          encounterTitle={encounter.title}
+          onReportSuccess={() => {
+            setIsReported(true);
+          }}
+        />
+      )}
     </>
   );
 };

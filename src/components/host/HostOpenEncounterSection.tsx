@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Flag,
+  AlertCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
@@ -264,6 +265,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
               ? t('open_encounters.open_status_active', { defaultValue: 'Abierto para sumarse' })
               : isPast
               ? 'Finalizado'
+              : encuentro?.moderation_status === 'review_pending'
+              ? 'En revisión previa'
+              : encuentro?.moderation_status === 'hidden_pending_review'
+              ? 'En revisión por reportes'
               : 'No visible en Encuentros Abiertos'}
           </span>
           <span className="pe-host-open-card__zone">
@@ -297,6 +302,20 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           </button>
         )}
       </div>
+
+      {encuentro?.moderation_status === 'review_pending' && (
+        <div style={{ padding: '8px 14px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: 10, margin: '10px 16px', fontSize: '0.85rem', color: '#854d0e', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Clock size={16} />
+          <span>Estamos revisando esta publicación antes de mostrarla públicamente.</span>
+        </div>
+      )}
+
+      {encuentro?.moderation_status === 'hidden_pending_review' && (
+        <div style={{ padding: '8px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, margin: '10px 16px', fontSize: '0.85rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertCircle size={16} />
+          <span>Esta publicación fue pausada temporalmente para revisión tras reportes de la comunidad.</span>
+        </div>
+      )}
 
       <div className="pe-host-open-card__slots-grid">
         <div className="pe-host-open-card__slot-metric">
