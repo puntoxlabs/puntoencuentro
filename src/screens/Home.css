@@ -928,6 +928,26 @@
    V1 y desktop permanecen visualmente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
+  /* 0. Header y Hero en Mobile V2: flujo normal del documento, altura real y cero solapamiento */
+  .home-v2-variant .home-header {
+    position: relative;
+    top: auto;
+    z-index: 20;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .home-v2-variant .home-hero-wrapper {
+    min-height: auto;
+  }
+
+  .home-v2-variant .home-hero-wrapper--gsap {
+    padding-top: clamp(3.75rem, 9vw, 4.75rem);
+    padding-bottom: 2rem;
+    min-height: auto;
+  }
+
   /* 1. Respiración equilibrada entre Hero y Encuentros Abiertos */
   .home-v2-variant .pe-discovery-section {
     margin-top: 1.25rem;
@@ -1028,6 +1048,16 @@
 /* Contención de overflow scopeada exclusivamente a Home V2 (cero scrollbar horizontal sin tocar html/body) */
 .home-screen-container.home-v2-variant {
   overflow-x: clip;
+}
+
+/* Header en Home V2: flujo normal del documento, altura real de bloque y precedencia de capas */
+.home-v2-variant .home-header {
+  position: relative;
+  top: auto;
+  z-index: 20;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 @media (min-width: 768px) {

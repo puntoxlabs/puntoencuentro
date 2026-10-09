@@ -1705,6 +1705,66 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(!htmlProdV2Query.includes('home-v2-variant'), 'En Producción con query ?homeVariant=v2 debe permanecer en V1 blindado');
     });
+
+    test('S. Layout resiliente Mobile V2: Header en flujo normal, precedencia de capas y cero solapamiento con Hero', () => {
+      const homeCssPath = resolve(process.cwd(), 'src/screens/Home.css');
+      const homeCssContent = readFileSync(homeCssPath, 'utf8');
+
+      // 1. En Home V2, el header debe usar flujo normal (position: relative, top: auto) y precedencia de capas
+      assert.ok(
+        homeCssContent.includes('.home-v2-variant .home-header'),
+        'Home.css debe definir regla para .home-v2-variant .home-header'
+      );
+      assert.ok(
+        homeCssContent.includes('position: relative;'),
+        'El header en V2 debe fluir con position: relative'
+      );
+      assert.ok(
+        homeCssContent.includes('top: auto;'),
+        'El header en V2 debe anular sticky top: 0 con top: auto'
+      );
+      assert.ok(
+        homeCssContent.includes('z-index: 20;'),
+        'El header en V2 debe tener precedencia de capas (z-index: 20) sobre el Hero'
+      );
+      assert.ok(
+        homeCssContent.includes('flex-shrink: 0;'),
+        'El header en V2 debe protegerse contra compresión de viewport con flex-shrink: 0'
+      );
+
+      // 2. En Mobile V2 (<768px), el hero wrapper debe adaptarse con min-height: auto
+      assert.ok(
+        homeCssContent.includes('.home-v2-variant .home-hero-wrapper'),
+        'Home.css debe definir regla para .home-v2-variant .home-hero-wrapper en mobile'
+      );
+      assert.ok(
+        homeCssContent.includes('padding-top: clamp(3.75rem, 9vw, 4.75rem);'),
+        'El hero wrapper en mobile V2 debe tener padding-top adaptativo'
+      );
+
+      // 3. Render SSR: confirma orden estricto de elementos en el DOM (Header precede al Hero)
+      const htmlMobileV2 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+        )
+      );
+
+      const headerPos = htmlMobileV2.indexOf('class="home-header"');
+      const logoPos = htmlMobileV2.indexOf('home-header-logo-text');
+      const heroPos = htmlMobileV2.indexOf('home-hero-wrapper');
+      const intentPos = htmlMobileV2.indexOf('home-intent-card');
+
+      assert.ok(headerPos !== -1, 'El header debe existir en el DOM');
+      assert.ok(logoPos !== -1, 'El logo debe existir en el DOM');
+      assert.ok(heroPos !== -1, 'El hero wrapper debe existir en el DOM');
+      assert.ok(intentPos !== -1, 'La tarjeta de intención debe existir en el DOM');
+
+      // Orden en el flujo de bloque: Header < Hero Wrapper < Input Card
+      assert.ok(headerPos < heroPos, 'El header debe preceder al Hero wrapper en el árbol DOM');
+      assert.ok(heroPos < intentPos, 'El Hero wrapper debe preceder a la tarjeta de intención');
+    });
   });
 });
 
