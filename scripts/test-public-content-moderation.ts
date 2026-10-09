@@ -18,6 +18,9 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
   const normalUser = '33333333-3333-3333-3333-333333333333';
   const adminUser = '44444444-4444-4444-4444-444444444444';
   const anonUser = '55555555-5555-5555-5555-555555555555';
+  const moderatorUser = '66666666-6666-6666-6666-666666666666';
+  const inactiveModeratorUser = '77777777-7777-7777-7777-777777777777';
+  const qaOnlyUser = '88888888-8888-8888-8888-888888888888';
 
   const setAuthContext = async (userId: string | null, isAnon: boolean = false, role: string = 'authenticated') => {
     await db.query(`SELECT set_config('request.jwt.claim.role', '${role}', false);`);
@@ -67,7 +70,10 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
         ('${reporterUser3}', 'reporter3@test.com'),
         ('${normalUser}', 'normal@test.com'),
         ('${adminUser}', 'admin@test.com'),
-        ('${anonUser}', 'anon@test.com')
+        ('${anonUser}', 'anon@test.com'),
+        ('${moderatorUser}', 'moderator@test.com'),
+        ('${inactiveModeratorUser}', 'inactive_mod@test.com'),
+        ('${qaOnlyUser}', 'qa_only@test.com')
       ON CONFLICT DO NOTHING;
 
       -- Tablas base del dominio
@@ -173,7 +179,8 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
       );
 
       INSERT INTO public.qa_authorized_users (user_id, role) VALUES
-        ('${adminUser}', 'admin')
+        ('${adminUser}', 'admin'),
+        ('${qaOnlyUser}', 'qa')
       ON CONFLICT DO NOTHING;
 
       CREATE OR REPLACE FUNCTION public.is_qa_authorized()
@@ -278,6 +285,24 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
       const fixSql = fs.readFileSync(fixMigrationPath, 'utf-8');
       await db.exec(fixSql);
     }
+
+    const sepMigrationPath = path.resolve(
+      __dirname,
+      '../supabase/migrations/20261009210000_separate_moderation_roles.sql'
+    );
+    if (fs.existsSync(sepMigrationPath)) {
+      const sepSql = fs.readFileSync(sepMigrationPath, 'utf-8');
+      await db.exec(sepSql);
+    }
+
+    // Configurar usuarios autorizados de moderación dedicados
+    await db.exec(`
+      INSERT INTO public.moderation_authorized_users (user_id, role, active) VALUES
+        ('${adminUser}', 'admin', true),
+        ('${moderatorUser}', 'moderator', true),
+        ('${inactiveModeratorUser}', 'moderator', false)
+      ON CONFLICT DO NOTHING;
+    `);
   });
 
   const createTestEncounter = async (title: string, desc?: string): Promise<string> => {
@@ -1137,6 +1162,257 @@ describe('Moderación Pública v1: Tests de Seguridad, Antiabuso y Reglas (Casos
     }
 
     assert.ok(directUpdateBlocked, 'El UPDATE directo vía Data API debe fallar o no modificar filas');
+  });
+
+  describe('Separación de Roles: Autorización de Moderación vs QA (Casos A al N)', () => {
+    test('A. Host normal: puede moderar automáticamente SU propio encuentro vía Edge Function simulada', async () => {
+      const encId = await createTestEncounter('Encuentro del propio host');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción host', 4, 'guemes', NULL);
+      `);
+
+      const check = await db.query<{ host_id: string }>(`SELECT host_id FROM public.encuentros WHERE id = '${encId}';`);
+      assert.equal(check.rows[0].host_id, hostUser);
+
+      await setAuthContext(null, false, 'service_role');
+      const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'host auto moderation');
+      `);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
+    });
+
+    test('B. Host normal: NO puede moderar encuentro ajeno ni como staff', async () => {
+      const otherHost = reporterUser1;
+      const encId = await createTestEncounter('Encuentro de otro host');
+      await db.query(`UPDATE public.encuentros SET host_id = '${otherHost}' WHERE id = '${encId}';`);
+
+      await setAuthContext(hostUser);
+      const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'bypass intento');
+      `);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'unauthorized');
+    });
+
+    test('C. Usuario con sólo rol QA: NO puede listar cola de moderación', async () => {
+      await setAuthContext(qaOnlyUser);
+
+      const qaCheck = await db.query<{ is_qa_authorized: boolean }>(`SELECT public.is_qa_authorized();`);
+      assert.equal(qaCheck.rows[0].is_qa_authorized, true, 'Debe tener rol QA en qa_authorized_users');
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, false, 'NO debe tener autorización de moderación');
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, false);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.error, 'unauthorized');
+    });
+
+    test('D. Usuario con sólo rol QA: NO puede resolver moderación manual', async () => {
+      const encId = await createTestEncounter('Encuentro para test QA resolve');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción para QA test', 4, 'guemes', NULL);
+      `);
+
+      await setAuthContext(qaOnlyUser);
+      const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'intento manual QA');
+      `);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'unauthorized');
+    });
+
+    test('E. Moderator: puede listar la cola de moderación', async () => {
+      await setAuthContext(moderatorUser);
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, true, 'Moderator debe tener is_moderation_authorized true');
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, true);
+      assert.ok(Array.isArray(qRes.rows[0].get_moderation_queue_seguro.queue));
+    });
+
+    test('F. Moderator: puede aprobar y rechazar manualmente', async () => {
+      const encId1 = await createTestEncounter('Encuentro para aprobar por mod');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId1}', '${hostUser}', 'Descripción limpia', 4, 'guemes', NULL);
+      `);
+
+      await setAuthContext(moderatorUser);
+      const approveRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId1}', 'approve', 'Aprobado por moderator');
+      `);
+      assert.equal(approveRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+      assert.equal(approveRes.rows[0].resolver_moderacion_encuentro_seguro.new_status, 'approved');
+      assert.equal(approveRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
+
+      const auditApprove = await db.query<{ source: string; moderator_id: string }>(`
+        SELECT source, moderator_id FROM public.public_content_moderation_audit
+        WHERE encuentro_id = '${encId1}' AND action = 'approve';
+      `);
+      assert.equal(auditApprove.rows[0].source, 'moderator');
+      assert.equal(auditApprove.rows[0].moderator_id, moderatorUser);
+
+      const encId2 = await createTestEncounter('Encuentro para rechazar por mod');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId2}', '${hostUser}', 'Descripción spam', 4, 'guemes', NULL);
+      `);
+
+      await setAuthContext(moderatorUser);
+      const rejectRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId2}', 'reject', 'Rechazado por moderator');
+      `);
+      assert.equal(rejectRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+      assert.equal(rejectRes.rows[0].resolver_moderacion_encuentro_seguro.new_status, 'rejected');
+      assert.equal(rejectRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, false);
+    });
+
+    test('G. Admin: puede listar cola y resolver moderación', async () => {
+      await setAuthContext(adminUser);
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, true, 'Admin debe tener is_moderation_authorized true');
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, true);
+
+      const encId = await createTestEncounter('Encuentro para admin');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción admin', 4, 'guemes', NULL);
+      `);
+
+      await setAuthContext(adminUser);
+      const resolveRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'Aprobado por admin');
+      `);
+      assert.equal(resolveRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+
+      const auditAdmin = await db.query<{ source: string }>(`
+        SELECT source FROM public.public_content_moderation_audit
+        WHERE encuentro_id = '${encId}' AND action = 'approve';
+      `);
+      assert.equal(auditAdmin.rows[0].source, 'admin');
+    });
+
+    test('H. Moderator inactivo (active = false): rechazado', async () => {
+      await setAuthContext(inactiveModeratorUser);
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, false, 'Moderator inactivo debe retornar false');
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, false);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.error, 'unauthorized');
+
+      const fakeId = '00000000-0000-0000-0000-000000000002';
+      const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${fakeId}', 'approve', 'intento inactive');
+      `);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, false);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.error, 'unauthorized');
+    });
+
+    test('I. Authenticated sin rol: rechazado', async () => {
+      await setAuthContext(normalUser);
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, false);
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, false);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.error, 'unauthorized');
+    });
+
+    test('J. Anon: rechazado', async () => {
+      await setAuthContext(anonUser, true, 'anon');
+
+      const modCheck = await db.query<{ is_moderation_authorized: boolean }>(`SELECT public.is_moderation_authorized();`);
+      assert.equal(modCheck.rows[0].is_moderation_authorized, false);
+
+      const qRes = await db.query<{ get_moderation_queue_seguro: any }>(`
+        SELECT public.get_moderation_queue_seguro();
+      `);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.ok, false);
+      assert.equal(qRes.rows[0].get_moderation_queue_seguro.error, 'unauthorized');
+    });
+
+    test('K. service_role: flujo automático sigue funcionando sin requerir fila en tabla', async () => {
+      const encId = await createTestEncounter('Encuentro automated service_role');
+      await setAuthContext(hostUser);
+      await db.query(`
+        SELECT public.abrir_encuentro_seguro('${encId}', '${hostUser}', 'Descripción auto', 4, 'guemes', NULL);
+      `);
+
+      await setAuthContext(null, false, 'service_role');
+      const modRes = await db.query<{ resolver_moderacion_encuentro_seguro: any }>(`
+        SELECT public.resolver_moderacion_encuentro_seguro('${encId}', 'approve', 'automated approval');
+      `);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.ok, true);
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.new_status, 'approved');
+      assert.equal(modRes.rows[0].resolver_moderacion_encuentro_seguro.is_open, true);
+
+      const auditRes = await db.query<{ source: string }>(`
+        SELECT source FROM public.public_content_moderation_audit
+        WHERE encuentro_id = '${encId}' AND action = 'approve';
+      `);
+      assert.equal(auditRes.rows[0].source, 'automated_moderation');
+    });
+
+    test('L. is_qa_authorized() sigue funcionando para sus consumidores originales sin alteración', async () => {
+      await setAuthContext(qaOnlyUser);
+      const qaCheck = await db.query<{ is_qa_authorized: boolean }>(`SELECT public.is_qa_authorized();`);
+      assert.equal(qaCheck.rows[0].is_qa_authorized, true, 'is_qa_authorized debe dar true para qaOnlyUser');
+
+      await setAuthContext(normalUser);
+      const normalCheck = await db.query<{ is_qa_authorized: boolean }>(`SELECT public.is_qa_authorized();`);
+      assert.equal(normalCheck.rows[0].is_qa_authorized, false, 'is_qa_authorized debe dar false para normalUser');
+    });
+
+    test('M. Ningún UUID está hardcodeado en la migración', () => {
+      const migPath = path.resolve(__dirname, '../supabase/migrations/20261009210000_separate_moderation_roles.sql');
+      const migSql = fs.readFileSync(migPath, 'utf-8');
+
+      const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+      assert.equal(uuidRegex.test(migSql), false, 'La migración no debe tener UUIDs hardcodeados');
+    });
+
+    test('N. Cliente no puede modificar tabla moderation_authorized_users directamente (REVOKE ALL + RLS)', async () => {
+      let insertBlocked = false;
+      try {
+        await db.query(`
+          SET LOCAL ROLE authenticated;
+          INSERT INTO public.moderation_authorized_users (user_id, role, active)
+          VALUES ('${normalUser}', 'admin', true);
+        `);
+      } catch {
+        insertBlocked = true;
+      } finally {
+        await db.query(`RESET ROLE;`);
+      }
+      assert.ok(insertBlocked, 'INSERT directo como authenticated debe fallar por permisos');
+
+      const check = await db.query(`
+        SELECT * FROM public.moderation_authorized_users WHERE user_id = '${normalUser}';
+      `);
+      assert.equal(check.rows.length, 0, 'No debe existir fila para normalUser');
+    });
   });
 
   test('Caso R: Producción intacta', () => {

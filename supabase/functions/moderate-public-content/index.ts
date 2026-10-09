@@ -197,18 +197,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Autorización: sólo el host del encuentro o personal QA/Admin puede disparar moderación
+    // 4. Autorización: sólo el host del encuentro o personal de moderación autorizado (admin/moderator)
     if (enc.host_id !== callerId) {
-      const { data: isQa } = await supabaseAdmin
-        .from("qa_authorized_users")
-        .select("user_id")
+      const { data: isStaff } = await supabaseAdmin
+        .from("moderation_authorized_users")
+        .select("user_id, role")
         .eq("user_id", callerId)
-        .in("role", ["admin", "qa"])
+        .eq("active", true)
+        .in("role", ["admin", "moderator"])
         .maybeSingle();
 
-      if (!isQa) {
+      if (!isStaff) {
         return new Response(
-          JSON.stringify({ ok: false, error: "unauthorized", message: "Only the encounter host may trigger moderation" }),
+          JSON.stringify({ ok: false, error: "unauthorized", message: "Only the encounter host or authorized moderation staff may trigger moderation" }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
