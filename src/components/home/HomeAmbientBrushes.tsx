@@ -4,28 +4,15 @@ import React from 'react';
  * HomeAmbientBrushes
  * Capa vectorial de pinceladas ambientales para Home V2 Desktop.
  * 
- * Composición orgánica basada estrictamente en los VACÍOS REALES de la Home:
- * - Pincelada A: Azul marca -> Menta suave.
- *   Ubicada en el vacío superior izquierdo acompañando el inicio del bloque "Me sumo".
- *   Nace fuera del viewport (-90px) y se afina hacia adentro sin cruzar el eje central.
- * 
- * - Pincelada B: Lila -> Índigo suave.
- *   Ubicada en el vacío lateral derecho intermedio, en la transición entre "Tengo ganas de..."
- *   y la actividad personal, sin cruzar tabs, filtros, CTA, loaders ni el empty state.
- * 
- * - Pincelada C: Verde esmeralda -> Menta/Azul tenue.
- *   Apoyo atmosférico muy sutil en el vacío inferior izquierdo, cerca de "Crear o abrir un encuentro",
- *   acompañando el margen libre inferior sin interferir en el centro de lectura.
- * 
- * - Pincelada D: Azul marca -> Menta suave.
- *   Ubicada en el vacío lateral izquierdo central-bajo: debajo de Tus encuentros / Mis ganas + filtros
- *   y por encima/alrededor de Crear o abrir un encuentro, sin pasar por debajo del contenido principal.
- * 
- * - Pincelada E: Lila / Violeta suave -> Índigo.
- *   Ubicada en el vacío lateral derecho de la zona del empty state / previa a Crear o abrir,
- *   llenando aire lateral sin invadir el centro ni competir con el FAB.
- * 
- * - Centro funcional 100% limpio (cero interferencia con textos, cards, empty states, botones).
+ * Lógica de composición FULL-BLEED LATERAL para resoluciones 1440px y 1920px:
+ * - Acompaña el lenguaje expansivo del carrusel "Me sumo", naciendo y muriendo fuera del viewport.
+ * - En resoluciones amplias (1920px+), el viewBox amplio (1920x960) y las coordenadas ancladas
+ *   a los laterales (0px y 1920px+) proyectan los trazos hacia los bordes de pantalla.
+ * - El centro funcional (los 1100px centrales: aprox. x=410 a x=1510 en un lienzo de 1920)
+ *   permanece 100% limpio y libre de invasiones:
+ *     * Pinceladas del flanco izquierdo (A, C, D) se afinan antes de x=450.
+ *     * Pinceladas del flanco derecho (B, E) se proyectan hacia la derecha y no avanzan antes de x=1460.
+ * - Cero interferencia con títulos, tabs, filtros, cards, loaders, empty state o el FAB.
  * - SVG inline con aria-hidden="true", focusable="false", pointer-events: none.
  */
 export const HomeAmbientBrushes: React.FC = () => {
@@ -33,7 +20,7 @@ export const HomeAmbientBrushes: React.FC = () => {
     <div className="home-ambient-brushes-container" aria-hidden="true">
       <svg
         className="home-ambient-brushes-svg"
-        viewBox="0 0 1440 960"
+        viewBox="0 0 1920 960"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         preserveAspectRatio="none"
@@ -74,19 +61,19 @@ export const HomeAmbientBrushes: React.FC = () => {
         </defs>
 
         {/* 
-          PINCELADA A (Vacío superior izquierdo libre / margen exterior de "Me sumo"):
-          Nace fuera del viewport en el flanco izquierdo (-90px), acompaña la entrada superior
-          con curvatura orgánica y se afina a ~420px de la pantalla antes de acercarse al contenido central.
-          Largo visual: ~530px, alto variable: ~90-120px.
+          PINCELADA A (Vacío superior izquierdo / margen exterior de "Me sumo"):
+          Nace fuera del viewport en el extremo izquierdo (-140px), acompaña la entrada superior
+          con curvatura orgánica full-bleed y se afina terminando en x=420px (sin invadir el carril central).
+          Largo visual: ~580px, alto variable: ~90-125px.
         */}
         <path
-          d="M -90,75
-             C 40,60 160,65 270,50
-             C 340,40 400,28 430,22
-             C 445,19 455,23 452,30
-             C 448,37 430,44 400,52
-             C 330,70 250,90 160,105
-             C 70,120 0,135 -90,150
+          d="M -140,75
+             C 10,60 140,65 250,50
+             C 330,38 390,26 425,20
+             C 438,18 446,22 442,30
+             C 436,38 418,46 385,54
+             C 310,72 230,92 135,108
+             C 40,124 -40,140 -140,155
              Z"
           fill="url(#pe-brush-grad-a)"
           filter="url(#pe-brush-soften)"
@@ -95,18 +82,19 @@ export const HomeAmbientBrushes: React.FC = () => {
 
         {/* 
           PINCELADA B (Vacío lateral derecho intermedio / margen exterior de la transición):
-          Nace en el lateral exterior derecho (1530px), entra solo hasta el margen libre derecho (1020px),
-          manteniéndose a más de 300px fuera del contenedor central de cards/tabs/empty state (máx 1100px centrado).
-          Largo visual: ~510px, alto variable: ~85-115px.
+          Nace fuera del viewport en el lateral derecho expansivo (2060px), avanza hacia el interior
+          hasta x=1480px, poblando el amplio vacío lateral derecho de 1920/1440px y deteniéndose
+          completamente antes del eje funcional de cards y tabs (que termina en x=1470px aprox).
+          Largo visual: ~600px, alto variable: ~90-120px.
         */}
         <path
-          d="M 1530,370
-             C 1420,358 1310,375 1200,390
-             C 1120,402 1060,420 1030,432
-             C 1018,437 1012,444 1018,450
-             C 1025,456 1040,457 1070,454
-             C 1150,446 1240,432 1330,420
-             C 1420,408 1485,412 1530,425
+          d="M 2060,370
+             C 1930,358 1810,374 1680,390
+             C 1590,402 1530,420 1495,432
+             C 1482,437 1476,444 1482,450
+             C 1490,456 1506,457 1540,454
+             C 1625,446 1725,432 1825,420
+             C 1925,408 2000,412 2060,425
              Z"
           fill="url(#pe-brush-grad-b)"
           filter="url(#pe-brush-soften)"
@@ -115,18 +103,18 @@ export const HomeAmbientBrushes: React.FC = () => {
 
         {/* 
           PINCELADA C (Vacío inferior izquierdo libre / margen exterior de "Crear o abrir"):
-          Apoyo ambiental tenue en el margen blanco inferior izquierdo. Nace fuera de pantalla (-70px),
-          se extiende hacia el interior sin cruzar el eje central ni tocar la caja de Crear o abrir.
-          Largo visual: ~480px, alto variable: ~70-95px.
+          Apoyo ambiental tenue en el margen blanco inferior izquierdo. Nace bien afuera (-120px),
+          proyectándose hacia adentro hasta x=410px sin cruzar el eje central ni tocar la caja de Crear o abrir.
+          Largo visual: ~540px, alto variable: ~75-100px.
         */}
         <path
-          d="M -70,780
-             C 30,770 130,780 220,768
-             C 290,758 350,746 395,740
-             C 412,738 418,742 415,748
-             C 410,754 395,760 365,768
-             C 300,785 220,802 140,814
-             C 60,825 -10,835 -70,845
+          d="M -120,780
+             C 0,770 120,780 230,768
+             C 310,758 375,746 415,740
+             C 428,738 434,742 430,748
+             C 424,754 406,760 372,768
+             C 300,785 210,802 120,814
+             C 30,825 -45,835 -120,845
              Z"
           fill="url(#pe-brush-grad-c)"
           filter="url(#pe-brush-soften)"
@@ -135,20 +123,19 @@ export const HomeAmbientBrushes: React.FC = () => {
 
         {/* 
           PINCELADA D (Vacío lateral izquierdo central-bajo):
-          Ubicada en el espacio blanco lateral izquierdo que queda debajo del bloque
-          "Tus encuentros / Mis ganas" + filtros y por encima/alrededor de "Crear o abrir".
-          Nace fuera de la pantalla en -80px, avanza de forma ascendente-ondulada hasta ~410px,
-          permaneciendo en el margen lateral exterior sin tocar el contenido central.
-          Largo visual: ~490px, alto variable: ~80-105px.
+          Ubicada en el espacio blanco lateral izquierdo entre el final de "Tus encuentros" y "Crear o abrir".
+          Nace fuera de pantalla en el flanco izquierdo (-130px) y recorre el lateral hasta x=430px,
+          respirando con amplitud en resoluciones 1440/1920 sin tocar el contenido central.
+          Largo visual: ~570px, alto variable: ~85-110px.
         */}
         <path
-          d="M -80,590
-             C 35,578 140,588 235,572
-             C 310,560 375,544 408,536
-             C 422,532 430,537 426,544
-             C 420,551 402,558 372,567
-             C 302,588 220,608 135,622
-             C 50,635 -15,648 -80,658
+          d="M -130,590
+             C 0,578 120,588 230,572
+             C 320,560 390,544 428,536
+             C 440,532 448,537 444,544
+             C 438,551 418,558 385,567
+             C 305,588 215,608 120,622
+             C 25,635 -45,648 -130,658
              Z"
           fill="url(#pe-brush-grad-a)"
           filter="url(#pe-brush-soften)"
@@ -157,21 +144,19 @@ export const HomeAmbientBrushes: React.FC = () => {
 
         {/* 
           PINCELADA E (Vacío lateral derecho de la zona previa a "Crear o abrir"):
-          Ubicada en el lateral derecho adyacente al empty state / transición hacia "Crear o abrir",
-          equilibrando visualmente la composición respecto al lateral izquierdo.
-          Nace fuera de la pantalla en 1520px y se proyecta hacia la izquierda deteniéndose en 1050px,
-          dejando un margen libre de más de 200px respecto al eje central y sin interferir con el FAB
-          (que se sitúa en la esquina inferior derecha fija).
-          Largo visual: ~470px, alto variable: ~75-100px.
+          Ubicada en el lateral derecho adyacente a la transición hacia "Crear o abrir".
+          Nace fuera del viewport derecho (2050px) y se proyecta hacia la izquierda deteniéndose en x=1500px,
+          dejando despejado el carril central y sin competir con el FAB fijado en la esquina inferior derecha.
+          Largo visual: ~560px, alto variable: ~80-105px.
         */}
         <path
-          d="M 1520,670
-             C 1410,658 1315,672 1215,684
-             C 1145,694 1090,708 1062,718
-             C 1050,723 1045,729 1052,735
-             C 1058,740 1074,741 1102,738
-             C 1175,730 1260,718 1345,708
-             C 1425,698 1480,704 1520,715
+          d="M 2050,670
+             C 1920,658 1810,672 1690,684
+             C 1610,694 1545,708 1515,718
+             C 1502,723 1496,729 1504,735
+             C 1512,740 1530,741 1562,738
+             C 1645,730 1740,718 1840,708
+             C 1930,698 1995,704 2050,715
              Z"
           fill="url(#pe-brush-grad-b)"
           filter="url(#pe-brush-soften)"
