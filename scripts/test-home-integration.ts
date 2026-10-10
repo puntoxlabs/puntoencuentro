@@ -1969,7 +1969,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Debe incluir .pe-intencion-card__primary-actions para acciones directas Editar y Organizar'
       );
 
-      // 2. Verificación de jerarquía reforzada de "Me sumo" (conservada)
+      // 2. Verificación de jerarquía reforzada y superficie diferenciada de "Me sumo" (conservada y enriquecida)
       assert.ok(
         encountersCssContent.includes('.pe-discovery-section--v2'),
         'Debe definir estilos reforzados para .pe-discovery-section--v2'
@@ -1977,6 +1977,10 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(
         encountersCssContent.includes('.pe-discovery-section--v2 .pe-discovery-title'),
         'Debe mantener tamaño tipográfico y peso reforzado del título de Me sumo en V2'
+      );
+      assert.ok(
+        encountersCssContent.includes('background: linear-gradient'),
+        'Debe aplicar superficie con gradiente sutil para delimitar claramente el bloque Discovery'
       );
 
       // 3. Renderizado de HomeIntencionesSection en V2 con 2 intenciones: lista vertical con scroll natural

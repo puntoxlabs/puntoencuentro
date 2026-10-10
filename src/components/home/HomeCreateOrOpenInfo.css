@@ -3,22 +3,24 @@
 .home-create-or-open-info {
   width: 100%;
   max-width: var(--pe-rail-width, 1060px);
-  margin: 1.5rem auto 2.5rem;
-  padding: 1.15rem 1.25rem;
-  background: rgba(248, 250, 252, 0.75);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  border-radius: 16px;
+  margin: 1.75rem auto 2.5rem;
+  padding: 1.25rem 1.35rem;
+  background: #ffffff;
+  border: 1px solid rgba(209, 214, 226, 0.7);
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 @media (min-width: 768px) {
   .home-create-or-open-info {
-    padding: 1.15rem 1.35rem;
-    margin: 1.25rem auto 2rem;
+    padding: 1.35rem 1.5rem;
+    margin: 2rem auto 2.5rem;
+    border-radius: 20px;
   }
 }
 

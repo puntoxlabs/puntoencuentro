@@ -939,10 +939,10 @@
     background: var(--color-background, #F5F7FA);
   }
 
-  /* 1. Respiración equilibrada entre Hero y Encuentros Abiertos */
+  /* 1. Respiración equilibrada y transición de superficie para Encuentros Abiertos / Me sumo */
   .home-v2-variant .pe-discovery-section {
-    margin-top: 1.25rem;
-    padding-top: 0.25rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
   }
 
   /* 2. Transición entre Encuentros Abiertos y Capacidades (Pilares): armónica y continua */
