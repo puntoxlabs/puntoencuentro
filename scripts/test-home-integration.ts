@@ -2301,6 +2301,70 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // Bloque 3: Expresión de intenciones
       assert.ok(homeV2Html.includes('Tengo ganas de…'), 'Debe incluir banda "Tengo ganas de…"');
     });
+
+    test('S. Carrusel Discovery V2 Desktop: contención dentro de la sección, respiración lateral clamp() y embocaduras laterales, preservando mobile y V1', () => {
+      const openEncCss = readFileSync(resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.css'), 'utf8');
+
+      // 1. Verificación de eliminación de breakout invasivo 100vw en desktop
+      assert.ok(
+        !openEncCss.includes('width: calc(100% + 2 * (50vw - 50%));'),
+        'HomeOpenEncounters.css NO debe desbordar el carrusel a 100vw con breakout lateral'
+      );
+      assert.ok(
+        !openEncCss.includes('margin-left: calc(-1 * (50vw - 50%));'),
+        'HomeOpenEncounters.css NO debe usar márgenes negativos de breakout en desktop'
+      );
+
+      // 2. Verificación de contención estricta en el wrapper
+      assert.ok(
+        openEncCss.includes('.pe-discovery-section--v2 .pe-discovery-carousel-wrapper'),
+        'Debe definir reglas para .pe-discovery-section--v2 .pe-discovery-carousel-wrapper en desktop'
+      );
+      assert.ok(
+        openEncCss.includes('width: 100%;') && openEncCss.includes('max-width: 100%;'),
+        'El wrapper del carrusel debe estar contenido al 100% del marco de la sección'
+      );
+
+      // 3. Verificación de embocaduras laterales (efecto de entrada/salida)
+      assert.ok(
+        openEncCss.includes('.pe-discovery-section--v2 .pe-discovery-carousel-wrapper::before') &&
+        openEncCss.includes('.pe-discovery-section--v2 .pe-discovery-carousel-wrapper::after'),
+        'Debe definir embocaduras laterales ::before y ::after para sugerir entrada y salida por detrás de la banda'
+      );
+      assert.ok(
+        openEncCss.includes('pointer-events: none;'),
+        'Las embocaduras laterales deben tener pointer-events: none para no interferir con interacción o clics'
+      );
+      assert.ok(
+        openEncCss.includes('linear-gradient(to right, #ECF2F9') &&
+        openEncCss.includes('linear-gradient(to left, #ECF2F9'),
+        'Las embocaduras deben degradar suavemente hacia el color de fondo #ECF2F9 de la banda'
+      );
+
+      // 4. Verificación de respiración lateral deliberada y holgura vertical en el track
+      assert.ok(
+        openEncCss.includes('.pe-discovery-section--v2 .pe-discovery-track'),
+        'Debe definir estilos específicos para .pe-discovery-section--v2 .pe-discovery-track'
+      );
+      assert.ok(
+        openEncCss.includes('padding-left: clamp(24px, 3.5vw, 44px);'),
+        'Debe aplicar respiración lateral progresiva izquierda con clamp()'
+      );
+      assert.ok(
+        openEncCss.includes('padding-right: clamp(28px, 4vw, 52px);'),
+        'Debe aplicar respiración lateral progresiva derecha con clamp()'
+      );
+      assert.ok(
+        openEncCss.includes('padding-top: 10px;') && openEncCss.includes('padding-bottom: 16px;'),
+        'Debe proveer holgura vertical para no clipear sombras ni hover translateY'
+      );
+
+      // 5. Verificación de preservación de mobile (full-bleed exclusivo mobile)
+      assert.ok(
+        openEncCss.includes('margin-inline: -1rem;') && openEncCss.includes('width: calc(100% + 2rem);'),
+        'Mobile debe mantener full-bleed en la sección sin ser afectado por las reglas desktop'
+      );
+    });
   });
 });
 
