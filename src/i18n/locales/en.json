@@ -238,9 +238,11 @@
   },
   "your_encounters": {
     "section_title": "Your encounters",
+    "section_title_v2": "My space",
     "tab_all": "All",
     "tab_organizing": "Organizing",
     "tab_participating": "Participating",
+    "tab_encounters_v2": "My meetups",
     "tab_intentions_v2": "I feel like…",
     "intentions_subtitle_v2": "Things you want to do and keep track of.",
     "intentions_cta_v2": "I feel like…",

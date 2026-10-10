@@ -878,7 +878,26 @@
   }
 }
 
-/* Pestañas de contenido de usuario: Tus encuentros vs Intenciones */
+/* Título de sección de Actividad Personal (Home V2: Mi espacio) */
+.home-user-section-title {
+  margin: 0 0 0.75rem 0;
+  padding: 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 750;
+  color: var(--color-on-surface, #0f172a);
+  letter-spacing: -0.02em;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 768px) {
+  .home-user-section-title {
+    font-size: 1.35rem;
+    padding: 0 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+}
+
+/* Pestañas de contenido de usuario: Mis encuentros / Tus encuentros vs Mis ganas / Intenciones */
 .home-user-tabs {
   display: flex;
   align-items: center;

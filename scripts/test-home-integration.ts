@@ -2071,6 +2071,122 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'En V1 NO debe tener clase .pe-intenciones-list--v2'
       );
     });
+
+    test('Q. Bloque personal Home V2: título "Mi espacio" y tab "Mis encuentros" en primera persona e i18n, preservando V1', () => {
+      // 1. Verificación de traducciones en todos los locales soportados
+      const esData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/es.json'), 'utf8'));
+      const enData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/en.json'), 'utf8'));
+      const ptData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt.json'), 'utf8'));
+      const ptBrData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt-BR.json'), 'utf8'));
+
+      // Español
+      assert.strictEqual(esData.your_encounters.section_title_v2, 'Mi espacio', 'ES: section_title_v2 debe ser "Mi espacio"');
+      assert.strictEqual(esData.your_encounters.tab_encounters_v2, 'Mis encuentros', 'ES: tab_encounters_v2 debe ser "Mis encuentros"');
+      assert.strictEqual(esData.your_encounters.section_title, 'Tus encuentros', 'ES: V1 debe conservar "Tus encuentros"');
+
+      // Inglés
+      assert.strictEqual(enData.your_encounters.section_title_v2, 'My space', 'EN: section_title_v2 debe ser "My space"');
+      assert.strictEqual(enData.your_encounters.tab_encounters_v2, 'My meetups', 'EN: tab_encounters_v2 debe ser "My meetups"');
+      assert.strictEqual(enData.your_encounters.section_title, 'Your encounters', 'EN: V1 debe conservar "Your encounters"');
+
+      // Portugués
+      assert.strictEqual(ptData.your_encounters.section_title_v2, 'Meu espaço', 'PT: section_title_v2 debe ser "Meu espaço"');
+      assert.strictEqual(ptData.your_encounters.tab_encounters_v2, 'Meus encontros', 'PT: tab_encounters_v2 debe ser "Meus encontros"');
+      assert.strictEqual(ptData.your_encounters.section_title, 'Seus encontros', 'PT: V1 debe conservar "Seus encontros"');
+
+      // Portugués (Brasil)
+      assert.strictEqual(ptBrData.your_encounters.section_title_v2, 'Meu espaço', 'PT-BR: section_title_v2 debe ser "Meu espaço"');
+      assert.strictEqual(ptBrData.your_encounters.tab_encounters_v2, 'Meus encontros', 'PT-BR: tab_encounters_v2 debe ser "Meus encontros"');
+      assert.strictEqual(ptBrData.your_encounters.section_title, 'Seus encontros', 'PT-BR: V1 debe conservar "Seus encontros"');
+
+      // 2. Verificación de reglas CSS para .home-user-section-title en Home.css
+      const homeCssContent = readFileSync(resolve(process.cwd(), 'src/screens/Home.css'), 'utf8');
+      assert.ok(homeCssContent.includes('.home-user-section-title'), 'Home.css debe definir clase .home-user-section-title');
+      assert.ok(homeCssContent.includes('font-size: 1.25rem;'), 'Debe tener tamaño 1.25rem en mobile equivalente a Me sumo');
+      assert.ok(homeCssContent.includes('font-weight: 750;'), 'Debe tener font-weight 750 equivalente a Me sumo');
+      assert.ok(homeCssContent.includes('font-size: 1.35rem;'), 'Debe tener tamaño 1.35rem en desktop equivalente a Me sumo');
+
+      // 3. Renderizado de Home V2 (Usuario Permanente / Logueado)
+      const loggedAuthValue = {
+        user: { id: 'usr-456', email: 'user@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      const htmlV2 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      // En V2 debe existir el título visible de sección Mi espacio
+      assert.ok(
+        htmlV2.includes('<h2 class="home-user-section-title">Mi espacio</h2>'),
+        'V2 debe renderizar <h2 class="home-user-section-title">Mi espacio</h2>'
+      );
+      // En V2 el tab de encuentros debe decir "Mis encuentros"
+      assert.ok(
+        htmlV2.includes('Mis encuentros'),
+        'V2 debe titular la primera tab como "Mis encuentros"'
+      );
+      // En V2 el segundo tab debe decir "Mis ganas"
+      assert.ok(
+        htmlV2.includes('Mis ganas'),
+        'V2 debe mantener la segunda tab como "Mis ganas"'
+      );
+
+      // 4. Renderizado de Home V1 (Usuario Permanente / Logueado)
+      const htmlV1 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: loggedAuthValue },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v1' }))
+          )
+        )
+      );
+
+      // En V1 NO debe existir el h2 home-user-section-title ni "Mi espacio"
+      assert.ok(
+        !htmlV1.includes('home-user-section-title'),
+        'V1 NO debe incluir la clase .home-user-section-title'
+      );
+      assert.ok(
+        !htmlV1.includes('Mi espacio'),
+        'V1 NO debe mostrar "Mi espacio"'
+      );
+      // En V1 la primera tab debe decir "Tus encuentros"
+      assert.ok(
+        htmlV1.includes('Tus encuentros'),
+        'V1 debe conservar el texto "Tus encuentros" en la solapa'
+      );
+      // En V1 la segunda tab debe decir "Intenciones"
+      assert.ok(
+        htmlV1.includes('Intenciones'),
+        'V1 debe conservar el texto "Intenciones" en la solapa'
+      );
+      assert.ok(
+        !htmlV1.includes('Mis encuentros'),
+        'V1 NO debe mostrar "Mis encuentros"'
+      );
+    });
   });
 });
 

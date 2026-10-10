@@ -218,9 +218,11 @@
   },
   "your_encounters": {
     "section_title": "Seus encontros",
+    "section_title_v2": "Meu espaço",
     "tab_all": "Todos",
     "tab_organizing": "Organizo",
     "tab_participating": "Participo",
+    "tab_encounters_v2": "Meus encontros",
     "tab_intentions_v2": "Quero fazer",
     "intentions_subtitle_v2": "Coisas que você quer fazer e manter em acompanhamento.",
     "intentions_cta_v2": "Quero fazer…",

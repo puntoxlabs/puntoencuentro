@@ -1250,6 +1250,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const personalActivitySection = (
     <div className="home-encounters-section">
       <div className="pe-encounters-inner">
+        {isV2Variant && (
+          <h2 className="home-user-section-title">
+            {t('your_encounters.section_title_v2', { defaultValue: 'Mi espacio' })}
+          </h2>
+        )}
         <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
           <button
             type="button"
@@ -1258,7 +1263,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             className={`home-user-tab ${userSectionTab === 'encuentros' ? 'home-user-tab--active' : ''}`}
             onClick={() => setUserSectionTab('encuentros')}
           >
-            Tus encuentros
+            {isV2Variant ? t('your_encounters.tab_encounters_v2', { defaultValue: 'Mis encuentros' }) : 'Tus encuentros'}
           </button>
           <button
             type="button"
