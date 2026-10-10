@@ -8,10 +8,19 @@
   box-sizing: border-box;
 }
 
+/* En variante V2, mayor separación superior respecto a la sección personal/Mis ganas */
+.pe-discovery-section--v2 {
+  margin-top: 1.5rem;
+}
+
 @media (min-width: 768px) {
   .pe-discovery-section {
     padding: 0 1.5rem;
     margin: 1rem auto 0;
+  }
+
+  .pe-discovery-section--v2 {
+    margin-top: 2rem;
   }
 }
 
@@ -42,6 +51,18 @@
   color: var(--color-on-surface, #0f172a);
   letter-spacing: -0.015em;
   overflow-wrap: break-word;
+}
+
+.pe-discovery-section--v2 .pe-discovery-title {
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .pe-discovery-section--v2 .pe-discovery-title {
+    font-size: 1.35rem;
+  }
 }
 
 .pe-discovery-badge {

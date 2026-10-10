@@ -1886,7 +1886,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlCardActiva.includes('pe-intencion-card--mini'), 'Debe usar clase mini-card compacta');
       assert.ok(htmlCardActiva.includes('En seguimiento'), 'Debe mostrar badge "En seguimiento"');
       assert.ok(htmlCardActiva.includes('pe-intencion-card__status-dot'), 'Debe incluir el dot de estado');
-      assert.ok(htmlCardActiva.includes('Organizar encuentro'), 'Debe incluir botón principal Organizar encuentro');
+      assert.ok(htmlCardActiva.includes('>Organizar<'), 'Debe incluir botón principal Organizar');
       assert.ok(htmlCardActiva.includes('pe-intencion-card__more-btn'), 'Debe incluir botón de menú ⋯');
       assert.ok(htmlCardActiva.includes('aria-haspopup="menu"'), 'Botón ⋯ debe tener aria-haspopup="menu"');
       assert.ok(htmlCardActiva.includes('role="menu"'), 'Menú dropdown debe tener role="menu"');
@@ -1936,6 +1936,133 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!htmlCardV1.includes('pe-intencion-card--mini'), 'V1 NO debe usar clase mini-card');
       assert.ok(htmlCardV1.includes('Activa'), 'V1 debe mostrar badge "Activa"');
       assert.ok(htmlCardV1.includes('pe-intencion-card__actions'), 'V1 debe conservar contenedor de 4 botones');
+    });
+
+    test('V. Carrusel horizontal con peek para Mis ganas y jerarquía reforzada de Me sumo en Mobile V2', () => {
+      const sectionCssPath = resolve(process.cwd(), 'src/components/home/intentions/HomeIntencionesSection.css');
+      const sectionCssContent = readFileSync(sectionCssPath, 'utf8');
+      const encountersCssPath = resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.css');
+      const encountersCssContent = readFileSync(encountersCssPath, 'utf8');
+
+      // 1. Verificación de reglas CSS para carrusel/rail horizontal
+      assert.ok(
+        sectionCssContent.includes('.pe-intenciones-list--carousel'),
+        'Debe definir clase .pe-intenciones-list--carousel para rail horizontal'
+      );
+      assert.ok(
+        sectionCssContent.includes('overflow-x: auto;') && sectionCssContent.includes('scroll-snap-type: x mandatory;'),
+        'Debe tener scroll horizontal y snap para tarjetas'
+      );
+      assert.ok(
+        sectionCssContent.includes('overscroll-behavior-x: contain;'),
+        'Debe contener el overscroll lateral para evitar desplazamiento del viewport del documento'
+      );
+      assert.ok(
+        sectionCssContent.includes('.pe-intenciones-list--carousel .pe-intencion-card'),
+        'Debe definir reglas para el ancho de cada tarjeta en el carrusel'
+      );
+      assert.ok(
+        sectionCssContent.includes('calc(84vw - 20px)'),
+        'Debe dimensionar la tarjeta dejando un peek visual de la siguiente'
+      );
+      assert.ok(
+        sectionCssContent.includes('.pe-intenciones-carousel-mobile-indicator'),
+        'Debe definir el chevron indicador sutil de continuidad para mobile'
+      );
+
+      // 2. Verificación de jerarquía reforzada de "Me sumo"
+      assert.ok(
+        encountersCssContent.includes('.pe-discovery-section--v2'),
+        'Debe definir estilos reforzados para .pe-discovery-section--v2'
+      );
+      assert.ok(
+        encountersCssContent.includes('.pe-discovery-section--v2 .pe-discovery-title'),
+        'Debe aumentar tamaño tipográfico y peso del título de Me sumo en V2'
+      );
+
+      // 3. Renderizado de HomeIntencionesSection en V2 con 2 intenciones: debe usar clases de carrusel
+      const mockGana1 = {
+        id: 'gana-carrusel-1',
+        titulo: 'Ir a tomar un café',
+        descripcion: 'Por Guemes',
+        estado: 'activa' as const,
+        modalidad: 'presencial' as const,
+        user_id: 'usr-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const mockGana2 = {
+        id: 'gana-carrusel-2',
+        titulo: 'Salir a correr',
+        descripcion: 'En la costa',
+        estado: 'activa' as const,
+        modalidad: 'presencial' as const,
+        user_id: 'usr-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const authValue = {
+        user: { id: 'usr-1', is_anonymous: false } as any,
+        session: null,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'already_permanent' }),
+        signOut: async () => {},
+      };
+
+      const htmlSectionV2 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: authValue },
+          React.createElement(HomeIntencionesSection, {
+            isV2Variant: true,
+            initialLoading: false,
+            mockIntenciones: [mockGana1, mockGana2],
+          })
+        )
+      );
+
+      assert.ok(
+        htmlSectionV2.includes('pe-intenciones-list--carousel'),
+        'En V2 debe renderizar lista con clase de carrusel horizontal'
+      );
+      assert.ok(
+        htmlSectionV2.includes('pe-intenciones-carousel-wrapper--v2'),
+        'En V2 debe usar wrapper con clase V2'
+      );
+      assert.ok(
+        htmlSectionV2.includes('Ir a tomar un café') && htmlSectionV2.includes('Salir a correr'),
+        'Debe renderizar ambas tarjetas en el track del carrusel'
+      );
+
+      // 4. Renderizado en V1 (isV2Variant = false): debe mantenerse sin clases de carrusel
+      const htmlSectionV1 = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: authValue },
+          React.createElement(HomeIntencionesSection, {
+            isV2Variant: false,
+            initialLoading: false,
+            mockIntenciones: [mockGana1, mockGana2],
+          })
+        )
+      );
+
+      assert.ok(
+        !htmlSectionV1.includes('pe-intenciones-list--carousel'),
+        'En V1 NO debe tener clase de carrusel horizontal'
+      );
+      assert.ok(
+        !htmlSectionV1.includes('pe-intenciones-carousel-wrapper--v2'),
+        'En V1 NO debe tener wrapper V2'
+      );
     });
   });
 });

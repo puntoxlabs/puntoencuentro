@@ -185,7 +185,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
               <CalendarPlus size={13} aria-hidden="true" />
               <span>
                 {t('your_encounters.intentions_action_organize_v2', {
-                  defaultValue: 'Organizar encuentro',
+                  defaultValue: 'Organizar',
                 })}
               </span>
             </button>

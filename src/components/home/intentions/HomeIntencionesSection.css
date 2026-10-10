@@ -76,6 +76,106 @@
   }
 }
 
+/* ── RAIL / CARRUSEL HORIZONTAL EN MOBILE V2 ── */
+
+.pe-intenciones-carousel-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pe-intenciones-list--carousel {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 10px;
+  padding: 2px 1.5rem 8px 2px;
+  margin: 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.pe-intenciones-list--carousel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Peek horizontal de la siguiente card en mobile (ancho óptimo ~84vw) */
+.pe-intenciones-list--carousel .pe-intencion-card {
+  flex: 0 0 calc(84vw - 20px);
+  max-width: 310px;
+  min-width: 240px;
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  box-sizing: border-box;
+}
+
+/* En desktop / tablet: pasar a layout de grilla limpia sin scroll horizontal */
+@media (min-width: 640px) {
+  .pe-intenciones-list--carousel {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding: 0;
+    gap: 12px;
+  }
+
+  .pe-intenciones-list--carousel .pe-intencion-card {
+    flex: unset;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .pe-intenciones-carousel-mobile-indicator {
+    display: none !important;
+  }
+}
+
+/* Indicador sutil de scroll a la derecha en mobile */
+.pe-intenciones-carousel-mobile-indicator {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  color: var(--color-on-surface-variant, #64748b);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  cursor: pointer;
+  z-index: 5;
+  transition: all 0.15s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Área táctil accesible extendida a 44x44px vía pseudo-elemento */
+.pe-intenciones-carousel-mobile-indicator::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -8px;
+  right: -8px;
+}
+
+.pe-intenciones-carousel-mobile-indicator:hover,
+.pe-intenciones-carousel-mobile-indicator:focus-visible {
+  background: #ffffff;
+  color: var(--color-primary, #6366f1);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.16);
+  outline: none;
+}
+
 .pe-intenciones-loading,
 .pe-intenciones-error,
 .pe-intenciones-empty {
