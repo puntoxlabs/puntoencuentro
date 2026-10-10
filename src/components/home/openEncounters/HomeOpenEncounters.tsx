@@ -863,7 +863,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         <div className="pe-discovery-title-group">
           <h2 className="pe-discovery-title">
             {isV2Variant
-              ? t('open_encounters.section_title_v2', { defaultValue: 'Me sumo' })
+              ? t('open_encounters.section_title_v2', { defaultValue: '¿A qué me sumo?' })
               : t('open_encounters.section_title', { defaultValue: 'Encuentros abiertos' })}
           </h2>
           <button

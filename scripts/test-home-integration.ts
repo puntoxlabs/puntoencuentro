@@ -851,7 +851,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           )
         );
         assert.ok(htmlV2Es.includes('Tengo ganas de…'), 'ES: Debe mostrar "Tengo ganas de…" en la sección personal de V2');
-        assert.ok(htmlV2Es.includes('Me sumo'), 'ES: El bloque público en V2 debe titularse "Me sumo"');
+        assert.ok(htmlV2Es.includes('¿A qué me sumo?'), 'ES: El bloque público en V2 debe titularse "¿A qué me sumo?"');
+        assert.ok(!htmlV2Es.includes('<h2 class="pe-discovery-title">Me sumo</h2>'), 'ES: El heading de discovery ya no debe ser "Me sumo"');
 
         // 2. Probar en Inglés (EN)
         await i18n.changeLanguage('en');
@@ -867,7 +868,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           )
         );
         assert.ok(htmlV2En.includes('I feel like…'), 'EN: Debe mostrar "I feel like…" en la sección personal de V2');
-        assert.ok(htmlV2En.includes('I&#x27;m in') || htmlV2En.includes("I'm in"), 'EN: El bloque público en V2 debe titularse "I\'m in"');
+        assert.ok(htmlV2En.includes('What can I join?'), 'EN: El bloque público en V2 debe titularse "What can I join?"');
 
         // 3. Probar en Portugués de Brasil (PT-BR: locale activo en runtime)
         await i18n.changeLanguage('pt-BR');
@@ -883,18 +884,19 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           )
         );
         assert.ok(htmlV2PtBr.includes('Quero fazer'), 'PT-BR: Debe mostrar "Quero fazer" en el tab personal de V2');
-        assert.ok(htmlV2PtBr.includes('Quero participar'), 'PT-BR: El bloque público en V2 debe titularse "Quero participar"');
+        assert.ok(htmlV2PtBr.includes('Do que posso participar?'), 'PT-BR: El bloque público en V2 debe titularse "Do que posso participar?"');
 
         // 4. Probar Portugués de Portugal (PT: catálogo preparado en pt.json)
+        const ptJsonData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt.json'), 'utf8'));
         assert.equal(
-          (ptJson as any).open_encounters?.personal_intentions_title,
+          ptJsonData.open_encounters?.personal_intentions_title,
           'Tenho vontade de…',
           'PT: pt.json debe tener "Tenho vontade de…" preparado'
         );
         assert.equal(
-          (ptJson as any).open_encounters?.section_title_v2,
-          'Quero participar',
-          'PT: pt.json debe tener "Quero participar" preparado'
+          ptJsonData.open_encounters?.section_title_v2,
+          'Do que posso participar?',
+          'PT: pt.json debe tener "Do que posso participar?" preparado'
         );
 
         // 5. Restaurar idioma a Español y verificar que Home V1 mantiene inalterado "Ganas de…"
@@ -1333,8 +1335,9 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
 
-      // Título en V2 debe ser "Me sumo"
-      assert.ok(htmlV2.includes('<h2 class="pe-discovery-title">Me sumo</h2>'), 'V2 debe titularse "Me sumo"');
+      // Título en V2 debe ser "¿A qué me sumo?"
+      assert.ok(htmlV2.includes('<h2 class="pe-discovery-title">¿A qué me sumo?</h2>'), 'V2 debe titularse "¿A qué me sumo?"');
+      assert.ok(!htmlV2.includes('<h2 class="pe-discovery-title">Me sumo</h2>'), 'V2 NO debe titularse "Me sumo" en el heading');
       assert.ok(!htmlV2.includes('<h2 class="pe-discovery-title">Encuentros abiertos</h2>'), 'V2 NO debe titularse "Encuentros abiertos"');
 
       // En V2 NO debe renderizar solapas de descubrimiento (Todo, Encuentros, Ganas de…)
@@ -2186,6 +2189,117 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         !htmlV1.includes('Mis encuentros'),
         'V1 NO debe mostrar "Mis encuentros"'
       );
+    });
+
+    test('R. Arquitectura verbal de Discovery V2: "¿A qué me sumo?" como título y "Solicitar sumarme" como CTA, preservando V1 e i18n', () => {
+      // 1. Verificación de traducciones en todos los diccionarios
+      const esData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/es.json'), 'utf8'));
+      const enData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/en.json'), 'utf8'));
+      const ptData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt.json'), 'utf8'));
+      const ptBrData = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt-BR.json'), 'utf8'));
+
+      // Español
+      assert.strictEqual(esData.open_encounters.section_title_v2, '¿A qué me sumo?', 'ES: section_title_v2 debe ser "¿A qué me sumo?"');
+      assert.strictEqual(esData.open_encounters.section_title, 'Encuentros abiertos', 'ES: V1 debe conservar "Encuentros abiertos"');
+      assert.strictEqual(esData.open_encounters.request_join, 'Solicitar sumarme', 'ES: CTA de acción sobre encuentro debe ser "Solicitar sumarme"');
+
+      // Inglés
+      assert.strictEqual(enData.open_encounters.section_title_v2, 'What can I join?', 'EN: section_title_v2 debe ser "What can I join?"');
+      assert.strictEqual(enData.open_encounters.section_title, 'Open encounters', 'EN: V1 debe conservar "Open encounters"');
+      assert.strictEqual(enData.open_encounters.request_join, 'Request to join', 'EN: CTA de acción sobre encuentro debe ser "Request to join"');
+
+      // Portugués
+      assert.strictEqual(ptData.open_encounters.section_title_v2, 'Do que posso participar?', 'PT: section_title_v2 debe ser "Do que posso participar?"');
+      assert.strictEqual(ptData.open_encounters.section_title, 'Encontros abertos', 'PT: V1 debe conservar "Encontros abertos"');
+      assert.strictEqual(ptData.open_encounters.request_join, 'Pedir para participar', 'PT: CTA de acción sobre encuentro debe ser "Pedir para participar"');
+
+      // Portugués (Brasil)
+      assert.strictEqual(ptBrData.open_encounters.section_title_v2, 'Do que posso participar?', 'PT-BR: section_title_v2 debe ser "Do que posso participar?"');
+      assert.strictEqual(ptBrData.open_encounters.section_title, 'Encontros abertos', 'PT-BR: V1 debe conservar "Encontros abertos"');
+      assert.strictEqual(ptBrData.open_encounters.request_join, 'Pedir para participar', 'PT-BR: CTA de acción sobre encuentro debe ser "Pedir para participar"');
+
+      // 2. Verificación de CSS en HomeOpenEncounters.css: line-height y responsive
+      const openEncCss = readFileSync(resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.css'), 'utf8');
+      assert.ok(
+        openEncCss.includes('.pe-discovery-section--v2 .pe-discovery-title'),
+        'HomeOpenEncounters.css debe definir estilos de título V2'
+      );
+      assert.ok(
+        openEncCss.includes('line-height: 1.25;'),
+        'Debe incluir line-height: 1.25 para adaptación armónica en mobile con font scaling grande'
+      );
+
+      // 3. Renderizado de HomeOpenEncounters en V2
+      const htmlDiscoveryV2 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      assert.ok(
+        htmlDiscoveryV2.includes('<h2 class="pe-discovery-title">¿A qué me sumo?</h2>'),
+        'V2 debe renderizar título "¿A qué me sumo?"'
+      );
+      assert.ok(
+        !htmlDiscoveryV2.includes('<h2 class="pe-discovery-title">Me sumo</h2>'),
+        'V2 NO debe renderizar "Me sumo" como heading de sección'
+      );
+
+      // 4. Renderizado de HomeOpenEncounters en V1
+      const htmlDiscoveryV1 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: false,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      assert.ok(
+        htmlDiscoveryV1.includes('<h2 class="pe-discovery-title">Encuentros abiertos</h2>'),
+        'V1 debe conservar título "Encuentros abiertos"'
+      );
+      assert.ok(
+        !htmlDiscoveryV1.includes('¿A qué me sumo?'),
+        'V1 NO debe renderizar "¿A qué me sumo?"'
+      );
+
+      // 5. Coexistencia de la arquitectura verbal completa en Home V2
+      const authUser = {
+        user: { id: 'usr-arch-test', email: 'arch@example.com', is_anonymous: false } as any,
+        session: { access_token: 'token-xyz' } as any,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: false,
+        isPermanentUser: true,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      const homeV2Html = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: authUser },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/?homeVariant=v2'] },
+            React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+          )
+        )
+      );
+
+      // Bloque 1: Gestión personal
+      assert.ok(homeV2Html.includes('Mi espacio'), 'Debe incluir encabezado "Mi espacio"');
+      assert.ok(homeV2Html.includes('Mis encuentros'), 'Debe incluir tab "Mis encuentros"');
+      assert.ok(homeV2Html.includes('Mis ganas'), 'Debe incluir tab "Mis ganas"');
+
+      // Bloque 2: Descubrimiento público
+      assert.ok(homeV2Html.includes('¿A qué me sumo?'), 'Debe incluir encabezado "¿A qué me sumo?"');
+      assert.ok(homeV2Html.includes('En tus zonas'), 'Debe convivir con badge "En tus zonas"');
+
+      // Bloque 3: Expresión de intenciones
+      assert.ok(homeV2Html.includes('Tengo ganas de…'), 'Debe incluir banda "Tengo ganas de…"');
     });
   });
 });
