@@ -348,7 +348,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           <p className="pe-intenciones-subtitle">
             {isV2Variant
               ? t('your_encounters.intentions_subtitle_v2', {
-                  defaultValue: 'Cosas que querés hacer. Te avisamos si aparece algo relacionado.',
+                  defaultValue: 'Cosas que querés hacer y mantener en seguimiento.',
                 })
               : 'Cosas que tenés ganas de hacer, antes de organizar un encuentro.'}
           </p>

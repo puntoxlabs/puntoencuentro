@@ -200,6 +200,14 @@
   gap: 4px;
 }
 
+.pe-intencion-card__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  flex-shrink: 0;
+}
+
 .pe-intencion-card--mini .pe-intencion-card__desc {
   font-size: 0.82rem;
   color: var(--color-on-surface-variant, #64748b);
@@ -253,16 +261,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
-  min-height: 34px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   color: #64748b;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .pe-intencion-card__more-btn:hover:not(:disabled) {

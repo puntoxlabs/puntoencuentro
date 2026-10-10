@@ -1849,8 +1849,16 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         cardCssContent.includes('.pe-intencion-card__more-btn'),
         'Debe incluir botón accesible de menú secundario ⋯'
       );
+      assert.ok(
+        cardCssContent.includes('min-width: 44px;') && cardCssContent.includes('min-height: 44px;'),
+        'El botón de menú ⋯ debe tener un touch target mobile interactivo de al menos 44 × 44 px'
+      );
+      assert.ok(
+        cardCssContent.includes('.pe-intencion-card__status-dot'),
+        'Debe incluir status-dot para indicar seguimiento sin ruido visual'
+      );
 
-      // 2. Renderizado de IntencionCard V2 ACTIVA: mini-card, Avisos activos, Organizar visible y menú ⋯
+      // 2. Renderizado de IntencionCard V2 ACTIVA: mini-card, En seguimiento, Organizar visible y menú ⋯
       const mockGana = {
         id: 'gana-test-wrap',
         titulo: 'Jugar al padel',
@@ -1876,7 +1884,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       // Verificación de mini-card y semántica en seguimiento
       assert.ok(htmlCardActiva.includes('pe-intencion-card--mini'), 'Debe usar clase mini-card compacta');
-      assert.ok(htmlCardActiva.includes('Avisos activos'), 'Debe mostrar badge "Avisos activos"');
+      assert.ok(htmlCardActiva.includes('En seguimiento'), 'Debe mostrar badge "En seguimiento"');
+      assert.ok(htmlCardActiva.includes('pe-intencion-card__status-dot'), 'Debe incluir el dot de estado');
       assert.ok(htmlCardActiva.includes('Organizar encuentro'), 'Debe incluir botón principal Organizar encuentro');
       assert.ok(htmlCardActiva.includes('pe-intencion-card__more-btn'), 'Debe incluir botón de menú ⋯');
       assert.ok(htmlCardActiva.includes('aria-haspopup="menu"'), 'Botón ⋯ debe tener aria-haspopup="menu"');
@@ -1884,11 +1893,11 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       // Opciones dentro del menú
       assert.ok(htmlCardActiva.includes('Editar'), 'Debe incluir opción Editar en el menú');
-      assert.ok(htmlCardActiva.includes('Pausar avisos'), 'Debe incluir opción Pausar avisos');
+      assert.ok(htmlCardActiva.includes('Pausar'), 'Debe incluir opción Pausar en intención activa');
       assert.ok(htmlCardActiva.includes('Cerrar'), 'Debe incluir opción Cerrar');
-      assert.ok(!htmlCardActiva.includes('Reactivar avisos'), 'NO debe incluir Reactivar avisos en intención activa');
+      assert.ok(!htmlCardActiva.includes('Reactivar'), 'NO debe incluir Reactivar en intención activa');
 
-      // 3. Renderizado de IntencionCard V2 PAUSADA: Avisos pausados y Reactivar avisos
+      // 3. Renderizado de IntencionCard V2 PAUSADA: Pausada y Reactivar
       const mockGanaPausada = {
         ...mockGana,
         id: 'gana-test-pausada',
@@ -1907,9 +1916,9 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
 
-      assert.ok(htmlCardPausada.includes('Avisos pausados'), 'Debe mostrar badge "Avisos pausados"');
-      assert.ok(htmlCardPausada.includes('Reactivar avisos'), 'Debe incluir opción Reactivar avisos en menú');
-      assert.ok(!htmlCardPausada.includes('Pausar avisos'), 'NO debe incluir Pausar avisos en intención pausada');
+      assert.ok(htmlCardPausada.includes('Pausada'), 'Debe mostrar badge "Pausada"');
+      assert.ok(htmlCardPausada.includes('Reactivar'), 'Debe incluir opción Reactivar en menú');
+      assert.ok(!htmlCardPausada.includes('>Pausar<'), 'NO debe incluir Pausar en intención pausada');
 
       // 4. Preservación estricta de Home V1 (isV2Variant = false)
       const htmlCardV1 = renderToString(

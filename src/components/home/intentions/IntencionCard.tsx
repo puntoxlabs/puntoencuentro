@@ -8,8 +8,6 @@ import {
   XCircle,
   CalendarPlus,
   MoreVertical,
-  Bell,
-  BellOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Intencion } from '../../../types/intenciones';
@@ -126,8 +124,8 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
   // ── HOME V2: MINI-CARD COMPACTA EN SEGUIMIENTO ──
   if (isV2Variant) {
     const statusLabel = isActiva
-      ? t('your_encounters.intentions_status_active_v2', { defaultValue: 'Avisos activos' })
-      : t('your_encounters.intentions_status_paused_v2', { defaultValue: 'Avisos pausados' });
+      ? t('your_encounters.intentions_status_active_v2', { defaultValue: 'En seguimiento' })
+      : t('your_encounters.intentions_status_paused_v2', { defaultValue: 'Pausada' });
 
     return (
       <article
@@ -143,11 +141,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
                 : 'pe-intencion-card__status-badge--pausada'
             }`}
           >
-            {isActiva ? (
-              <Bell size={11} aria-hidden="true" />
-            ) : (
-              <BellOff size={11} aria-hidden="true" />
-            )}
+            <span className="pe-intencion-card__status-dot" aria-hidden="true" />
             <span>{statusLabel}</span>
           </span>
         </div>
@@ -256,7 +250,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
                   <PauseCircle size={14} aria-hidden="true" />
                   <span>
                     {t('your_encounters.intentions_action_pause_v2', {
-                      defaultValue: 'Pausar avisos',
+                      defaultValue: 'Pausar',
                     })}
                   </span>
                 </button>
@@ -276,7 +270,7 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
                   <PlayCircle size={14} aria-hidden="true" />
                   <span>
                     {t('your_encounters.intentions_action_reactivate_v2', {
-                      defaultValue: 'Reactivar avisos',
+                      defaultValue: 'Reactivar',
                     })}
                   </span>
                 </button>
