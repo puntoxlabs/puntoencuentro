@@ -1824,21 +1824,33 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlAnon.includes('pe-intenciones-empty'), 'En anónimo sin intenciones renderiza empty state');
     });
 
-    test('U. Responsive de acciones en tarjetas de Mis ganas: flex-wrap habilitado y sin desborde horizontal', () => {
+    test('U. Rediseño de Mis ganas V2: mini-cards compactas, estado de avisos, acción Organizar, menú accesible y responsive', () => {
       const cardCssPath = resolve(process.cwd(), 'src/components/home/intentions/IntencionCard.css');
       const cardCssContent = readFileSync(cardCssPath, 'utf8');
 
-      // 1. El contenedor de acciones debe permitir flex-wrap para acomodar botones en múltiples líneas si la fuente o viewport lo requieren
+      // 1. Reglas de responsive y prevención de desborde horizontal (flex-wrap tanto en V1 como en el footer V2)
       assert.ok(
         cardCssContent.includes('.pe-intencion-card__actions {'),
         'Debe existir regla para .pe-intencion-card__actions'
       );
       assert.ok(
+        cardCssContent.includes('.pe-intencion-card__footer {'),
+        'Debe existir regla para .pe-intencion-card__footer'
+      );
+      assert.ok(
         cardCssContent.includes('flex-wrap: wrap;'),
-        'Las acciones deben tener flex-wrap: wrap para evitar que los botones se salgan horizontalmente con fuentes grandes'
+        'Debe tener flex-wrap: wrap para evitar desborde con fuentes grandes'
+      );
+      assert.ok(
+        cardCssContent.includes('.pe-intencion-card--mini'),
+        'Debe incluir clase CSS para mini-cards compactas'
+      );
+      assert.ok(
+        cardCssContent.includes('.pe-intencion-card__more-btn'),
+        'Debe incluir botón accesible de menú secundario ⋯'
       );
 
-      // 2. Renderizado de IntencionCard con todas las acciones activas (organizar, editar, pausar, cerrar)
+      // 2. Renderizado de IntencionCard V2 ACTIVA: mini-card, Avisos activos, Organizar visible y menú ⋯
       const mockGana = {
         id: 'gana-test-wrap',
         titulo: 'Jugar al padel',
@@ -1850,7 +1862,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         updated_at: new Date().toISOString(),
       };
 
-      const htmlCard = renderToString(
+      const htmlCardActiva = renderToString(
         React.createElement(IntencionCard, {
           intencion: mockGana,
           onEdit: () => {},
@@ -1862,11 +1874,59 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
 
-      // Todas las 4 acciones deben renderizarse y estar presentes en el árbol
-      assert.ok(htmlCard.includes('Organizar encuentro'), 'Debe incluir botón Organizar encuentro');
-      assert.ok(htmlCard.includes('Editar'), 'Debe incluir botón Editar');
-      assert.ok(htmlCard.includes('Pausar'), 'Debe incluir botón Pausar');
-      assert.ok(htmlCard.includes('Cerrar'), 'Debe incluir botón Cerrar');
+      // Verificación de mini-card y semántica en seguimiento
+      assert.ok(htmlCardActiva.includes('pe-intencion-card--mini'), 'Debe usar clase mini-card compacta');
+      assert.ok(htmlCardActiva.includes('Avisos activos'), 'Debe mostrar badge "Avisos activos"');
+      assert.ok(htmlCardActiva.includes('Organizar encuentro'), 'Debe incluir botón principal Organizar encuentro');
+      assert.ok(htmlCardActiva.includes('pe-intencion-card__more-btn'), 'Debe incluir botón de menú ⋯');
+      assert.ok(htmlCardActiva.includes('aria-haspopup="menu"'), 'Botón ⋯ debe tener aria-haspopup="menu"');
+      assert.ok(htmlCardActiva.includes('role="menu"'), 'Menú dropdown debe tener role="menu"');
+
+      // Opciones dentro del menú
+      assert.ok(htmlCardActiva.includes('Editar'), 'Debe incluir opción Editar en el menú');
+      assert.ok(htmlCardActiva.includes('Pausar avisos'), 'Debe incluir opción Pausar avisos');
+      assert.ok(htmlCardActiva.includes('Cerrar'), 'Debe incluir opción Cerrar');
+      assert.ok(!htmlCardActiva.includes('Reactivar avisos'), 'NO debe incluir Reactivar avisos en intención activa');
+
+      // 3. Renderizado de IntencionCard V2 PAUSADA: Avisos pausados y Reactivar avisos
+      const mockGanaPausada = {
+        ...mockGana,
+        id: 'gana-test-pausada',
+        estado: 'pausada' as const,
+      };
+
+      const htmlCardPausada = renderToString(
+        React.createElement(IntencionCard, {
+          intencion: mockGanaPausada,
+          onEdit: () => {},
+          onPausar: () => {},
+          onReactivar: () => {},
+          onCerrar: () => {},
+          onOrganizar: () => {},
+          isV2Variant: true,
+        })
+      );
+
+      assert.ok(htmlCardPausada.includes('Avisos pausados'), 'Debe mostrar badge "Avisos pausados"');
+      assert.ok(htmlCardPausada.includes('Reactivar avisos'), 'Debe incluir opción Reactivar avisos en menú');
+      assert.ok(!htmlCardPausada.includes('Pausar avisos'), 'NO debe incluir Pausar avisos en intención pausada');
+
+      // 4. Preservación estricta de Home V1 (isV2Variant = false)
+      const htmlCardV1 = renderToString(
+        React.createElement(IntencionCard, {
+          intencion: mockGana,
+          onEdit: () => {},
+          onPausar: () => {},
+          onReactivar: () => {},
+          onCerrar: () => {},
+          onOrganizar: () => {},
+          isV2Variant: false,
+        })
+      );
+
+      assert.ok(!htmlCardV1.includes('pe-intencion-card--mini'), 'V1 NO debe usar clase mini-card');
+      assert.ok(htmlCardV1.includes('Activa'), 'V1 debe mostrar badge "Activa"');
+      assert.ok(htmlCardV1.includes('pe-intencion-card__actions'), 'V1 debe conservar contenedor de 4 botones');
     });
   });
 });
