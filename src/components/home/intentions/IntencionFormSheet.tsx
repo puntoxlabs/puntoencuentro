@@ -25,6 +25,7 @@ export interface IntencionFormSheetProps {
   isEditing?: boolean;
   isSubmitting?: boolean;
   isV2Variant?: boolean;
+  initialErrorMsg?: string | null;
 }
 
 export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
@@ -36,6 +37,7 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
   isEditing = false,
   isSubmitting = false,
   isV2Variant = false,
+  initialErrorMsg = null,
 }) => {
   const { t } = useTranslation();
   const [titulo, setTitulo] = useState('');
@@ -83,8 +85,8 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
       setModalidad('presencial');
       setLocalityId(null);
     }
-    setErrorMsg(null);
-  }, [isOpen, initialData]);
+    setErrorMsg(initialErrorMsg || null);
+  }, [isOpen, initialData, initialErrorMsg]);
 
   useEffect(() => {
     if (!isOpen) return;

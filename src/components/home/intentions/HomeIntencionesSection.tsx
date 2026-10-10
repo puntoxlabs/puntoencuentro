@@ -85,13 +85,16 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     };
   }, []);
 
-  // ── RECUPERACIÓN DE DRAFT PENDIENTE TRAS OAUTH ──
+  const [formErrorMsg, setFormErrorMsg] = useState<string | null>(null);
+  const autoSubmitLockRef = useRef(false);
+
+  // ── RECUPERACIÓN / AUTO-SUBMIT TRAS OAUTH ──
   useEffect(() => {
     const isPermanent = Boolean(user && !user.is_anonymous);
     if (!isPermanent) return;
 
-    // Evitar restauraciones repetidas durante el mismo mount/render
-    if (hasRestoredDraftRef.current) return;
+    // Evitar ejecuciones repetidas durante el mismo mount/render o renders concurrentes
+    if (autoSubmitLockRef.current || hasRestoredDraftRef.current) return;
 
     if (typeof sessionStorage === 'undefined') return;
 
@@ -99,17 +102,90 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     if (!rawDraft) return;
 
     try {
-      const parsed = JSON.parse(rawDraft) as CrearIntencionPayload;
-      if (parsed && typeof parsed.titulo === 'string') {
-        hasRestoredDraftRef.current = true;
-        // Consumo de uso único estricto: evitar replay si se navega o se recarga
+      const parsed = JSON.parse(rawDraft);
+      if (!parsed) return;
+
+      // Verificar si es un payload válido con título
+      const cleanTitle = (parsed.titulo || '').trim();
+      if (!cleanTitle) {
         sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);
+        return;
+      }
+
+      // 1. CONSUMO SÍNCRONO ESTRICTO INMEDIATO:
+      // Removemos de sessionStorage y activamos el lock síncrono ANTES de cualquier await.
+      sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);
+      hasRestoredDraftRef.current = true;
+      autoSubmitLockRef.current = true;
+
+      // Distinguir si fue un submit validado pendiente de autenticación
+      const isValidatedSubmit = parsed.readyForAutoSubmit === true;
+      const intentionPayload: CrearIntencionPayload = {
+        titulo: cleanTitle,
+        descripcion: parsed.descripcion || null,
+        temporalidad_texto: parsed.temporalidad_texto || null,
+        fecha_desde: parsed.fecha_desde || null,
+        fecha_hasta: parsed.fecha_hasta || null,
+        modalidad: parsed.modalidad || 'presencial',
+        locality_id: parsed.locality_id || null,
+      };
+
+      if (isValidatedSubmit) {
+        // Ejecutar creación automática sin requerir segundo click
+        setIsSubmitting(true);
+        crearIntencion(intentionPayload)
+          .then((res) => {
+            if (res.ok) {
+              setRestoredDraft(null);
+              setEditingIntencion(null);
+              setFormErrorMsg(null);
+              setIsFormOpen(false);
+              onSaveSuccess?.();
+            } else {
+              // Si falla la creación, restaurar formulario visible con mensaje comprensible
+              const errCode = res.error;
+              let friendly = isV2Variant
+                ? 'No pudimos guardar lo que tenés ganas de hacer. Podés revisar los datos e intentar de nuevo.'
+                : 'No se pudo crear la intención. Podés intentar nuevamente.';
+              if (errCode === 'rate_limit_exceeded') {
+                friendly = 'Hiciste varias acciones en poco tiempo. Esperá un rato e intentá nuevamente.';
+              } else if (errCode === 'rate_limit_unavailable') {
+                friendly = isV2Variant
+                  ? 'No pudimos guardar en este momento. Intentá nuevamente en unos minutos.'
+                  : 'No pudimos crear la intención en este momento. Intentá nuevamente en unos minutos.';
+              }
+              setFormErrorMsg(friendly);
+              setEditingIntencion(null);
+              setRestoredDraft(intentionPayload);
+              setIsFormOpen(true);
+            }
+          })
+          .catch((err) => {
+            console.error('[HomeIntencionesSection] Error en auto-submit:', err);
+            setFormErrorMsg(
+              isV2Variant
+                ? 'Ocurrió un error al guardar lo que tenés ganas de hacer. Podés intentar de nuevo.'
+                : 'Ocurrió un error al guardar la intención. Podés intentar nuevamente.'
+            );
+            setEditingIntencion(null);
+            setRestoredDraft(intentionPayload);
+            setIsFormOpen(true);
+          })
+          .finally(() => {
+            setIsSubmitting(false);
+            autoSubmitLockRef.current = false;
+          });
+      } else {
+        // Si no era submit validado sino borrador editable, abrir formulario sin auto-submit
+        setFormErrorMsg(null);
         setEditingIntencion(null);
-        setRestoredDraft(parsed);
+        setRestoredDraft(intentionPayload);
         setIsFormOpen(true);
+        autoSubmitLockRef.current = false;
       }
     } catch (err) {
       console.warn('[HomeIntencionesSection] Error recuperando pending draft:', err);
+      autoSubmitLockRef.current = false;
     }
   }, [user?.id, user?.is_anonymous]);
 
@@ -169,10 +245,16 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   ): Promise<boolean> => {
     const isPermanent = Boolean(user && !user.is_anonymous);
 
-    // 1. Si no es usuario permanente: guardar draft en sessionStorage y abrir LoginRequiredSheet
+    // 1. Si no es usuario permanente: guardar submit validado con readyForAutoSubmit: true y abrir LoginRequiredSheet
     if (!isPermanent) {
       if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(PENDING_INTENTION_STORAGE_KEY, JSON.stringify(payload));
+        sessionStorage.setItem(
+          PENDING_INTENTION_STORAGE_KEY,
+          JSON.stringify({
+            ...payload,
+            readyForAutoSubmit: true,
+          })
+        );
       }
       setIsFormOpen(false);
       setIsLoginSheetOpen(true);
@@ -376,6 +458,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           setIsFormOpen(false);
           setEditingIntencion(null);
           setRestoredDraft(null);
+          setFormErrorMsg(null);
         }}
         onSave={handleSaveForm}
         initialData={editingIntencion || restoredDraft}
@@ -383,6 +466,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
         isEditing={Boolean(editingIntencion)}
         isSubmitting={isSubmitting}
         isV2Variant={isV2Variant}
+        initialErrorMsg={formErrorMsg}
       />
 
       {/* Auth Guard Sheet */}

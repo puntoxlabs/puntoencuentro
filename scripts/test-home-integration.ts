@@ -1757,8 +1757,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(heroPos < intentPos, 'El Hero wrapper debe preceder a la tarjeta de intención');
     });
 
-    test('T. Flujo Tengo ganas de...: Cancelación descarta draft, restauración single-use y protección anti doble submit', () => {
-      // 1. Verificación de descarte en cancelación de LoginRequiredSheet (HomeIntencionesSection.tsx)
+    test('T. Flujo Tengo ganas de...: Auto-submit post-OAuth idempotente, single-use y recuperación de error', () => {
+      // 1. Verificación de descarte en cancelación de LoginRequiredSheet y consumo single-use en HomeIntencionesSection
       const sectionPath = resolve(process.cwd(), 'src/components/home/intentions/HomeIntencionesSection.tsx');
       const sectionContent = readFileSync(sectionPath, 'utf8');
 
@@ -1767,17 +1767,33 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'HomeIntencionesSection debe limpiar sessionStorage al cancelar LoginRequiredSheet y al restaurar draft'
       );
       assert.ok(
-        sectionContent.includes('hasRestoredDraftRef.current = true;'),
-        'Debe marcar hasRestoredDraftRef para evitar múltiples restauraciones durante el mismo ciclo'
+        sectionContent.includes('readyForAutoSubmit: true'),
+        'Al guardar sin ser permanente debe marcar readyForAutoSubmit: true'
+      );
+      assert.ok(
+        sectionContent.includes('autoSubmitLockRef.current = true;'),
+        'Debe utilizar un lock síncrono previo a cualquier await para evitar doble ejecución ante renders/callbacks repetidos'
+      );
+      assert.ok(
+        sectionContent.includes('crearIntencion(intentionPayload)'),
+        'Debe disparar crearIntencion de forma automática tras el login'
       );
 
-      // 2. Verificación de guarda de doble submit en IntencionFormSheet
+      // 2. Verificación de guarda de doble submit y visualización de error en IntencionFormSheet
       const formSheetPath = resolve(process.cwd(), 'src/components/home/intentions/IntencionFormSheet.tsx');
       const formSheetContent = readFileSync(formSheetPath, 'utf8');
 
       assert.ok(
         formSheetContent.includes('if (isSubmitting) return;'),
         'IntencionFormSheet debe rechazar envíos concurrentes cuando isSubmitting es true'
+      );
+      assert.ok(
+        formSheetContent.includes('disabled={isSubmitting || !titulo.trim()}'),
+        'El botón submit debe deshabilitarse visualmente mientras isSubmitting es true'
+      );
+      assert.ok(
+        formSheetContent.includes('initialErrorMsg'),
+        'IntencionFormSheet debe soportar initialErrorMsg para restaurar y presentar el error si el auto-submit falla'
       );
 
       // 3. Renderizado de HomeIntencionesSection anónimo: no crea nada en DB y prepara modal
