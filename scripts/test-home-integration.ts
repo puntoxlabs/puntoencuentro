@@ -1886,13 +1886,13 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlCardActiva.includes('pe-intencion-card--mini'), 'Debe usar clase mini-card compacta');
       assert.ok(htmlCardActiva.includes('En seguimiento'), 'Debe mostrar badge "En seguimiento"');
       assert.ok(htmlCardActiva.includes('pe-intencion-card__status-dot'), 'Debe incluir el dot de estado');
-      assert.ok(htmlCardActiva.includes('>Organizar<'), 'Debe incluir botón principal Organizar');
+      assert.ok(htmlCardActiva.includes('>Editar<'), 'Debe incluir botón visible directo Editar');
+      assert.ok(htmlCardActiva.includes('>Organizar<'), 'Debe incluir botón visible directo Organizar');
       assert.ok(htmlCardActiva.includes('pe-intencion-card__more-btn'), 'Debe incluir botón de menú ⋯');
       assert.ok(htmlCardActiva.includes('aria-haspopup="menu"'), 'Botón ⋯ debe tener aria-haspopup="menu"');
       assert.ok(htmlCardActiva.includes('role="menu"'), 'Menú dropdown debe tener role="menu"');
 
       // Opciones dentro del menú
-      assert.ok(htmlCardActiva.includes('Editar'), 'Debe incluir opción Editar en el menú');
       assert.ok(htmlCardActiva.includes('Pausar'), 'Debe incluir opción Pausar en intención activa');
       assert.ok(htmlCardActiva.includes('Cerrar'), 'Debe incluir opción Cerrar');
       assert.ok(!htmlCardActiva.includes('Reactivar'), 'NO debe incluir Reactivar en intención activa');
@@ -1917,6 +1917,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
 
       assert.ok(htmlCardPausada.includes('Pausada'), 'Debe mostrar badge "Pausada"');
+      assert.ok(htmlCardPausada.includes('>Editar<'), 'Pausada debe permitir Editar');
       assert.ok(htmlCardPausada.includes('Reactivar'), 'Debe incluir opción Reactivar en menú');
       assert.ok(!htmlCardPausada.includes('>Pausar<'), 'NO debe incluir Pausar en intención pausada');
 
@@ -1938,51 +1939,49 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(htmlCardV1.includes('pe-intencion-card__actions'), 'V1 debe conservar contenedor de 4 botones');
     });
 
-    test('V. Carrusel horizontal con peek para Mis ganas y jerarquía reforzada de Me sumo en Mobile V2', () => {
+    test('V. Lista vertical compacta de Mis ganas y jerarquía reforzada de Me sumo en Mobile V2', () => {
       const sectionCssPath = resolve(process.cwd(), 'src/components/home/intentions/HomeIntencionesSection.css');
       const sectionCssContent = readFileSync(sectionCssPath, 'utf8');
+      const cardCssPath = resolve(process.cwd(), 'src/components/home/intentions/IntencionCard.css');
+      const cardCssContent = readFileSync(cardCssPath, 'utf8');
       const encountersCssPath = resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.css');
       const encountersCssContent = readFileSync(encountersCssPath, 'utf8');
 
-      // 1. Verificación de reglas CSS para carrusel/rail horizontal
+      // 1. Verificación de reglas CSS para lista vertical compacta V2 (SIN carrusel horizontal)
       assert.ok(
-        sectionCssContent.includes('.pe-intenciones-list--carousel'),
-        'Debe definir clase .pe-intenciones-list--carousel para rail horizontal'
+        sectionCssContent.includes('.pe-intenciones-list--v2'),
+        'Debe definir clase .pe-intenciones-list--v2 para lista vertical densa'
       );
       assert.ok(
-        sectionCssContent.includes('overflow-x: auto;') && sectionCssContent.includes('scroll-snap-type: x mandatory;'),
-        'Debe tener scroll horizontal y snap para tarjetas'
+        !sectionCssContent.includes('.pe-intenciones-list--carousel'),
+        'NO debe incluir reglas de .pe-intenciones-list--carousel'
       );
       assert.ok(
-        sectionCssContent.includes('overscroll-behavior-x: contain;'),
-        'Debe contener el overscroll lateral para evitar desplazamiento del viewport del documento'
+        !sectionCssContent.includes('.pe-intenciones-carousel-mobile-indicator'),
+        'NO debe incluir chevron indicador de continuidad lateral'
       );
       assert.ok(
-        sectionCssContent.includes('.pe-intenciones-list--carousel .pe-intencion-card'),
-        'Debe definir reglas para el ancho de cada tarjeta en el carrusel'
+        cardCssContent.includes('.pe-intencion-card__meta-summary'),
+        'Debe incluir .pe-intencion-card__meta-summary para 1 línea de metadatos compactos'
       );
       assert.ok(
-        sectionCssContent.includes('calc(84vw - 20px)'),
-        'Debe dimensionar la tarjeta dejando un peek visual de la siguiente'
-      );
-      assert.ok(
-        sectionCssContent.includes('.pe-intenciones-carousel-mobile-indicator'),
-        'Debe definir el chevron indicador sutil de continuidad para mobile'
+        cardCssContent.includes('.pe-intencion-card__primary-actions'),
+        'Debe incluir .pe-intencion-card__primary-actions para acciones directas Editar y Organizar'
       );
 
-      // 2. Verificación de jerarquía reforzada de "Me sumo"
+      // 2. Verificación de jerarquía reforzada de "Me sumo" (conservada)
       assert.ok(
         encountersCssContent.includes('.pe-discovery-section--v2'),
         'Debe definir estilos reforzados para .pe-discovery-section--v2'
       );
       assert.ok(
         encountersCssContent.includes('.pe-discovery-section--v2 .pe-discovery-title'),
-        'Debe aumentar tamaño tipográfico y peso del título de Me sumo en V2'
+        'Debe mantener tamaño tipográfico y peso reforzado del título de Me sumo en V2'
       );
 
-      // 3. Renderizado de HomeIntencionesSection en V2 con 2 intenciones: debe usar clases de carrusel
+      // 3. Renderizado de HomeIntencionesSection en V2 con 2 intenciones: lista vertical con scroll natural
       const mockGana1 = {
-        id: 'gana-carrusel-1',
+        id: 'gana-vertical-1',
         titulo: 'Ir a tomar un café',
         descripcion: 'Por Guemes',
         estado: 'activa' as const,
@@ -1992,7 +1991,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         updated_at: new Date().toISOString(),
       };
       const mockGana2 = {
-        id: 'gana-carrusel-2',
+        id: 'gana-vertical-2',
         titulo: 'Salir a correr',
         descripcion: 'En la costa',
         estado: 'activa' as const,
@@ -2030,19 +2029,23 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
 
       assert.ok(
-        htmlSectionV2.includes('pe-intenciones-list--carousel'),
-        'En V2 debe renderizar lista con clase de carrusel horizontal'
+        htmlSectionV2.includes('pe-intenciones-list--v2'),
+        'En V2 debe renderizar lista con clase vertical .pe-intenciones-list--v2'
       );
       assert.ok(
-        htmlSectionV2.includes('pe-intenciones-carousel-wrapper--v2'),
-        'En V2 debe usar wrapper con clase V2'
+        !htmlSectionV2.includes('pe-intenciones-list--carousel'),
+        'En V2 NO debe usar clase de carrusel horizontal'
       );
       assert.ok(
         htmlSectionV2.includes('Ir a tomar un café') && htmlSectionV2.includes('Salir a correr'),
-        'Debe renderizar ambas tarjetas en el track del carrusel'
+        'Debe renderizar ambas filas de intención'
+      );
+      assert.ok(
+        htmlSectionV2.includes('>Editar<'),
+        'Debe presentar botón visible directo Editar'
       );
 
-      // 4. Renderizado en V1 (isV2Variant = false): debe mantenerse sin clases de carrusel
+      // 4. Renderizado en V1 (isV2Variant = false): debe mantenerse sin clase V2
       const htmlSectionV1 = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -2056,12 +2059,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
 
       assert.ok(
-        !htmlSectionV1.includes('pe-intenciones-list--carousel'),
-        'En V1 NO debe tener clase de carrusel horizontal'
-      );
-      assert.ok(
-        !htmlSectionV1.includes('pe-intenciones-carousel-wrapper--v2'),
-        'En V1 NO debe tener wrapper V2'
+        !htmlSectionV1.includes('pe-intenciones-list--v2'),
+        'En V1 NO debe tener clase .pe-intenciones-list--v2'
       );
     });
   });

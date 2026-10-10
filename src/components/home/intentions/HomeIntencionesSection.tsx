@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Sparkles, ChevronRight } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useIntenciones } from '../../../hooks/useIntenciones';
@@ -332,44 +332,9 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     (i) => i.estado === 'activa' || i.estado === 'pausada'
   );
 
-  // Rail / Carrusel horizontal en Mobile V2
-  const carouselTrackRef = useRef<HTMLDivElement>(null);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkScrollPosition = useCallback(() => {
-    const el = carouselTrackRef.current;
-    if (!el) return;
-    // Tolerancia de 6px para subpíxeles y snap rounding
-    const hasMoreRight = el.scrollWidth - el.clientWidth - el.scrollLeft > 6;
-    setCanScrollRight(hasMoreRight);
-  }, []);
-
-  useEffect(() => {
-    if (!isV2Variant) return;
-    const el = carouselTrackRef.current;
-    if (!el) return;
-
-    checkScrollPosition();
-    el.addEventListener('scroll', checkScrollPosition, { passive: true });
-    window.addEventListener('resize', checkScrollPosition);
-
-    return () => {
-      el.removeEventListener('scroll', checkScrollPosition);
-      window.removeEventListener('resize', checkScrollPosition);
-    };
-  }, [isV2Variant, visibleIntenciones.length, checkScrollPosition]);
-
-  const handleScrollNext = () => {
-    const el = carouselTrackRef.current;
-    if (!el) return;
-    // Desplazar suavemente un paso proporcional al ancho visible de tarjeta
-    const scrollAmount = Math.max(el.clientWidth * 0.75, 220);
-    el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-  };
-
   return (
     <section
-      className="pe-intenciones-section"
+      className={`pe-intenciones-section${isV2Variant ? ' pe-intenciones-section--v2' : ''}`}
       aria-label={isV2Variant ? t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' }) : 'Sección de Intenciones'}
     >
       {/* Cabecera */}
@@ -469,41 +434,24 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           </button>
         </div>
       ) : (
-        <div className={`pe-intenciones-carousel-wrapper${isV2Variant ? ' pe-intenciones-carousel-wrapper--v2' : ''}`}>
-          <div
-            ref={carouselTrackRef}
-            className={`pe-intenciones-list${isV2Variant ? ' pe-intenciones-list--carousel' : ''}`}
-            tabIndex={0}
-            role="region"
-            aria-label={t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' })}
-          >
-            {visibleIntenciones.map((intencion) => (
-              <IntencionCard
-                key={intencion.id}
-                intencion={intencion}
-                onEdit={handleEdit}
-                onPausar={handlePausar}
-                onReactivar={handleReactivar}
-                onCerrar={handleCerrar}
-                onOrganizar={handleOrganizar}
-                disabled={actionInProgressId === intencion.id}
-                isV2Variant={isV2Variant}
-              />
-            ))}
-          </div>
-
-          {/* Indicador sutil de continuidad en mobile cuando hay más tarjetas a la derecha */}
-          {isV2Variant && visibleIntenciones.length > 1 && canScrollRight && (
-            <button
-              type="button"
-              className="pe-intenciones-carousel-mobile-indicator"
-              onClick={handleScrollNext}
-              aria-label={t('your_encounters.intentions_carousel_next', { defaultValue: 'Ver más ganas' })}
-              title={t('your_encounters.intentions_carousel_next', { defaultValue: 'Ver más ganas' })}
-            >
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
-          )}
+        <div
+          className={`pe-intenciones-list${isV2Variant ? ' pe-intenciones-list--v2' : ''}`}
+          role="region"
+          aria-label={t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' })}
+        >
+          {visibleIntenciones.map((intencion) => (
+            <IntencionCard
+              key={intencion.id}
+              intencion={intencion}
+              onEdit={handleEdit}
+              onPausar={handlePausar}
+              onReactivar={handleReactivar}
+              onCerrar={handleCerrar}
+              onOrganizar={handleOrganizar}
+              disabled={actionInProgressId === intencion.id}
+              isV2Variant={isV2Variant}
+            />
+          ))}
         </div>
       )}
 

@@ -121,17 +121,31 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
     }
   }, [isMenuOpen]);
 
-  // ── HOME V2: MINI-CARD COMPACTA EN SEGUIMIENTO ──
+  // ── HOME V2: FILA COMPACTA DE LISTA VERTICAL ──
   if (isV2Variant) {
     const statusLabel = isActiva
       ? t('your_encounters.intentions_status_active_v2', { defaultValue: 'En seguimiento' })
       : t('your_encounters.intentions_status_paused_v2', { defaultValue: 'Pausada' });
+
+    // Línea de metadatos resumidos separados por ·
+    const metaParts: string[] = [];
+    if (intencion.temporalidad_texto) {
+      metaParts.push(intencion.temporalidad_texto);
+    }
+    const modText = formatModalidad();
+    if (intencion.modalidad === 'presencial' && intencion.localidad_nombre) {
+      metaParts.push(`${modText} (${intencion.localidad_nombre})`);
+    } else {
+      metaParts.push(modText);
+    }
+    const metaSummary = metaParts.join(' · ');
 
     return (
       <article
         className={`pe-intencion-card pe-intencion-card--mini ${isPausada ? 'pe-intencion-card--pausada' : ''}`}
         aria-label={intencion.titulo}
       >
+        {/* Cabecera de la fila: Título + Badge de Estado */}
         <div className="pe-intencion-card__header">
           <h3 className="pe-intencion-card__title">{intencion.titulo}</h3>
           <span
@@ -146,50 +160,57 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
           </span>
         </div>
 
+        {/* Descripción breve (si aporta valor) */}
         {intencion.descripcion && (
           <p className="pe-intencion-card__desc">{intencion.descripcion}</p>
         )}
 
-        <div className="pe-intencion-card__meta-row">
-          {intencion.temporalidad_texto && (
-            <span className="pe-intencion-card__tag" title="Cuándo">
-              <Calendar size={12} aria-hidden="true" />
-              <span>{intencion.temporalidad_texto}</span>
-            </span>
-          )}
+        {/* 1 línea de metadatos resumidos compactos */}
+        {metaSummary && (
+          <div className="pe-intencion-card__meta-summary">
+            <span>{metaSummary}</span>
+          </div>
+        )}
 
-          <span className="pe-intencion-card__tag" title="Modalidad y lugar">
-            {intencion.modalidad === 'presencial' && intencion.localidad_nombre ? (
-              <>
-                <MapPin size={12} aria-hidden="true" />
-                <span>{`${formatModalidad()} · ${intencion.localidad_nombre}`}</span>
-              </>
-            ) : (
-              <span>{formatModalidad()}</span>
-            )}
-          </span>
-        </div>
-
+        {/* Barra de acciones de la fila: Editar y Organizar directos + Menú secundario ⋯ */}
         <div className="pe-intencion-card__footer">
-          {canOrganizar && (
+          <div className="pe-intencion-card__primary-actions">
             <button
               type="button"
-              onClick={() => onOrganizar!(intencion)}
+              onClick={() => onEdit(intencion)}
               disabled={disabled}
-              className="pe-intencion-card__btn pe-intencion-card__btn--organizar"
-              aria-label={t('your_encounters.intentions_organize_aria', {
-                defaultValue: `Organizar encuentro a partir de ${intencion.titulo}`,
+              className="pe-intencion-card__btn pe-intencion-card__btn--edit"
+              aria-label={t('your_encounters.intentions_edit_aria', {
+                defaultValue: `Editar ${intencion.titulo}`,
                 title: intencion.titulo,
               })}
             >
-              <CalendarPlus size={13} aria-hidden="true" />
+              <Edit3 size={13} aria-hidden="true" />
               <span>
-                {t('your_encounters.intentions_action_organize_v2', {
-                  defaultValue: 'Organizar',
-                })}
+                {t('your_encounters.intentions_action_edit_v2', { defaultValue: 'Editar' })}
               </span>
             </button>
-          )}
+
+            {canOrganizar && (
+              <button
+                type="button"
+                onClick={() => onOrganizar!(intencion)}
+                disabled={disabled}
+                className="pe-intencion-card__btn pe-intencion-card__btn--organizar"
+                aria-label={t('your_encounters.intentions_organize_aria', {
+                  defaultValue: `Organizar encuentro a partir de ${intencion.titulo}`,
+                  title: intencion.titulo,
+                })}
+              >
+                <CalendarPlus size={13} aria-hidden="true" />
+                <span>
+                  {t('your_encounters.intentions_action_organize_v2', {
+                    defaultValue: 'Organizar',
+                  })}
+                </span>
+              </button>
+            )}
+          </div>
 
           <div className="pe-intencion-card__menu-container">
             <button
@@ -220,22 +241,6 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
               })}
               onKeyDown={handleMenuKeyDown}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onEdit(intencion);
-                }}
-                disabled={disabled}
-                className="pe-intencion-card__menu-item"
-              >
-                <Edit3 size={14} aria-hidden="true" />
-                <span>
-                  {t('your_encounters.intentions_action_edit_v2', { defaultValue: 'Editar' })}
-                </span>
-              </button>
-
               {isActiva && (
                 <button
                   type="button"

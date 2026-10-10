@@ -260,7 +260,7 @@
     "intentions_action_close_v2": "Close",
     "intentions_menu_aria": "More options for {{title}}",
     "intentions_organize_aria": "Organize encounter from {{title}}",
-    "intentions_carousel_next": "See more",
+    "intentions_edit_aria": "Edit {{title}}",
     "filter_btn": "Filter",
     "filter_aria_label": "Filter encounters",
     "filter_active_count": "Filter · {{count}}",

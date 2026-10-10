@@ -261,7 +261,7 @@
     "intentions_action_close_v2": "Cerrar",
     "intentions_menu_aria": "Más opciones para {{title}}",
     "intentions_organize_aria": "Organizar encuentro a partir de {{title}}",
-    "intentions_carousel_next": "Ver más ganas",
+    "intentions_edit_aria": "Editar {{title}}",
     "filter_btn": "Filtrar",
     "filter_aria_label": "Filtrar encuentros",
     "filter_active_count": "Filtrar · {{count}}",
