@@ -940,7 +940,7 @@
   }
 
   /* 1. Respiración equilibrada y transición de superficie para Encuentros Abiertos / Me sumo */
-  .home-v2-variant .pe-discovery-section {
+  .home-v2-variant .pe-discovery-section:not(.pe-discovery-section--v2) {
     margin-top: 1.5rem;
     margin-bottom: 0.75rem;
   }
@@ -1139,7 +1139,7 @@
   }
 
   /* Ritmo vertical consolidado entre macrosecciones de Home V2 */
-  .home-v2-variant .pe-discovery-section {
+  .home-v2-variant .pe-discovery-section:not(.pe-discovery-section--v2) {
     margin-top: 1.25rem;
     margin-bottom: 0.5rem;
   }
