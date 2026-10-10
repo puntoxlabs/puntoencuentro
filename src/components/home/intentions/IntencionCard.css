@@ -98,6 +98,7 @@
 
 .pe-intencion-card__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -169,7 +170,6 @@
 .pe-intencion-card__btn--close {
   color: #dc2626;
   border-color: transparent;
-  margin-left: auto;
 }
 
 .pe-intencion-card__btn--close:hover:not(:disabled) {

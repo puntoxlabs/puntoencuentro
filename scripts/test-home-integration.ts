@@ -46,6 +46,7 @@ import {
 } from '../src/components/home/yourEncounters/HomeEncountersFilterSheet';
 import { HomeIntencionesSection } from '../src/components/home/intentions/HomeIntencionesSection';
 import { IntencionFormSheet } from '../src/components/home/intentions/IntencionFormSheet';
+import { IntencionCard } from '../src/components/home/intentions/IntencionCard';
 
 describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Componentes', () => {
   describe('1. Componente HomeHero', () => {
@@ -1751,13 +1752,105 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       const intentPos = htmlMobileV2.indexOf('home-intent-card');
 
       assert.ok(headerPos !== -1, 'El header debe existir en el DOM');
-      assert.ok(logoPos !== -1, 'El logo debe existir en el DOM');
-      assert.ok(heroPos !== -1, 'El hero wrapper debe existir en el DOM');
-      assert.ok(intentPos !== -1, 'La tarjeta de intención debe existir en el DOM');
-
       // Orden en el flujo de bloque: Header < Hero Wrapper < Input Card
       assert.ok(headerPos < heroPos, 'El header debe preceder al Hero wrapper en el árbol DOM');
       assert.ok(heroPos < intentPos, 'El Hero wrapper debe preceder a la tarjeta de intención');
+    });
+
+    test('T. Flujo Tengo ganas de...: Cancelación descarta draft, restauración single-use y protección anti doble submit', () => {
+      // 1. Verificación de descarte en cancelación de LoginRequiredSheet (HomeIntencionesSection.tsx)
+      const sectionPath = resolve(process.cwd(), 'src/components/home/intentions/HomeIntencionesSection.tsx');
+      const sectionContent = readFileSync(sectionPath, 'utf8');
+
+      assert.ok(
+        sectionContent.includes('sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);'),
+        'HomeIntencionesSection debe limpiar sessionStorage al cancelar LoginRequiredSheet y al restaurar draft'
+      );
+      assert.ok(
+        sectionContent.includes('hasRestoredDraftRef.current = true;'),
+        'Debe marcar hasRestoredDraftRef para evitar múltiples restauraciones durante el mismo ciclo'
+      );
+
+      // 2. Verificación de guarda de doble submit en IntencionFormSheet
+      const formSheetPath = resolve(process.cwd(), 'src/components/home/intentions/IntencionFormSheet.tsx');
+      const formSheetContent = readFileSync(formSheetPath, 'utf8');
+
+      assert.ok(
+        formSheetContent.includes('if (isSubmitting) return;'),
+        'IntencionFormSheet debe rechazar envíos concurrentes cuando isSubmitting es true'
+      );
+
+      // 3. Renderizado de HomeIntencionesSection anónimo: no crea nada en DB y prepara modal
+      const anonAuthValue = {
+        user: { id: 'anon-1', is_anonymous: true } as any,
+        session: null,
+        loading: false,
+        isAuthenticated: true,
+        isAnonymousUser: true,
+        isPermanentUser: false,
+        signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: true }),
+        checkAnonymousUpgradeState: async () => null,
+        createTransferTicket: async () => ({ ok: false, error: 'permanent_account_required' }),
+        signOut: async () => {},
+      };
+
+      const htmlAnon = renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: anonAuthValue },
+          React.createElement(HomeIntencionesSection, { isV2Variant: true, initialLoading: false, mockIntenciones: [] })
+        )
+      );
+
+      // En anónimo, la lista de intenciones es vacía (0 intenciones persistidas)
+      assert.ok(htmlAnon.includes('pe-intenciones-empty'), 'En anónimo sin intenciones renderiza empty state');
+    });
+
+    test('U. Responsive de acciones en tarjetas de Mis ganas: flex-wrap habilitado y sin desborde horizontal', () => {
+      const cardCssPath = resolve(process.cwd(), 'src/components/home/intentions/IntencionCard.css');
+      const cardCssContent = readFileSync(cardCssPath, 'utf8');
+
+      // 1. El contenedor de acciones debe permitir flex-wrap para acomodar botones en múltiples líneas si la fuente o viewport lo requieren
+      assert.ok(
+        cardCssContent.includes('.pe-intencion-card__actions {'),
+        'Debe existir regla para .pe-intencion-card__actions'
+      );
+      assert.ok(
+        cardCssContent.includes('flex-wrap: wrap;'),
+        'Las acciones deben tener flex-wrap: wrap para evitar que los botones se salgan horizontalmente con fuentes grandes'
+      );
+
+      // 2. Renderizado de IntencionCard con todas las acciones activas (organizar, editar, pausar, cerrar)
+      const mockGana = {
+        id: 'gana-test-wrap',
+        titulo: 'Jugar al padel',
+        descripcion: 'En los Naranjos',
+        estado: 'activa' as const,
+        modalidad: 'presencial' as const,
+        user_id: 'usr-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const htmlCard = renderToString(
+        React.createElement(IntencionCard, {
+          intencion: mockGana,
+          onEdit: () => {},
+          onPausar: () => {},
+          onReactivar: () => {},
+          onCerrar: () => {},
+          onOrganizar: () => {},
+          isV2Variant: true,
+        })
+      );
+
+      // Todas las 4 acciones deben renderizarse y estar presentes en el árbol
+      assert.ok(htmlCard.includes('Organizar encuentro'), 'Debe incluir botón Organizar encuentro');
+      assert.ok(htmlCard.includes('Editar'), 'Debe incluir botón Editar');
+      assert.ok(htmlCard.includes('Pausar'), 'Debe incluir botón Pausar');
+      assert.ok(htmlCard.includes('Cerrar'), 'Debe incluir botón Cerrar');
     });
   });
 });

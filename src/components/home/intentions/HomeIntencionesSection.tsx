@@ -102,6 +102,8 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
       const parsed = JSON.parse(rawDraft) as CrearIntencionPayload;
       if (parsed && typeof parsed.titulo === 'string') {
         hasRestoredDraftRef.current = true;
+        // Consumo de uso único estricto: evitar replay si se navega o se recarga
+        sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);
         setEditingIntencion(null);
         setRestoredDraft(parsed);
         setIsFormOpen(true);
@@ -386,7 +388,12 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
       {/* Auth Guard Sheet */}
       <LoginRequiredSheet
         isOpen={isLoginSheetOpen}
-        onClose={() => setIsLoginSheetOpen(false)}
+        onClose={() => {
+          setIsLoginSheetOpen(false);
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem(PENDING_INTENTION_STORAGE_KEY);
+          }
+        }}
         onContinueWithGoogle={handleContinueWithGoogle}
         loading={isOAuthStarting}
         action="create_intention"

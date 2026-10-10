@@ -107,6 +107,7 @@ export const IntencionFormSheet: React.FC<IntencionFormSheetProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const cleanTitle = titulo.trim();
     if (!cleanTitle) {
       setErrorMsg('Por favor ingresá qué te gustaría hacer.');
