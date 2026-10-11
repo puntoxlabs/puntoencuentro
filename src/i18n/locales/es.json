@@ -265,6 +265,8 @@
     "intentions_menu_aria": "Más opciones para {{title}}",
     "intentions_organize_aria": "Organizar encuentro a partir de {{title}}",
     "intentions_edit_aria": "Editar {{title}}",
+    "intentions_view_all_v2": "Ver todas mis ganas ({{count}})",
+    "intentions_show_less_v2": "Mostrar menos",
     "view_all_upcoming_v2": "Ver todos mis encuentros próximos ({{count}})",
     "show_less_v2": "Mostrar menos",
     "view_past_v2": "Ver encuentros anteriores ({{count}})",

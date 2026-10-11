@@ -264,6 +264,8 @@
     "intentions_menu_aria": "More options for {{title}}",
     "intentions_organize_aria": "Organize encounter from {{title}}",
     "intentions_edit_aria": "Edit {{title}}",
+    "intentions_view_all_v2": "See all my intents ({{count}})",
+    "intentions_show_less_v2": "Show less",
     "view_all_upcoming_v2": "View all my upcoming meetups ({{count}})",
     "show_less_v2": "Show less",
     "view_past_v2": "View past meetups ({{count}})",

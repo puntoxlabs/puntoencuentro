@@ -244,6 +244,8 @@
     "intentions_menu_aria": "Mais opções para {{title}}",
     "intentions_organize_aria": "Organizar encontro a partir de {{title}}",
     "intentions_edit_aria": "Editar {{title}}",
+    "intentions_view_all_v2": "Ver todas as minhas vontades ({{count}})",
+    "intentions_show_less_v2": "Mostrar menos",
     "view_all_upcoming_v2": "Ver todos os meus próximos encontros ({{count}})",
     "show_less_v2": "Mostrar menos",
     "view_past_v2": "Ver encontros anteriores ({{count}})",

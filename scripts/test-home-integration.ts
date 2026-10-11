@@ -2469,6 +2469,100 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'En V1 el botón mobile de retorno nunca debe renderizarse'
       );
     });
+
+    test('X. Escalabilidad de Mis ganas en Home V2 (límite inicial a 3, expansión con Ver todas mis ganas, Mostrar menos y preservación de V1)', () => {
+      // 1. Verificación de traducciones en los 4 idiomas
+      const esLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/es.json'), 'utf8'));
+      const enLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/en.json'), 'utf8'));
+      const ptLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt.json'), 'utf8'));
+      const ptBrLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt-BR.json'), 'utf8'));
+
+      assert.ok(esLoc.your_encounters.intentions_view_all_v2.includes('Ver todas mis ganas'));
+      assert.strictEqual(esLoc.your_encounters.intentions_show_less_v2, 'Mostrar menos');
+
+      assert.ok(enLoc.your_encounters.intentions_view_all_v2.includes('See all my intents'));
+      assert.strictEqual(enLoc.your_encounters.intentions_show_less_v2, 'Show less');
+
+      assert.ok(ptLoc.your_encounters.intentions_view_all_v2.includes('Ver todas as minhas vontades'));
+      assert.strictEqual(ptLoc.your_encounters.intentions_show_less_v2, 'Mostrar menos');
+
+      assert.ok(ptBrLoc.your_encounters.intentions_view_all_v2.includes('Ver todas as minhas vontades'));
+      assert.strictEqual(ptBrLoc.your_encounters.intentions_show_less_v2, 'Mostrar menos');
+
+      // 2. Verificación de CSS en HomeIntencionesSection.css
+      const sectionCss = readFileSync(resolve(process.cwd(), 'src/components/home/intentions/HomeIntencionesSection.css'), 'utf8');
+      assert.ok(sectionCss.includes('.pe-intenciones-footer-actions'), 'Debe definir clase .pe-intenciones-footer-actions');
+      assert.ok(sectionCss.includes('.pe-intenciones-expand-btn'), 'Debe definir clase .pe-intenciones-expand-btn');
+
+      // Mock de 5 intenciones
+      const makeMockGana = (num: number) => ({
+        id: `gana-mock-${num}`,
+        titulo: `Gana número ${num}`,
+        descripcion: `Descripción ${num}`,
+        estado: 'activa' as const,
+        modalidad: 'presencial' as const,
+        user_id: 'usr-test',
+        created_at: new Date(Date.now() - num * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      const cincoGanas = [1, 2, 3, 4, 5].map(makeMockGana);
+      const dosGanas = [1, 2].map(makeMockGana);
+
+      // 3. Caso 0 ganas: empty state presente, sin botón de expansión
+      const html0Ganas = renderToString(
+        React.createElement(HomeIntencionesSection, {
+          isV2Variant: true,
+          initialLoading: false,
+          mockIntenciones: [],
+        })
+      );
+      assert.ok(html0Ganas.includes('pe-intenciones-empty'), '0 ganas debe renderizar empty state');
+      assert.ok(!html0Ganas.includes('pe-intenciones-expand-btn'), '0 ganas NO debe mostrar botón de expansión');
+
+      // 4. Caso 1-3 ganas: todas visibles, sin botón de expansión
+      const html2Ganas = renderToString(
+        React.createElement(HomeIntencionesSection, {
+          isV2Variant: true,
+          initialLoading: false,
+          mockIntenciones: dosGanas,
+        })
+      );
+      assert.ok(html2Ganas.includes('Gana número 1'), 'Debe mostrar gana 1');
+      assert.ok(html2Ganas.includes('Gana número 2'), 'Debe mostrar gana 2');
+      assert.ok(!html2Ganas.includes('pe-intenciones-expand-btn'), '1-3 ganas NO debe mostrar botón de expansión');
+
+      // 5. Caso 4+ ganas en Home V2: inicialmente sólo 3 visibles + botón Ver todas mis ganas (5)
+      const html5GanasV2 = renderToString(
+        React.createElement(HomeIntencionesSection, {
+          isV2Variant: true,
+          initialLoading: false,
+          mockIntenciones: cincoGanas,
+        })
+      );
+      assert.ok(html5GanasV2.includes('Gana número 1'), 'Debe mostrar gana 1');
+      assert.ok(html5GanasV2.includes('Gana número 2'), 'Debe mostrar gana 2');
+      assert.ok(html5GanasV2.includes('Gana número 3'), 'Debe mostrar gana 3');
+      assert.ok(!html5GanasV2.includes('Gana número 4'), 'Inicialmente NO debe mostrar gana 4');
+      assert.ok(!html5GanasV2.includes('Gana número 5'), 'Inicialmente NO debe mostrar gana 5');
+      assert.ok(html5GanasV2.includes('pe-intenciones-expand-btn'), 'Debe mostrar botón pe-intenciones-expand-btn');
+      assert.ok(html5GanasV2.includes('Ver todas mis ganas (5)'), 'Debe mostrar CTA Ver todas mis ganas (5)');
+
+      // 6. Home V1 intacta: muestra todas las 5 ganas sin limitar a 3 y sin botón de expansión
+      const html5GanasV1 = renderToString(
+        React.createElement(HomeIntencionesSection, {
+          isV2Variant: false,
+          initialLoading: false,
+          mockIntenciones: cincoGanas,
+        })
+      );
+      assert.ok(html5GanasV1.includes('Gana número 1'), 'V1 debe mostrar gana 1');
+      assert.ok(html5GanasV1.includes('Gana número 2'), 'V1 debe mostrar gana 2');
+      assert.ok(html5GanasV1.includes('Gana número 3'), 'V1 debe mostrar gana 3');
+      assert.ok(html5GanasV1.includes('Gana número 4'), 'V1 debe mostrar gana 4 sin limitar');
+      assert.ok(html5GanasV1.includes('Gana número 5'), 'V1 debe mostrar gana 5 sin limitar');
+      assert.ok(!html5GanasV1.includes('pe-intenciones-expand-btn'), 'V1 NO debe renderizar pe-intenciones-expand-btn');
+    });
   });
 });
 

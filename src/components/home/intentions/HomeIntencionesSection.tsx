@@ -68,6 +68,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   const [restoredDraft, setRestoredDraft] = useState<CrearIntencionPayload | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const hasRestoredDraftRef = useRef(false);
 
   // Auth Guard Sheet
@@ -332,6 +333,10 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
     (i) => i.estado === 'activa' || i.estado === 'pausada'
   );
 
+  // En Home V2: limitar inicialmente a 3 elementos salvo que se expanda explícitamente
+  const shouldLimit = isV2Variant && !isExpanded && visibleIntenciones.length > 3;
+  const itemsToRender = shouldLimit ? visibleIntenciones.slice(0, 3) : visibleIntenciones;
+
   return (
     <section
       className={`pe-intenciones-section${isV2Variant ? ' pe-intenciones-section--v2' : ''}`}
@@ -434,25 +439,44 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           </button>
         </div>
       ) : (
-        <div
-          className={`pe-intenciones-list${isV2Variant ? ' pe-intenciones-list--v2' : ''}`}
-          role="region"
-          aria-label={t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' })}
-        >
-          {visibleIntenciones.map((intencion) => (
-            <IntencionCard
-              key={intencion.id}
-              intencion={intencion}
-              onEdit={handleEdit}
-              onPausar={handlePausar}
-              onReactivar={handleReactivar}
-              onCerrar={handleCerrar}
-              onOrganizar={handleOrganizar}
-              disabled={actionInProgressId === intencion.id}
-              isV2Variant={isV2Variant}
-            />
-          ))}
-        </div>
+        <>
+          <div
+            className={`pe-intenciones-list${isV2Variant ? ' pe-intenciones-list--v2' : ''}`}
+            role="region"
+            aria-label={t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' })}
+          >
+            {itemsToRender.map((intencion) => (
+              <IntencionCard
+                key={intencion.id}
+                intencion={intencion}
+                onEdit={handleEdit}
+                onPausar={handlePausar}
+                onReactivar={handleReactivar}
+                onCerrar={handleCerrar}
+                onOrganizar={handleOrganizar}
+                disabled={actionInProgressId === intencion.id}
+                isV2Variant={isV2Variant}
+              />
+            ))}
+          </div>
+
+          {isV2Variant && visibleIntenciones.length > 3 && (
+            <div className="pe-intenciones-footer-actions">
+              <button
+                type="button"
+                className="pe-intenciones-expand-btn"
+                onClick={() => setIsExpanded((prev) => !prev)}
+              >
+                {isExpanded
+                  ? t('your_encounters.intentions_show_less_v2', { defaultValue: 'Mostrar menos' })
+                  : t('your_encounters.intentions_view_all_v2', {
+                      count: visibleIntenciones.length,
+                      defaultValue: `Ver todas mis ganas (${visibleIntenciones.length})`,
+                    })}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Form Sheet: Crear / Editar */}
