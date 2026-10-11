@@ -2365,6 +2365,80 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Mobile debe mantener full-bleed en la sección sin ser afectado por las reglas desktop'
       );
     });
+    test('W. Mis encuentros escalable (paginación a 3, conteos temporales coherentes, card compacta) y navegación rápida Discovery (ChevronsLeft)', () => {
+      // 1. Verificación de traducciones en los 4 idiomas
+      const esLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/es.json'), 'utf8'));
+      const enLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/en.json'), 'utf8'));
+      const ptLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt.json'), 'utf8'));
+      const ptBrLoc = JSON.parse(readFileSync(resolve(process.cwd(), 'src/i18n/locales/pt-BR.json'), 'utf8'));
+
+      assert.strictEqual(esLoc.open_encounters.carousel_first, 'Volver al primer encuentro');
+      assert.strictEqual(enLoc.open_encounters.carousel_first, 'Back to first meetup');
+      assert.strictEqual(ptLoc.open_encounters.carousel_first, 'Voltar ao primeiro encontro');
+      assert.strictEqual(ptBrLoc.open_encounters.carousel_first, 'Voltar ao primeiro encontro');
+
+      assert.ok(esLoc.your_encounters.view_all_upcoming_v2.includes('Ver todos mis encuentros próximos'));
+      assert.ok(esLoc.your_encounters.show_less_v2.includes('Mostrar menos'));
+      assert.ok(esLoc.your_encounters.view_past_v2.includes('Ver encuentros anteriores'));
+      assert.ok(esLoc.your_encounters.back_to_upcoming_v2.includes('Volver a encuentros próximos'));
+      assert.strictEqual(esLoc.your_encounters.empty_upcoming_with_past_title_v2, 'No tenés encuentros próximos');
+
+      // 2. Verificación de navegación rápida Discovery (ChevronsLeft)
+      const openEncSource = readFileSync(resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.tsx'), 'utf8');
+      assert.ok(openEncSource.includes('ChevronsLeft'), 'HomeOpenEncounters debe importar e incorporar ChevronsLeft');
+      assert.ok(openEncSource.includes('handleScrollToFirst'), 'HomeOpenEncounters debe implementar handleScrollToFirst');
+      assert.ok(openEncSource.includes('pe-discovery-carousel-arrow--first'), 'Debe existir botón con clase pe-discovery-carousel-arrow--first');
+
+      // 3. Verificación de reglas CSS para card compacta y controles de lista en Home.css
+      const homeCss = readFileSync(resolve(process.cwd(), 'src/screens/Home.css'), 'utf8');
+      assert.ok(homeCss.includes('.home-v2-variant .home-card'), 'Home.css debe definir clase .home-v2-variant .home-card compacta');
+      assert.ok(homeCss.includes('.home-encounters-expand-btn'), 'Home.css debe definir clase .home-encounters-expand-btn');
+      assert.ok(homeCss.includes('.home-encounters-switch-temporal-btn'), 'Home.css debe definir clase .home-encounters-switch-temporal-btn');
+
+      // 4. Verificación de supresión de 0 invitados en Home.tsx
+      const homeSource = readFileSync(resolve(process.cwd(), 'src/screens/Home.tsx'), 'utf8');
+      assert.ok(!homeSource.includes('>0 invitados<'), 'Home.tsx NO debe renderizar textualmente "0 invitados"');
+      assert.ok(homeSource.includes('(total !== null && total > 0)'), 'Home.tsx debe verificar total > 0 antes de mostrar invitados');
+
+      // 5. Verificación de Toolbar con contadores temporales V2
+      const toolbarV2UpcomingHtml = renderToString(
+        React.createElement(HomeEncountersToolbar, {
+          activeScope: 'todos',
+          onScopeChange: () => {},
+          isLoggedIn: true,
+          totalTodosCount: 1,
+          totalOrganizedCount: 1,
+          totalParticipatedCount: 0,
+          totalProximosCount: 1,
+          totalPasadosCount: 3,
+          activeFilterCount: 0,
+          onOpenFilters: () => {},
+          hideTitle: true,
+          isV2Variant: true,
+        })
+      );
+      assert.ok(toolbarV2UpcomingHtml.includes('pe-toolbar-summary-count'), 'Toolbar debe incluir summary count');
+      assert.ok(toolbarV2UpcomingHtml.includes('<span class="pe-segmented-badge">1</span>'), 'Badge Todos debe mostrar 1 en modo próximos sin inflarse con los anteriores');
+
+      // 6. Verificación de Toolbar en modo Anteriores
+      const toolbarV2PastHtml = renderToString(
+        React.createElement(HomeEncountersToolbar, {
+          activeScope: 'todos',
+          onScopeChange: () => {},
+          isLoggedIn: true,
+          totalTodosCount: 3,
+          totalOrganizedCount: 2,
+          totalParticipatedCount: 1,
+          totalProximosCount: 1,
+          totalPasadosCount: 3,
+          activeFilterCount: 0,
+          onOpenFilters: () => {},
+          hideTitle: true,
+          isV2Variant: true,
+        })
+      );
+      assert.ok(toolbarV2PastHtml.includes('<span class="pe-segmented-badge">3</span>'), 'Badge Todos debe mostrar 3 en modo anteriores reflejando el subconjunto activo');
+    });
   });
 });
 

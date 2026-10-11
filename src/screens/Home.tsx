@@ -174,13 +174,15 @@ const ActiveCard: React.FC<{
             {miEstadoLabel}
           </span>
         ) : (
-          total !== null && (
+          (confirmados !== null && confirmados > 0) ? (
             <span className="home-card-status">
-              {confirmados !== null && confirmados > 0
-                ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
-                : `${total} invitado${total !== 1 ? 's' : ''}`}
+              {confirmados} confirmado{confirmados !== 1 ? 's' : ''}
             </span>
-          )
+          ) : (total !== null && total > 0) ? (
+            <span className="home-card-status">
+              {total} invitado{total !== 1 ? 's' : ''}
+            </span>
+          ) : null
         )}
       </div>
     </div>
@@ -250,13 +252,15 @@ const PastCard: React.FC<{
               {miEstadoLabel}
             </span>
           ) : (
-            total !== null && (
+            (confirmados !== null && confirmados > 0) ? (
               <span className="home-card-status">
-                {confirmados !== null && confirmados > 0
-                  ? `${confirmados} confirmado${confirmados !== 1 ? 's' : ''}`
-                  : `${total} invitado${total !== 1 ? 's' : ''}`}
+                {confirmados} confirmado{confirmados !== 1 ? 's' : ''}
               </span>
-            )
+            ) : (total !== null && total > 0) ? (
+              <span className="home-card-status">
+                {total} invitado{total !== 1 ? 's' : ''}
+              </span>
+            ) : null
           )}
         </div>
 
@@ -439,6 +443,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   // Filtros secundarios simplificados para Preview GSAP
   const [secondaryFilters, setSecondaryFilters] = useState<EncountersFilterValues>(DEFAULT_FILTER_VALUES);
   const [isSecondaryFilterOpen, setIsSecondaryFilterOpen] = useState(false);
+  const [isExpandedUpcoming, setIsExpandedUpcoming] = useState(false);
 
   // Hook y estados de Notificaciones In-App (Fase 1.5)
   const {
@@ -545,6 +550,43 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
     return seen.size;
   }, [organizedEncuentros, participatedEncuentros]);
+
+  // Conteos temporales para Home V2 (reflejan el momento temporal activo: upcoming vs past vs all)
+  const isTimePast = secondaryFilters.timeFilter === 'past';
+  const isTimeAll = secondaryFilters.timeFilter === 'all';
+
+  const activeOrganizedEncuentros = React.useMemo(() => {
+    return (organizedEncuentros || []).filter(enc => {
+      if (!enc) return false;
+      const bucket = getEncounterListBucket(enc);
+      const isUp = bucket === 'current';
+      if (isTimePast) return !isUp;
+      if (isTimeAll) return true;
+      return isUp;
+    });
+  }, [organizedEncuentros, isTimePast, isTimeAll]);
+
+  const activeParticipatedEncuentros = React.useMemo(() => {
+    return (participatedEncuentros || []).filter(enc => {
+      if (!enc) return false;
+      const bucket = getEncounterListBucket(enc);
+      const isUp = bucket === 'current';
+      if (isTimePast) return !isUp;
+      if (isTimeAll) return true;
+      return isUp;
+    });
+  }, [participatedEncuentros, isTimePast, isTimeAll]);
+
+  const activeTodosCount = React.useMemo(() => {
+    const seen = new Set<string>();
+    for (const enc of activeOrganizedEncuentros) {
+      if (enc?.id) seen.add(enc.id);
+    }
+    for (const enc of activeParticipatedEncuentros) {
+      if (enc?.id) seen.add(enc.id);
+    }
+    return seen.size;
+  }, [activeOrganizedEncuentros, activeParticipatedEncuentros]);
 
   // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
   const rawEncuentros = React.useMemo(() => {
@@ -1168,6 +1210,47 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       );
     }
 
+    const isUpcomingMode = !secondaryFilters.timeFilter || secondaryFilters.timeFilter === 'upcoming';
+    const isPastMode = secondaryFilters.timeFilter === 'past';
+
+    // CASO A: 0 próximos pero N anteriores en modo próximos (Home V2)
+    if (isV2Variant && isUpcomingMode && filteredGsap.length === 0 && totalPasados > 0) {
+      return (
+        <div className="home-empty home-empty--compact">
+          <div className="home-empty-icon">
+            <Calendar size={32} color="var(--color-primary)" />
+          </div>
+          <h2 className="home-empty-title">
+            {t('your_encounters.empty_upcoming_with_past_title_v2', { defaultValue: 'No tenés encuentros próximos' })}
+          </h2>
+          <p className="home-empty-desc">
+            {totalPasados === 1
+              ? t('your_encounters.empty_upcoming_with_past_desc_v2', { count: totalPasados, defaultValue: 'Tenés 1 encuentro en tu historial.' })
+              : t('your_encounters.empty_upcoming_with_past_desc_v2_plural', { count: totalPasados, defaultValue: `Tenés ${totalPasados} encuentros en tu historial.` })}
+          </p>
+          <div className="home-empty-actions-v2">
+            <Button
+              variant="outline"
+              style={{ minWidth: 170, height: 40, fontSize: 14, fontWeight: 600 }}
+              onClick={() => {
+                setSecondaryFilters(prev => ({ ...prev, timeFilter: 'past' }));
+                setIsExpandedUpcoming(false);
+              }}
+            >
+              {t('your_encounters.view_past_v2', { count: totalPasados, defaultValue: `Ver encuentros anteriores (${totalPasados})` })}
+            </Button>
+            <Button
+              variant="primary"
+              style={{ minWidth: 170, height: 40, fontSize: 14, fontWeight: 600 }}
+              onClick={handleCreateClick}
+            >
+              + Crear encuentro
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     if (filteredGsap.length === 0) {
       return (
         <div className="home-empty" style={{ padding: '2rem 1rem' }}>
@@ -1178,7 +1261,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           <p className="home-empty-desc">Probá cambiando el momento o el tipo seleccionado.</p>
           <Button
             variant="outline"
-            onClick={() => setSecondaryFilters(DEFAULT_FILTER_VALUES)}
+            onClick={() => {
+              setSecondaryFilters(DEFAULT_FILTER_VALUES);
+              setIsExpandedUpcoming(false);
+            }}
             style={{ marginTop: 12 }}
           >
             Limpiar filtros
@@ -1187,15 +1273,44 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       );
     }
 
+    const shouldLimitUpcoming = isV2Variant && isUpcomingMode && !isExpandedUpcoming && filteredGsap.length > 3;
+    const itemsToRender = shouldLimitUpcoming ? filteredGsap.slice(0, 3) : filteredGsap;
+
     return (
-      <div className="home-card-list">
-        {filteredGsap.map(enc => {
-          const isHost = enc._isHost ?? (activeScope === 'organizo');
-          const bucket = getEncounterListBucket(enc);
-          const isPast = bucket === 'past' || bucket === 'cancelled';
-          if (isPast) {
+      <div className="home-card-list-wrapper">
+        <div className="home-card-list">
+          {itemsToRender.map(enc => {
+            const isHost = enc._isHost ?? (activeScope === 'organizo');
+            const bucket = getEncounterListBucket(enc);
+            const isPast = bucket === 'past' || bucket === 'cancelled';
+            if (isPast) {
+              return (
+                <PastCard
+                  key={enc.id}
+                  enc={enc}
+                  onClick={() => {
+                    if (!isHost && enc._mi_token_invitacion) {
+                      if (isCoordinationEncounter(enc)) {
+                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
+                      } else {
+                        navigate(`/invite/${enc._mi_token_invitacion}`);
+                      }
+                    } else if (isCoordinationEncounter(enc)) {
+                      navigate(`/coordination/${enc.id}`);
+                    } else {
+                      navigate(`/meet/${enc.id}`);
+                    }
+                  }}
+                  onRepeat={(e) => handleRepeat(enc, e)}
+                  participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
+                  miEstado={!isHost ? (enc._mi_estado ?? null) : null}
+                  counts={counts[enc.id] ?? null}
+                />
+              );
+            }
+
             return (
-              <PastCard
+              <ActiveCard
                 key={enc.id}
                 enc={enc}
                 onClick={() => {
@@ -1211,38 +1326,56 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
                     navigate(`/meet/${enc.id}`);
                   }
                 }}
-                onRepeat={(e) => handleRepeat(enc, e)}
                 participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
                 miEstado={!isHost ? (enc._mi_estado ?? null) : null}
                 counts={counts[enc.id] ?? null}
+                isHost={isHost}
               />
             );
-          }
+          })}
+        </div>
 
-          return (
-            <ActiveCard
-              key={enc.id}
-              enc={enc}
-              onClick={() => {
-                if (!isHost && enc._mi_token_invitacion) {
-                  if (isCoordinationEncounter(enc)) {
-                    navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
-                  } else {
-                    navigate(`/invite/${enc._mi_token_invitacion}`);
-                  }
-                } else if (isCoordinationEncounter(enc)) {
-                  navigate(`/coordination/${enc.id}`);
-                } else {
-                  navigate(`/meet/${enc.id}`);
-                }
-              }}
-              participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
-              miEstado={!isHost ? (enc._mi_estado ?? null) : null}
-              counts={counts[enc.id] ?? null}
-              isHost={isHost}
-            />
-          );
-        })}
+        {isV2Variant && (
+          <div className="home-encounters-footer-actions-v2">
+            {isUpcomingMode && filteredGsap.length > 3 && (
+              <button
+                type="button"
+                className="home-encounters-expand-btn"
+                onClick={() => setIsExpandedUpcoming(!isExpandedUpcoming)}
+              >
+                {isExpandedUpcoming
+                  ? t('your_encounters.show_less_v2', { defaultValue: 'Mostrar menos' })
+                  : t('your_encounters.view_all_upcoming_v2', { count: filteredGsap.length, defaultValue: `Ver todos mis encuentros próximos (${filteredGsap.length})` })}
+              </button>
+            )}
+
+            {isUpcomingMode && totalPasados > 0 && (
+              <button
+                type="button"
+                className="home-encounters-switch-temporal-btn"
+                onClick={() => {
+                  setSecondaryFilters(prev => ({ ...prev, timeFilter: 'past' }));
+                  setIsExpandedUpcoming(false);
+                }}
+              >
+                {t('your_encounters.view_past_v2', { count: totalPasados, defaultValue: `Ver encuentros anteriores (${totalPasados})` })}
+              </button>
+            )}
+
+            {isPastMode && (
+              <button
+                type="button"
+                className="home-encounters-switch-temporal-btn"
+                onClick={() => {
+                  setSecondaryFilters(prev => ({ ...prev, timeFilter: 'upcoming' }));
+                  setIsExpandedUpcoming(false);
+                }}
+              >
+                {t('your_encounters.back_to_upcoming_v2', { count: totalProximos, defaultValue: `← Volver a encuentros próximos (${totalProximos})` })}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -1280,11 +1413,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           <>
             <HomeEncountersToolbar
               activeScope={activeScope}
-              onScopeChange={setActiveScope}
+              onScopeChange={(scope) => {
+                setActiveScope(scope);
+                setIsExpandedUpcoming(false);
+              }}
               isLoggedIn={Boolean(user)}
-              totalTodosCount={allUniqueTodosCount}
-              totalOrganizedCount={organizedEncuentros.length}
-              totalParticipatedCount={participatedEncuentros.length}
+              totalTodosCount={isV2Variant ? activeTodosCount : allUniqueTodosCount}
+              totalOrganizedCount={isV2Variant ? activeOrganizedEncuentros.length : organizedEncuentros.length}
+              totalParticipatedCount={isV2Variant ? activeParticipatedEncuentros.length : participatedEncuentros.length}
               totalProximosCount={totalProximos}
               totalPasadosCount={totalPasados}
               activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
@@ -1508,7 +1644,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           <HomeEncountersFilterSheet
             isOpen={isSecondaryFilterOpen}
             filters={secondaryFilters}
-            onApply={setSecondaryFilters}
+            onApply={(newFilters) => {
+              setSecondaryFilters(newFilters);
+              setIsExpandedUpcoming(false);
+            }}
             onClose={() => setIsSecondaryFilterOpen(false)}
           />
         </div>

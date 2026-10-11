@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary, Localidad } from './types';
 import type { PublicIntencionSummary } from '@/types/intenciones';
@@ -503,6 +503,13 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, [resetAutoplayTimer]);
 
   // Manejadores de navegación por flechas desktop
+  const handleScrollToFirst = useCallback(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollTo({ left: 0, behavior: 'smooth' });
+    pauseAutoAdvance(10000);
+  }, [pauseAutoAdvance]);
+
   const handleScrollPrev = useCallback(() => {
     const track = trackRef.current;
     if (!track) return;
@@ -904,6 +911,17 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
           {isV2Variant && hasOverflow && (
             <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--first"
+                  onClick={handleScrollToFirst}
+                  aria-label={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+                  title={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+                >
+                  <ChevronsLeft size={16} aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev"
