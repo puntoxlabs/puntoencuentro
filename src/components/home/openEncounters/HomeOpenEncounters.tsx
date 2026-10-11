@@ -738,6 +738,19 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         }}
         onScroll={() => pauseAutoAdvance(10000)}
       >
+        {/* Retorno contextual mobile V2 al primer encuentro */}
+        {isV2Variant && hasOverflow && canScrollLeft && (
+          <button
+            type="button"
+            className="pe-discovery-carousel-mobile-indicator pe-discovery-carousel-mobile-indicator--left"
+            onClick={handleScrollToFirst}
+            aria-label={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+            title={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+          >
+            <ChevronsLeft size={14} aria-hidden="true" />
+          </button>
+        )}
+
         <div
           ref={trackRef}
           className="pe-discovery-track"

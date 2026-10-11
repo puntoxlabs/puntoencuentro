@@ -2383,11 +2383,16 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(esLoc.your_encounters.back_to_upcoming_v2.includes('Volver a encuentros próximos'));
       assert.strictEqual(esLoc.your_encounters.empty_upcoming_with_past_title_v2, 'No tenés encuentros próximos');
 
-      // 2. Verificación de navegación rápida Discovery (ChevronsLeft)
+      // 2. Verificación de navegación rápida Discovery (ChevronsLeft) Desktop y Mobile
       const openEncSource = readFileSync(resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.tsx'), 'utf8');
       assert.ok(openEncSource.includes('ChevronsLeft'), 'HomeOpenEncounters debe importar e incorporar ChevronsLeft');
       assert.ok(openEncSource.includes('handleScrollToFirst'), 'HomeOpenEncounters debe implementar handleScrollToFirst');
-      assert.ok(openEncSource.includes('pe-discovery-carousel-arrow--first'), 'Debe existir botón con clase pe-discovery-carousel-arrow--first');
+      assert.ok(openEncSource.includes('pe-discovery-carousel-arrow--first'), 'Debe existir botón desktop con clase pe-discovery-carousel-arrow--first');
+      assert.ok(openEncSource.includes('pe-discovery-carousel-mobile-indicator--left'), 'Debe existir botón mobile con clase pe-discovery-carousel-mobile-indicator--left');
+
+      const openEncCss = readFileSync(resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounters.css'), 'utf8');
+      assert.ok(openEncCss.includes('.pe-discovery-carousel-mobile-indicator--left'), 'HomeOpenEncounters.css debe definir clase .pe-discovery-carousel-mobile-indicator--left');
+      assert.ok(openEncCss.includes('display: none !important;'), 'En desktop los indicadores mobile deben ocultarse con display: none !important');
 
       // 3. Verificación de reglas CSS para card compacta y controles de lista en Home.css
       const homeCss = readFileSync(resolve(process.cwd(), 'src/screens/Home.css'), 'utf8');
@@ -2438,6 +2443,31 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
       assert.ok(toolbarV2PastHtml.includes('<span class="pe-segmented-badge">3</span>'), 'Badge Todos debe mostrar 3 en modo anteriores reflejando el subconjunto activo');
+
+      // 7. Renderizado condicional del indicador contextual mobile
+      const htmlOpenEncV2Initial = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: true,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      // Al inicio (scrollLeft = 0, canScrollLeft = false), el botón mobile de retorno izquierdo NO debe renderizarse
+      assert.ok(
+        !htmlOpenEncV2Initial.includes('pe-discovery-carousel-mobile-indicator--left'),
+        'Al inicio del carrusel (canScrollLeft=false) el botón mobile de retorno izquierdo NO debe mostrarse'
+      );
+
+      // En Home V1 (isV2Variant = false), nunca debe renderizarse el indicador de retorno
+      const htmlOpenEncV1 = renderToString(
+        React.createElement(HomeOpenEncounters, {
+          isV2Variant: false,
+          encounters: OPEN_ENCOUNTERS_DEMO,
+        })
+      );
+      assert.ok(
+        !htmlOpenEncV1.includes('pe-discovery-carousel-mobile-indicator--left'),
+        'En V1 el botón mobile de retorno nunca debe renderizarse'
+      );
     });
   });
 });

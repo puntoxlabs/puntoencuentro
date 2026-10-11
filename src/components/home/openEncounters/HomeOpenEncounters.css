@@ -556,14 +556,29 @@
   touch-action: manipulation;
 }
 
-/* Hit-area táctil expandido (~44px) sin agrandar el elemento visible */
+/* Hit-area táctil expandido (≥44px) sin agrandar el elemento visible */
 .pe-discovery-carousel-mobile-indicator::before {
   content: '';
   position: absolute;
   top: -6px;
   bottom: -6px;
-  left: -12px;
-  right: 0;
+  left: -24px;
+  right: -2px;
+}
+
+/* Indicador contextual mobile en borde izquierdo para volver al primer encuentro */
+.pe-discovery-carousel-mobile-indicator--left {
+  right: auto;
+  left: 2px;
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+  border-right: 1px solid rgba(226, 232, 240, 0.5);
+  box-shadow: 1px 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.pe-discovery-carousel-mobile-indicator--left::before {
+  left: -2px;
+  right: -24px;
 }
 
 .pe-discovery-carousel-mobile-indicator:active {
