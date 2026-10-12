@@ -213,3 +213,68 @@
   background: var(--color-primary-container, #eff6ff);
   border-color: var(--color-primary, #6366f1);
 }
+
+/* ── Banner de Feedback Inmediato de Matches ── */
+.pe-intenciones-match-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md, 12px);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.pe-intenciones-match-feedback-text {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1e40af;
+}
+
+.pe-intenciones-match-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pe-intenciones-match-feedback-cta {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pe-intenciones-match-feedback-cta:hover {
+  background: #1d4ed8;
+}
+
+.pe-intenciones-match-feedback-close {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.pe-intenciones-match-feedback-close:hover {
+  color: #1f2937;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -4,6 +4,8 @@ import { intencionesService } from '../services/intencionesService';
 import type {
   Intencion,
   CrearIntencionPayload,
+  CrearIntencionResult,
+  CambiarEstadoIntencionResult,
   EditarIntencionPayload,
   EstadoIntencion,
   IntencionesServiceResult,
@@ -39,7 +41,7 @@ export function useIntenciones() {
   }, [fetchIntenciones]);
 
   const crearIntencion = useCallback(
-    async (payload: CrearIntencionPayload): Promise<IntencionesServiceResult<string>> => {
+    async (payload: CrearIntencionPayload): Promise<IntencionesServiceResult<CrearIntencionResult>> => {
       const res = await intencionesService.crearIntencion(payload);
       if (res.ok) {
         await fetchIntenciones();
@@ -61,7 +63,7 @@ export function useIntenciones() {
   );
 
   const cambiarEstado = useCallback(
-    async (id: string, nuevoEstado: EstadoIntencion): Promise<IntencionesServiceResult<EstadoIntencion>> => {
+    async (id: string, nuevoEstado: EstadoIntencion): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> => {
       const res = await intencionesService.cambiarEstado(id, nuevoEstado);
       if (res.ok) {
         await fetchIntenciones();
@@ -72,7 +74,7 @@ export function useIntenciones() {
   );
 
   const pausarIntencion = useCallback(
-    async (id: string): Promise<IntencionesServiceResult<EstadoIntencion>> => {
+    async (id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> => {
       const res = await intencionesService.pausarIntencion(id);
       if (res.ok) {
         await fetchIntenciones();
@@ -83,7 +85,7 @@ export function useIntenciones() {
   );
 
   const reactivarIntencion = useCallback(
-    async (id: string): Promise<IntencionesServiceResult<EstadoIntencion>> => {
+    async (id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> => {
       const res = await intencionesService.reactivarIntencion(id);
       if (res.ok) {
         await fetchIntenciones();
@@ -94,7 +96,7 @@ export function useIntenciones() {
   );
 
   const cerrarIntencion = useCallback(
-    async (id: string): Promise<IntencionesServiceResult<EstadoIntencion>> => {
+    async (id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> => {
       const res = await intencionesService.cerrarIntencion(id);
       if (res.ok) {
         await fetchIntenciones();

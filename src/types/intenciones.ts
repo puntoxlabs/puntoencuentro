@@ -46,6 +46,18 @@ export interface EditarIntencionPayload {
   locality_id?: string | null;
 }
 
+export interface CrearIntencionResult {
+  id: string;
+  matchesFoundCount?: number;
+  matchedEncounterIds?: string[];
+}
+
+export interface CambiarEstadoIntencionResult {
+  estado: EstadoIntencion;
+  matchesFoundCount?: number;
+  matchedEncounterIds?: string[];
+}
+
 export interface IntencionesServiceResult<T = void> {
   ok: boolean;
   data?: T;

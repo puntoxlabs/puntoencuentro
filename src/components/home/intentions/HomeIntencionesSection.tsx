@@ -69,6 +69,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [matchFeedback, setMatchFeedback] = useState<{ count: number; encounterIds: string[] } | null>(null);
   const hasRestoredDraftRef = useRef(false);
 
   // Auth Guard Sheet
@@ -226,7 +227,13 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   const handleReactivar = async (id: string) => {
     setActionInProgressId(id);
     try {
-      await reactivarIntencion(id);
+      const res = await reactivarIntencion(id);
+      if (res.ok && res.data?.matchesFoundCount && res.data.matchesFoundCount > 0) {
+        setMatchFeedback({
+          count: res.data.matchesFoundCount,
+          encounterIds: res.data.matchedEncounterIds || [],
+        });
+      }
     } finally {
       setActionInProgressId(null);
     }
@@ -296,6 +303,11 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
               : 'No pudimos crear la intención en este momento. Intentá nuevamente en unos minutos.';
           }
           throw new Error(friendly);
+        } else if (res.data?.matchesFoundCount && res.data.matchesFoundCount > 0) {
+          setMatchFeedback({
+            count: res.data.matchesFoundCount,
+            encounterIds: res.data.matchedEncounterIds || [],
+          });
         }
       }
 
@@ -353,7 +365,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           <p className="pe-intenciones-subtitle">
             {isV2Variant
               ? t('your_encounters.intentions_subtitle_v2', {
-                  defaultValue: 'Cosas que querés hacer y mantener en seguimiento.',
+                  defaultValue: 'Lo que tenés ganas de hacer. Si aparece algo relacionado, te avisamos.',
                 })
               : 'Cosas que tenés ganas de hacer, antes de organizar un encuentro.'}
           </p>
@@ -379,6 +391,41 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
           </button>
         )}
       </div>
+
+      {/* Banner de Feedback Inmediato */}
+      {matchFeedback && matchFeedback.count > 0 && (
+        <div className="pe-intenciones-match-feedback" role="alert">
+          <span className="pe-intenciones-match-feedback-text">
+            {t('your_encounters.intentions_matches_found', {
+              count: matchFeedback.count,
+              defaultValue: `Encontramos ${matchFeedback.count} ${matchFeedback.count === 1 ? 'opción relacionada' : 'opciones relacionadas'}.`,
+            })}
+          </span>
+          <div className="pe-intenciones-match-feedback-actions">
+            <button
+              type="button"
+              className="pe-intenciones-match-feedback-cta"
+              onClick={() => {
+                const discoveryEl = document.getElementById('home-discovery-section');
+                if (discoveryEl) {
+                  discoveryEl.scrollIntoView({ behavior: 'smooth' });
+                }
+                setMatchFeedback(null);
+              }}
+            >
+              {t('your_encounters.intentions_matches_cta', { defaultValue: 'Ver opciones' })}
+            </button>
+            <button
+              type="button"
+              className="pe-intenciones-match-feedback-close"
+              onClick={() => setMatchFeedback(null)}
+              aria-label="Cerrar aviso"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Estados */}
       {effectiveLoading ? (

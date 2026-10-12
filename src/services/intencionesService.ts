@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase';
 import type {
   Intencion,
   CrearIntencionPayload,
+  CrearIntencionResult,
+  CambiarEstadoIntencionResult,
   EditarIntencionPayload,
   EstadoIntencion,
   IntencionesServiceResult,
@@ -33,7 +35,7 @@ export const intencionesService = {
    * Crea una nueva intención vinculada automáticamente a auth.uid().
    * Nunca envía user_id desde cliente.
    */
-  async crearIntencion(payload: CrearIntencionPayload): Promise<IntencionesServiceResult<string>> {
+  async crearIntencion(payload: CrearIntencionPayload): Promise<IntencionesServiceResult<CrearIntencionResult>> {
     try {
       const { data, error } = await supabase.rpc('crear_intencion_segura', {
         p_titulo: payload.titulo,
@@ -48,11 +50,24 @@ export const intencionesService = {
       if (error) {
         return { ok: false, error: error.message };
       }
-      const res = data as { ok: boolean; id?: string; error?: string };
+      const res = data as {
+        ok: boolean;
+        id?: string;
+        matches_found_count?: number;
+        matched_encounter_ids?: string[];
+        error?: string;
+      };
       if (!res?.ok || !res.id) {
         return { ok: false, error: res?.error || 'creation_failed' };
       }
-      return { ok: true, data: res.id };
+      return {
+        ok: true,
+        data: {
+          id: res.id,
+          matchesFoundCount: res.matches_found_count ?? 0,
+          matchedEncounterIds: res.matched_encounter_ids ?? [],
+        },
+      };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
     }
@@ -91,7 +106,7 @@ export const intencionesService = {
   /**
    * Cambia el estado del ciclo de vida de una intención propia.
    */
-  async cambiarEstado(id: string, nuevoEstado: EstadoIntencion): Promise<IntencionesServiceResult<EstadoIntencion>> {
+  async cambiarEstado(id: string, nuevoEstado: EstadoIntencion): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> {
     try {
       const { data, error } = await supabase.rpc('cambiar_estado_intencion_segura', {
         p_id: id,
@@ -101,11 +116,25 @@ export const intencionesService = {
       if (error) {
         return { ok: false, error: error.message };
       }
-      const res = data as { ok: boolean; id?: string; estado?: EstadoIntencion; error?: string };
+      const res = data as {
+        ok: boolean;
+        id?: string;
+        estado?: EstadoIntencion;
+        matches_found_count?: number;
+        matched_encounter_ids?: string[];
+        error?: string;
+      };
       if (!res?.ok || !res.estado) {
         return { ok: false, error: res?.error || 'state_change_failed' };
       }
-      return { ok: true, data: res.estado };
+      return {
+        ok: true,
+        data: {
+          estado: res.estado,
+          matchesFoundCount: res.matches_found_count ?? 0,
+          matchedEncounterIds: res.matched_encounter_ids ?? [],
+        },
+      };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
     }
@@ -114,22 +143,21 @@ export const intencionesService = {
   /**
    * Pausa temporalmente una intención activa.
    */
-  async pausarIntencion(id: string): Promise<IntencionesServiceResult<EstadoIntencion>> {
+  async pausarIntencion(id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> {
     return this.cambiarEstado(id, 'pausada');
   },
 
   /**
    * Reactiva una intención pausada.
    */
-  async reactivarIntencion(id: string): Promise<IntencionesServiceResult<EstadoIntencion>> {
+  async reactivarIntencion(id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> {
     return this.cambiarEstado(id, 'activa');
   },
 
   /**
-   * Cierra una intención (soft delete mediante estado 'cerrada').
-   * NO ejecuta DELETE físico en base de datos.
+   * Cierra definitivamente una intención propia (soft delete mediante estado 'cerrada').
    */
-  async cerrarIntencion(id: string): Promise<IntencionesServiceResult<EstadoIntencion>> {
+  async cerrarIntencion(id: string): Promise<IntencionesServiceResult<CambiarEstadoIntencionResult>> {
     return this.cambiarEstado(id, 'cerrada');
   },
 
