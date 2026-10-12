@@ -418,3 +418,59 @@
   cursor: default;
 }
 
+/* Multi-seat Request Stepper */
+.pe-detail-sheet__seats-selector {
+  margin-bottom: 12px;
+}
+
+.pe-detail-sheet__seats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.pe-detail-sheet__seats-helper {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.pe-detail-sheet__seats-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f8fafc;
+}
+
+.pe-detail-sheet__seats-btn {
+  padding: 6px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #0f172a;
+  transition: background-color 0.15s ease;
+}
+
+.pe-detail-sheet__seats-btn:hover:not(:disabled) {
+  background-color: #e2e8f0;
+}
+
+.pe-detail-sheet__seats-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.pe-detail-sheet__seats-count {
+  padding: 6px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 28px;
+  text-align: center;
+}
+

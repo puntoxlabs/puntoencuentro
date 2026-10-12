@@ -51,6 +51,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [loginLoading, setLoginLoading] = useState(false);
   const [applicantName, setApplicantName] = useState('');
   const [applicantMessage, setApplicantMessage] = useState('');
+  const [requestedSeats, setRequestedSeats] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -79,6 +80,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setErrorMsg(null);
     setApplicantName(getHostAlias() || '');
     setApplicantMessage('');
+    setRequestedSeats(1);
 
     // Consultar estado de solicitud previa — solo si usuario permanente
     if (!isDemo && userId) {
@@ -240,11 +242,12 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setErrorMsg(null);
 
     try {
-      // SEGURIDAD: solo se envía el nombre y mensaje — la identidad la provee el JWT en el backend
+      // SEGURIDAD: solo se envía el nombre, mensaje y cupo solicitado — la identidad la provee el JWT en el backend
       const res = await openEncountersService.solicitarSumarse(
         encounter.id,
         applicantName.trim(),
-        applicantMessage.trim()
+        applicantMessage.trim(),
+        encounter.allowMultiSeatRequests ? requestedSeats : 1
       );
 
       if (res.ok) {
@@ -256,6 +259,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       } else {
         if (res.error === 'encounter_full') {
           setErrorMsg('El cupo para este encuentro ya se encuentra completo.');
+        } else if (res.error === 'seats_exceed_limit' || res.error === 'seats_exceed_capacity') {
+          setErrorMsg('La cantidad de lugares solicitados supera el límite disponible para este encuentro.');
         } else if (res.error === 'already_participant') {
           setErrorMsg('Ya estás registrado como participante de este encuentro.');
         } else if (res.error === 'permanent_account_required') {
@@ -490,6 +495,52 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   maxLength={50}
                 />
               </div>
+
+              {encounter.allowMultiSeatRequests && (
+                <div className="pe-detail-sheet__form-field pe-detail-sheet__seats-selector">
+                  <div className="pe-detail-sheet__seats-header">
+                    <label className="pe-detail-sheet__label" style={{ marginBottom: 0 }}>
+                      Lugares que querés reservar
+                    </label>
+                    <span className="pe-detail-sheet__seats-helper">
+                      Incluyéndote a vos
+                    </span>
+                  </div>
+                  <div className="pe-detail-sheet__seats-stepper">
+                    <button
+                      type="button"
+                      className="pe-detail-sheet__seats-btn pe-detail-sheet__seats-btn--minus"
+                      onClick={() => setRequestedSeats((s) => Math.max(1, s - 1))}
+                      disabled={requestedSeats <= 1}
+                      aria-label="Disminuir lugares"
+                    >
+                      −
+                    </button>
+                    <span className="pe-detail-sheet__seats-count" aria-live="polite">
+                      {requestedSeats}
+                    </span>
+                    <button
+                      type="button"
+                      className="pe-detail-sheet__seats-btn pe-detail-sheet__seats-btn--plus"
+                      onClick={() =>
+                        setRequestedSeats((s) =>
+                          Math.min(
+                            Math.min(encounter.maxSeatsPerRequest || 2, encounter.openSlots),
+                            s + 1
+                          )
+                        )
+                      }
+                      disabled={
+                        requestedSeats >=
+                        Math.min(encounter.maxSeatsPerRequest || 2, encounter.openSlots)
+                      }
+                      aria-label="Aumentar lugares"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="pe-detail-sheet__form-field">
                 <label className="pe-detail-sheet__label">
