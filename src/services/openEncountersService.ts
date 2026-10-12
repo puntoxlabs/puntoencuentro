@@ -117,10 +117,12 @@ export const openEncountersService = {
         approximateZone: item.approximate_zone,
         localityId: item.locality_id,
         openSlots: Number(item.open_slots ?? 0),
-        confirmedCount: Math.max(0, Number(item.confirmed_count ?? 1) - 1),
+        confirmedCount: Number(item.confirmed_count ?? 0),
         language: item.language || 'es',
         description: item.description,
         hostName: item.host_name,
+        allowMultiSeatRequests: Boolean(item.allow_multi_seat_requests),
+        maxSeatsPerRequest: Number(item.max_seats_per_request ?? 1),
       }));
 
       return { ok: true, data: mapped };
@@ -185,6 +187,8 @@ export const openEncountersService = {
       p_locality_id: payload.locality_id,
       p_open_public_zone: payload.open_public_zone ?? null,
       p_open_public_title: payload.open_public_title ?? null,
+      p_allow_multi_seat_requests: payload.allow_multi_seat_requests ?? false,
+      p_max_seats_per_request: payload.max_seats_per_request ?? 1,
     });
 
     if (error) {
@@ -264,13 +268,15 @@ export const openEncountersService = {
   async solicitarSumarse(
     encuentroId: string,
     nombre: string,
-    mensaje?: string
+    mensaje?: string,
+    seatCount: number = 1
     // DEPRECATED: usuarioId eliminado. El backend deriva identidad de auth.uid().
-  ): Promise<{ ok: boolean; request_id?: string; error?: string }> {
+  ): Promise<{ ok: boolean; request_id?: string; error?: string; seat_count?: number }> {
     const { data, error } = await supabase.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encuentroId,
       p_nombre: nombre,
       p_mensaje: mensaje ?? null,
+      p_seat_count: seatCount,
       // p_usuario_id: no se envía — identidad via JWT únicamente
     });
 

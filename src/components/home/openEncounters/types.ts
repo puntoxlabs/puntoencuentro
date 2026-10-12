@@ -12,6 +12,8 @@ export interface OpenEncounterSummary {
   language: string;
   description?: string;
   hostName?: string;
+  allowMultiSeatRequests?: boolean;
+  maxSeatsPerRequest?: number;
 }
 
 export interface Localidad {
@@ -36,6 +38,7 @@ export interface OpenEncounterRequest {
   token_participante?: string | null;
   created_at: string;
   resolved_at?: string | null;
+  seat_count?: number;
 }
 
 export interface AbrirEncuentroPayload {
@@ -44,6 +47,8 @@ export interface AbrirEncuentroPayload {
   max_participants: number;
   locality_id?: string | null;
   open_public_zone?: string | null;
+  allow_multi_seat_requests?: boolean;
+  max_seats_per_request?: number;
 }
 
 export type OpenEncounterSlotState = 'single' | 'remaining' | 'count' | 'full';
@@ -53,10 +58,7 @@ export function getSlotLabel(openSlots: number, t?: (key: string, opts?: any) =>
     return t ? t('open_encounters.full', { defaultValue: 'Completo' }) : 'Completo';
   }
   if (openSlots === 1) {
-    return t ? t('open_encounters.slot_single', { defaultValue: 'Falta 1' }) : 'Falta 1';
-  }
-  if (openSlots === 2) {
-    return t ? t('open_encounters.slots_remaining', { count: 2, defaultValue: 'Quedan 2' }) : 'Quedan 2';
+    return t ? t('open_encounters.slots_single', { defaultValue: '1 lugar' }) : '1 lugar';
   }
   return t ? t('open_encounters.slots_count', { count: openSlots, defaultValue: `${openSlots} lugares` }) : `${openSlots} lugares`;
 }

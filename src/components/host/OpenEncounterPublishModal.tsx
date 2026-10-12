@@ -19,6 +19,8 @@ export interface OpenEncounterPublishModalProps {
   defaultSlots?: number;
   defaultLocalityId?: string;
   confirmedCount: number;
+  defaultAllowMultiSeat?: boolean;
+  defaultMaxSeats?: number;
   onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
   onPublished: (result?: { ok: boolean; moderation_status?: string; message?: string }) => void;
 }
@@ -36,6 +38,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   defaultSlots,
   defaultLocalityId,
   confirmedCount,
+  defaultAllowMultiSeat,
+  defaultMaxSeats,
   onUpdateLocation,
   onPublished,
 }) => {
@@ -45,6 +49,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   const [description, setDescription] = useState(defaultDescription);
   const [slotsInput, setSlotsInput] = useState<string>(defaultSlots ? String(defaultSlots) : '2');
   const [localityId, setLocalityId] = useState<string>(defaultLocalityId || 'guemes');
+  const [allowMultiSeat, setAllowMultiSeat] = useState<boolean>(defaultAllowMultiSeat ?? false);
+  const [maxSeatsInput, setMaxSeatsInput] = useState<string>(defaultMaxSeats ? String(defaultMaxSeats) : '2');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -90,9 +96,11 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       setDescription(defaultDescription || '');
       setSlotsInput(defaultSlots ? String(defaultSlots) : '2');
       if (defaultLocalityId) setLocalityId(defaultLocalityId);
+      if (defaultAllowMultiSeat !== undefined) setAllowMultiSeat(defaultAllowMultiSeat);
+      if (defaultMaxSeats !== undefined) setMaxSeatsInput(String(defaultMaxSeats));
       setErrorMsg(null);
     }
-  }, [isOpen, defaultTitle, defaultDescription, defaultSlots, defaultLocalityId]);
+  }, [isOpen, defaultTitle, defaultDescription, defaultSlots, defaultLocalityId, defaultAllowMultiSeat, defaultMaxSeats]);
 
   useEffect(() => {
     if (!isOpen || isVirtual) return;
@@ -199,8 +207,20 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       return;
     }
 
-    // Fórmula: max_participants = lugares_para_sumarse + 1 (host) + confirmados
-    const calculatedMaxParticipants = parsedSlots + 1 + confirmedCount;
+    const parsedMaxSeats = parseInt(maxSeatsInput, 10);
+    if (allowMultiSeat) {
+      if (isNaN(parsedMaxSeats) || parsedMaxSeats < 2) {
+        setErrorMsg('El máximo de lugares por solicitud debe ser al menos 2.');
+        return;
+      }
+      if (parsedMaxSeats > parsedSlots) {
+        setErrorMsg('El máximo por solicitud no puede superar los lugares totales para sumarse.');
+        return;
+      }
+    }
+
+    // Semántica canónica: max_participants = lugares directos para externos (el host no consume cupo visible)
+    const calculatedMaxParticipants = parsedSlots;
 
     setSubmitting(true);
     setErrorMsg(null);
@@ -211,6 +231,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         open_description: description.trim(),
         max_participants: calculatedMaxParticipants,
         locality_id: isVirtual ? null : localityId,
+        allow_multi_seat_requests: allowMultiSeat,
+        max_seats_per_request: allowMultiSeat ? parsedMaxSeats : 1,
       });
 
       if (res.ok) {
@@ -224,6 +246,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
                 'Esta publicación no puede mostrarse públicamente con el contenido actual. Podés editarla e intentarlo nuevamente.',
             })
           );
+        } else if (res.error === 'max_participants_too_low') {
+          setErrorMsg(`No podés reducir el cupo por debajo de los lugares ya confirmados (${confirmedCount}).`);
         } else if (res.error === 'private_location_required') {
           setErrorMsg('El lugar y dirección privada es requerido para abrir el encuentro.');
           setIsEditingLocation(true);
@@ -437,6 +461,52 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
                 <span className="pe-publish-modal__hint">
                   Esta zona será visible públicamente. La dirección exacta seguirá siendo privada.
                 </span>
+              </div>
+            )}
+          </div>
+
+          {/* Opciones de Reserva Múltiple */}
+          <div className="pe-publish-modal__field" style={{ marginTop: 8 }}>
+            <label
+              className="pe-publish-modal__checkbox-label"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 500, fontSize: 13, color: '#334155' }}
+            >
+              <input
+                type="checkbox"
+                checked={allowMultiSeat}
+                onChange={(e) => setAllowMultiSeat(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: '#059669', cursor: 'pointer' }}
+              />
+              <span>Permitir reservar varios lugares por solicitud</span>
+            </label>
+            <span className="pe-publish-modal__hint" style={{ marginTop: 2, display: 'block' }}>
+              Los solicitantes podrán pedir más de 1 lugar (incluyéndose a sí mismos) hasta el límite que definas.
+            </span>
+
+            {allowMultiSeat && (
+              <div style={{ marginTop: 10, paddingLeft: 24 }}>
+                <label className="pe-publish-modal__label" style={{ fontSize: 12 }}>
+                  Máximo de lugares por solicitud (entre 2 y {slotsInput || '40'}) *
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="pe-publish-modal__input"
+                  style={{ width: 90, marginTop: 4 }}
+                  value={maxSeatsInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) setMaxSeatsInput(val);
+                  }}
+                  onBlur={() => {
+                    const p = parseInt(maxSeatsInput, 10);
+                    const maxAllowed = parseInt(slotsInput, 10) || 40;
+                    if (isNaN(p) || p < 2) setMaxSeatsInput('2');
+                    else if (p > maxAllowed) setMaxSeatsInput(String(maxAllowed));
+                    else setMaxSeatsInput(String(p));
+                  }}
+                />
               </div>
             )}
           </div>

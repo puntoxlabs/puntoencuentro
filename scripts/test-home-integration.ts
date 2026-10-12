@@ -660,7 +660,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(html.includes('Pádel'), 'Título');
       assert.ok(html.includes('Jueves · 20:00'), 'Fecha/hora');
       assert.ok(html.includes('Güemes'), 'Zona aproximada');
-      assert.ok(html.includes('Falta 1'), 'Cupo');
+      assert.ok(html.includes('1 lugar') || html.includes('Falta 1'), 'Cupo');
       assert.ok(html.includes('3 personas confirmadas'), 'Confirmados');
       assert.ok(html.includes('aria-label'), 'Debe tener accesibilidad semántica');
     });

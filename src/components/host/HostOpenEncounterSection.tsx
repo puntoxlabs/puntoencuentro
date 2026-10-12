@@ -74,9 +74,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     encuentro?.duration_minutes ?? encuentro?.post_event_active_minutes ?? 45
   );
   const maxParticipants = encuentro?.max_participants || 0;
-  // Cupo total ocupado: 1 host + confirmados
-  const totalOccupied = confirmedCount + 1;
-  const availableSlots = Math.max(0, maxParticipants - totalOccupied);
+  // Semántica canónica: max_participants = lugares para externos. El host no consume cupo visible.
+  const availableSlots = Math.max(0, maxParticipants - confirmedCount);
 
   const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string }) => {
     if (res?.moderation_status === 'review_pending') {
@@ -492,6 +491,22 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                     <span className="pe-host-request-item__name">
                       {req.nombre_solicitante}
                     </span>
+                    {req.seat_count && req.seat_count > 1 ? (
+                      <span
+                        className="pe-host-request-item__seats-badge"
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#047857',
+                          backgroundColor: '#ecfdf5',
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                        }}
+                      >
+                        · {req.seat_count} lugares
+                      </span>
+                    ) : null}
                     <span className="pe-host-request-item__time">
                       {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -535,11 +550,15 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                     type="button"
                     className="pe-host-request-item__btn-accept"
                     onClick={() => handleAprobar(req.id)}
-                    disabled={processingId === req.id || availableSlots <= 0}
-                    title={availableSlots <= 0 ? 'Sin cupo disponible' : undefined}
+                    disabled={processingId === req.id || availableSlots < (req.seat_count || 1)}
+                    title={availableSlots < (req.seat_count || 1) ? 'Cupo insuficiente' : undefined}
                   >
                     <CheckCircle2 size={14} />
-                    <span>{t('open_encounters.requests_accept', { defaultValue: 'Aceptar' })}</span>
+                    <span>
+                      {(req.seat_count || 1) > 1
+                        ? `Aceptar ${req.seat_count} lugares`
+                        : t('open_encounters.requests_accept', { defaultValue: 'Aceptar' })}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -620,9 +639,11 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         linkVirtual={encuentro.link_virtual || ''}
         defaultTitle={encuentro.open_public_title || encuentro.titulo || ''}
         defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
-        defaultSlots={availableSlots > 0 ? availableSlots : 2}
+        defaultSlots={encuentro.max_participants ? encuentro.max_participants : (availableSlots > 0 ? availableSlots : 2)}
         defaultLocalityId={encuentro.locality_id || 'guemes'}
         confirmedCount={confirmedCount}
+        defaultAllowMultiSeat={Boolean(encuentro.allow_multi_seat_requests)}
+        defaultMaxSeats={encuentro.max_seats_per_request || 2}
         onUpdateLocation={onUpdateLocation}
         onPublished={handlePublished}
       />
