@@ -39,6 +39,7 @@ export interface OpenEncounterRequest {
 }
 
 export interface AbrirEncuentroPayload {
+  open_public_title?: string;
   open_description: string;
   max_participants: number;
   locality_id?: string | null;

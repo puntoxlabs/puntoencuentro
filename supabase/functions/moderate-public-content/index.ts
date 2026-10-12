@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
     // Exclusión estricta de datos privados: NO se lee lugar_texto, link_virtual, public_token, etc.
     const { data: enc, error: encErr } = await supabaseAdmin
       .from("encuentros")
-      .select("id, titulo, open_description, modalidad, open_public_zone, host_id, moderation_status, is_open")
+      .select("id, titulo, open_public_title, open_description, modalidad, open_public_zone, host_id, moderation_status, is_open")
       .eq("id", payload.encounter_id)
       .single();
 
@@ -228,16 +228,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const effectiveTitle = enc.open_public_title || enc.titulo;
+
     // 6. TOCTOU Protection: calcular fingerprint canónico sobre los campos en DB
     const { data: expectedHash } = await supabaseAdmin.rpc("calcular_content_hash_moderacion", {
-      p_title: enc.titulo,
+      p_title: effectiveTitle,
       p_open_description: enc.open_description,
       p_modalidad: enc.modalidad,
       p_open_public_zone: enc.open_public_zone,
     });
 
     // 7. Evaluación sobre contenido canónico exclusivamente
-    const detResult = evaluateDeterministic(enc.titulo, enc.open_description || "");
+    const detResult = evaluateDeterministic(effectiveTitle, enc.open_description || "");
 
     const finalResult: ModerateContentResult = detResult || {
       decision: "allow",

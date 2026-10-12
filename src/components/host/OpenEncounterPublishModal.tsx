@@ -14,6 +14,7 @@ export interface OpenEncounterPublishModalProps {
   modalidad?: 'presencial' | 'virtual';
   lugarTexto?: string;
   linkVirtual?: string;
+  defaultTitle?: string;
   defaultDescription?: string;
   defaultSlots?: number;
   defaultLocalityId?: string;
@@ -30,6 +31,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   modalidad = 'presencial',
   lugarTexto = '',
   linkVirtual = '',
+  defaultTitle = '',
   defaultDescription = '',
   defaultSlots,
   defaultLocalityId,
@@ -39,6 +41,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 }) => {
   const { t } = useTranslation();
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
+  const [title, setTitle] = useState(defaultTitle);
   const [description, setDescription] = useState(defaultDescription);
   const [slotsInput, setSlotsInput] = useState<string>(defaultSlots ? String(defaultSlots) : '2');
   const [localityId, setLocalityId] = useState<string>(defaultLocalityId || 'guemes');
@@ -83,12 +86,13 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 
   useEffect(() => {
     if (isOpen) {
+      setTitle(defaultTitle || '');
       setDescription(defaultDescription || '');
       setSlotsInput(defaultSlots ? String(defaultSlots) : '2');
       if (defaultLocalityId) setLocalityId(defaultLocalityId);
       setErrorMsg(null);
     }
-  }, [isOpen, defaultDescription, defaultSlots, defaultLocalityId]);
+  }, [isOpen, defaultTitle, defaultDescription, defaultSlots, defaultLocalityId]);
 
   useEffect(() => {
     if (!isOpen || isVirtual) return;
@@ -157,6 +161,24 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
       }
     }
 
+    const cleanTitle = title.trim();
+    if (!cleanTitle || cleanTitle.length < 3) {
+      setErrorMsg(
+        t('open_encounters.open_title_min_length', {
+          defaultValue: 'Por favor ingresá un título público de al menos 3 caracteres.',
+        })
+      );
+      return;
+    }
+    if (cleanTitle.length > 80) {
+      setErrorMsg(
+        t('open_encounters.open_title_max_length', {
+          defaultValue: 'El título público no puede superar los 80 caracteres.',
+        })
+      );
+      return;
+    }
+
     if (!description.trim()) {
       setErrorMsg('Por favor ingresá una descripción pública para el encuentro.');
       return;
@@ -185,6 +207,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 
     try {
       const res = await openEncountersService.abrirEncuentro(encuentroId, hostId, {
+        open_public_title: cleanTitle,
         open_description: description.trim(),
         max_participants: calculatedMaxParticipants,
         locality_id: isVirtual ? null : localityId,
@@ -338,6 +361,23 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         )}
 
         <form onSubmit={handleSubmit} className="pe-publish-modal__form">
+          <div className="pe-publish-modal__field">
+            <label className="pe-publish-modal__label">
+              {t('open_encounters.open_title_label', { defaultValue: 'Título público del plan' })} *
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={80}
+              className="pe-publish-modal__input"
+              placeholder={t('open_encounters.open_title_placeholder', {
+                defaultValue: 'Ej: Café de especialidad y charla...',
+              })}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
           <div className="pe-publish-modal__field">
             <label className="pe-publish-modal__label">
               {t('open_encounters.open_desc_label', { defaultValue: 'Descripción pública del plan' })} *

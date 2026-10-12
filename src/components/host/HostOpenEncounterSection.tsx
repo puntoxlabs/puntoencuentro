@@ -618,6 +618,7 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         modalidad={encuentro.modalidad || 'presencial'}
         lugarTexto={encuentro.lugar_texto || ''}
         linkVirtual={encuentro.link_virtual || ''}
+        defaultTitle={encuentro.open_public_title || encuentro.titulo || ''}
         defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
         defaultSlots={availableSlots > 0 ? availableSlots : 2}
         defaultLocalityId={encuentro.locality_id || 'guemes'}

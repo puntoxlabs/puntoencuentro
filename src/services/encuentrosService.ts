@@ -19,6 +19,7 @@ export interface CreateEncuentroDTO {
   invitation_template?: string | null;
   reemplaza_a?: string | null;
   post_event_active_minutes?: number;
+  open_public_title?: string;
   open_description?: string;
   locality_id?: string;
   open_public_zone?: string;

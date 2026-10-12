@@ -184,6 +184,7 @@ export const openEncountersService = {
       p_max_participants: payload.max_participants,
       p_locality_id: payload.locality_id,
       p_open_public_zone: payload.open_public_zone ?? null,
+      p_open_public_title: payload.open_public_title ?? null,
     });
 
     if (error) {

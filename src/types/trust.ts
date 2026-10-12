@@ -104,6 +104,7 @@ export interface ReportPublicEncounterResult {
 export interface ModerationQueueItem {
   id: string;
   titulo: string;
+  open_public_title?: string | null;
   open_description: string | null;
   host_id: string;
   moderation_status: ModerationStatus;
