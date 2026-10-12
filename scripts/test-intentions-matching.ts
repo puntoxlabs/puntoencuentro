@@ -128,6 +128,7 @@ describe('Fase 20D: Matching Mis Ganas + Activity Relevance (27 Casos Obligatori
       'supabase/migrations/20261012010000_fase_20d_matching_mis_ganas_activity_relevance.sql',
       'supabase/migrations/20261012010500_fix_activity_relevance_coalesce.sql',
       'supabase/migrations/20261012011000_fix_activity_relevance_trim.sql',
+      'supabase/migrations/20261012012000_harden_matching_internal_rpc_grants.sql',
     ];
 
     for (const mig of targetMigrations) {
