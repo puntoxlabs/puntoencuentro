@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
     // Exclusión estricta de datos privados: NO se lee lugar_texto, link_virtual, public_token, etc.
     const { data: enc, error: encErr } = await supabaseAdmin
       .from("encuentros")
-      .select("id, titulo, open_public_title, open_description, modalidad, open_public_zone, host_id, moderation_status, is_open")
+      .select("id, open_public_title, open_description, modalidad, open_public_zone, host_id, moderation_status, is_open")
       .eq("id", payload.encounter_id)
       .single();
 
@@ -228,7 +228,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const effectiveTitle = enc.open_public_title || enc.titulo;
+    // Invariante de Privacidad: La moderación pública evalúa estrictamente open_public_title.
+    if (!enc.open_public_title || !enc.open_public_title.trim()) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "missing_open_public_title",
+          message: "Encounter has no valid open_public_title to moderate",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const effectiveTitle = enc.open_public_title.trim();
 
     // 6. TOCTOU Protection: calcular fingerprint canónico sobre los campos en DB
     const { data: expectedHash } = await supabaseAdmin.rpc("calcular_content_hash_moderacion", {

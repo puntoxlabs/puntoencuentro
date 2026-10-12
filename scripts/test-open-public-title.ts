@@ -266,9 +266,32 @@ describe('Separación de Título Privado y Público de Encuentros Abiertos (17 C
       );
     `);
 
-    // 4. Cargar la NUEVA migración de separación de título
+    // 4. Cargar la migración de separación de título
     const sepMigration = fs.readFileSync(path.join(process.cwd(), 'supabase/migrations/20261012130000_separate_open_public_title.sql'), 'utf8');
     await db.exec(sepMigration);
+
+    // 4.5 Insertar encuentro histórico cerrado pero con open_description para verificar backfill complementario
+    await db.exec(`
+      INSERT INTO public.encuentros (id, host_id, titulo, modalidad, lugar_texto, is_open, open_description, max_participants, locality_id, open_public_zone, moderation_status, open_public_title)
+      VALUES (
+        'bbbbbbbb-2222-2222-2222-222222222222',
+        '${hostUser}',
+        'Encuentro Histórico En Revisión',
+        'presencial',
+        'Café Histórico 2',
+        false,
+        'Descripción histórica pendiente',
+        4,
+        'guemes',
+        'Güemes',
+        'review_pending',
+        NULL
+      );
+    `);
+
+    // 5. Cargar la migración de invariantes estrictas de privacidad
+    const invMigration = fs.readFileSync(path.join(process.cwd(), 'supabase/migrations/20261012143000_enforce_open_public_title_privacy_invariants.sql'), 'utf8');
+    await db.exec(invMigration);
 
     // Moderador para pruebas de aprobación
     await db.exec(`
@@ -658,5 +681,316 @@ describe('Separación de Título Privado y Público de Encuentros Abiertos (17 C
     const tennisItem = items.find((it: any) => it.id === encId);
     assert.ok(tennisItem, 'Debe aparecer en Discovery');
     assert.equal(tennisItem.title, 'Torneo de tenis dobles');
+  });
+
+  test('Caso 18: Discovery nunca usa titulo privado como fallback', async () => {
+    // Encuentro abierto donde titulo privado es sensible/distinto
+    const encRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, open_description, modalidad, lugar_texto,
+        is_open, locality_id, open_public_zone, moderation_status
+      )
+      VALUES (
+        '${hostUser}',
+        'Reunión interna privada de accionistas',
+        'Charla abierta sobre emprendimiento',
+        'Conversación sobre negocios y proyectos',
+        'presencial',
+        'Oficina 402',
+        true,
+        'guemes',
+        'Güemes',
+        'approved'
+      )
+      RETURNING id;
+    `);
+    const encId = encRes.rows[0].id;
+
+    await setAuthContext(null);
+    const discRes = await db.query<any>(`
+      SELECT public.get_discovery_encuentros_abiertos() as res;
+    `);
+    const items = discRes.rows[0].res;
+    const found = items.find((it: any) => it.id === encId);
+    assert.ok(found, 'Debe aparecer en Discovery');
+    assert.equal(found.title, 'Charla abierta sobre emprendimiento');
+    assert.notEqual(found.title, 'Reunión interna privada de accionistas');
+  });
+
+  test('Caso 19: Moderación nunca recibe ni expone titulo privado', async () => {
+    // Cola de moderación no debe proyectar el título interno privado
+    await setAuthContext(moderatorUser);
+    const qRes = await db.query<any>(`
+      SELECT public.get_moderation_queue_seguro() as res;
+    `);
+    const queue = qRes.rows[0].res.queue;
+    for (const item of queue) {
+      if (item.open_public_title) {
+        assert.equal(item.titulo, item.open_public_title, 'En la cola de moderación el título mostrado debe coincidir con open_public_title');
+        assert.notEqual(item.titulo, 'Reunión interna privada de accionistas');
+      }
+    }
+  });
+
+  test('Caso 20: Hash público no usa titulo privado; cambiar titulo privado no altera hash público', async () => {
+    const encRes = await db.query<{ id: string; open_public_title: string; open_description: string; modalidad: string; open_public_zone: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, open_description, modalidad, lugar_texto,
+        is_open, locality_id, open_public_zone, moderation_status
+      )
+      VALUES (
+        '${hostUser}',
+        'Cumple privado de Juan',
+        'Música en vivo en la plaza',
+        'Acústico abierto en el parque',
+        'presencial',
+        'Plaza Mitre',
+        false,
+        'guemes',
+        'Güemes',
+        'review_pending'
+      )
+      RETURNING id, open_public_title, open_description, modalidad, open_public_zone;
+    `);
+    const enc = encRes.rows[0];
+
+    // Hash inicial sobre el contenido público
+    const hashRes1 = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(
+        '${enc.open_public_title}',
+        '${enc.open_description}',
+        '${enc.modalidad}',
+        '${enc.open_public_zone}'
+      );
+    `);
+    const publicHash1 = hashRes1.rows[0].calcular_content_hash_moderacion;
+
+    // Host modifica su título privado
+    await setAuthContext(hostUser);
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro(
+        '${enc.id}'::uuid,
+        '${hostUser}'::uuid,
+        '{"titulo": "Cumple súper privado de Juan editado"}'::jsonb
+      );
+    `);
+
+    // El hash público sigue siendo EXACTAMENTE el mismo
+    await resetAuthContext();
+    const encRow2 = await db.query<any>(`SELECT * FROM public.encuentros WHERE id = '${enc.id}'`);
+    const hashRes2 = await db.query<{ calcular_content_hash_moderacion: string }>(`
+      SELECT public.calcular_content_hash_moderacion(
+        '${encRow2.rows[0].open_public_title}',
+        '${encRow2.rows[0].open_description}',
+        '${encRow2.rows[0].modalidad}',
+        '${encRow2.rows[0].open_public_zone}'
+      );
+    `);
+    assert.equal(hashRes2.rows[0].calcular_content_hash_moderacion, publicHash1);
+
+    // Moderación con el hash original aprueba exitosamente
+    await setAuthContext(moderatorUser);
+    const modRes = await db.query<any>(`
+      SELECT public.resolver_moderacion_encuentro_seguro(
+        '${enc.id}'::uuid,
+        'approve'::text,
+        'Aprobado'::text,
+        '${publicHash1}'::text
+      ) as res;
+    `);
+    assert.equal(modRes.rows[0].res.ok, true);
+  });
+
+  test('Caso 21: Matching ignora completamente titulo privado', async () => {
+    // Encuentro donde titulo privado menciona café, pero open_public_title menciona ajedrez
+    const encRes = await db.query<{ id: string; open_activity_canonical: string; open_activity_matching_eligible: boolean }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, open_description, modalidad, lugar_texto,
+        is_open, locality_id, open_public_zone, moderation_status
+      )
+      VALUES (
+        '${hostUser}',
+        'Tomar un café y charla de trabajo',
+        'Torneo de ajedrez rápido',
+        'Partidas rápidas de ajedrez 5 minutos',
+        'presencial',
+        'Club Ajedrez',
+        true,
+        'guemes',
+        'Güemes',
+        'approved'
+      )
+      RETURNING id, open_activity_canonical, open_activity_matching_eligible;
+    `);
+    assert.equal(encRes.rows[0].open_activity_canonical, 'ajedrez');
+    assert.equal(encRes.rows[0].open_activity_matching_eligible, true);
+  });
+
+  test('Caso 22: Cambiar titulo privado no reclasifica actividad pública', async () => {
+    // Usamos el encuentro del Caso 21 ('ajedrez')
+    const encRes = await db.query<any>(`SELECT id FROM public.encuentros WHERE open_public_title = 'Torneo de ajedrez rápido'`);
+    const encId = encRes.rows[0].id;
+
+    // Cambiar titulo a algo con keyword fuerte de otra actividad (yoga)
+    await db.query(`
+      UPDATE public.encuentros
+      SET titulo = 'Clase de Yoga y meditación matutina'
+      WHERE id = '${encId}';
+    `);
+
+    // La actividad clasificada permanece 'ajedrez', no cambia a 'yoga'
+    const checkRow = await db.query<any>(`SELECT open_activity_canonical FROM public.encuentros WHERE id = '${encId}'`);
+    assert.equal(checkRow.rows[0].open_activity_canonical, 'ajedrez');
+  });
+
+  test('Caso 23: Publicación sin open_public_title falla cerrada', async () => {
+    // 1. Constraint impide insertar is_open = true con open_public_title NULL
+    await assert.rejects(async () => {
+      await db.query(`
+        INSERT INTO public.encuentros (
+          host_id, titulo, open_public_title, open_description, modalidad, lugar_texto,
+          is_open, locality_id, open_public_zone, moderation_status
+        )
+        VALUES (
+          '${hostUser}',
+          'Plan sin titulo publico',
+          NULL,
+          'Descripcion valida',
+          'presencial',
+          'Lugar',
+          true,
+          'guemes',
+          'Güemes',
+          'approved'
+        );
+      `);
+    }, /chk_encuentros_open_public_title/);
+
+    // 2. Constraint impide insertar review_pending con open_public_title NULL
+    await assert.rejects(async () => {
+      await db.query(`
+        INSERT INTO public.encuentros (
+          host_id, titulo, open_public_title, open_description, modalidad, lugar_texto,
+          is_open, locality_id, open_public_zone, moderation_status
+        )
+        VALUES (
+          '${hostUser}',
+          'Plan sin titulo publico en revision',
+          NULL,
+          'Descripcion valida',
+          'presencial',
+          'Lugar',
+          false,
+          'guemes',
+          'Güemes',
+          'review_pending'
+        );
+      `);
+    }, /chk_encuentros_open_public_title/);
+  });
+
+  test('Caso 24: Primera apertura inicializa explícitamente open_public_title desde titulo y son independientes', async () => {
+    const encRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, modalidad, lugar_texto, max_participants, is_open)
+      VALUES ('${hostUser}', 'Picnic en la costa', 'presencial', 'Playa Grande', 5, false)
+      RETURNING id;
+    `);
+    const encId = encRes.rows[0].id;
+
+    // Primera apertura sin open_public_title
+    await setAuthContext(hostUser);
+    const abrirRes = await db.query<any>(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}'::uuid,
+        '${hostUser}'::uuid,
+        'Picnic y mates mirando el mar'::text,
+        5::int,
+        'guemes'::text,
+        'Güemes'::text,
+        NULL::text
+      ) as res;
+    `);
+    assert.equal(abrirRes.rows[0].res.ok, true);
+    assert.equal(abrirRes.rows[0].res.open_public_title, 'Picnic en la costa');
+
+    // Cambiar titulo privado posteriormente
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro(
+        '${encId}'::uuid,
+        '${hostUser}'::uuid,
+        '{"titulo": "Picnic familiar privado"}'::jsonb
+      );
+    `);
+
+    // open_public_title permanece 'Picnic en la costa'
+    await resetAuthContext();
+    const checkRow = await db.query<any>(`SELECT titulo, open_public_title FROM public.encuentros WHERE id = '${encId}'`);
+    assert.equal(checkRow.rows[0].titulo, 'Picnic familiar privado');
+    assert.equal(checkRow.rows[0].open_public_title, 'Picnic en la costa');
+  });
+
+  test('Caso 25: Invitación privada por token conserva titulo privado si is_open = false, y usa open_public_title si is_open = true', async () => {
+    // 1. Encuentro privado con token
+    const privRes = await db.query<{ id: string; public_token: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, modalidad, lugar_texto, is_open, moderation_status
+      )
+      VALUES (
+        '${hostUser}',
+        'Cena secreta de cumpleaños',
+        NULL,
+        'presencial',
+        'Casa de Pedro',
+        false,
+        'draft'
+      )
+      RETURNING id, public_token;
+    `);
+    const privToken = privRes.rows[0].public_token;
+
+    await setAuthContext(null);
+    const privQuery = await db.query<any>(`
+      SELECT public.get_encuentro_por_public_token('${privToken}') as res;
+    `);
+    assert.equal(privQuery.rows[0].res.titulo, 'Cena secreta de cumpleaños', 'Invitado autorizado por token privado ve el título privado');
+
+    // 2. Encuentro abierto con token
+    await resetAuthContext();
+    const openRes = await db.query<{ id: string; public_token: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, open_description, modalidad, lugar_texto, is_open, locality_id, open_public_zone, moderation_status
+      )
+      VALUES (
+        '${hostUser}',
+        'Reunión interna privada 99',
+        'Festejo Comunitario Abierto',
+        'Festejo abierto a todos los vecinos',
+        'presencial',
+        'Plaza central',
+        true,
+        'guemes',
+        'Güemes',
+        'approved'
+      )
+      RETURNING id, public_token;
+    `);
+    const openToken = openRes.rows[0].public_token;
+
+    const openQuery = await db.query<any>(`
+      SELECT public.get_encuentro_por_public_token('${openToken}') as res;
+    `);
+    assert.equal(openQuery.rows[0].res.titulo, 'Festejo Comunitario Abierto', 'Encuentro abierto retorna open_public_title en titulo');
+    assert.notEqual(openQuery.rows[0].res.titulo, 'Reunión interna privada 99');
+  });
+
+  test('Caso 26: Datos históricos en review_pending quedan correctamente backfilleados', async () => {
+    // El encuentro 'bbbbbbbb-2222-2222-2222-222222222222' fue insertado antes de la migración de invariantes con open_public_title NULL
+    const histRow = await db.query<any>(`
+      SELECT id, titulo, open_public_title, moderation_status FROM public.encuentros
+      WHERE id = 'bbbbbbbb-2222-2222-2222-222222222222';
+    `);
+    assert.ok(histRow.rows[0]);
+    assert.equal(histRow.rows[0].open_public_title, 'Encuentro Histórico En Revisión', 'El backfill complementario debe haber poblado open_public_title');
+    assert.equal(histRow.rows[0].moderation_status, 'review_pending');
   });
 });
