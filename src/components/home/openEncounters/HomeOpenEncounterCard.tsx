@@ -28,14 +28,15 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
       ? 'remaining'
       : 'count';
 
+  const confirmedPersons = encounter.confirmedSeats ?? encounter.confirmedCount ?? 0;
   const confirmedLabel =
-    encounter.confirmedCount === 0
+    confirmedPersons === 0
       ? t('open_encounters.confirmed_zero', { defaultValue: '0 personas confirmadas' })
-      : encounter.confirmedCount === 1
+      : confirmedPersons === 1
       ? t('open_encounters.confirmed_single', { defaultValue: '1 persona confirmada' })
       : t('open_encounters.confirmed_people', {
-          count: encounter.confirmedCount,
-          defaultValue: `${encounter.confirmedCount} personas confirmadas`,
+          count: confirmedPersons,
+          defaultValue: `${confirmedPersons} personas confirmadas`,
         });
 
   const matchLabel = isHighlighted

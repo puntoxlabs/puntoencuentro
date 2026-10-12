@@ -306,12 +306,18 @@ describe('Suite de Cupos Canónicos y Reserva Múltiple V1 (Casos 1 al 26)', () 
       GRANT EXECUTE ON FUNCTION public.rechazar_solicitud_encuentro_abierto(UUID, UUID) TO authenticated;
     `);
 
-    // 2. Cargar y aplicar la migración canónica 20261012160000
-    const migSql = fs.readFileSync(
+    // 2. Cargar y aplicar las migraciones canónicas
+    const migSql1 = fs.readFileSync(
       path.join(process.cwd(), 'supabase/migrations/20261012160000_canonical_quotas_and_multi_seat_v1.sql'),
       'utf8'
     );
-    await db.exec(migSql);
+    await db.exec(migSql1);
+
+    const migSql2 = fs.readFileSync(
+      path.join(process.cwd(), 'supabase/migrations/20261012173000_canonical_confirmed_seats_contract.sql'),
+      'utf8'
+    );
+    await db.exec(migSql2);
   });
 
   let testEncounterId: string;
@@ -821,5 +827,180 @@ describe('Suite de Cupos Canónicos y Reserva Múltiple V1 (Casos 1 al 26)', () 
       cssCode.includes('@media (min-width: 768px)'),
       'Debe conservar las reglas de modal desktop sin regresión'
     );
+  });
+
+  // ==================================================
+  // SECCIÓN 12: SEMÁNTICA DE CONFIRMED_SEATS Y PERSONAS FÍSICAS (CASOS A AL F)
+  // ==================================================
+
+  test('Caso A: Capacidad 14, 0 confirmados -> Host 14 / Discovery 14 / Detalle 14, 0 confirmados', async () => {
+    await setAuthContext(null);
+    const discRes = await db.query<{ get_discovery_encuentros_abiertos: any }>(
+      `SELECT public.get_discovery_encuentros_abiertos() AS get_discovery_encuentros_abiertos;`
+    );
+    const enc = discRes.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === testEncounterId);
+    assert.equal(enc.open_slots, 14);
+    assert.equal(enc.confirmed_seats, 0);
+    assert.equal(enc.confirmed_count, 0);
+
+    await setAuthContext(hostUser);
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 14);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 0);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_requests, 0);
+  });
+
+  test('Caso B: Lea seat_count = 3 aprobado -> titulares = 1, confirmed_seats = 3, Host 11, Discovery 11, Detalle 11, público = 3 personas confirmadas', async () => {
+    await setAuthContext(applicant1);
+    const reqRes = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Lea', 'Somos 3', NULL, 3) AS solicitar_sumarse_encuentro_abierto;`
+    );
+    const reqId = reqRes.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    await setAuthContext(hostUser);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqId}'::uuid);`);
+
+    // Host
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 3, 'confirmed_seats debe ser 3');
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_requests, 1, 'titulares debe ser 1');
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 11, 'available_slots debe ser 11');
+
+    // Discovery y Detalle público
+    await setAuthContext(null);
+    const discRes = await db.query<{ get_discovery_encuentros_abiertos: any }>(
+      `SELECT public.get_discovery_encuentros_abiertos() AS get_discovery_encuentros_abiertos;`
+    );
+    const enc = discRes.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === testEncounterId);
+    assert.equal(enc.open_slots, 11, 'Discovery debe mostrar 11 lugares');
+    assert.equal(enc.confirmed_seats, 3, 'confirmed_seats en público debe ser 3 personas');
+    assert.equal(enc.confirmed_count, 3, 'confirmed_count en público debe ser 3 personas');
+  });
+
+  test('Caso C: Lea = 3, Ana = 2 -> titulares = 2, confirmed_seats = 5, disponibles = 9, público = 5 personas confirmadas', async () => {
+    // Solicitud Lea (3)
+    await setAuthContext(applicant1);
+    const reqLea = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Lea', 'Somos 3', NULL, 3) AS solicitar_sumarse_encuentro_abierto;`
+    );
+    // Solicitud Ana (2)
+    await setAuthContext(applicant2);
+    const reqAna = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Ana', 'Somos 2', NULL, 2) AS solicitar_sumarse_encuentro_abierto;`
+    );
+
+    // Host aprueba ambas
+    await setAuthContext(hostUser);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqLea.rows[0].solicitar_sumarse_encuentro_abierto.request_id}'::uuid);`);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqAna.rows[0].solicitar_sumarse_encuentro_abierto.request_id}'::uuid);`);
+
+    // Host
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 5);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_requests, 2);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 9);
+
+    // Discovery
+    await setAuthContext(null);
+    const discRes = await db.query<{ get_discovery_encuentros_abiertos: any }>(
+      `SELECT public.get_discovery_encuentros_abiertos() AS get_discovery_encuentros_abiertos;`
+    );
+    const enc = discRes.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === testEncounterId);
+    assert.equal(enc.open_slots, 9);
+    assert.equal(enc.confirmed_seats, 5);
+    assert.equal(enc.confirmed_count, 5);
+  });
+
+  test('Caso D: Pendiente de 4 -> NO altera confirmed_seats ni disponibilidad', async () => {
+    // Primero aprobamos a Lea de 3 (deja 11 disponibles)
+    await setAuthContext(applicant1);
+    const reqLea = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Lea', 'Somos 3', NULL, 3) AS solicitar_sumarse_encuentro_abierto;`
+    );
+    await setAuthContext(hostUser);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqLea.rows[0].solicitar_sumarse_encuentro_abierto.request_id}'::uuid);`);
+
+    // Ahora solicitud pendiente de 4
+    await setAuthContext(applicant2);
+    await db.query(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Bruno', 'Somos 4', NULL, 4);`
+    );
+
+    // Verificar en Host y Discovery: sigue en 11 libres y 3 confirmados
+    await setAuthContext(hostUser);
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 3);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 11);
+
+    await setAuthContext(null);
+    const discRes = await db.query<{ get_discovery_encuentros_abiertos: any }>(
+      `SELECT public.get_discovery_encuentros_abiertos() AS get_discovery_encuentros_abiertos;`
+    );
+    const enc = discRes.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === testEncounterId);
+    assert.equal(enc.open_slots, 11);
+    assert.equal(enc.confirmed_seats, 3);
+  });
+
+  test('Caso E: Cancelar/eliminar Lea de 3 -> confirmed_seats disminuye 3 y disponibilidad aumenta 3', async () => {
+    // Aprobamos a Lea (3)
+    await setAuthContext(applicant1);
+    const reqLea = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Lea', 'Somos 3', NULL, 3) AS solicitar_sumarse_encuentro_abierto;`
+    );
+    await setAuthContext(hostUser);
+    const appRes = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(
+      `SELECT public.aprobar_solicitud_encuentro_abierto('${reqLea.rows[0].solicitar_sumarse_encuentro_abierto.request_id}'::uuid);`
+    );
+    const partId = appRes.rows[0].aprobar_solicitud_encuentro_abierto.participante_id;
+
+    // Eliminar participante Lea
+    await resetAuthContext();
+    await db.query(`DELETE FROM public.participantes WHERE id = '${partId}'::uuid;`);
+
+    // Host y Discovery deben volver automáticamente a 14 disponibles y 0 confirmados
+    await setAuthContext(hostUser);
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 0);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 14);
+
+    await setAuthContext(null);
+    const discRes = await db.query<{ get_discovery_encuentros_abiertos: any }>(
+      `SELECT public.get_discovery_encuentros_abiertos() AS get_discovery_encuentros_abiertos;`
+    );
+    const enc = discRes.rows[0].get_discovery_encuentros_abiertos.find((e: any) => e.id === testEncounterId);
+    assert.equal(enc.open_slots, 14);
+    assert.equal(enc.confirmed_seats, 0);
+  });
+
+  test('Caso F: Multi-seat disabled -> comportamiento histórico seat_count = 1', async () => {
+    await resetAuthContext();
+    await db.query(`UPDATE public.encuentros SET allow_multi_seat_requests = false, max_seats_per_request = 1 WHERE id = '${testEncounterId}';`);
+
+    // Solicitante envía default o intento de más
+    await setAuthContext(applicant1);
+    const reqRes = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(
+      `SELECT public.solicitar_sumarse_encuentro_abierto('${testEncounterId}'::uuid, 'Solo', 'Voy solo') AS solicitar_sumarse_encuentro_abierto;`
+    );
+    assert.equal(reqRes.rows[0].solicitar_sumarse_encuentro_abierto.seat_count, 1);
+
+    await setAuthContext(hostUser);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqRes.rows[0].solicitar_sumarse_encuentro_abierto.request_id}'::uuid);`);
+
+    const hostDet = await db.query<{ get_detalle_host_seguro: any }>(
+      `SELECT public.get_detalle_host_seguro('${testEncounterId}'::uuid, '${hostUser}'::uuid) AS get_detalle_host_seguro;`
+    );
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_seats, 1);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.confirmed_requests, 1);
+    assert.equal(hostDet.rows[0].get_detalle_host_seguro.available_slots, 13);
   });
 });

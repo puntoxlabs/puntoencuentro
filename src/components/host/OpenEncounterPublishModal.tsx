@@ -18,7 +18,8 @@ export interface OpenEncounterPublishModalProps {
   defaultDescription?: string;
   defaultSlots?: number;
   defaultLocalityId?: string;
-  confirmedCount: number;
+  confirmedCount?: number;
+  confirmedSeats?: number;
   defaultAllowMultiSeat?: boolean;
   defaultMaxSeats?: number;
   onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
@@ -37,7 +38,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
   defaultDescription = '',
   defaultSlots,
   defaultLocalityId,
-  confirmedCount,
+  confirmedCount = 0,
+  confirmedSeats,
   defaultAllowMultiSeat,
   defaultMaxSeats,
   onUpdateLocation,
@@ -247,7 +249,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
             })
           );
         } else if (res.error === 'max_participants_too_low') {
-          setErrorMsg(`No podés reducir el cupo por debajo de los lugares ya confirmados (${confirmedCount}).`);
+          const effectiveConfirmedSeats = confirmedSeats ?? confirmedCount ?? 0;
+          setErrorMsg(`No podés reducir el cupo por debajo de los lugares ya confirmados (${effectiveConfirmedSeats}).`);
         } else if (res.error === 'private_location_required') {
           setErrorMsg('El lugar y dirección privada es requerido para abrir el encuentro.');
           setIsEditingLocation(true);

@@ -30,7 +30,9 @@ import './HostOpenEncounterSection.css';
 export interface HostOpenEncounterSectionProps {
   encuentro: any;
   hostId: string;
-  confirmedCount: number;
+  confirmedCount?: number;
+  confirmedSeats?: number;
+  confirmedRequests?: number;
   onRefresh: () => void;
   onParticipantAdded: () => void;
   onUpdateLocation?: (loc: { lugar_texto?: string; link_virtual?: string }) => Promise<void>;
@@ -40,7 +42,9 @@ export interface HostOpenEncounterSectionProps {
 export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> = ({
   encuentro,
   hostId,
-  confirmedCount,
+  confirmedCount = 0,
+  confirmedSeats: confirmedSeatsProp,
+  confirmedRequests: confirmedRequestsProp,
   onRefresh,
   onParticipantAdded,
   onUpdateLocation,
@@ -74,8 +78,20 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     encuentro?.duration_minutes ?? encuentro?.post_event_active_minutes ?? 45
   );
   const maxParticipants = encuentro?.max_participants || 0;
-  // Semántica canónica: max_participants = lugares para externos. El host no consume cupo visible.
-  const availableSlots = Math.max(0, maxParticipants - confirmedCount);
+  // Semántica canónica: confirmed_seats = SUM(seat_count).
+  // Fuente de verdad server-side (encuentro.confirmed_seats de get_detalle_host_seguro) con fallback a props.
+  const confirmedSeats = typeof encuentro?.confirmed_seats === 'number'
+    ? encuentro.confirmed_seats
+    : (confirmedSeatsProp ?? confirmedCount ?? 0);
+
+  const confirmedRequests = typeof confirmedRequestsProp === 'number'
+    ? confirmedRequestsProp
+    : (typeof encuentro?.confirmed_requests === 'number' ? encuentro.confirmed_requests : undefined);
+
+  // Semántica canónica: available_slots = max_participants - confirmed_seats
+  const availableSlots = typeof encuentro?.available_slots === 'number'
+    ? encuentro.available_slots
+    : Math.max(0, maxParticipants - confirmedSeats);
 
   const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string }) => {
     if (res?.moderation_status === 'review_pending') {
@@ -249,7 +265,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
           defaultSlots={availableSlots > 0 ? availableSlots : 2}
           defaultLocalityId={encuentro.locality_id || 'guemes'}
-          confirmedCount={confirmedCount}
+          confirmedCount={confirmedSeats}
+          confirmedSeats={confirmedSeats}
           onUpdateLocation={onUpdateLocation}
           onPublished={handlePublished}
         />
@@ -418,17 +435,19 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       <div className="pe-host-open-card__slots-grid">
         <div className="pe-host-open-card__slot-metric">
           <span className="pe-host-open-card__metric-label">
-            <Users size={12} /> Participantes confirmados
+            <Users size={12} /> Personas confirmadas
           </span>
           <span className="pe-host-open-card__metric-value">
-            {confirmedCount}
+            {confirmedSeats}
           </span>
           <span className="pe-host-open-card__metric-subtext" style={{ fontSize: 11, color: '#64748b' }}>
-            {confirmedCount === 0
-              ? 'Sin participantes externos confirmados'
-              : confirmedCount === 1
-              ? '1 participante confirmado'
-              : `${confirmedCount} participantes confirmados`}
+            {confirmedSeats === 0
+              ? 'Sin personas externas confirmadas'
+              : confirmedSeats === 1
+              ? '1 persona confirmada'
+              : (confirmedRequests && confirmedRequests !== confirmedSeats
+                  ? `${confirmedSeats} personas confirmadas (${confirmedRequests} ${confirmedRequests === 1 ? 'titular' : 'titulares'})`
+                  : `${confirmedSeats} personas confirmadas`)}
           </span>
         </div>
 
@@ -641,7 +660,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         defaultDescription={encuentro.open_description || encuentro.descripcion || ''}
         defaultSlots={encuentro.max_participants ? encuentro.max_participants : (availableSlots > 0 ? availableSlots : 2)}
         defaultLocalityId={encuentro.locality_id || 'guemes'}
-        confirmedCount={confirmedCount}
+        confirmedCount={confirmedSeats}
+        confirmedSeats={confirmedSeats}
         defaultAllowMultiSeat={Boolean(encuentro.allow_multi_seat_requests)}
         defaultMaxSeats={encuentro.max_seats_per_request || 2}
         onUpdateLocation={onUpdateLocation}

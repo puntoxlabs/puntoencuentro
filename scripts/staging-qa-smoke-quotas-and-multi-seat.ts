@@ -135,9 +135,11 @@ async function runStagingSmokeQuotasAndMultiSeat() {
     assert.ok(discEnc, 'El encuentro debe aparecer en Discovery');
     assert.equal(discEnc.open_slots, 14, 'Discovery debe mostrar exactamente 14 lugares libres (NO 15)');
     assert.equal(discEnc.public_capacity, 14, 'Discovery public_capacity debe ser 14');
+    assert.equal(discEnc.confirmed_seats, 0, 'Discovery confirmed_seats debe ser 0');
+    assert.equal(discEnc.confirmed_count, 0, 'Discovery confirmed_count debe ser 0');
     assert.equal(discEnc.allow_multi_seat_requests, true, 'allow_multi_seat_requests debe ser true');
     assert.equal(discEnc.max_seats_per_request, 4, 'max_seats_per_request debe ser 4');
-    console.log(`  ✔ Discovery: open_slots = ${discEnc.open_slots}, public_capacity = ${discEnc.public_capacity}`);
+    console.log(`  ✔ Discovery: open_slots = ${discEnc.open_slots}, public_capacity = ${discEnc.public_capacity}, confirmed_seats = ${discEnc.confirmed_seats}`);
 
     const { data: hostDet, error: hostErr } = await hostClient.rpc('get_detalle_host_seguro', {
       p_encuentro_id: encounterId,
@@ -147,7 +149,8 @@ async function runStagingSmokeQuotasAndMultiSeat() {
     assert.equal((hostDet as any).available_slots, 14, 'Host disponible debe ser exactamente 14 (NO 15)');
     assert.equal((hostDet as any).max_participants, 14, 'Host max_participants debe ser 14');
     assert.equal((hostDet as any).confirmed_seats, 0, 'Host confirmed_seats debe ser 0');
-    console.log(`  ✔ Host Detalle: available_slots = ${(hostDet as any).available_slots}, confirmed = ${(hostDet as any).confirmed_seats}`);
+    assert.equal((hostDet as any).confirmed_requests, 0, 'Host confirmed_requests debe ser 0');
+    console.log(`  ✔ Host Detalle: available_slots = ${(hostDet as any).available_slots}, confirmed_seats = ${(hostDet as any).confirmed_seats}, confirmed_requests = ${(hostDet as any).confirmed_requests}`);
     console.log('  ✔ Consistencia canónica P0 verificada: Host 14 = Discovery 14 = Detalle 14 (CERO sobrecupo anfitrión)\n');
 
     // 4. Solicitud A: Ana pide 3 lugares
@@ -168,7 +171,8 @@ async function runStagingSmokeQuotasAndMultiSeat() {
     const { data: discPending } = await admin.rpc('get_discovery_encuentros_abiertos');
     const encPending = (discPending as any[]).find((e) => e.id === encounterId);
     assert.equal(encPending.open_slots, 14, 'Con solicitud pendiente, Discovery sigue mostrando 14');
-    console.log('  ✔ Solicitud pendiente NO reserva cupo: open_slots sigue en 14');
+    assert.equal(encPending.confirmed_seats, 0, 'Con solicitud pendiente, confirmed_seats sigue en 0');
+    console.log('  ✔ Solicitud pendiente NO reserva cupo: open_slots sigue en 14, confirmed_seats = 0');
 
     // Host aprueba Solicitud A
     console.log('  Host aprueba Solicitud A (3 lugares)...');
@@ -186,6 +190,7 @@ async function runStagingSmokeQuotasAndMultiSeat() {
     const { data: discAfterA } = await admin.rpc('get_discovery_encuentros_abiertos');
     const encAfterA = (discAfterA as any[]).find((e) => e.id === encounterId);
     assert.equal(encAfterA.open_slots, 11, 'Discovery debe mostrar exactamente 11');
+    assert.equal(encAfterA.confirmed_seats, 3, 'Discovery confirmed_seats debe ser 3');
     assert.equal(encAfterA.confirmed_count, 3, 'Discovery confirmed_count debe ser 3');
 
     const { data: hostAfterA } = await hostClient.rpc('get_detalle_host_seguro', {
@@ -193,7 +198,9 @@ async function runStagingSmokeQuotasAndMultiSeat() {
       p_host_id: hostId,
     });
     assert.equal((hostAfterA as any).available_slots, 11, 'Host available_slots debe ser 11');
-    assert.equal((hostAfterA as any).confirmed_seats, 3, 'Host confirmed_seats debe ser 3');
+    assert.equal((hostAfterA as any).confirmed_seats, 3, 'Host confirmed_seats debe ser 3 (SUM de lugares)');
+    assert.equal((hostAfterA as any).confirmed_requests, 1, 'Host confirmed_requests debe ser 1 (titulares)');
+    console.log(`  ✔ Host: disponibles = ${(hostAfterA as any).available_slots}, confirmed_seats = ${(hostAfterA as any).confirmed_seats}, confirmed_requests = ${(hostAfterA as any).confirmed_requests}`);
     console.log('  ✔ Aprobación de 3 lugares reduce atómicamente cupos a 11 en Discovery y Host\n');
 
     // 5. Solicitud B: Beto pide 2 lugares y queda pendiente
@@ -293,14 +300,17 @@ async function runStagingSmokeQuotasAndMultiSeat() {
     const { data: discAfterCancel } = await admin.rpc('get_discovery_encuentros_abiertos');
     const encAfterCancel = (discAfterCancel as any[]).find((e) => e.id === encounterId);
     assert.equal(encAfterCancel.open_slots, 14, 'Al cancelar participante de 3, Discovery vuelve inmediatamente a 14');
+    assert.equal(encAfterCancel.confirmed_seats, 0, 'Discovery confirmed_seats vuelve a 0');
+    assert.equal(encAfterCancel.confirmed_count, 0, 'Discovery confirmed_count vuelve a 0');
 
     const { data: hostAfterCancel } = await hostClient.rpc('get_detalle_host_seguro', {
       p_encuentro_id: encounterId,
       p_host_id: hostId,
     });
     assert.equal((hostAfterCancel as any).available_slots, 14, 'Host vuelve inmediatamente a 14');
-    assert.equal((hostAfterCancel as any).confirmed_seats, 0, 'Confirmados vuelve a 0');
-    console.log('  ✔ Liberación confirmada: disponible pasó de 11 a 14 automáticamente\n');
+    assert.equal((hostAfterCancel as any).confirmed_seats, 0, 'Host confirmed_seats vuelve a 0');
+    assert.equal((hostAfterCancel as any).confirmed_requests, 0, 'Host confirmed_requests vuelve a 0');
+    console.log('  ✔ Liberación confirmada: disponible pasó de 11 a 14 automáticamente y confirmados a 0\n');
 
     console.log('========================================================');
     console.log('TODAS LAS PRUEBAS DE CUPOS Y RESERVA MÚLTIPLE EN STAGING PASARON');

@@ -783,7 +783,14 @@ const DetailHost: React.FC = () => {
                   {avatarChar}
                 </div>
                 <div className="dh-participant-info" title={p.nombre_invitado}>
-                  <span className="dh-participant-name">{p.nombre_invitado}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span className="dh-participant-name">{p.nombre_invitado}</span>
+                    {p.seat_count && p.seat_count > 1 && (
+                      <span className="pe-participant-seat-badge" style={{ fontSize: 11, fontWeight: 600, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: 999 }}>
+                        · {p.seat_count} lugares
+                      </span>
+                    )}
+                  </div>
                   {p.user_id && (
                     <div className="dh-participant-linked">
                       <User size={12} strokeWidth={2.5} />
@@ -1413,19 +1420,26 @@ const DetailHost: React.FC = () => {
           )}
 
           {/* ENCUENTROS ABIERTOS / DISCOVERY */}
-          {encuentro && (
-            <HostOpenEncounterSection
-              encuentro={encuentro}
-              hostId={hostIdRef.current || ''}
-              confirmedCount={confirmados.length}
-              onRefresh={() => loadData(hostIdRef.current!)}
-              onParticipantAdded={refreshParticipantes}
-              onUpdateLocation={async (loc) => {
-                await encuentrosService.updateEncuentro(encuentro.id, loc, hostIdRef.current!);
-                setEncuentro((prev: any) => ({ ...prev, ...loc }));
-              }}
-            />
-          )}
+          {encuentro && (() => {
+            const confirmedSeatsTotal = typeof encuentro.confirmed_seats === 'number'
+              ? encuentro.confirmed_seats
+              : confirmados.reduce((acc: number, p: any) => acc + (p.seat_count || 1), 0);
+            return (
+              <HostOpenEncounterSection
+                encuentro={encuentro}
+                hostId={hostIdRef.current || ''}
+                confirmedCount={confirmedSeatsTotal}
+                confirmedSeats={confirmedSeatsTotal}
+                confirmedRequests={confirmados.length}
+                onRefresh={() => loadData(hostIdRef.current!)}
+                onParticipantAdded={refreshParticipantes}
+                onUpdateLocation={async (loc) => {
+                  await encuentrosService.updateEncuentro(encuentro.id, loc, hostIdRef.current!);
+                  setEncuentro((prev: any) => ({ ...prev, ...loc }));
+                }}
+              />
+            );
+          })()}
 
           {/* 6. PARTICIPANTES */}
           <div className="dh-participants-section" style={{ paddingBottom: isParticipantsExpanded ? 20 : 0 }}>
@@ -1451,7 +1465,13 @@ const DetailHost: React.FC = () => {
                 {hasAnyResponse ? (
                   <p className="dh-participants-summary" style={{ margin: 0, fontSize: 13 }}>
                     {[
-                      formatCount(confirmados.length, 'confirmado', 'confirmados'),
+                      (() => {
+                        const seats = confirmados.reduce((acc: number, p: any) => acc + (p.seat_count || 1), 0);
+                        if (seats > confirmados.length) {
+                          return `${seats} confirmados (${confirmados.length} ${confirmados.length === 1 ? 'titular' : 'titulares'})`;
+                        }
+                        return formatCount(confirmados.length, 'confirmado', 'confirmados');
+                      })(),
                       formatCount(pendientes.length, 'pendiente', 'pendientes'),
                       formatCount(rechazados.length, 'no asiste', 'no asisten'),
                     ].filter(Boolean).join(' · ')}

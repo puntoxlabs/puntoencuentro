@@ -7,8 +7,9 @@ export interface OpenEncounterSummary {
   dateLabel: string; // e.g. "Jueves · 20:00"
   approximateZone: string; // e.g. "Güemes"
   localityId: string; // e.g. "guemes"
-  openSlots: number; // Available spots to join
-  confirmedCount: number; // Current confirmed participants
+  openSlots: number; // Available spots to join = max_participants - SUM(seat_count)
+  confirmedCount: number; // Canonical confirmed spots/persons = SUM(seat_count)
+  confirmedSeats?: number; // Canonical alias for confirmed physical seats = SUM(seat_count)
   language: string;
   description?: string;
   hostName?: string;
