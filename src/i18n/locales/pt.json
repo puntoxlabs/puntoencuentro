@@ -127,6 +127,7 @@
     "personal_intentions_title": "Tenho vontade de…",
     "badge_intention": "Ganas de…",
     "card_aria_label": "Ganas de…: {{title}}",
+    "matched_intention_badge": "Combina com o que você tem vontade de fazer",
     "slot_single": "Falta 1",
     "slots_remaining": "Restam {{count}}",
     "slots_count": "{{count}} vagas",

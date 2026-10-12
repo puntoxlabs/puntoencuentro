@@ -412,6 +412,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     return 'encuentros';
   });
   const [intentionCreateTrigger, setIntentionCreateTrigger] = useState(0);
+  const [matchedHighlightIds, setMatchedHighlightIds] = useState<string[]>([]);
+
+  const handleViewMatches = useCallback((matchedIds: string[]) => {
+    setMatchedHighlightIds(matchedIds);
+  }, []);
+
+  const handleClearHighlight = useCallback(() => {
+    setMatchedHighlightIds([]);
+  }, []);
 
   const scrollToPersonalSection = () => {
     const personalSection = document.querySelector('.home-encounters-section') || document.querySelector('.pe-intenciones-section');
@@ -1439,6 +1448,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               triggerCreateTimestamp={intentionCreateTrigger}
               isV2Variant={isV2Variant}
               onSaveSuccess={handleIntentionSaved}
+              onViewMatches={handleViewMatches}
             />
           </div>
         )}
@@ -1597,6 +1607,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             isV2Variant={isV2Variant}
             onOpenCreate={handleCreateClick}
             intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title') : undefined}
+            highlightEncounterIds={matchedHighlightIds}
+            onClearHighlight={handleClearHighlight}
             onFocusIntentInput={() => {
               const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
               if (textarea) {

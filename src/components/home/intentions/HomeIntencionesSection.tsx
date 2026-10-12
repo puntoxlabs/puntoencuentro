@@ -36,6 +36,8 @@ export interface HomeIntencionesSectionProps {
   initialLoading?: boolean;
   mockIntenciones?: Intencion[];
   onSaveSuccess?: () => void;
+  /** Callback al pulsar 'Ver opciones' con los IDs de encuentros coincidentes */
+  onViewMatches?: (matchedIds: string[]) => void;
 }
 
 export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
@@ -44,6 +46,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
   initialLoading,
   mockIntenciones,
   onSaveSuccess,
+  onViewMatches,
 }) => {
   const { t } = useTranslation();
   const navigate = useSafeNavigate();
@@ -406,9 +409,21 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
               type="button"
               className="pe-intenciones-match-feedback-cta"
               onClick={() => {
-                const discoveryEl = document.getElementById('home-discovery-section');
-                if (discoveryEl) {
-                  discoveryEl.scrollIntoView({ behavior: 'smooth' });
+                const matchedIds = matchFeedback?.encounterIds || [];
+                if (onViewMatches && matchedIds.length > 0) {
+                  onViewMatches(matchedIds);
+                } else {
+                  const discoveryEl = document.getElementById('home-discovery-section');
+                  if (discoveryEl) {
+                    const prefersReducedMotion =
+                      typeof window !== 'undefined' &&
+                      window.matchMedia &&
+                      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    discoveryEl.scrollIntoView({
+                      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                      block: 'start',
+                    });
+                  }
                 }
                 setMatchFeedback(null);
               }}

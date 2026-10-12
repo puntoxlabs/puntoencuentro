@@ -166,3 +166,52 @@
   align-items: center;
   gap: 2px;
 }
+
+/* Estado de Coincidencia Destacada ("Ver opciones" de Mis Ganas) */
+.pe-open-card--highlighted {
+  border-color: #0d9488 !important;
+  box-shadow: 0 0 0 2.5px rgba(13, 148, 136, 0.45), 0 8px 24px -4px rgba(13, 148, 136, 0.25) !important;
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.95) 0%, var(--color-surface, #ffffff) 100%) !important;
+  animation: pe-card-highlight-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes pe-card-highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 2.5px rgba(13, 148, 136, 0.4), 0 8px 24px -4px rgba(13, 148, 136, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 4.5px rgba(13, 148, 136, 0.65), 0 10px 28px -2px rgba(13, 148, 136, 0.35);
+  }
+}
+
+.pe-open-card__match-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-bottom: 6px;
+  padding: 2.5px 8px;
+  background: #0f766e;
+  color: #ffffff;
+  border-radius: 9999px;
+  font-size: 0.70rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  box-shadow: 0 1px 3px rgba(15, 118, 110, 0.3);
+}
+
+.pe-open-card__match-badge-icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: #a7f3d0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-open-card--highlighted {
+    animation: none !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.6) !important;
+  }
+}
+

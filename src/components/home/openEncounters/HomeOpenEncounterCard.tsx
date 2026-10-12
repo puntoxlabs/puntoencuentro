@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, MapPin, ChevronRight } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary } from './types';
 import { getSlotLabel } from './types';
@@ -8,11 +8,13 @@ import './HomeOpenEncounterCard.css';
 export interface HomeOpenEncounterCardProps {
   encounter: OpenEncounterSummary;
   onClick: (encounter: OpenEncounterSummary) => void;
+  isHighlighted?: boolean;
 }
 
 export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
   encounter,
   onClick,
+  isHighlighted = false,
 }) => {
   const { t } = useTranslation();
 
@@ -36,15 +38,26 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
           defaultValue: `${encounter.confirmedCount} personas confirmadas`,
         });
 
-  const accessibleLabel = `${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
+  const matchLabel = isHighlighted
+    ? `${t('open_encounters.matched_intention_badge', { defaultValue: 'Coincide con tus ganas' })}. `
+    : '';
+
+  const accessibleLabel = `${matchLabel}${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
 
   return (
     <button
       type="button"
-      className="pe-open-card"
+      className={`pe-open-card${isHighlighted ? ' pe-open-card--highlighted' : ''}`}
       onClick={() => onClick(encounter)}
       aria-label={accessibleLabel}
+      data-encounter-id={encounter.id}
     >
+      {isHighlighted && (
+        <div className="pe-open-card__match-badge" role="status">
+          <Sparkles className="pe-open-card__match-badge-icon" size={11} aria-hidden="true" />
+          <span>{t('open_encounters.matched_intention_badge', { defaultValue: 'Coincide con tus ganas' })}</span>
+        </div>
+      )}
       <div className="pe-open-card__header">
         <div className="pe-open-card__title-box">
           {encounter.emoji && (

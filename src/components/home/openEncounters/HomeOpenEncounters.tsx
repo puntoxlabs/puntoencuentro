@@ -50,6 +50,10 @@ export interface HomeOpenEncountersProps {
   intentionsTitle?: string;
   /** Si está activa la variante V2 (desktop carrusel con flechas, orden por fecha ascendente) */
   isV2Variant?: boolean;
+  /** IDs de encuentros devueltos por matching inmediato que deben resaltarse temporalmente */
+  highlightEncounterIds?: string[];
+  /** Callback al finalizar el ciclo de resaltado (~3.5s) */
+  onClearHighlight?: () => void;
 }
 
 /**
@@ -86,6 +90,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onFocusIntentInput,
   intentionsTitle,
   isV2Variant = false,
+  highlightEncounterIds,
+  onClearHighlight,
 }) => {
   const { t } = useTranslation();
   const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -99,10 +105,12 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [selectedEncounter, setSelectedEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
+  const [activeHighlightedIds, setActiveHighlightedIds] = useState<Set<string>>(new Set());
   const isInteractingRef = useRef(false);
   const isDetailOpenRef = useRef(false);
   const autoplayTimerRef = useRef<number | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
 
   // Auth Guard Sheet & Pending Action
   const [isLoginSheetOpen, setIsLoginSheetOpen] = useState(false);
@@ -589,6 +597,81 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     };
   }, [visibleEncounters.length, resetAutoplayTimer]);
 
+  // Manejo de coincidencia inmediata de "Mis ganas" (Ver opciones)
+  useEffect(() => {
+    if (!highlightEncounterIds || highlightEncounterIds.length === 0) return;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // 1. Scroll vertical suave a la cabecera de Discovery
+    const discoveryEl = document.getElementById('home-discovery-section');
+    if (discoveryEl) {
+      discoveryEl.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    }
+
+    // 2. Localizar la primera card coincidente según el orden de backend o del catálogo
+    const firstMatch = highlightEncounterIds
+      .map((id) => visibleEncounters.find((e) => e.id === id))
+      .find((e): e is OpenEncounterSummary => Boolean(e));
+
+    if (firstMatch && trackRef.current) {
+      const track = trackRef.current;
+      // Usar setTimeout para permitir que el layout DOM esté completamente asentado
+      const scrollTimer = window.setTimeout(() => {
+        const cardEl = track.querySelector<HTMLElement>(`[data-encounter-id="${firstMatch.id}"]`);
+        if (cardEl) {
+          const trackRect = track.getBoundingClientRect();
+          const cardRect = cardEl.getBoundingClientRect();
+          const currentScroll = track.scrollLeft;
+          const cardOffsetInTrack = cardRect.left - trackRect.left + currentScroll;
+          const targetScrollLeft = cardOffsetInTrack - (track.clientWidth - cardRect.width) / 2;
+          const maxScrollLeft = track.scrollWidth - track.clientWidth;
+          const finalScrollLeft = Math.max(0, Math.min(maxScrollLeft, Math.round(targetScrollLeft)));
+
+          track.scrollTo({
+            left: finalScrollLeft,
+            behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          });
+        }
+      }, 50);
+
+      return () => {
+        window.clearTimeout(scrollTimer);
+      };
+    }
+
+    // 3. Activar resaltado temporal para todas las cards coincidentes encontradas
+    const matchingSet = new Set(
+      highlightEncounterIds.filter((id) => visibleEncounters.some((e) => e.id === id))
+    );
+
+    if (matchingSet.size > 0) {
+      setActiveHighlightedIds(matchingSet);
+      pauseAutoAdvance(10000);
+    }
+
+    // 4. Limpiar resaltado automáticamente tras 3.5 segundos
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => {
+      setActiveHighlightedIds(new Set());
+      onClearHighlight?.();
+    }, 3500);
+
+    return () => {
+      if (highlightTimerRef.current) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, [highlightEncounterIds, visibleEncounters, onClearHighlight, pauseAutoAdvance]);
+
   const handleCardClick = (encounter: OpenEncounterSummary) => {
     isDetailOpenRef.current = true;
     if (autoplayTimerRef.current) {
@@ -760,8 +843,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           onScroll={updateScrollState}
         >
           {visibleEncounters.map((encounter) => (
-            <div key={encounter.id} className="pe-discovery-item">
-              <HomeOpenEncounterCard encounter={encounter} onClick={handleCardClick} />
+            <div
+              key={encounter.id}
+              className="pe-discovery-item"
+              data-encounter-id={encounter.id}
+            >
+              <HomeOpenEncounterCard
+                encounter={encounter}
+                onClick={handleCardClick}
+                isHighlighted={activeHighlightedIds.has(encounter.id)}
+              />
             </div>
           ))}
         </div>
@@ -877,7 +968,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
   return (
-    <section className={`pe-discovery-section${isV2Variant ? ' pe-discovery-section--v2' : ''}`} aria-label="Encuentros abiertos y planes para sumarte">
+    <section
+      id="home-discovery-section"
+      className={`pe-discovery-section${isV2Variant ? ' pe-discovery-section--v2' : ''}`}
+      aria-label="Encuentros abiertos y planes para sumarte"
+    >
       {/* Cabecera de la Sección */}
       <div className="pe-discovery-header">
         <div className="pe-discovery-title-group">
