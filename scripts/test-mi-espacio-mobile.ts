@@ -95,7 +95,10 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
       React.createElement(
         AuthContext.Provider,
         { value: authValue },
-        React.createElement(HomeSolicitudesSection, { onSelectEncuentro: () => {} })
+        React.createElement(HomeSolicitudesSection, {
+          onSelectEncuentro: () => {},
+          initialLoading: false,
+        })
       )
     );
 
@@ -104,6 +107,13 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
     assert.ok(
       htmlEmpty.includes('pe-solicitudes-loading') || htmlEmpty.includes('pe-solicitudes-empty'),
       'Debe renderizar estado de carga o vacío limpio'
+    );
+    // Verificación de copy sin lenguaje interno "Discovery"
+    assert.ok(!htmlEmpty.includes('Discovery'), 'El copy del empty state NO debe incluir la palabra técnica Discovery');
+    assert.ok(
+      htmlEmpty.includes('vas a poder seguir el estado de tu solicitud acá') ||
+      htmlEmpty.includes('podrás seguir el estado de tu solicitud acá'),
+      'Debe incluir el texto humano de seguimiento'
     );
   });
 
@@ -121,7 +131,7 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
     assert.ok(solicitudesCss.includes('flex-shrink: 0'), 'El badge de solicitud no debe aplastarse');
   });
 
-  test('7. MIS GANAS: Mini card V2 tiene títulos con word-break controlado y acciones fluidas', () => {
+  test('7. MIS GANAS: Mini card V2 compacta sin botones visibles repetidos (acciones dentro del menú ⋮)', () => {
     const mockIntencion: Intencion = {
       id: 'intencion-test-1',
       usuario_id: 'test-user-mobile-uid',
@@ -152,9 +162,40 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
     assert.ok(htmlCard.includes('pe-intencion-card__title'), 'Debe renderizar el título');
     assert.ok(htmlCard.includes('pe-intencion-card__status-badge'), 'Debe renderizar badge de estado');
     assert.ok(htmlCard.includes('pe-intencion-card__more-btn'), 'Debe tener botón de más opciones accesible');
+
+    // Los botones primarios repetidos NO deben estar en el footer visible en V2
+    assert.ok(!htmlCard.includes('pe-intencion-card__primary-actions'), 'En V2 no deben renderizarse botones primarios repetidos fuera del menú');
+    assert.ok(!htmlCard.includes('pe-intencion-card__footer'), 'En V2 no debe existir barra footer repetida');
+
+    // Las opciones deben estar integradas en el menú con role="menuitem"
+    assert.ok(htmlCard.includes('role="menu"'), 'Debe contener el menú desplegable accesible');
+    assert.ok(htmlCard.includes('Organizar'), 'El menú debe contener la acción Organizar');
+    assert.ok(htmlCard.includes('Editar'), 'El menú debe contener la acción Editar');
+    assert.ok(htmlCard.includes('Pausar'), 'El menú debe contener la acción Pausar');
+    assert.ok(htmlCard.includes('Cerrar'), 'El menú debe contener la acción Cerrar');
+
+    // Verificar orden en el HTML del menú: Organizar -> Editar -> Pausar -> Cerrar
+    const idxOrganizar = htmlCard.indexOf('Organizar');
+    const idxEditar = htmlCard.indexOf('Editar');
+    const idxPausar = htmlCard.indexOf('Pausar');
+    const idxCerrar = htmlCard.indexOf('Cerrar');
+    assert.ok(idxOrganizar < idxEditar, 'Organizar debe preceder a Editar');
+    assert.ok(idxEditar < idxPausar, 'Editar debe preceder a Pausar');
+    assert.ok(idxPausar < idxCerrar, 'Pausar debe preceder a Cerrar');
   });
 
-  test('8. MIS ENCUENTROS: ActiveCard header tiene flex-wrap defensivo para badges y títulos largos', () => {
+  test('8. MIS GANAS ESTILO: Degradé sutil, base blanca y bordes suaves en IntencionCard.css', () => {
+    const cardCss = readFileSync(
+      resolve(process.cwd(), 'src/components/home/intentions/IntencionCard.css'),
+      'utf8'
+    );
+
+    assert.ok(cardCss.includes('linear-gradient('), 'Mini card debe tener degradé suave');
+    assert.ok(cardCss.includes('#ffffff'), 'Mini card debe partir de base blanca');
+    assert.ok(cardCss.includes('.pe-intencion-card__menu-separator'), 'Debe existir separador antes de opción destructiva');
+  });
+
+  test('9. MIS ENCUENTROS: ActiveCard header tiene flex-wrap defensivo para badges y títulos largos', () => {
     const homeTsx = readFileSync(resolve(process.cwd(), 'src/screens/Home.tsx'), 'utf8');
 
     assert.ok(

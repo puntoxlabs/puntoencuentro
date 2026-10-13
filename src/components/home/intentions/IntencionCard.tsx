@@ -145,19 +145,147 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
         className={`pe-intencion-card pe-intencion-card--mini ${isPausada ? 'pe-intencion-card--pausada' : ''}`}
         aria-label={intencion.titulo}
       >
-        {/* Cabecera de la fila: Título + Badge de Estado */}
+        {/* Cabecera de la fila: Título a la izquierda + Badge de Estado y Menú ⋮ a la derecha */}
         <div className="pe-intencion-card__header">
           <h3 className="pe-intencion-card__title">{intencion.titulo}</h3>
-          <span
-            className={`pe-intencion-card__status-badge ${
-              isActiva
-                ? 'pe-intencion-card__status-badge--activa'
-                : 'pe-intencion-card__status-badge--pausada'
-            }`}
-          >
-            <span className="pe-intencion-card__status-dot" aria-hidden="true" />
-            <span>{statusLabel}</span>
-          </span>
+
+          <div className="pe-intencion-card__header-actions">
+            <span
+              className={`pe-intencion-card__status-badge ${
+                isActiva
+                  ? 'pe-intencion-card__status-badge--activa'
+                  : 'pe-intencion-card__status-badge--pausada'
+              }`}
+            >
+              <span className="pe-intencion-card__status-dot" aria-hidden="true" />
+              <span>{statusLabel}</span>
+            </span>
+
+            <div className="pe-intencion-card__menu-container">
+              <button
+                ref={triggerRef}
+                type="button"
+                onClick={toggleMenu}
+                onKeyDown={handleTriggerKeyDown}
+                disabled={disabled}
+                className="pe-intencion-card__more-btn"
+                aria-label={t('your_encounters.intentions_menu_aria', {
+                  defaultValue: `Más opciones para ${intencion.titulo}`,
+                  title: intencion.titulo,
+                })}
+                aria-haspopup="menu"
+                aria-expanded={isMenuOpen}
+              >
+                <MoreVertical size={16} aria-hidden="true" />
+              </button>
+
+              <div
+                ref={menuRef}
+                className={`pe-intencion-card__menu ${isMenuOpen ? 'pe-intencion-card__menu--open' : ''}`}
+                role="menu"
+                hidden={!isMenuOpen}
+                aria-label={t('your_encounters.intentions_menu_aria', {
+                  defaultValue: `Más opciones para ${intencion.titulo}`,
+                  title: intencion.titulo,
+                })}
+                onKeyDown={handleMenuKeyDown}
+              >
+                {canOrganizar && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onOrganizar!(intencion);
+                    }}
+                    disabled={disabled}
+                    className="pe-intencion-card__menu-item"
+                  >
+                    <CalendarPlus size={14} aria-hidden="true" />
+                    <span>
+                      {t('your_encounters.intentions_action_organize_v2', {
+                        defaultValue: 'Organizar',
+                      })}
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onEdit(intencion);
+                  }}
+                  disabled={disabled}
+                  className="pe-intencion-card__menu-item"
+                >
+                  <Edit3 size={14} aria-hidden="true" />
+                  <span>
+                    {t('your_encounters.intentions_action_edit_v2', { defaultValue: 'Editar' })}
+                  </span>
+                </button>
+
+                {isActiva && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onPausar(intencion.id);
+                    }}
+                    disabled={disabled}
+                    className="pe-intencion-card__menu-item"
+                  >
+                    <PauseCircle size={14} aria-hidden="true" />
+                    <span>
+                      {t('your_encounters.intentions_action_pause_v2', {
+                        defaultValue: 'Pausar',
+                      })}
+                    </span>
+                  </button>
+                )}
+
+                {isPausada && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onReactivar(intencion.id);
+                    }}
+                    disabled={disabled}
+                    className="pe-intencion-card__menu-item"
+                  >
+                    <PlayCircle size={14} aria-hidden="true" />
+                    <span>
+                      {t('your_encounters.intentions_action_reactivate_v2', {
+                        defaultValue: 'Reactivar',
+                      })}
+                    </span>
+                  </button>
+                )}
+
+                <div className="pe-intencion-card__menu-separator" />
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onCerrar(intencion.id);
+                  }}
+                  disabled={disabled}
+                  className="pe-intencion-card__menu-item pe-intencion-card__menu-item--danger"
+                >
+                  <XCircle size={14} aria-hidden="true" />
+                  <span>
+                    {t('your_encounters.intentions_action_close_v2', { defaultValue: 'Cerrar' })}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Descripción breve (si aporta valor) */}
@@ -171,134 +299,6 @@ export const IntencionCard: React.FC<IntencionCardProps> = ({
             <span>{metaSummary}</span>
           </div>
         )}
-
-        {/* Barra de acciones de la fila: Editar y Organizar directos + Menú secundario ⋯ */}
-        <div className="pe-intencion-card__footer">
-          <div className="pe-intencion-card__primary-actions">
-            <button
-              type="button"
-              onClick={() => onEdit(intencion)}
-              disabled={disabled}
-              className="pe-intencion-card__btn pe-intencion-card__btn--edit"
-              aria-label={t('your_encounters.intentions_edit_aria', {
-                defaultValue: `Editar ${intencion.titulo}`,
-                title: intencion.titulo,
-              })}
-            >
-              <Edit3 size={13} aria-hidden="true" />
-              <span>
-                {t('your_encounters.intentions_action_edit_v2', { defaultValue: 'Editar' })}
-              </span>
-            </button>
-
-            {canOrganizar && (
-              <button
-                type="button"
-                onClick={() => onOrganizar!(intencion)}
-                disabled={disabled}
-                className="pe-intencion-card__btn pe-intencion-card__btn--organizar"
-                aria-label={t('your_encounters.intentions_organize_aria', {
-                  defaultValue: `Organizar encuentro a partir de ${intencion.titulo}`,
-                  title: intencion.titulo,
-                })}
-              >
-                <CalendarPlus size={13} aria-hidden="true" />
-                <span>
-                  {t('your_encounters.intentions_action_organize_v2', {
-                    defaultValue: 'Organizar',
-                  })}
-                </span>
-              </button>
-            )}
-          </div>
-
-          <div className="pe-intencion-card__menu-container">
-            <button
-              ref={triggerRef}
-              type="button"
-              onClick={toggleMenu}
-              onKeyDown={handleTriggerKeyDown}
-              disabled={disabled}
-              className="pe-intencion-card__more-btn"
-              aria-label={t('your_encounters.intentions_menu_aria', {
-                defaultValue: `Más opciones para ${intencion.titulo}`,
-                title: intencion.titulo,
-              })}
-              aria-haspopup="menu"
-              aria-expanded={isMenuOpen}
-            >
-              <MoreVertical size={16} aria-hidden="true" />
-            </button>
-
-            <div
-              ref={menuRef}
-              className={`pe-intencion-card__menu ${isMenuOpen ? 'pe-intencion-card__menu--open' : ''}`}
-              role="menu"
-              hidden={!isMenuOpen}
-              aria-label={t('your_encounters.intentions_menu_aria', {
-                defaultValue: `Más opciones para ${intencion.titulo}`,
-                title: intencion.titulo,
-              })}
-              onKeyDown={handleMenuKeyDown}
-            >
-              {isActiva && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onPausar(intencion.id);
-                  }}
-                  disabled={disabled}
-                  className="pe-intencion-card__menu-item"
-                >
-                  <PauseCircle size={14} aria-hidden="true" />
-                  <span>
-                    {t('your_encounters.intentions_action_pause_v2', {
-                      defaultValue: 'Pausar',
-                    })}
-                  </span>
-                </button>
-              )}
-
-              {isPausada && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onReactivar(intencion.id);
-                  }}
-                  disabled={disabled}
-                  className="pe-intencion-card__menu-item"
-                >
-                  <PlayCircle size={14} aria-hidden="true" />
-                  <span>
-                    {t('your_encounters.intentions_action_reactivate_v2', {
-                      defaultValue: 'Reactivar',
-                    })}
-                  </span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onCerrar(intencion.id);
-                }}
-                disabled={disabled}
-                className="pe-intencion-card__menu-item pe-intencion-card__menu-item--danger"
-              >
-                <XCircle size={14} aria-hidden="true" />
-                <span>
-                  {t('your_encounters.intentions_action_close_v2', { defaultValue: 'Cerrar' })}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
       </article>
     );
   }

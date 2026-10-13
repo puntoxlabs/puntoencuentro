@@ -31,6 +31,13 @@
   gap: 8px;
 }
 
+.pe-intencion-card__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .pe-intencion-card__title {
   margin: 0;
   font-size: 1.05rem;
@@ -181,10 +188,24 @@
 /* ── MINI-CARD COMPACTA V2 ── */
 
 .pe-intencion-card--mini {
-  padding: 9px 12px;
-  border-radius: 12px;
-  gap: 5px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  background: linear-gradient(135deg, #ffffff 0%, #f9faff 60%, #f4f6ff 100%);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 14px;
+  padding: 10px 14px;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pe-intencion-card--mini:hover {
+  border-color: rgba(99, 102, 241, 0.28);
+  box-shadow: 0 3px 8px rgba(99, 102, 241, 0.06);
+}
+
+.pe-intencion-card--mini.pe-intencion-card--pausada {
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border: 1px dashed #cbd5e1;
+  opacity: 0.9;
 }
 
 .pe-intencion-card--mini .pe-intencion-card__title {
@@ -314,6 +335,14 @@
   box-sizing: border-box;
 }
 
+.pe-intencion-card--mini .pe-intencion-card__more-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+}
+
 .pe-intencion-card__more-btn:hover:not(:disabled) {
   background: #f1f5f9;
   color: #0f172a;
@@ -338,6 +367,18 @@
   gap: 2px;
   min-width: 155px;
   z-index: 30;
+}
+
+.pe-intencion-card--mini .pe-intencion-card__menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.14);
+}
+
+.pe-intencion-card__menu-separator {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 3px 0;
 }
 
 .pe-intencion-card__menu[hidden] {

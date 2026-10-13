@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { openEncountersService } from '@/services/openEncountersService';
 import type { MiSolicitudItem } from '@/components/home/openEncounters/types';
@@ -21,14 +22,17 @@ import './HomeSolicitudesSection.css';
 
 export interface HomeSolicitudesSectionProps {
   onSelectEncuentro: (encuentroId: string) => void;
+  initialLoading?: boolean;
 }
 
 export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
   onSelectEncuentro,
+  initialLoading = true,
 }) => {
+  const { t } = useTranslation();
   const { user, isPermanentUser } = useAuth();
   const [solicitudes, setSolicitudes] = useState<MiSolicitudItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialLoading);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [isPastExpanded, setIsPastExpanded] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -133,9 +137,15 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
           <div className="pe-solicitudes-empty-icon" aria-hidden="true">
             <Inbox size={28} />
           </div>
-          <h3 className="pe-solicitudes-empty-title">No tenés solicitudes realizadas</h3>
+          <h3 className="pe-solicitudes-empty-title">
+            {t('your_encounters.solicitudes_empty_title', {
+              defaultValue: 'No tenés solicitudes realizadas',
+            })}
+          </h3>
           <p className="pe-solicitudes-empty-desc">
-            Cuando pidas sumarte a un encuentro abierto desde Discovery, podrás seguir el estado de tu solicitud acá.
+            {t('your_encounters.solicitudes_empty_desc', {
+              defaultValue: 'Cuando pidas sumarte a un encuentro abierto, vas a poder seguir el estado de tu solicitud acá.',
+            })}
           </p>
         </div>
       </div>
