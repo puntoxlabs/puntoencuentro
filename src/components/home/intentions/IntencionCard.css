@@ -38,6 +38,8 @@
   color: var(--color-on-surface, #0f172a);
   line-height: 1.35;
   word-break: break-word;
+  min-width: 0;
+  flex: 1;
 }
 
 .pe-intencion-card__status-badge {
@@ -189,6 +191,9 @@
   font-size: 0.90rem;
   font-weight: 650;
   line-height: 1.25;
+  min-width: 0;
+  word-break: break-word;
+  flex: 1;
 }
 
 .pe-intencion-card--mini .pe-intencion-card__status-badge {

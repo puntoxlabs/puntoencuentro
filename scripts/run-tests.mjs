@@ -33,6 +33,9 @@ try {
   await server.ssrLoadModule('./scripts/test-home-integration.ts');
   console.log('✅ New Mobile-First Home integration & component tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-mi-espacio-mobile.ts');
+  console.log('✅ Mi espacio Mobile (360px, 390px, 412px, font scaling) tests executed successfully via Vite SSR loader.');
+
   await server.ssrLoadModule('./scripts/test-open-encounters.ts');
   console.log('✅ Open Encounters 1.5 backend, security & UI integration tests executed successfully via Vite SSR loader.');
 

@@ -137,7 +137,7 @@ const ActiveCard: React.FC<{
         <h3 className="home-card-title">
           {enc.titulo}
         </h3>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
           {isHost && Number(enc.pending_requests_count) > 0 && (
             <span
               className="home-card-pending-badge"
@@ -153,6 +153,7 @@ const ActiveCard: React.FC<{
                 borderRadius: '9999px',
                 border: '1px solid #FCD34D',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
               title="Solicitudes pendientes de aprobación"
             >
@@ -1506,7 +1507,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             </div>
           </>
         ) : userSectionTab === 'intenciones' ? (
-          <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
+          <div className="home-user-tab-panel">
             <HomeIntencionesSection
               triggerCreateTimestamp={intentionCreateTrigger}
               isV2Variant={isV2Variant}
@@ -1515,7 +1516,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             />
           </div>
         ) : (
-          <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
+          <div className="home-user-tab-panel">
             <HomeSolicitudesSection
               onSelectEncuentro={handleSelectEncuentroFromSolicitudes}
             />

@@ -132,6 +132,8 @@
   font-size: var(--text-lg);
   font-weight: 700;
   flex: 1;
+  min-width: 0;
+  word-break: break-word;
   line-height: 1.25;
   color: var(--color-on-surface);
 }
@@ -141,6 +143,8 @@
   font-size: var(--text-md);
   font-weight: 600;
   flex: 1;
+  min-width: 0;
+  word-break: break-word;
   line-height: 1.3;
   color: var(--color-on-surface-variant);
 }
@@ -897,37 +901,73 @@
   }
 }
 
-/* Pestañas de contenido de usuario: Mis encuentros / Tus encuentros vs Mis ganas / Intenciones */
+/* Pestañas de contenido de usuario: Mis encuentros | Mis ganas | Mis solicitudes */
 .home-user-tabs {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 1rem;
+  padding: 4px 1rem 8px;
   margin-bottom: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.home-user-tabs::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 @media (min-width: 768px) {
   .home-user-tabs {
     padding: 0 0.5rem;
+    overflow-x: visible;
   }
 }
 
 .home-user-tab {
-  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
   border-radius: 9999px;
   border: 1px solid var(--color-outline-variant, #e2e8f0);
   background: #ffffff;
   color: var(--color-on-surface-variant, #64748b);
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 38px;
+  box-sizing: border-box;
   transition: all 0.15s ease;
+  user-select: none;
+}
+
+@media (max-width: 412px) {
+  .home-user-tabs {
+    gap: 6px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .home-user-tab {
+    padding: 6px 11px;
+    font-size: 0.82rem;
+    min-height: 36px;
+  }
 }
 
 .home-user-tab:hover {
   background: #f8fafc;
   border-color: var(--color-outline, #cbd5e1);
   color: var(--color-on-surface, #0f172a);
+}
+
+.home-user-tab:focus-visible {
+  outline: 2px solid var(--color-primary, #6366f1);
+  outline-offset: 2px;
 }
 
 .home-user-tab--active {
@@ -956,6 +996,33 @@
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 412px) {
+  .home-user-tab-badge {
+    min-width: 16px;
+    height: 16px;
+    font-size: 10px;
+    padding: 0 4px;
+    margin-left: 4px;
+  }
+}
+
+/* Panel contenedor unificado para pestañas de usuario */
+.home-user-tab-panel {
+  padding: 0;
+  margin-top: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .home-user-tab-panel {
+    padding: 0 0.5rem;
+    margin-top: 1rem;
+  }
 }
 
 .home-user-tab--active .home-user-tab-badge {
