@@ -93,16 +93,40 @@ export interface QASessionTimelineResponse {
 // ============================================================
 
 /**
- * Verifica si el usuario actual tiene permisos de QA.
+ * Timeout defensivo para la verificación de autorización QA (en ms).
  */
-export const checkQAAuthorization = async (): Promise<boolean> => {
+export const QA_AUTH_TIMEOUT_MS = 6000;
+
+/**
+ * Verifica si el usuario actual tiene permisos de QA.
+ * Aplica timeout defensivo configurable para evitar que la UI quede congelada.
+ */
+export const checkQAAuthorization = async (timeoutMs: number = QA_AUTH_TIMEOUT_MS): Promise<boolean> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const { data, error } = await supabase.rpc('is_qa_authorized');
-    if (error) throw error;
-    return data === true;
-  } catch (error) {
-    console.error('QA Authorization check failed:', error);
-    return false;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('qa_auth_timeout'));
+      }, timeoutMs);
+    });
+
+    const rpcPromise = (async () => {
+      const { data, error } = await supabase.rpc('is_qa_authorized');
+      if (error) throw error;
+      return data === true;
+    })();
+
+    const result = await Promise.race([rpcPromise, timeoutPromise]);
+    return result;
+  } catch (error: any) {
+    if (error?.message === 'qa_auth_timeout') {
+      console.warn(`[qaAdminService] QA Authorization check timed out after ${timeoutMs}ms`);
+      throw error;
+    }
+    console.error('[qaAdminService] QA Authorization check failed:', error);
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 };
 

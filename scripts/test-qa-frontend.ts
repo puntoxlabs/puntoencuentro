@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 // Import components and trackers to test
 import { QAGate } from '../src/components/qa/QAGate';
+import { checkQAAuthorization } from '../src/services/qaAdminService';
 import { HiddenDiscoveryTracker } from '../src/hooks/useHiddenDiscovery';
 import InternalQAOverview from '../src/screens/InternalQA/index';
 import QASessions from '../src/screens/InternalQA/QASessions';
@@ -144,6 +145,71 @@ describe('QA Console Frontend Infrastructure', () => {
       const html = renderToString(el);
       assert.ok(!html.includes('CHILDREN_NOT_ALLOWED_DURING_CHECKING'), 'No debe haber flash de children durante checking');
       assert.ok(html.includes('Cargando...'), 'Debe mostrar mensaje/loader de checking neutro');
+    });
+
+    test('F. QAGate muestra "Cargando..." durante auth_loading', () => {
+      const mockAuthLoadingHook = () => ({ status: 'auth_loading' as const });
+      const el = React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(QAGate, { hookOverride: mockAuthLoadingHook }, React.createElement('div', null, 'SECRET_QA_CONTENT'))
+      );
+      const html = renderToString(el);
+      assert.ok(!html.includes('SECRET_QA_CONTENT'), 'No debe mostrar contenido QA durante auth_loading');
+      assert.ok(html.includes('Cargando...'), 'Debe mostrar Cargando... durante auth_loading');
+    });
+
+    test('G. QAGate muestra mensaje explícito "No tenés autorización para acceder a esta consola." cuando unauthorized', () => {
+      const mockUnauthHook = () => ({ status: 'unauthorized' as const });
+      const el = React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(QAGate, { hookOverride: mockUnauthHook }, React.createElement('div', null, 'SECRET_QA_CONTENT'))
+      );
+      const html = renderToString(el);
+      assert.ok(!html.includes('SECRET_QA_CONTENT'));
+      assert.ok(html.includes('No tenés autorización para acceder a esta consola.'), 'Debe contener copy explícito de no autorizado');
+      assert.ok(html.includes('Volver al inicio'), 'Debe contener botón para volver al inicio');
+    });
+
+    test('H. QAGate muestra identificador de usuario (UID) si está disponible en estado unauthorized', () => {
+      const mockUnauthWithUidHook = () => ({
+        status: 'unauthorized' as const,
+        userId: '11111111-2222-3333-4444-555555555555',
+      });
+      const el = React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(QAGate, { hookOverride: mockUnauthWithUidHook }, React.createElement('div', null, 'SECRET_QA_CONTENT'))
+      );
+      const html = renderToString(el);
+      assert.ok(html.includes('11111111-2222-3333-4444-555555555555'), 'Debe exponer UID para facilitar autorización');
+      assert.ok(html.includes('Tu identificador de usuario (UID)'));
+    });
+
+    test('I. QAGate muestra mensaje de error y botón Reintentar en estado error', () => {
+      const mockErrorHook = () => ({ status: 'error' as const });
+      const el = React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(QAGate, { hookOverride: mockErrorHook }, React.createElement('div', null, 'SECRET_QA_CONTENT'))
+      );
+      const html = renderToString(el);
+      assert.ok(!html.includes('SECRET_QA_CONTENT'));
+      assert.ok(html.includes('No pudimos verificar tu autorización.'), 'Debe contener copy explícito de error técnico');
+      assert.ok(html.includes('Reintentar'), 'Debe contener botón Reintentar');
+    });
+
+    test('J. checkQAAuthorization timeout defensivo: rechaza si la llamada excede timeoutMs', async () => {
+      await assert.rejects(
+        async () => {
+          await checkQAAuthorization(10);
+        },
+        (err: any) => {
+          return err.message === 'qa_auth_timeout';
+        },
+        'Debe rechazar con qa_auth_timeout al superar el tiempo límite'
+      );
     });
   });
 
