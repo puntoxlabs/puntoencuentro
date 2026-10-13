@@ -156,10 +156,39 @@ export const openEncountersService = {
   async getEncuentroAbiertoById(encounterId: string): Promise<OpenEncounterSummary | null> {
     try {
       const res = await this.getDiscoveryEncuentrosWithStatus();
-      if (!res.ok || !Array.isArray(res.data)) {
-        return null;
+      if (res.ok && Array.isArray(res.data)) {
+        const found = res.data.find((e) => e.id === encounterId);
+        if (found) {
+          return found;
+        }
       }
-      return res.data.find((e) => e.id === encounterId) || null;
+
+      // Microcheck C: Fallback para deep links cuando el usuario está autorizado
+      // (ej. el usuario es Host o participante aprobado, o el encuentro está cerrado/completo para Discovery)
+      const authRes = await this.getEncuentroParticipanteAutorizado(encounterId);
+      if (authRes && authRes.ok && authRes.id) {
+        const timePart = authRes.hora ? authRes.hora.substring(0, 5) : '';
+        const dateLabel = authRes.fecha ? `${authRes.fecha}${timePart ? ` · ${timePart}` : ''}` : '';
+        const zone = authRes.open_public_zone || (authRes.modalidad === 'virtual' ? 'Online' : 'Ubicación confirmada');
+        return {
+          id: authRes.id,
+          title: authRes.open_public_title || 'Encuentro',
+          startsAt: `${authRes.fecha || ''}T${authRes.hora || '00:00:00'}`,
+          dateLabel,
+          approximateZone: zone,
+          localityId: '',
+          openSlots: 0,
+          confirmedCount: 0,
+          confirmedSeats: 0,
+          language: 'es',
+          description: authRes.open_description || '',
+          hostId: authRes.is_host ? 'current-user' : '',
+          allowMultiSeatRequests: false,
+          maxSeatsPerRequest: 1,
+        };
+      }
+
+      return null;
     } catch (err) {
       console.warn('[openEncountersService] Error fetching encuentro abierto by id:', err);
       return null;

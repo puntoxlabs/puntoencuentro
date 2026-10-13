@@ -67,7 +67,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const isHost = Boolean(
     encounter?.id && (
       getEncuentroHost(encounter.id) ||
-      (user?.id && (encounter.hostId === user.id || (encounter as any)?.host_id === user.id))
+      (user?.id && (encounter.hostId === user.id || (encounter as any)?.host_id === user.id)) ||
+      authorizedDetail?.is_host === true
     )
   );
 
@@ -138,6 +139,14 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         .then((authRes) => {
           if (authRes && authRes.ok) {
             setAuthorizedDetail(authRes);
+            if (authRes.is_host) {
+              setIsFormOpen(false);
+              try {
+                sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+              } catch {
+                /* storage fallback */
+              }
+            }
           } else {
             setAuthorizedDetail(null);
           }
@@ -150,10 +159,21 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       setAuthorizedDetail(null);
     }
 
+    // Si es host, asegurar que nunca abra formulario ni persista draft
+    if (isHost) {
+      setIsFormOpen(false);
+      try {
+        sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+      } catch {
+        /* storage fallback */
+      }
+      return;
+    }
+
     // Recuperar contexto de solicitud pendiente post-OAuth
     // Si el usuario acaba de loguearse y hay un pending_open_request para ESTE encuentro,
     // abrimos automáticamente el formulario de solicitud sin auto-submit.
-    if (isPermanentUser && !isDemo) {
+    if (isPermanentUser && !isDemo && !isHost) {
       try {
         const raw = sessionStorage.getItem(PENDING_OPEN_REQUEST_KEY);
         if (raw) {
@@ -244,7 +264,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       return;
     }
 
-    if (isHost) {
+    if (isHost || (authorizedDetail && !authorizedDetail.is_host)) {
       return;
     }
 
@@ -338,7 +358,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         setIsFormOpen(false);
       } else {
         if (res.error === 'cannot_join_own_encounter') {
-          setErrorMsg('No podés solicitar sumarte a un encuentro que organizás vos.');
+          setErrorMsg('No podés solicitar sumarte a un encuentro que organizás.');
         } else if (res.error === 'duplicate_pending_request') {
           setErrorMsg('Ya tenés una solicitud pendiente para este encuentro.');
         } else if (res.error === 'already_participant') {
@@ -371,7 +391,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       if (err?.message === 'rate_limit_exceeded') {
         setErrorMsg('Hiciste varias solicitudes en poco tiempo. Esperá un rato e intentá nuevamente.');
       } else if (err?.message === 'cannot_join_own_encounter') {
-        setErrorMsg('No podés solicitar sumarte a un encuentro que organizás vos.');
+        setErrorMsg('No podés solicitar sumarte a un encuentro que organizás.');
       } else if (err?.message === 'request_not_available') {
         setErrorMsg('Esta solicitud no está disponible en este momento.');
       } else {
@@ -407,7 +427,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               </span>
             )}
             <h2 id="pe-detail-title" className="pe-detail-sheet__title">
-              {encounter.title}
+              {authorizedDetail?.open_public_title || encounter.title}
             </h2>
           </div>
           <button
@@ -496,10 +516,14 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         </div>
 
         {/* Descripción */}
-        {encounter.description && (
+        {(authorizedDetail?.open_description || encounter.description) && (
           <div className="pe-detail-sheet__desc-box">
             <h4 className="pe-detail-sheet__desc-title">Sobre este plan</h4>
-            <p className="pe-detail-sheet__desc">{encounter.description}</p>
+            <p className="pe-detail-sheet__desc">
+              {authorizedDetail?.open_description !== undefined && authorizedDetail.open_description !== ''
+                ? authorizedDetail.open_description
+                : encounter.description}
+            </p>
           </div>
         )}
 
@@ -562,6 +586,24 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               >
                 {t('open_encounters.manage_encounter', { defaultValue: 'Gestionar encuentro' })}
                 <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+          ) : (requestState.hasRequest && requestState.status === 'approved') || (authorizedDetail && !authorizedDetail.is_host) ? (
+            <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--approved">
+              <div className="pe-detail-sheet__status-title" style={{ color: '#059669' }}>
+                <CheckCircle2 size={16} />
+                <span>{t('open_encounters.request_approved', { defaultValue: '¡Solicitud aceptada!' })}</span>
+              </div>
+              <p className="pe-detail-sheet__status-desc">
+                Ya formás parte de este encuentro. Podés ver la dirección y coordinar.
+              </p>
+              <button
+                type="button"
+                className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                onClick={handleNavigateToEncounter}
+              >
+                {t('open_encounters.request_view_encounter', { defaultValue: 'Ver encuentro' })}
+                <ArrowRight size={16} />
               </button>
             </div>
           ) : requestState.hasRequest ? (

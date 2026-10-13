@@ -95,7 +95,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onClearHighlight,
 }) => {
   const { t } = useTranslation();
-  const { isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
+  const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
 
   const [discoveryTab, setDiscoveryTab] = useState<DiscoveryTab>('todo');
 
@@ -202,11 +202,18 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
   // Encuentros e intenciones efectivos
   const liveEncounters = useMemo<OpenEncounterSummary[]>(() => {
-    if (propEncounters !== undefined) return propEncounters;
-    if (hookEncounters && hookEncounters.length > 0) return hookEncounters;
-    if (allowDemoFallback && !hookLoading) return OPEN_ENCOUNTERS_DEMO;
-    return hookEncounters || [];
-  }, [propEncounters, hookEncounters, allowDemoFallback, hookLoading]);
+    let list: OpenEncounterSummary[] = [];
+    if (propEncounters !== undefined) list = propEncounters;
+    else if (hookEncounters && hookEncounters.length > 0) list = hookEncounters;
+    else if (allowDemoFallback && !hookLoading) list = OPEN_ENCOUNTERS_DEMO;
+    else list = hookEncounters || [];
+
+    // Microcheck A: Para usuario autenticado, Discovery nunca debe incluir encuentros propios del Host
+    if (user?.id) {
+      list = list.filter((e) => e.hostId !== user.id && (e as any).host_id !== user.id);
+    }
+    return list;
+  }, [propEncounters, hookEncounters, allowDemoFallback, hookLoading, user?.id]);
 
   const liveIntentions = useMemo<PublicIntencionSummary[]>(() => {
     if (propIntentions !== undefined) return propIntentions;
@@ -244,9 +251,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
   // Sugerencias secundarias de otras macrozonas
   const liveSecondaryEncounters = useMemo<OpenEncounterSummary[]>(() => {
-    if (propSecondaryEncounters !== undefined) return propSecondaryEncounters;
-    return hookSecondaryEncounters || [];
-  }, [propSecondaryEncounters, hookSecondaryEncounters]);
+    let list: OpenEncounterSummary[] = [];
+    if (propSecondaryEncounters !== undefined) list = propSecondaryEncounters;
+    else list = hookSecondaryEncounters || [];
+
+    // Microcheck A: Para usuario autenticado, Discovery nunca debe incluir encuentros propios del Host
+    if (user?.id) {
+      list = list.filter((e) => e.hostId !== user.id && (e as any).host_id !== user.id);
+    }
+    return list;
+  }, [propSecondaryEncounters, hookSecondaryEncounters, user?.id]);
 
   const liveSecondaryIntentions = useMemo<PublicIntencionSummary[]>(() => {
     if (propSecondaryIntentions !== undefined) return propSecondaryIntentions;
