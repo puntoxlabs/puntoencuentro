@@ -13,6 +13,7 @@ export interface OpenEncounterSummary {
   language: string;
   description?: string;
   hostName?: string;
+  hostId?: string;
   allowMultiSeatRequests?: boolean;
   maxSeatsPerRequest?: number;
 }

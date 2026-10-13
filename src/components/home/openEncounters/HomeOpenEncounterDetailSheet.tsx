@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -63,8 +64,37 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
   const isDemo = encounter?.id?.startsWith('demo-') ?? false;
   const isHost = Boolean(
-    encounter?.id && (getEncuentroHost(encounter.id) || (user?.id && (encounter as any)?.hostId === user.id))
+    encounter?.id && (
+      getEncuentroHost(encounter.id) ||
+      (user?.id && (encounter.hostId === user.id || (encounter as any)?.host_id === user.id))
+    )
   );
+
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
+  // Bloqueo de scroll de fondo con compensación de scrollbar y restauración de foco
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
+  }, [isOpen]);
 
   // userId solo para consultar estado de solicitud propio — SOLO si es permanente
   const userId = isPermanentUser ? user?.id ?? null : null;
@@ -78,7 +108,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setIsReportModalOpen(false);
     setIsReported(false);
     setErrorMsg(null);
-    setApplicantName(getHostAlias() || '');
+    setApplicantName(getHostAlias() || user?.user_metadata?.full_name || '');
     setApplicantMessage('');
     setRequestedSeats(1);
 
@@ -106,16 +136,27 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
     // Recuperar contexto de solicitud pendiente post-OAuth
     // Si el usuario acaba de loguearse y hay un pending_open_request para ESTE encuentro,
-    // abrimos automáticamente el formulario de solicitud.
+    // abrimos automáticamente el formulario de solicitud sin auto-submit.
     if (isPermanentUser && !isDemo) {
       try {
         const raw = sessionStorage.getItem(PENDING_OPEN_REQUEST_KEY);
         if (raw) {
-          const pending = JSON.parse(raw) as { encounterId: string; applicantName?: string; applicantMessage?: string; action: string };
+          const pending = JSON.parse(raw) as {
+            encounterId: string;
+            applicantName?: string;
+            applicantMessage?: string;
+            requestedSeats?: number;
+            action: string;
+          };
           if (pending.action === 'request_join' && pending.encounterId === encounter.id) {
-            // Recuperar nombre y mensaje del contexto guardado
-            if (pending.applicantName) setApplicantName(pending.applicantName);
+            // Recuperar nombre, mensaje y cupos del contexto guardado
+            if (pending.applicantName) {
+              setApplicantName(pending.applicantName);
+            } else if (user?.user_metadata?.full_name) {
+              setApplicantName(user.user_metadata.full_name);
+            }
             if (pending.applicantMessage) setApplicantMessage(pending.applicantMessage);
+            if (pending.requestedSeats) setRequestedSeats(pending.requestedSeats);
             setIsFormOpen(true);
             sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
           }
@@ -141,7 +182,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         sessionStorage.removeItem(PENDING_OPEN_REPORT_KEY);
       }
     }
-  }, [isOpen, encounter?.id, isDemo, userId, isPermanentUser]);
+  }, [isOpen, encounter?.id, isDemo, userId, isPermanentUser, user?.user_metadata?.full_name]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -187,8 +228,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       return;
     }
 
+    if (isHost) {
+      return;
+    }
+
     // Verificación de identidad: requiere cuenta permanente
     if (!isPermanentUser) {
+      // Preservar draft y contexto en sessionStorage antes de abrir LoginRequiredSheet
+      try {
+        const pendingRequest = {
+          encounterId: encounter.id,
+          applicantName: applicantName || undefined,
+          applicantMessage: applicantMessage || undefined,
+          requestedSeats: requestedSeats || 1,
+          action: 'request_join' as const,
+        };
+        sessionStorage.setItem(PENDING_OPEN_REQUEST_KEY, JSON.stringify(pendingRequest));
+      } catch {
+        /* storage fallback */
+      }
       setIsLoginRequired(true);
       return;
     }
@@ -207,6 +265,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         encounterId: encounter.id,
         applicantName: applicantName || undefined,
         applicantMessage: applicantMessage || undefined,
+        requestedSeats: requestedSeats || 1,
         action: 'request_join' as const,
       };
       sessionStorage.setItem(PENDING_OPEN_REQUEST_KEY, JSON.stringify(pendingRequest));
@@ -218,7 +277,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
     if (!result.ok) {
       setLoginLoading(false);
-      sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+      try {
+        sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+      } catch {
+        /* storage fallback */
+      }
 
       if (result.error === 'anonymous_has_critical_resources') {
         setErrorMsg(
@@ -258,21 +321,30 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         });
         setIsFormOpen(false);
       } else {
-        if (res.error === 'encounter_full') {
+        if (res.error === 'cannot_join_own_encounter') {
+          setErrorMsg('No podés solicitar sumarte a un encuentro que organizás vos.');
+        } else if (res.error === 'duplicate_pending_request') {
+          setErrorMsg('Ya tenés una solicitud pendiente para este encuentro.');
+        } else if (res.error === 'already_participant') {
+          setErrorMsg('Ya estás registrado como participante de este encuentro.');
+        } else if (res.error === 'encounter_full') {
           setErrorMsg('El cupo para este encuentro ya se encuentra completo.');
         } else if (res.error === 'seats_exceed_limit' || res.error === 'seats_exceed_capacity') {
           setErrorMsg('La cantidad de lugares solicitados supera el límite disponible para este encuentro.');
-        } else if (res.error === 'already_participant') {
-          setErrorMsg('Ya estás registrado como participante de este encuentro.');
-        } else if (res.error === 'permanent_account_required') {
-          // El backend rechazó el JWT anónimo — forzar logout local (no debería ocurrir)
-          setErrorMsg('Se requiere una cuenta permanente para solicitar sumarte.');
+        } else if (res.error === 'permanent_account_required' || res.error === 'authentication_required') {
+          setErrorMsg('Se requiere iniciar sesión para solicitar sumarte.');
           setIsFormOpen(false);
           setIsLoginRequired(true);
         } else if (res.error === 'rate_limit_exceeded') {
           setErrorMsg('Hiciste varias solicitudes en poco tiempo. Esperá un rato e intentá nuevamente.');
         } else if (res.error === 'rate_limit_unavailable') {
           setErrorMsg('No pudimos enviar tu solicitud en este momento. Intentá nuevamente en unos minutos.');
+        } else if (
+          res.error === 'encuentro_not_found' ||
+          res.error === 'encuentro_not_active' ||
+          res.error === 'encuentro_not_open'
+        ) {
+          setErrorMsg('Este encuentro ya no está disponible para sumarse.');
         } else if (res.error === 'request_not_available') {
           setErrorMsg('Esta solicitud no está disponible en este momento.');
         } else {
@@ -282,6 +354,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     } catch (err: any) {
       if (err?.message === 'rate_limit_exceeded') {
         setErrorMsg('Hiciste varias solicitudes en poco tiempo. Esperá un rato e intentá nuevamente.');
+      } else if (err?.message === 'cannot_join_own_encounter') {
+        setErrorMsg('No podés solicitar sumarte a un encuentro que organizás vos.');
       } else if (err?.message === 'request_not_available') {
         setErrorMsg('Esta solicitud no está disponible en este momento.');
       } else {
@@ -299,7 +373,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     onClose();
   };
 
-  return (
+  const modalContent = (
     <>
       <div className="pe-detail-overlay" onClick={onClose} aria-hidden="true" />
 
@@ -426,7 +500,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
         {/* Acciones y Formulario */}
         <div className="pe-detail-sheet__actions">
-          {requestState.hasRequest ? (
+          {isHost ? (
+            <div className="pe-detail-sheet__host-box">
+              <div className="pe-detail-sheet__host-notice">
+                <Users size={16} aria-hidden="true" />
+                <span>{t('open_encounters.host_own_encounter', { defaultValue: 'Este encuentro lo organizás vos' })}</span>
+              </div>
+              <button
+                type="button"
+                className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                onClick={() => {
+                  navigate(`/meet/${encounter.id}`);
+                  onClose();
+                }}
+              >
+                {t('open_encounters.manage_encounter', { defaultValue: 'Gestionar encuentro' })}
+                <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+          ) : requestState.hasRequest ? (
             <div className={`pe-detail-sheet__status-box pe-detail-sheet__status-box--${requestState.status}`}>
               {requestState.status === 'pending' && (
                 <>
@@ -603,7 +695,14 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       {/* LoginRequiredSheet — aparece por encima del DetailSheet cuando corresponde */}
       <LoginRequiredSheet
         isOpen={isLoginRequired}
-        onClose={() => setIsLoginRequired(false)}
+        onClose={() => {
+          setIsLoginRequired(false);
+          try {
+            sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
+          } catch {
+            /* storage fallback */
+          }
+        }}
         onContinueWithGoogle={handleLoginWithGoogle}
         loading={loginLoading}
         action="request_join"
@@ -645,4 +744,10 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       )}
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

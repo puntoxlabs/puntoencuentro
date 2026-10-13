@@ -6,7 +6,8 @@
   background-color: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 1000;
+  z-index: 10000;
+  overscroll-behavior: contain;
   animation: peFadeIn 0.2s ease;
 }
 
@@ -19,9 +20,10 @@
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   padding: 16px 20px calc(24px + env(safe-area-inset-bottom, 0px));
-  z-index: 1001;
+  z-index: 10001;
   max-height: 85vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.2);
   animation: peSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
@@ -236,6 +238,27 @@
   text-align: center;
   color: #64748b;
   margin: 0;
+}
+
+/* Host notice when viewing own encounter */
+.pe-detail-sheet__host-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pe-detail-sheet__host-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 /* Status Box */

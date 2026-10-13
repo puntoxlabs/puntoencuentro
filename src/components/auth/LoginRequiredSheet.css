@@ -8,7 +8,8 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.48);
-  z-index: 200;
+  z-index: 10050;
+  overscroll-behavior: contain;
   animation: login-required-fade-in 0.18s ease;
 }
 
@@ -17,7 +18,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 201;
+  z-index: 10051;
   background: #fff;
   border-radius: 20px 20px 0 0;
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
@@ -25,6 +26,7 @@
   animation: login-required-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 640px) {

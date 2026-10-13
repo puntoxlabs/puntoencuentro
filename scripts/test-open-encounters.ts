@@ -843,7 +843,7 @@ describe('Suite de Pruebas de Integración y Backend Real — Encuentros Abierto
         action: 'request_join',
       })
     );
-    assert.ok(html.includes('Para solicitar sumarte necesit'), 'Debe incluir título contextual');
+    assert.ok(html.includes('Para solicitar sumarte'), 'Debe incluir título contextual');
     assert.ok(html.includes('Continuar con Google'), 'Debe incluir CTA de Google');
     assert.ok(html.includes('Ahora no'), 'Debe incluir CTA secundario Ahora no');
     assert.ok(html.includes('Seguir el estado de tu solicitud'), 'Debe listar beneficios');

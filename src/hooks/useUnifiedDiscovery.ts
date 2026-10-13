@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { openEncountersService } from '../services/openEncountersService';
 import { intencionesService } from '../services/intencionesService';
+import { useDiscoveryRealtime } from './useDiscoveryRealtime';
 import type { OpenEncounterSummary } from '../components/home/openEncounters/types';
 import type { PublicIntencionSummary, SetInteresResult, IntencionesServiceResult } from '../types/intenciones';
 import type { UseUnifiedDiscoveryReturn } from '../types/discovery';
@@ -9,6 +10,7 @@ export interface UseUnifiedDiscoveryOptions {
   localityIds?: string[] | null;
   otherActiveLocalityIds?: string[] | null;
   enabled?: boolean;
+  enableRealtime?: boolean;
 }
 
 export const OTHER_ZONES_SUGGESTION_THRESHOLD = 3;
@@ -25,15 +27,16 @@ export function useUnifiedDiscovery(
 ): UseUnifiedDiscoveryReturn {
   const options = useMemo<UseUnifiedDiscoveryOptions>(() => {
     if (!optionsOrLocalityIds) {
-      return { localityIds: undefined, otherActiveLocalityIds: undefined, enabled: true };
+      return { localityIds: undefined, otherActiveLocalityIds: undefined, enabled: true, enableRealtime: false };
     }
     if (Array.isArray(optionsOrLocalityIds)) {
-      return { localityIds: optionsOrLocalityIds, otherActiveLocalityIds: undefined, enabled: true };
+      return { localityIds: optionsOrLocalityIds, otherActiveLocalityIds: undefined, enabled: true, enableRealtime: false };
     }
     return {
       localityIds: optionsOrLocalityIds.localityIds,
       otherActiveLocalityIds: optionsOrLocalityIds.otherActiveLocalityIds,
       enabled: optionsOrLocalityIds.enabled ?? true,
+      enableRealtime: optionsOrLocalityIds.enableRealtime ?? false,
     };
   }, [
     Array.isArray(optionsOrLocalityIds)
@@ -41,6 +44,7 @@ export function useUnifiedDiscovery(
       : (optionsOrLocalityIds as UseUnifiedDiscoveryOptions)?.localityIds?.join(','),
     (optionsOrLocalityIds as UseUnifiedDiscoveryOptions)?.otherActiveLocalityIds?.join(','),
     (optionsOrLocalityIds as UseUnifiedDiscoveryOptions)?.enabled,
+    (optionsOrLocalityIds as UseUnifiedDiscoveryOptions)?.enableRealtime,
   ]);
 
   const [encounters, setEncounters] = useState<OpenEncounterSummary[]>([]);
@@ -163,6 +167,12 @@ export function useUnifiedDiscovery(
   const refresh = useCallback(async () => {
     await fetchData();
   }, [fetchData]);
+
+  // Suscripción Realtime condicional (solo cuando enableRealtime = true, ej. Discovery V2)
+  useDiscoveryRealtime({
+    enabled: Boolean(enabled && options.enableRealtime),
+    onRefresh: refresh,
+  });
 
   /**
    * Modifica el interés sobre una intención sin toggle en cliente.

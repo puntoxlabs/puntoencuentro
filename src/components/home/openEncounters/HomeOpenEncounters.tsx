@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import './HomeOpenEncounters.css';
 
 export const PENDING_INTENTION_INTEREST_KEY = 'puntoencuentro_pending_intention_interest';
+export const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
 export { PENDING_AVISAME_DRAFT_KEY };
 export { OTHER_ZONES_SUGGESTION_THRESHOLD, MAX_OTHER_ZONE_SUGGESTIONS };
 
@@ -187,6 +188,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     localityIds: effectiveZones.length > 0 ? effectiveZones : undefined,
     otherActiveLocalityIds: otherActiveZoneIds.length > 0 ? otherActiveZoneIds : undefined,
     enabled: propEncounters === undefined && propIntentions === undefined,
+    enableRealtime: Boolean(isV2Variant && propEncounters === undefined),
   });
 
   // Determinar si se permite fallback demo de diseño
@@ -328,6 +330,41 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       sessionStorage.removeItem(PENDING_AVISAME_DRAFT_KEY);
     }
   }, [isPermanentUser]);
+
+  // ── RECUPERACIÓN DE SOLICITUD DE ENCUENTRO ABIERTO POST-OAUTH ──
+  const hasProcessedPendingOpenRequestRef = useRef(false);
+  useEffect(() => {
+    if (!isPermanentUser) return;
+    if (hasProcessedPendingOpenRequestRef.current) return;
+    if (typeof sessionStorage === 'undefined') return;
+
+    const raw = sessionStorage.getItem(PENDING_OPEN_REQUEST_KEY);
+    if (!raw) return;
+
+    try {
+      const pending = JSON.parse(raw) as {
+        encounterId?: string;
+        action?: string;
+      };
+      if (pending && pending.action === 'request_join' && pending.encounterId) {
+        hasProcessedPendingOpenRequestRef.current = true;
+        const found = liveEncounters.find((e) => e.id === pending.encounterId);
+        if (found) {
+          setSelectedEncounter(found);
+          setIsDetailOpen(true);
+        } else {
+          openEncountersService.getEncuentroAbiertoById(pending.encounterId).then((enc) => {
+            if (enc) {
+              setSelectedEncounter(enc);
+              setIsDetailOpen(true);
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[HomeOpenEncounters] Error recuperando pending open request:', err);
+    }
+  }, [isPermanentUser, liveEncounters]);
 
   const handleOpenAvisame = (tab: 'create' | 'list' = 'create') => {
     if (!isPermanentUser) {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LogIn, X } from 'lucide-react';
 import { useAuth, type AnonymousUpgradeState } from '@/contexts/AuthContext';
 import { AccountCollisionModal } from './AccountCollisionModal';
@@ -17,7 +18,7 @@ export interface LoginRequiredSheetProps {
 
 const COPIES: Record<NonNullable<LoginRequiredSheetProps['action']>, { title: string; body: string }> = {
   request_join: {
-    title: 'Para solicitar sumarte necesitás una cuenta',
+    title: 'Para solicitar sumarte, iniciá sesión.',
     body: 'Esto nos ayuda a cuidar la comunidad y te permite seguir tu solicitud.',
   },
   open_encounter: {
@@ -123,7 +124,7 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
     onContinueWithGoogle();
   };
 
-  return (
+  const modalContent = (
     <>
       {/* Overlay */}
       <div
@@ -241,4 +242,10 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
       />
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

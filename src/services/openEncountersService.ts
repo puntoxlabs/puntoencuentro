@@ -122,6 +122,7 @@ export const openEncountersService = {
         language: item.language || 'es',
         description: item.description,
         hostName: item.host_name,
+        hostId: item.host_id,
         allowMultiSeatRequests: Boolean(item.allow_multi_seat_requests),
         maxSeatsPerRequest: Number(item.max_seats_per_request ?? 1),
       }));
