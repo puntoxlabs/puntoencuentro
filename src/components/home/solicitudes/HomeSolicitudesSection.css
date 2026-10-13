@@ -1,0 +1,241 @@
+/* HomeSolicitudesSection.css */
+
+.pe-solicitudes-section {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0.5rem 0 2rem;
+}
+
+.pe-solicitudes-loading,
+.pe-solicitudes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background: var(--pe-surface, #ffffff);
+  border-radius: 16px;
+  border: 1px solid var(--pe-border, #e2e8f0);
+}
+
+.pe-solicitudes-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: var(--color-primary, #2563eb);
+  border-radius: 50%;
+  animation: pe-spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes pe-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pe-solicitudes-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--pe-bg-subtle, #f1f5f9);
+  color: var(--pe-text-secondary, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.pe-solicitudes-empty-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--pe-text-primary, #0f172a);
+  margin-bottom: 0.5rem;
+}
+
+.pe-solicitudes-empty-desc {
+  font-size: 0.875rem;
+  color: var(--pe-text-secondary, #64748b);
+  max-width: 360px;
+}
+
+/* Grupo de solicitudes pendientes */
+.pe-solicitudes-group {
+  margin-bottom: 2rem;
+}
+
+.pe-solicitudes-group-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--pe-text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  padding-left: 0.25rem;
+}
+
+.pe-solicitudes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Tarjeta individual de solicitud */
+.pe-solicitud-card {
+  background: var(--pe-surface, #ffffff);
+  border-radius: 14px;
+  border: 1px solid var(--pe-border, #e2e8f0);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.pe-solicitud-card--pending {
+  border-left: 4px solid #f59e0b;
+}
+
+.pe-solicitud-card--approved {
+  border-left: 4px solid #10b981;
+}
+
+.pe-solicitud-card--rejected {
+  border-left: 4px solid #ef4444;
+  opacity: 0.85;
+}
+
+.pe-solicitud-card--cancelled {
+  border-left: 4px solid #94a3b8;
+  opacity: 0.85;
+}
+
+.pe-solicitud-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.pe-solicitud-card-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--pe-text-primary, #0f172a);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.pe-solicitud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pe-solicitud-badge--pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.pe-solicitud-badge--approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pe-solicitud-badge--rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pe-solicitud-badge--cancelled {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.pe-solicitud-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: var(--pe-text-secondary, #64748b);
+}
+
+.pe-solicitud-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pe-solicitud-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--pe-border-subtle, #f1f5f9);
+}
+
+.pe-solicitud-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.pe-solicitud-btn--primary {
+  background: var(--color-primary, #2563eb);
+  color: #ffffff;
+}
+
+.pe-solicitud-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+.pe-solicitud-btn--cancel {
+  background: transparent;
+  color: var(--pe-text-secondary, #64748b);
+  border-color: var(--pe-border, #cbd5e1);
+}
+
+.pe-solicitud-btn--cancel:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+/* Sección plegable de solicitudes anteriores */
+.pe-solicitudes-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--pe-surface, #ffffff);
+  border: 1px solid var(--pe-border, #e2e8f0);
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pe-text-secondary, #64748b);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pe-solicitudes-toggle-btn:hover {
+  background: var(--pe-bg-subtle, #f8fafc);
+  color: var(--pe-text-primary, #0f172a);
+}
+
+.pe-solicitudes-anteriores-wrap {
+  margin-top: 0.75rem;
+}

@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag } from 'lucide-react';
+import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { OpenEncounterSummary } from './types';
+import type { OpenEncounterSummary, EncuentroParticipanteAutorizado } from './types';
 import { getSlotLabel } from './types';
 import { openEncountersService } from '@/services/openEncountersService';
 import { getHostAlias } from '@/lib/hostAliasStorage';
@@ -57,6 +57,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isReported, setIsReported] = useState(false);
+  const [authorizedDetail, setAuthorizedDetail] = useState<EncuentroParticipanteAutorizado | null>(null);
   const [pendingReportData, setPendingReportData] = useState<{
     reason?: PublicContentReportReason | null;
     comment?: string;
@@ -108,11 +109,12 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setIsReportModalOpen(false);
     setIsReported(false);
     setErrorMsg(null);
+    setAuthorizedDetail(null);
     setApplicantName(getHostAlias() || user?.user_metadata?.full_name || '');
     setApplicantMessage('');
     setRequestedSeats(1);
 
-    // Consultar estado de solicitud previa — solo si usuario permanente
+    // Consultar estado de solicitud previa y detalle autorizado — solo si usuario permanente
     if (!isDemo && userId) {
       openEncountersService
         .getMiSolicitud(encounter.id, userId)
@@ -130,8 +132,22 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         .catch(() => {
           setRequestState({ hasRequest: false });
         });
+
+      openEncountersService
+        .getEncuentroParticipanteAutorizado(encounter.id)
+        .then((authRes) => {
+          if (authRes && authRes.ok) {
+            setAuthorizedDetail(authRes);
+          } else {
+            setAuthorizedDetail(null);
+          }
+        })
+        .catch(() => {
+          setAuthorizedDetail(null);
+        });
     } else {
       setRequestState({ hasRequest: false });
+      setAuthorizedDetail(null);
     }
 
     // Recuperar contexto de solicitud pendiente post-OAuth
@@ -367,10 +383,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   };
 
   const handleNavigateToEncounter = () => {
-    if (requestState.tokenParticipante) {
-      navigate(`/invite/${encodeURIComponent(requestState.tokenParticipante)}`);
-    }
     onClose();
+    navigate(`/?tab=encuentros&scope=participo`);
   };
 
   const modalContent = (
@@ -431,12 +445,38 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
             <span className="pe-detail-sheet__meta-value">{encounter.dateLabel}</span>
           </div>
 
-          <div className="pe-detail-sheet__meta-block">
-            <span className="pe-detail-sheet__meta-label">
-              <MapPin size={12} aria-hidden="true" /> Zona aproximada
-            </span>
-            <span className="pe-detail-sheet__meta-value">{encounter.approximateZone}</span>
-          </div>
+          {authorizedDetail?.lugar_texto ? (
+            <div className="pe-detail-sheet__meta-block" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+              <span className="pe-detail-sheet__meta-label" style={{ color: '#047857', fontWeight: 600 }}>
+                <MapPin size={12} aria-hidden="true" /> Dirección
+              </span>
+              <span className="pe-detail-sheet__meta-value" style={{ fontWeight: 600, color: '#065f46' }}>
+                {authorizedDetail.lugar_texto}
+              </span>
+            </div>
+          ) : authorizedDetail?.link_virtual ? (
+            <div className="pe-detail-sheet__meta-block" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+              <span className="pe-detail-sheet__meta-label" style={{ color: '#047857', fontWeight: 600 }}>
+                <Video size={12} aria-hidden="true" /> Enlace para participar
+              </span>
+              <a
+                href={authorizedDetail.link_virtual}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pe-detail-sheet__meta-value"
+                style={{ color: '#2563eb', textDecoration: 'underline', wordBreak: 'break-all' }}
+              >
+                {authorizedDetail.link_virtual}
+              </a>
+            </div>
+          ) : (
+            <div className="pe-detail-sheet__meta-block">
+              <span className="pe-detail-sheet__meta-label">
+                <MapPin size={12} aria-hidden="true" /> Zona aproximada
+              </span>
+              <span className="pe-detail-sheet__meta-value">{encounter.approximateZone}</span>
+            </div>
+          )}
 
           <div className="pe-detail-sheet__meta-block">
             <span className="pe-detail-sheet__meta-label">
@@ -463,9 +503,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           </div>
         )}
 
-        <p className="pe-detail-sheet__privacy-note">
-          📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
-        </p>
+        {authorizedDetail?.lugar_texto || authorizedDetail?.link_virtual ? (
+          <p className="pe-detail-sheet__privacy-note" style={{ color: '#047857' }}>
+            📍 Como tu participación está confirmada, acá tenés los datos privados para asistir.
+          </p>
+        ) : (
+          <p className="pe-detail-sheet__privacy-note">
+            📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
+          </p>
+        )}
 
         {!isDemo && !isHost && (
           <div className="pe-detail-sheet__report-row">

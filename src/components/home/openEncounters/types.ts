@@ -27,7 +27,7 @@ export interface Localidad {
   orden: number;
 }
 
-export type SolicitudEstado = 'pending' | 'approved' | 'rejected' | 'withdrawn';
+export type SolicitudEstado = 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
 
 export interface OpenEncounterRequest {
   id: string;
@@ -41,6 +41,38 @@ export interface OpenEncounterRequest {
   created_at: string;
   resolved_at?: string | null;
   seat_count?: number;
+}
+
+export interface MiSolicitudItem {
+  request_id: string;
+  encuentro_id: string;
+  estado: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  seat_count: number;
+  created_at: string;
+  resolved_at?: string | null;
+  open_public_title: string;
+  fecha: string | null;
+  hora: string | null;
+  modalidad: 'presencial' | 'virtual';
+  open_public_zone: string;
+  is_expired?: boolean;
+}
+
+export interface EncuentroParticipanteAutorizado {
+  ok: boolean;
+  id?: string;
+  is_host?: boolean;
+  open_public_title?: string;
+  open_description?: string;
+  fecha?: string | null;
+  hora?: string | null;
+  modalidad?: 'presencial' | 'virtual';
+  open_public_zone?: string;
+  lugar_texto?: string | null;
+  link_virtual?: string | null;
+  seat_count?: number;
+  estado?: string;
+  error?: string;
 }
 
 export interface AbrirEncuentroPayload {

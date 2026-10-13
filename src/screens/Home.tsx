@@ -69,6 +69,7 @@ import {
   type EncountersFilterValues,
 } from '@/components/home/yourEncounters/HomeEncountersFilterSheet';
 import { HomeIntencionesSection } from '@/components/home/intentions/HomeIntencionesSection';
+import { HomeSolicitudesSection } from '@/components/home/solicitudes/HomeSolicitudesSection';
 
 const HomeDynamicCanvasGsap = React.lazy(() => import('@/components/home/HomeDynamicCanvasGsap'));
 
@@ -136,7 +137,30 @@ const ActiveCard: React.FC<{
         <h3 className="home-card-title">
           {enc.titulo}
         </h3>
-        <Badge label={getBadgeLabel()} status={getBadgeStatus()} />
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {isHost && Number(enc.pending_requests_count) > 0 && (
+            <span
+              className="home-card-pending-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: '#FEF3C7',
+                color: '#92400E',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                border: '1px solid #FCD34D',
+                whiteSpace: 'nowrap',
+              }}
+              title="Solicitudes pendientes de aprobación"
+            >
+              📬 {Number(enc.pending_requests_count) === 1 ? '1 solicitud' : `${enc.pending_requests_count} solicitudes`}
+            </span>
+          )}
+          <Badge label={getBadgeLabel()} status={getBadgeStatus()} />
+        </div>
       </div>
 
       <p className="home-card-date">
@@ -401,10 +425,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
-  const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones'>(() => {
+  const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones' | 'solicitudes'>(() => {
     const sp = new URLSearchParams(location?.search || (typeof window !== 'undefined' ? window.location.search : ''));
     if (sp.get('tab') === 'intenciones' || sp.get('section') === 'intenciones') {
       return 'intenciones';
+    }
+    if (sp.get('tab') === 'solicitudes' || sp.get('section') === 'solicitudes') {
+      return 'solicitudes';
     }
     if (typeof window !== 'undefined' && window.sessionStorage?.getItem('puntoencuentro_pending_intention')) {
       return 'intenciones';
@@ -471,7 +498,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const encounterId = params.get('open_encounter');
+    const encounterId = params.get('open_encounter') || params.get('open_detail');
     if (!encounterId) return;
 
     if (lastProcessedEncounterIdRef.current === encounterId) return;
@@ -483,6 +510,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       console.warn('[Home] ID de encuentro abierto inválido en deep link:', encounterId);
       // Limpiar parámetro de la URL sin recargar
       params.delete('open_encounter');
+      params.delete('open_detail');
       const cleanSearch = params.toString();
       navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
       return;
@@ -503,8 +531,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           console.info('[Home] El encuentro abierto ya no está disponible o no existe:', encounterId);
         }
 
-        // 5. Limpiar open_encounter de la URL mediante navegación replace
+        // 5. Limpiar open_encounter y open_detail de la URL mediante navegación replace
         params.delete('open_encounter');
+        params.delete('open_detail');
         const cleanSearch = params.toString();
         navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
       })
@@ -512,6 +541,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         if (!isMounted) return;
         console.error('[Home] Error cargando encuentro abierto desde deep link:', err);
         params.delete('open_encounter');
+        params.delete('open_detail');
         const cleanSearch = params.toString();
         navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
       });
@@ -596,6 +626,22 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
     return seen.size;
   }, [activeOrganizedEncuentros, activeParticipatedEncuentros]);
+
+  const totalHostPendingRequests = React.useMemo(() => {
+    return (organizedEncuentros || []).reduce((acc: number, enc: any) => {
+      const pending = Number(enc?.pending_requests_count) || 0;
+      return acc + pending;
+    }, 0);
+  }, [organizedEncuentros]);
+
+  const handleSelectEncuentroFromSolicitudes = useCallback((encuentroId: string) => {
+    void openEncountersService.getEncuentroAbiertoById(encuentroId).then((enc) => {
+      if (enc) {
+        setSelectedDeepLinkEncounter(enc);
+        setIsDeepLinkEncounterDetailOpen(true);
+      }
+    });
+  }, []);
 
   // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
   const rawEncuentros = React.useMemo(() => {
@@ -1102,7 +1148,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
                   participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
                   counts={counts[enc.id] ?? null}
-                  isHost={activeScope === 'organizo'}
+                  isHost={enc._isHost ?? (activeScope === 'organizo')}
                 />
               ))}
             </div>
@@ -1406,6 +1452,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             onClick={() => setUserSectionTab('encuentros')}
           >
             {isV2Variant ? t('your_encounters.tab_encounters_v2', { defaultValue: 'Mis encuentros' }) : 'Tus encuentros'}
+            {totalHostPendingRequests > 0 && (
+              <span
+                className="home-user-tab-badge"
+                title={`${totalHostPendingRequests} solicitudes pendientes de aprobación`}
+              >
+                {totalHostPendingRequests}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -1415,6 +1469,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             onClick={() => setUserSectionTab('intenciones')}
           >
             {isV2Variant ? t('your_encounters.tab_intentions_v2', { defaultValue: 'Mis ganas' }) : 'Intenciones'}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={userSectionTab === 'solicitudes'}
+            className={`home-user-tab ${userSectionTab === 'solicitudes' ? 'home-user-tab--active' : ''}`}
+            onClick={() => setUserSectionTab('solicitudes')}
+          >
+            {t('your_encounters.tab_solicitudes', { defaultValue: 'Mis solicitudes' })}
           </button>
         </div>
 
@@ -1442,13 +1505,19 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               {renderGsapContent()}
             </div>
           </>
-        ) : (
+        ) : userSectionTab === 'intenciones' ? (
           <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
             <HomeIntencionesSection
               triggerCreateTimestamp={intentionCreateTrigger}
               isV2Variant={isV2Variant}
               onSaveSuccess={handleIntentionSaved}
               onViewMatches={handleViewMatches}
+            />
+          </div>
+        ) : (
+          <div style={{ padding: '0 0.5rem', marginTop: '1rem' }}>
+            <HomeSolicitudesSection
+              onSelectEncuentro={handleSelectEncuentroFromSolicitudes}
             />
           </div>
         )}

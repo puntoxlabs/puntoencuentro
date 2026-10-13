@@ -4,6 +4,8 @@ import type {
   Localidad,
   OpenEncounterRequest,
   AbrirEncuentroPayload,
+  MiSolicitudItem,
+  EncuentroParticipanteAutorizado,
 } from '@/components/home/openEncounters/types';
 import type {
   PublicContentReportReason,
@@ -444,6 +446,61 @@ export const openEncountersService = {
       }
 
       return data as { ok: boolean; new_status?: string };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene el listado durable no sensible de Mis solicitudes para el usuario actual.
+   */
+  async getMisSolicitudes(): Promise<MiSolicitudItem[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_mis_solicitudes_seguro');
+      if (error) {
+        console.error('[openEncountersService] Error fetching mis solicitudes:', error);
+        return [];
+      }
+      return (data as MiSolicitudItem[]) || [];
+    } catch (err) {
+      console.error('[openEncountersService] Exception fetching mis solicitudes:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Cancela una solicitud en estado pending de forma transaccional y server-side.
+   */
+  async cancelarSolicitud(requestId: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('cancelar_solicitud_encuentro_abierto', {
+        p_request_id: requestId,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error cancelando solicitud:', error);
+        return { ok: false, error: error.message };
+      }
+      return data as { ok: boolean; error?: string };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene la logística y detalle privado autorizado para un participante confirmado o anfitrión.
+   */
+  async getEncuentroParticipanteAutorizado(
+    encounterId: string
+  ): Promise<EncuentroParticipanteAutorizado> {
+    try {
+      const { data, error } = await supabase.rpc('get_encuentro_participante_autorizado', {
+        p_encuentro_id: encounterId,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error fetching participante autorizado:', error);
+        return { ok: false, error: error.message };
+      }
+      return data as EncuentroParticipanteAutorizado;
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
     }

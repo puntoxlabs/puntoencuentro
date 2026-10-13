@@ -941,6 +941,28 @@
   color: #ffffff;
 }
 
+.home-user-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.home-user-tab--active .home-user-tab-badge {
+  background: #ffffff;
+  color: var(--color-primary, #6366f1);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    HOME V2 MOBILE: REFINAMIENTO DE RITMO Y SEPARACIÓN VISUAL ENTRE SECCIONES
    Aplica exclusivamente a la variante V2 en viewports mobile (<768px).
