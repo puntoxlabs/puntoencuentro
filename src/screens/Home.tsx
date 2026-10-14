@@ -118,7 +118,10 @@ export const ActiveCard: React.FC<{
   const isOpenEncounter = Boolean(enc.is_open);
 
   const getBadgeLabel = () => {
-    if (isHost && isOpenEncounter) return "Abierto";
+    if (isHost && isOpenEncounter) {
+      // Sin lugares: "Completo" (no es Pausado ni cerrado; las pendientes se conservan).
+      return typeof availableSlots === 'number' && availableSlots <= 0 ? "Completo" : "Abierto";
+    }
     if (!isCoordinationEncounter(enc)) return "Activo";
     if (enc.coordination_status === 'closed') return "Fecha confirmada";
     if (isExpired) return "Plazo vencido";

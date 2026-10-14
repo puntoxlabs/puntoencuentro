@@ -322,7 +322,9 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
       })
     );
 
-    assert.ok(htmlD.includes('Abierto'), 'Debe mostrar badge Abierto');
+    assert.ok(htmlD.includes('Completo'), 'Debe mostrar badge Completo');
+    assert.ok(!htmlD.includes('Abierto'), 'Completo reemplaza a Abierto');
+    assert.ok(!htmlD.includes('Pausado'), 'Completo no se llama Pausado');
     assert.ok(htmlD.includes('Sin lugares disponibles'), 'Debe mostrar "Sin lugares disponibles"');
   });
 
