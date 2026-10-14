@@ -367,5 +367,102 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
     // Fila del participante debe mostrar lugares si > 1
     assert.ok(detailTsx.includes('{p.seat_count} lugares'), 'Fila del participante debe mostrar "· N lugares"');
   });
+
+  test('15. MIS SOLICITUDES: Estados explícitos con icono y texto (no sólo color)', () => {
+    const solicitudesTsx = readFileSync(
+      resolve(process.cwd(), 'src/components/home/solicitudes/HomeSolicitudesSection.tsx'),
+      'utf8'
+    );
+
+    // Badges con icono específico + texto textual explícito
+    assert.ok(solicitudesTsx.includes('Pendiente'), 'Debe existir badge textual Pendiente');
+    assert.ok(solicitudesTsx.includes('Aceptada'), 'Debe existir badge textual Aceptada');
+    assert.ok(solicitudesTsx.includes('Rechazada'), 'Debe existir badge textual Rechazada');
+    assert.ok(solicitudesTsx.includes('Cancelada'), 'Debe existir badge textual Cancelada');
+    assert.ok(solicitudesTsx.includes('Vencida'), 'Debe existir badge textual Vencida');
+
+    // Iconos diferenciados
+    assert.ok(solicitudesTsx.includes('<CheckCircle2'), 'Aceptada debe incluir CheckCircle2');
+    assert.ok(solicitudesTsx.includes('<XCircle'), 'Rechazada debe incluir XCircle');
+    assert.ok(solicitudesTsx.includes('<AlertCircle'), 'Cancelada debe incluir AlertCircle');
+    assert.ok(solicitudesTsx.includes('<Clock'), 'Pendiente y Vencida deben incluir Clock');
+  });
+
+  test('16. MIS SOLICITUDES: Solicitud Aceptada muestra banner de confirmación claro y multi-seat consistente', () => {
+    const solicitudesTsx = readFileSync(
+      resolve(process.cwd(), 'src/components/home/solicitudes/HomeSolicitudesSection.tsx'),
+      'utf8'
+    );
+
+    assert.ok(
+      solicitudesTsx.includes('Tu lugar está confirmado'),
+      'Debe mostrar "Tu lugar está confirmado" para 1 lugar'
+    );
+    assert.ok(
+      solicitudesTsx.includes('Tus ${s.seat_count} lugares están confirmados'),
+      'Debe mostrar "Tus N lugares están confirmados" para multi-seat'
+    );
+    assert.ok(
+      solicitudesTsx.includes('pe-solicitud-confirmed-banner'),
+      'Debe incluir la clase pe-solicitud-confirmed-banner'
+    );
+    // Ver encuentro es acción principal
+    assert.ok(
+      solicitudesTsx.includes('pe-solicitud-btn pe-solicitud-btn--primary'),
+      'Ver encuentro debe ser la acción principal en confirmadas'
+    );
+  });
+
+  test('17. MIS SOLICITUDES: Solicitud Pendiente permite Cancelar y Ver encuentro sin exponer datos privados', () => {
+    const solicitudesTsx = readFileSync(
+      resolve(process.cwd(), 'src/components/home/solicitudes/HomeSolicitudesSection.tsx'),
+      'utf8'
+    );
+
+    assert.ok(solicitudesTsx.includes('Cancelar solicitud'), 'Debe permitir cancelar solicitud pendiente');
+    assert.ok(solicitudesTsx.includes('open_public_zone'), 'Debe mostrar zona pública aproximada');
+    assert.ok(!solicitudesTsx.includes('lugar_texto'), 'No debe exponer dirección privada');
+    assert.ok(!solicitudesTsx.includes('link_virtual'), 'No debe exponer link virtual privado');
+  });
+
+  test('18. MIS SOLICITUDES: Historial resuelto es compacto y sin botones inválidos', () => {
+    const solicitudesTsx = readFileSync(
+      resolve(process.cwd(), 'src/components/home/solicitudes/HomeSolicitudesSection.tsx'),
+      'utf8'
+    );
+
+    assert.ok(
+      solicitudesTsx.includes('pe-solicitud-card--compact'),
+      'Las cards del historial deben usar pe-solicitud-card--compact'
+    );
+    // En anteriores no debe haber botón de cancelar solicitud
+    const matchAnteriores = solicitudesTsx.match(/\{anteriores\.map\(\(s\) => \([\s\S]*?\)\)\}/);
+    assert.ok(matchAnteriores, 'Debe existir mapeo de solicitudes anteriores');
+    assert.ok(
+      !matchAnteriores[0].includes('Cancelar solicitud'),
+      'El historial de solicitudes anteriores NO debe incluir botón Cancelar solicitud'
+    );
+  });
+
+  test('19. MIS SOLICITUDES: CSS Mobile adapta acciones y evita botones apretados', () => {
+    const solicitudesCss = readFileSync(
+      resolve(process.cwd(), 'src/components/home/solicitudes/HomeSolicitudesSection.css'),
+      'utf8'
+    );
+
+    assert.ok(
+      solicitudesCss.includes('.pe-solicitud-confirmed-banner {'),
+      'CSS debe definir banner de confirmación'
+    );
+    assert.ok(
+      solicitudesCss.includes('.pe-solicitud-card--compact {'),
+      'CSS debe definir estilos compactos para historial'
+    );
+    assert.ok(
+      solicitudesCss.includes('flex-direction: column'),
+      'Mobile debe disponer las acciones en columna para evitar texto apretado'
+    );
+  });
 });
+
 

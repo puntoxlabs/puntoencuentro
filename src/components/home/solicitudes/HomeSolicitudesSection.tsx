@@ -127,8 +127,11 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
     );
   }
 
-  const pendientes = solicitudes.filter((s) => s.estado === 'pending');
-  const anteriores = solicitudes.filter((s) => s.estado !== 'pending');
+  const pendientes = solicitudes.filter((s) => s.estado === 'pending' && !s.is_expired);
+  const aceptadas = solicitudes.filter((s) => s.estado === 'approved');
+  const anteriores = solicitudes.filter(
+    (s) => s.estado === 'rejected' || s.estado === 'cancelled' || (s.estado === 'pending' && s.is_expired)
+  );
 
   if (solicitudes.length === 0) {
     return (
@@ -156,34 +159,34 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
     if (s.estado === 'pending') {
       if (s.is_expired) {
         return (
-          <span className="pe-solicitud-badge pe-solicitud-badge--cancelled">
-            <Clock size={12} /> Vencida
+          <span className="pe-solicitud-badge pe-solicitud-badge--expired">
+            <Clock size={12} aria-hidden="true" /> Vencida
           </span>
         );
       }
       return (
         <span className="pe-solicitud-badge pe-solicitud-badge--pending">
-          <Clock size={12} /> Pendiente
+          <Clock size={12} aria-hidden="true" /> Pendiente
         </span>
       );
     }
     if (s.estado === 'approved') {
       return (
         <span className="pe-solicitud-badge pe-solicitud-badge--approved">
-          <CheckCircle2 size={12} /> Aceptada
+          <CheckCircle2 size={12} aria-hidden="true" /> Aceptada
         </span>
       );
     }
     if (s.estado === 'rejected') {
       return (
         <span className="pe-solicitud-badge pe-solicitud-badge--rejected">
-          <XCircle size={12} /> Rechazada
+          <XCircle size={12} aria-hidden="true" /> Rechazada
         </span>
       );
     }
     return (
       <span className="pe-solicitud-badge pe-solicitud-badge--cancelled">
-        <AlertCircle size={12} /> Cancelada
+        <AlertCircle size={12} aria-hidden="true" /> Cancelada
       </span>
     );
   };
@@ -207,7 +210,65 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
         </div>
       )}
 
-      {/* ── 1. Solicitudes Pendientes ──────────────────────── */}
+      {/* ── 1. Solicitudes Aceptadas / Lugares Confirmados ───── */}
+      {aceptadas.length > 0 && (
+        <div className="pe-solicitudes-group">
+          <h3 className="pe-solicitudes-group-title">
+            Lugares confirmados ({aceptadas.length})
+          </h3>
+          <div className="pe-solicitudes-list">
+            {aceptadas.map((s) => (
+              <article
+                key={s.request_id}
+                className="pe-solicitud-card pe-solicitud-card--approved"
+              >
+                <div className="pe-solicitud-card-top">
+                  <h4 className="pe-solicitud-card-title">{s.open_public_title}</h4>
+                  {renderBadge(s)}
+                </div>
+
+                <div className="pe-solicitud-confirmed-banner">
+                  <CheckCircle2 size={15} aria-hidden="true" />
+                  <span>
+                    {s.seat_count === 1
+                      ? 'Tu lugar está confirmado'
+                      : `Tus ${s.seat_count} lugares están confirmados`}
+                  </span>
+                </div>
+
+                <div className="pe-solicitud-meta">
+                  {s.fecha && (
+                    <span className="pe-solicitud-meta-item">
+                      <Calendar size={13} aria-hidden="true" />
+                      {formatFriendlyDate(s.fecha, s.hora)}
+                    </span>
+                  )}
+                  <span className="pe-solicitud-meta-item">
+                    <MapPin size={13} aria-hidden="true" />
+                    {s.open_public_zone}
+                  </span>
+                  <span className="pe-solicitud-meta-item">
+                    <Users size={13} aria-hidden="true" />
+                    {s.seat_count === 1 ? '1 lugar' : `${s.seat_count} lugares`}
+                  </span>
+                </div>
+
+                <div className="pe-solicitud-actions">
+                  <button
+                    type="button"
+                    className="pe-solicitud-btn pe-solicitud-btn--primary"
+                    onClick={() => onSelectEncuentro(s.encuentro_id)}
+                  >
+                    Ver encuentro <ArrowRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. Solicitudes Pendientes ──────────────────────── */}
       {pendientes.length > 0 && (
         <div className="pe-solicitudes-group">
           <h3 className="pe-solicitudes-group-title">
@@ -237,14 +298,14 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                   </span>
                   <span className="pe-solicitud-meta-item">
                     <Users size={13} aria-hidden="true" />
-                    {s.seat_count === 1 ? '1 lugar' : `${s.seat_count} lugares`}
+                    {s.seat_count === 1 ? '1 lugar solicitado' : `${s.seat_count} lugares solicitados`}
                   </span>
                 </div>
 
                 <div className="pe-solicitud-actions">
                   <button
                     type="button"
-                    className="pe-solicitud-btn pe-solicitud-btn--primary"
+                    className="pe-solicitud-btn pe-solicitud-btn--secondary"
                     onClick={() => onSelectEncuentro(s.encuentro_id)}
                   >
                     Ver encuentro <ArrowRight size={14} aria-hidden="true" />
@@ -264,7 +325,7 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
         </div>
       )}
 
-      {/* ── 2. Solicitudes Anteriores (Plegable) ─────────────── */}
+      {/* ── 3. Solicitudes Anteriores (Historial resuelto plegable) ─────────────── */}
       {anteriores.length > 0 && (
         <div className="pe-solicitudes-anteriores-section">
           <button
@@ -283,7 +344,7 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                 {anteriores.map((s) => (
                   <article
                     key={s.request_id}
-                    className={`pe-solicitud-card pe-solicitud-card--${s.estado}`}
+                    className={`pe-solicitud-card pe-solicitud-card--${s.is_expired ? 'expired' : s.estado} pe-solicitud-card--compact`}
                   >
                     <div className="pe-solicitud-card-top">
                       <h4 className="pe-solicitud-card-title">{s.open_public_title}</h4>
@@ -305,16 +366,6 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                         <Users size={13} aria-hidden="true" />
                         {s.seat_count === 1 ? '1 lugar' : `${s.seat_count} lugares`}
                       </span>
-                    </div>
-
-                    <div className="pe-solicitud-actions">
-                      <button
-                        type="button"
-                        className="pe-solicitud-btn pe-solicitud-btn--primary"
-                        onClick={() => onSelectEncuentro(s.encuentro_id)}
-                      >
-                        Ver encuentro <ArrowRight size={14} aria-hidden="true" />
-                      </button>
                     </div>
                   </article>
                 ))}
