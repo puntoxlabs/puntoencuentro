@@ -4,6 +4,14 @@ import { useAuth } from './AuthContext';
 import { notificationService } from '../services/notificationService';
 import type { InboxNotificationItem } from '../types/notifications';
 
+export interface IncomingMatchEvent {
+  encounterId: string;
+  notificationId?: string;
+  payload?: any;
+}
+
+export type IncomingMatchListener = (event: IncomingMatchEvent) => void;
+
 interface NotificationsContextValue {
   unreadCount: number;
   notifications: InboxNotificationItem[];
@@ -18,6 +26,7 @@ interface NotificationsContextValue {
   marcarLeida: (id: string) => Promise<boolean>;
   marcarTodasLeidas: () => Promise<boolean>;
   cargarMas: () => Promise<void>;
+  subscribeToIncomingMatches: (listener: IncomingMatchListener) => () => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
@@ -36,6 +45,16 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Ref para evitar condiciones de carrera entre peticiones simultáneas
   const activeFetchRef = useRef<number>(0);
+
+  // Registro de listeners activos para eventos en vivo de matches de Mis Ganas
+  const matchListenersRef = useRef<Set<IncomingMatchListener>>(new Set());
+
+  const subscribeToIncomingMatches = useCallback((listener: IncomingMatchListener) => {
+    matchListenersRef.current.add(listener);
+    return () => {
+      matchListenersRef.current.delete(listener);
+    };
+  }, []);
 
   // 1. Obtener conteo de no leídas
   const fetchUnreadCount = useCallback(async () => {
@@ -175,10 +194,49 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
           table: 'inbox_notifications',
           filter: `recipient_user_id=eq.${user.id}`,
         },
-        () => {
+        (change) => {
           fetchUnreadCount();
           if (isOpen) {
             fetchNotifications(true);
+          }
+
+          const newRow = change?.new as any;
+          if (newRow && newRow.target_type === 'encounter') {
+            const isMatch =
+              newRow.notification_type === 'match_found' ||
+              newRow.notification_type === 'match_alert' ||
+              newRow.notification_type === 'intention_converted_to_encounter' ||
+              newRow.notification_type === 'interes_convertido';
+
+            let rawPayload = newRow.payload;
+            if (typeof rawPayload === 'string') {
+              try {
+                rawPayload = JSON.parse(rawPayload);
+              } catch {
+                // ignore
+              }
+            }
+
+            const encounterId =
+              newRow.target_id ||
+              rawPayload?.encounter_id ||
+              rawPayload?.encounterId ||
+              rawPayload?.data?.encounterId ||
+              rawPayload?.data?.encounter_id;
+
+            if (isMatch && encounterId) {
+              matchListenersRef.current.forEach((listener) => {
+                try {
+                  listener({
+                    encounterId: String(encounterId),
+                    notificationId: newRow.id,
+                    payload: rawPayload,
+                  });
+                } catch (err) {
+                  console.error('[NotificationsContext] Error notificando match listener:', err);
+                }
+              });
+            }
           }
         }
       )
@@ -229,6 +287,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         marcarLeida,
         marcarTodasLeidas,
         cargarMas,
+        subscribeToIncomingMatches,
       }}
     >
       {children}

@@ -55,6 +55,8 @@ export interface HomeOpenEncountersProps {
   highlightEncounterIds?: string[];
   /** Callback al finalizar el ciclo de resaltado (~3.5s) */
   onClearHighlight?: () => void;
+  /** Disparador de refresco en caliente para Discovery (ej. tras nuevo match en tiempo real) */
+  refreshTrigger?: number;
 }
 
 /**
@@ -93,6 +95,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   isV2Variant = false,
   highlightEncounterIds,
   onClearHighlight,
+  refreshTrigger,
 }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -190,6 +193,13 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     enabled: propEncounters === undefined && propIntentions === undefined,
     enableRealtime: Boolean(isV2Variant && propEncounters === undefined),
   });
+
+  // Refresco en caliente condicional disparado desde componente padre (ej. tras evento match Realtime)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      refresh();
+    }
+  }, [refreshTrigger, refresh]);
 
   // Determinar si se permite fallback demo de diseño
   const allowDemoFallback = useMemo(() => {
@@ -702,16 +712,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     if (matchingSet.size > 0) {
       setActiveHighlightedIds(matchingSet);
       pauseAutoAdvance(10000);
-    }
 
-    // 4. Limpiar resaltado automáticamente tras 3.5 segundos
-    if (highlightTimerRef.current) {
-      window.clearTimeout(highlightTimerRef.current);
+      // 4. Limpiar resaltado automáticamente tras 3.5 segundos
+      if (highlightTimerRef.current) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+      highlightTimerRef.current = window.setTimeout(() => {
+        setActiveHighlightedIds(new Set());
+        onClearHighlight?.();
+      }, 3500);
     }
-    highlightTimerRef.current = window.setTimeout(() => {
-      setActiveHighlightedIds(new Set());
-      onClearHighlight?.();
-    }, 3500);
 
     return () => {
       if (scrollTimer !== null) {

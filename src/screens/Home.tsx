@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Plus, User, MoreVertical, Bell } from 'lucide-react';
+import { Calendar, Plus, User, MoreVertical, Bell, Sparkles } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
@@ -512,7 +512,16 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     unreadCount: notificationsUnreadCount,
     isOpen: isNotificationsOpen,
     setIsOpen: setIsNotificationsOpen,
+    subscribeToIncomingMatches,
   } = useNotifications();
+
+  // Estados para refresco y feedback de matches en vivo de "Mis ganas"
+  const [discoveryRefreshTrigger, setDiscoveryRefreshTrigger] = useState<number>(0);
+  const [liveMatchFeedback, setLiveMatchFeedback] = useState<{
+    count: number;
+    encounterIds: string[];
+  } | null>(null);
+  const sessionSeenMatchEncounterIdsRef = useRef<Set<string>>(new Set());
 
   // Estado para visualización de Encuentro Abierto desde deep link
   const [selectedDeepLinkEncounter, setSelectedDeepLinkEncounter] = useState<OpenEncounterSummary | null>(null);
@@ -598,6 +607,57 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     const cleanSearch = params.toString();
     navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
   }, [authLoading, isPermanentUser, location.search, location.pathname, navigate, setIsNotificationsOpen]);
+
+  // ── ESCUCHA DE MATCHES EN VIVO (Mis ganas → Discovery en caliente) ──
+  useEffect(() => {
+    if (!subscribeToIncomingMatches) return;
+
+    const unsubscribe = subscribeToIncomingMatches(({ encounterId }) => {
+      if (!encounterId) return;
+
+      // Deduplicación en sesión: si ya fue recibido, visto o descartado, no loopear ni repetir
+      if (sessionSeenMatchEncounterIdsRef.current.has(encounterId)) {
+        return;
+      }
+
+      // Si el usuario ya está viendo el detalle de este encuentro actualmente abierto, no mostrar banner redundante
+      if (selectedDeepLinkEncounter?.id === encounterId && isDeepLinkEncounterDetailOpen) {
+        sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+        return;
+      }
+
+      sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+
+      // 1. Refrescar automáticamente Discovery
+      setDiscoveryRefreshTrigger(Date.now());
+
+      // 2. Acumular feedback visible en vivo
+      setLiveMatchFeedback((prev) => {
+        const prevIds = prev ? prev.encounterIds : [];
+        if (prevIds.includes(encounterId)) return prev;
+        const updatedIds = [...prevIds, encounterId];
+        return {
+          count: updatedIds.length,
+          encounterIds: updatedIds,
+        };
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [subscribeToIncomingMatches, selectedDeepLinkEncounter?.id, isDeepLinkEncounterDetailOpen]);
+
+  const handleViewLiveMatches = useCallback(() => {
+    if (!liveMatchFeedback || liveMatchFeedback.encounterIds.length === 0) return;
+    const targetIds = [...liveMatchFeedback.encounterIds];
+    setLiveMatchFeedback(null);
+    handleViewMatches(targetIds);
+  }, [liveMatchFeedback, handleViewMatches]);
+
+  const handleDismissLiveMatchFeedback = useCallback(() => {
+    setLiveMatchFeedback(null);
+  }, []);
 
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
@@ -1621,6 +1681,55 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         </div>
       </header>
 
+      {/* Banner de Feedback EN VIVO para Nuevos Matches de Mis Ganas */}
+      {liveMatchFeedback && liveMatchFeedback.count > 0 && (
+        <aside
+          className="home-live-match-banner"
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="home-live-match-banner__content">
+            <div className="home-live-match-banner__header">
+              <Sparkles className="home-live-match-banner__icon" size={18} aria-hidden="true" />
+              <strong className="home-live-match-banner__title">
+                {liveMatchFeedback.count === 1
+                  ? t('your_encounters.live_match_single_title', { defaultValue: 'Encontramos algo para vos' })
+                  : t('your_encounters.live_match_plural_title', { defaultValue: 'Encontramos opciones para vos' })}
+              </strong>
+            </div>
+            <p className="home-live-match-banner__text">
+              {liveMatchFeedback.count === 1
+                ? t('your_encounters.live_match_single_text', {
+                    defaultValue: 'Hay un encuentro que coincide con algo que tenés ganas de hacer.',
+                  })
+                : t('your_encounters.live_match_plural_text', {
+                    count: liveMatchFeedback.count,
+                    defaultValue: `Hay ${liveMatchFeedback.count} encuentros que coinciden con algo que tenés ganas de hacer.`,
+                  })}
+            </p>
+          </div>
+          <div className="home-live-match-banner__actions">
+            <button
+              type="button"
+              className="home-live-match-banner__cta"
+              onClick={handleViewLiveMatches}
+            >
+              {liveMatchFeedback.count === 1
+                ? t('your_encounters.live_match_single_cta', { defaultValue: 'Ver opción' })
+                : t('your_encounters.live_match_plural_cta', { defaultValue: 'Ver opciones' })}
+            </button>
+            <button
+              type="button"
+              className="home-live-match-banner__close"
+              onClick={handleDismissLiveMatchFeedback}
+              aria-label={t('your_encounters.live_match_close_aria', { defaultValue: 'Cerrar aviso' })}
+            >
+              ✕
+            </button>
+          </div>
+        </aside>
+      )}
+
       {/* Hero Section con Composición Centrada Envolvente V2 y Espacio Vivo Dinámico */}
       <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}`}>
         {/* Espacio vivo de etiquetas flotantes y fotos en movimiento */}
@@ -1704,6 +1813,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title') : undefined}
             highlightEncounterIds={matchedHighlightIds}
             onClearHighlight={handleClearHighlight}
+            refreshTrigger={discoveryRefreshTrigger}
             onFocusIntentInput={() => {
               const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
               if (textarea) {

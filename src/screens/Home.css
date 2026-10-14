@@ -1423,3 +1423,143 @@
   margin-top: 12px;
 }
 
+/* ── Banner Flotante EN VIVO para Matches de Mis Ganas ── */
+.home-live-match-banner {
+  position: fixed;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  right: 16px;
+  margin: 0 auto;
+  max-width: 520px;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.2), 0 6px 12px -4px rgba(0, 0, 0, 0.08);
+  animation: slideDownMatchBanner 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-sizing: border-box;
+}
+
+@keyframes slideDownMatchBanner {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-live-match-banner {
+    animation: none;
+  }
+}
+
+.home-live-match-banner__content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.home-live-match-banner__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-live-match-banner__icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.home-live-match-banner__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  line-height: 1.25;
+}
+
+.home-live-match-banner__text {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #1e40af;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.home-live-match-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.home-live-match-banner__cta {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  font-family: inherit;
+}
+
+.home-live-match-banner__cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.home-live-match-banner__cta:active {
+  transform: translateY(0);
+}
+
+.home-live-match-banner__close {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  line-height: 1;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.home-live-match-banner__close:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 480px) {
+  .home-live-match-banner {
+    left: 12px;
+    right: 12px;
+    padding: 10px 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .home-live-match-banner__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+

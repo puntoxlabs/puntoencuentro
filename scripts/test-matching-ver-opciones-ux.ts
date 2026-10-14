@@ -272,4 +272,131 @@ describe('UX Matching Mis Ganas V1: "Ver opciones" y Resaltado en Discovery', ()
       'HomeOpenEncounters debe activar setActiveHighlightedIds(matchingSet)'
     );
   });
+
+  test('M. NotificationsContext expone subscribeToIncomingMatches y procesa INSERT con target_type encounter', () => {
+    const notifContextPath = path.join(rootDir, 'src/contexts/NotificationsContext.tsx');
+    const notifContent = fs.readFileSync(notifContextPath, 'utf-8');
+
+    assert.ok(
+      notifContent.includes('subscribeToIncomingMatches: (listener: IncomingMatchListener) => () => void'),
+      'NotificationsContextValue debe definir subscribeToIncomingMatches'
+    );
+    assert.ok(
+      notifContent.includes("newRow.target_type === 'encounter'"),
+      'El handler Realtime debe verificar target_type === encounter'
+    );
+    assert.ok(
+      notifContent.includes("newRow.notification_type === 'match_found'"),
+      'El handler Realtime debe reconocer notification_type === match_found'
+    );
+    assert.ok(
+      notifContent.includes('matchListenersRef.current.forEach'),
+      'NotificationsContext debe despachar el evento a los listeners suscritos'
+    );
+  });
+
+  test('N. Home.tsx y HomeOpenEncounters implementan refresco en caliente de Discovery (refreshTrigger)', () => {
+    const homePath = path.join(rootDir, 'src/screens/Home.tsx');
+    const homeContent = fs.readFileSync(homePath, 'utf-8');
+    const openEncountersPath = path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.tsx');
+    const openContent = fs.readFileSync(openEncountersPath, 'utf-8');
+
+    assert.ok(
+      homeContent.includes('const [discoveryRefreshTrigger, setDiscoveryRefreshTrigger] = useState<number>(0)'),
+      'Home.tsx debe definir discoveryRefreshTrigger'
+    );
+    assert.ok(
+      homeContent.includes('refreshTrigger={discoveryRefreshTrigger}'),
+      'Home.tsx debe pasar refreshTrigger a HomeOpenEncounters'
+    );
+    assert.ok(
+      openContent.includes('refreshTrigger?: number'),
+      'HomeOpenEncountersProps debe aceptar refreshTrigger'
+    );
+    assert.ok(
+      openContent.includes('if (refreshTrigger && refreshTrigger > 0)'),
+      'HomeOpenEncounters debe reaccionar a refreshTrigger ejecutando refresh()'
+    );
+  });
+
+  test('O & P. Copy exacto para 1 match ("Ver opción") y N matches ("Ver opciones") y acumulación', () => {
+    const homePath = path.join(rootDir, 'src/screens/Home.tsx');
+    const homeContent = fs.readFileSync(homePath, 'utf-8');
+    const esLocalePath = path.join(rootDir, 'src/i18n/locales/es.json');
+    const esContent = JSON.parse(fs.readFileSync(esLocalePath, 'utf-8'));
+
+    // Verificación de los copies exactos en es.json
+    assert.equal(esContent.your_encounters.live_match_single_title, 'Encontramos algo para vos');
+    assert.equal(
+      esContent.your_encounters.live_match_single_text,
+      'Hay un encuentro que coincide con algo que tenés ganas de hacer.'
+    );
+    assert.equal(esContent.your_encounters.live_match_single_cta, 'Ver opción');
+
+    assert.equal(esContent.your_encounters.live_match_plural_title, 'Encontramos opciones para vos');
+    assert.equal(
+      esContent.your_encounters.live_match_plural_text,
+      'Hay {{count}} encuentros que coinciden con algo que tenés ganas de hacer.'
+    );
+    assert.equal(esContent.your_encounters.live_match_plural_cta, 'Ver opciones');
+
+    // Verificación del banner en Home.tsx
+    assert.ok(
+      homeContent.includes('liveMatchFeedback.count === 1'),
+      'Home.tsx debe discriminar entre 1 match y N matches'
+    );
+    assert.ok(
+      homeContent.includes('live_match_single_cta'),
+      'Home.tsx debe invocar live_match_single_cta'
+    );
+    assert.ok(
+      homeContent.includes('live_match_plural_cta'),
+      'Home.tsx debe invocar live_match_plural_cta'
+    );
+    assert.ok(
+      homeContent.includes('handleViewLiveMatches'),
+      'Home.tsx debe manejar el CTA mediante handleViewLiveMatches'
+    );
+  });
+
+  test('Q. Deduplicación en sesión y prevención de loops en cliente', () => {
+    const homePath = path.join(rootDir, 'src/screens/Home.tsx');
+    const homeContent = fs.readFileSync(homePath, 'utf-8');
+
+    assert.ok(
+      homeContent.includes('sessionSeenMatchEncounterIdsRef'),
+      'Home.tsx debe mantener un ref sessionSeenMatchEncounterIdsRef para deduplicación visual'
+    );
+    assert.ok(
+      homeContent.includes('sessionSeenMatchEncounterIdsRef.current.has(encounterId)'),
+      'Home.tsx debe omitir encuentros ya procesados o vistos en la sesión'
+    );
+  });
+
+  test('R. CSS del banner flotante en vivo: responsive mobile, elevación y prefers-reduced-motion', () => {
+    const cssPath = path.join(rootDir, 'src/screens/Home.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf-8');
+
+    assert.ok(
+      cssContent.includes('.home-live-match-banner'),
+      'Home.css debe declarar .home-live-match-banner'
+    );
+    assert.ok(
+      cssContent.includes('position: fixed;'),
+      'El banner debe tener position: fixed para visibilidad garantizada en viewport'
+    );
+    assert.ok(
+      cssContent.includes('z-index: 1050;'),
+      'El banner debe posicionarse por encima de header y tarjetas con z-index seguro'
+    );
+    assert.ok(
+      cssContent.includes('@media (max-width: 480px)'),
+      'Home.css debe incluir breakpoint mobile para 360px-412px'
+    );
+    assert.ok(
+      cssContent.includes('@media (prefers-reduced-motion: reduce)'),
+      'Home.css debe contemplar prefers-reduced-motion'
+    );
+  });
 });
+
