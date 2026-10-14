@@ -72,6 +72,14 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     )
   );
 
+  const isApprovedParticipant = Boolean(
+    !isHost && (
+      (requestState.hasRequest && requestState.status === 'approved') ||
+      (authorizedDetail && !authorizedDetail.is_host)
+    )
+  );
+  const participantSeats = authorizedDetail?.seat_count || requestedSeats || 1;
+
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   // Bloqueo de scroll de fondo con compensación de scrollbar y restauración de foco
@@ -456,6 +464,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           </div>
         )}
 
+        {/* Banner de Participante Aprobado */}
+        {isApprovedParticipant && (
+          <div className="pe-detail-sheet__approved-banner">
+            <div className="pe-detail-sheet__approved-title-row">
+              <CheckCircle2 size={18} className="pe-detail-sheet__approved-icon" aria-hidden="true" />
+              <h3 className="pe-detail-sheet__approved-title">
+                {participantSeats > 1
+                  ? `Tus ${participantSeats} lugares están confirmados`
+                  : 'Tu lugar está confirmado'}
+              </h3>
+            </div>
+            <p className="pe-detail-sheet__approved-subtitle">
+              {participantSeats > 1
+                ? `${participantSeats} lugares confirmados para este encuentro.`
+                : '1 lugar confirmado para este encuentro.'}
+            </p>
+          </div>
+        )}
+
         {/* Grilla de Metadatos */}
         <div className="pe-detail-sheet__meta-grid">
           <div className="pe-detail-sheet__meta-block">
@@ -465,17 +492,39 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
             <span className="pe-detail-sheet__meta-value">{encounter.dateLabel}</span>
           </div>
 
+          {isApprovedParticipant ? (
+            <div className="pe-detail-sheet__meta-block pe-detail-sheet__meta-block--highlight">
+              <span className="pe-detail-sheet__meta-label" style={{ color: '#047857' }}>
+                <Users size={12} aria-hidden="true" /> Tu reserva
+              </span>
+              <span className="pe-detail-sheet__meta-value" style={{ color: '#065f46', fontWeight: 700 }}>
+                {participantSeats > 1
+                  ? `${participantSeats} lugares confirmados`
+                  : '1 lugar confirmado'}
+              </span>
+            </div>
+          ) : (
+            <div className="pe-detail-sheet__meta-block">
+              <span className="pe-detail-sheet__meta-label">
+                <Users size={12} aria-hidden="true" /> Disponibilidad
+              </span>
+              <span className="pe-detail-sheet__meta-value" style={{ color: '#059669' }}>
+                {slotLabel}
+              </span>
+            </div>
+          )}
+
           {authorizedDetail?.lugar_texto ? (
-            <div className="pe-detail-sheet__meta-block" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+            <div className="pe-detail-sheet__meta-block pe-detail-sheet__meta-block--full pe-detail-sheet__meta-block--authorized">
               <span className="pe-detail-sheet__meta-label" style={{ color: '#047857', fontWeight: 600 }}>
                 <MapPin size={12} aria-hidden="true" /> Dirección
               </span>
-              <span className="pe-detail-sheet__meta-value" style={{ fontWeight: 600, color: '#065f46' }}>
+              <span className="pe-detail-sheet__meta-value" style={{ fontWeight: 600, color: '#065f46', wordBreak: 'break-word' }}>
                 {authorizedDetail.lugar_texto}
               </span>
             </div>
           ) : authorizedDetail?.link_virtual ? (
-            <div className="pe-detail-sheet__meta-block" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+            <div className="pe-detail-sheet__meta-block pe-detail-sheet__meta-block--full pe-detail-sheet__meta-block--authorized">
               <span className="pe-detail-sheet__meta-label" style={{ color: '#047857', fontWeight: 600 }}>
                 <Video size={12} aria-hidden="true" /> Enlace para participar
               </span>
@@ -483,7 +532,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 href={authorizedDetail.link_virtual}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="pe-detail-sheet__meta-value"
+                className="pe-detail-sheet__meta-value pe-detail-sheet__virtual-link"
                 style={{ color: '#2563eb', textDecoration: 'underline', wordBreak: 'break-all' }}
               >
                 {authorizedDetail.link_virtual}
@@ -498,14 +547,14 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
             </div>
           )}
 
-          <div className="pe-detail-sheet__meta-block">
-            <span className="pe-detail-sheet__meta-label">
-              <Users size={12} aria-hidden="true" /> Disponibilidad
-            </span>
-            <span className="pe-detail-sheet__meta-value" style={{ color: '#059669' }}>
-              {slotLabel}
-            </span>
-          </div>
+          {isApprovedParticipant && (
+            <div className="pe-detail-sheet__meta-block">
+              <span className="pe-detail-sheet__meta-label">
+                <MapPin size={12} aria-hidden="true" /> Zona pública
+              </span>
+              <span className="pe-detail-sheet__meta-value">{authorizedDetail?.open_public_zone || encounter.approximateZone}</span>
+            </div>
+          )}
 
           <div className="pe-detail-sheet__meta-block">
             <span className="pe-detail-sheet__meta-label">
@@ -529,7 +578,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
         {authorizedDetail?.lugar_texto || authorizedDetail?.link_virtual ? (
           <p className="pe-detail-sheet__privacy-note" style={{ color: '#047857' }}>
-            📍 Como tu participación está confirmada, acá tenés los datos privados para asistir.
+            📍 Como tu participación está confirmada, acá tenés los datos para asistir.
           </p>
         ) : (
           <p className="pe-detail-sheet__privacy-note">
@@ -588,24 +637,29 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
             </div>
-          ) : (requestState.hasRequest && requestState.status === 'approved') || (authorizedDetail && !authorizedDetail.is_host) ? (
+          ) : isApprovedParticipant ? (
             <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--approved">
               <div className="pe-detail-sheet__status-title" style={{ color: '#059669' }}>
                 <CheckCircle2 size={16} />
-                <span>{t('open_encounters.request_approved', { defaultValue: '¡Solicitud aceptada!' })}</span>
+                <span>
+                  {participantSeats > 1
+                    ? `Tus ${participantSeats} lugares están confirmados`
+                    : 'Tu lugar está confirmado'}
+                </span>
               </div>
               <p className="pe-detail-sheet__status-desc">
-                Ya formás parte de este encuentro. Podés ver la dirección y coordinar.
+                Ya formás parte de este encuentro. Podés ver los detalles y coordinar en Mis encuentros.
               </p>
               <button
                 type="button"
                 className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
                 onClick={handleNavigateToEncounter}
               >
-                {t('open_encounters.request_view_encounter', { defaultValue: 'Ver encuentro' })}
+                {t('open_encounters.request_view_encounter', { defaultValue: 'Ir a Mis encuentros' })}
                 <ArrowRight size={16} />
               </button>
             </div>
+
           ) : requestState.hasRequest ? (
             <div className={`pe-detail-sheet__status-box pe-detail-sheet__status-box--${requestState.status}`}>
               {requestState.status === 'pending' && (
@@ -619,26 +673,6 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                       defaultValue: 'Tu solicitud fue enviada al organizador. Te avisaremos cuando sea aprobada.',
                     })}
                   </p>
-                </>
-              )}
-
-              {requestState.status === 'approved' && (
-                <>
-                  <div className="pe-detail-sheet__status-title" style={{ color: '#059669' }}>
-                    <CheckCircle2 size={16} />
-                    <span>{t('open_encounters.request_approved', { defaultValue: '¡Solicitud aceptada!' })}</span>
-                  </div>
-                  <p className="pe-detail-sheet__status-desc">
-                    Ya formás parte de este encuentro. Podés ver la dirección y coordinar.
-                  </p>
-                  <button
-                    type="button"
-                    className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
-                    onClick={handleNavigateToEncounter}
-                  >
-                    {t('open_encounters.request_view_encounter', { defaultValue: 'Ver encuentro' })}
-                    <ArrowRight size={16} />
-                  </button>
                 </>
               )}
 

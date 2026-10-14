@@ -150,6 +150,69 @@
   gap: 3px;
 }
 
+.pe-detail-sheet__meta-block--full {
+  grid-column: 1 / -1;
+}
+
+.pe-detail-sheet__meta-block--authorized {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #a7f3d0;
+}
+
+.pe-detail-sheet__meta-block--highlight {
+  background: #f0fdf4;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.pe-detail-sheet__virtual-link {
+  display: inline-block;
+  padding: 4px 0;
+  min-height: 36px;
+  line-height: 1.4;
+}
+
+/* Banner de participante aprobado */
+.pe-detail-sheet__approved-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pe-detail-sheet__approved-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-detail-sheet__approved-icon {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.pe-detail-sheet__approved-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.pe-detail-sheet__approved-subtitle {
+  margin: 0;
+  padding-left: 26px;
+  font-size: 0.8125rem;
+  color: #047857;
+  line-height: 1.4;
+}
+
 .pe-detail-sheet__meta-label {
   font-size: 0.72rem;
   font-weight: 600;
