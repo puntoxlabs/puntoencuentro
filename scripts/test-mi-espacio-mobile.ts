@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import Home from '../src/screens/Home';
+import Home, { ActiveCard } from '../src/screens/Home';
 import { AuthContext } from '../src/contexts/AuthContext';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
 import { HomeSolicitudesSection } from '../src/components/home/solicitudes/HomeSolicitudesSection';
@@ -203,4 +203,167 @@ describe('Mi espacio Mobile (360px, 390px, 412px, Font Scaling) — Suite de Ver
       'ActiveCard header debe permitir wrap y flex-end para badges en pantallas angostas'
     );
   });
+
+  test('10. SEMÁNTICA CUPOS CASO A: 5 capacidad, 0 confirmados -> Abierto / 5 lugares disponibles', () => {
+    const encA = {
+      id: 'enc-caso-a',
+      titulo: 'Fútbol 5 en Güemes',
+      is_open: true,
+      max_participants: 5,
+      confirmed_seats: 0,
+      available_slots: 5,
+      fecha: '2026-10-20',
+      hora: '19:00',
+      modalidad: 'presencial',
+      tipo_invitacion: 'grupal',
+    };
+
+    const htmlA = renderToString(
+      React.createElement(ActiveCard, {
+        enc: encA,
+        onClick: () => {},
+        participantesCache: [],
+        counts: { total: 0, confirmados: 0, confirmed_seats: 0, available_slots: 5 },
+        isHost: true,
+      })
+    );
+
+    assert.ok(htmlA.includes('Abierto'), 'Debe mostrar badge Abierto');
+    assert.ok(!htmlA.includes('Activo'), 'No debe mostrar badge genérico Activo cuando está abierto');
+    assert.ok(htmlA.includes('5 lugares disponibles'), 'Debe indicar 5 lugares disponibles');
+    assert.ok(!htmlA.includes('confirmado'), 'No debe mostrar titulares confirmados');
+  });
+
+  test('10. SEMÁNTICA CUPOS CASO B: 1 titular con 3 lugares -> Abierto / 2 lugares disponibles (NUNCA "1 confirmado")', () => {
+    const encB = {
+      id: 'enc-caso-b',
+      titulo: 'Pádel mixto en Güemes',
+      is_open: true,
+      max_participants: 5,
+      confirmed_seats: 3,
+      available_slots: 2,
+      fecha: '2026-10-21',
+      hora: '20:00',
+      modalidad: 'presencial',
+      tipo_invitacion: 'grupal',
+    };
+
+    const htmlB = renderToString(
+      React.createElement(ActiveCard, {
+        enc: encB,
+        onClick: () => {},
+        participantesCache: [
+          { id: 'part-1', nombre_invitado: 'Punto X Labs', seat_count: 3, estado: 'confirmado' },
+        ],
+        counts: { total: 1, confirmados: 1, confirmed_seats: 3, available_slots: 2 },
+        isHost: true,
+      })
+    );
+
+    assert.ok(htmlB.includes('Abierto'), 'Debe mostrar badge Abierto');
+    assert.ok(htmlB.includes('2 lugares disponibles'), 'Debe mostrar 2 lugares disponibles');
+    assert.ok(!htmlB.includes('1 confirmado'), 'NUNCA debe mostrar 1 confirmado en la card del Host');
+    assert.ok(!htmlB.includes('3 confirmados'), 'Debe priorizar disponibilidad sobre número de confirmados');
+  });
+
+  test('11. SEMÁNTICA CUPOS CASO C: 2 titulares con seat_count 2 + 1 -> Abierto / 2 lugares disponibles', () => {
+    const encC = {
+      id: 'enc-caso-c',
+      titulo: 'Juegos de mesa en centro',
+      is_open: true,
+      max_participants: 5,
+      confirmed_seats: 3,
+      available_slots: 2,
+      fecha: '2026-10-22',
+      hora: '21:00',
+      modalidad: 'presencial',
+    };
+
+    const htmlC = renderToString(
+      React.createElement(ActiveCard, {
+        enc: encC,
+        onClick: () => {},
+        participantesCache: [
+          { id: 'p1', nombre_invitado: 'Ana', seat_count: 2, estado: 'confirmado' },
+          { id: 'p2', nombre_invitado: 'Beto', seat_count: 1, estado: 'confirmado' },
+        ],
+        counts: { total: 2, confirmados: 2, confirmed_seats: 3, available_slots: 2 },
+        isHost: true,
+      })
+    );
+
+    assert.ok(htmlC.includes('Abierto'), 'Debe mostrar badge Abierto');
+    assert.ok(htmlC.includes('2 lugares disponibles'), 'Debe mostrar 2 lugares disponibles');
+    assert.ok(!htmlC.includes('2 confirmados'), 'NUNCA debe mostrar 2 confirmados (titulares)');
+  });
+
+  test('12. SEMÁNTICA CUPOS CASO D: available_slots = 0 -> copy "Sin lugares disponibles"', () => {
+    const encD = {
+      id: 'enc-caso-d',
+      titulo: 'Cena completa',
+      is_open: true,
+      max_participants: 5,
+      confirmed_seats: 5,
+      available_slots: 0,
+      fecha: '2026-10-23',
+      hora: '21:30',
+      modalidad: 'presencial',
+    };
+
+    const htmlD = renderToString(
+      React.createElement(ActiveCard, {
+        enc: encD,
+        onClick: () => {},
+        participantesCache: [
+          { id: 'p1', nombre_invitado: 'Grupo Amigos', seat_count: 5, estado: 'confirmado' },
+        ],
+        counts: { total: 1, confirmados: 1, confirmed_seats: 5, available_slots: 0 },
+        isHost: true,
+      })
+    );
+
+    assert.ok(htmlD.includes('Abierto'), 'Debe mostrar badge Abierto');
+    assert.ok(htmlD.includes('Sin lugares disponibles'), 'Debe mostrar "Sin lugares disponibles"');
+  });
+
+  test('13. SEMÁNTICA CUPOS CASO E: Encuentro no abierto (privado) -> badge Activo, nunca Abierto', () => {
+    const encE = {
+      id: 'enc-caso-e',
+      titulo: 'Reunión privada de equipo',
+      is_open: false,
+      max_participants: 10,
+      fecha: '2026-10-24',
+      hora: '10:00',
+      modalidad: 'virtual',
+      tipo_invitacion: 'grupal',
+    };
+
+    const htmlE = renderToString(
+      React.createElement(ActiveCard, {
+        enc: encE,
+        onClick: () => {},
+        participantesCache: [
+          { id: 'p1', nombre_invitado: 'Carlos', seat_count: 1, estado: 'confirmado' },
+        ],
+        counts: { total: 1, confirmados: 1 },
+        isHost: true,
+      })
+    );
+
+    assert.ok(!htmlE.includes('Abierto'), 'No debe mostrar badge Abierto si is_open es false');
+    assert.ok(htmlE.includes('Activo'), 'Debe mantener badge operativo Activo');
+    assert.ok(htmlE.includes('1 confirmado'), 'Encuentro privado tradicional muestra confirmados');
+  });
+
+  test('14. SECCIÓN PARTICIPANTES: Host Detail resume claramente titulares vs personas físicas', () => {
+    const detailTsx = readFileSync(resolve(process.cwd(), 'src/screens/DetailHost.tsx'), 'utf8');
+
+    // Debe existir lógica de formateo diferenciando titulares y personas
+    assert.ok(detailTsx.includes('titularText'), 'Debe calcular titularText');
+    assert.ok(detailTsx.includes('personasText'), 'Debe calcular personasText');
+    assert.ok(detailTsx.includes('${titularText} · ${personasText}'), 'Debe combinar "N titular(es) · M personas"');
+    // Fila del participante debe mostrar lugares si > 1
+    assert.ok(detailTsx.includes('{p.seat_count} lugares'), 'Fila del participante debe mostrar "· N lugares"');
+  });
 });
+

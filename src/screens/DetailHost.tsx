@@ -1468,7 +1468,9 @@ const DetailHost: React.FC = () => {
                       (() => {
                         const seats = confirmados.reduce((acc: number, p: any) => acc + (p.seat_count || 1), 0);
                         if (seats > confirmados.length) {
-                          return `${seats} confirmados (${confirmados.length} ${confirmados.length === 1 ? 'titular' : 'titulares'})`;
+                          const titularText = `${confirmados.length} ${confirmados.length === 1 ? 'titular' : 'titulares'}`;
+                          const personasText = `${seats} personas`;
+                          return `${titularText} · ${personasText}`;
                         }
                         return formatCount(confirmados.length, 'confirmado', 'confirmados');
                       })(),

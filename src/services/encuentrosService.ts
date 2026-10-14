@@ -718,8 +718,8 @@ export const encuentrosService = {
       return {};
     }
 
-    // La RPC ya devuelve el diccionario { [id]: { total, confirmados } }
-    return (data as Record<string, { total: number; confirmados: number }>) || {};
+    // La RPC ya devuelve el diccionario { [id]: { total, confirmados, confirmed_seats?, available_slots? } }
+    return (data as Record<string, { total: number; confirmados: number; confirmed_seats?: number; available_slots?: number }>) || {};
 
   },
 

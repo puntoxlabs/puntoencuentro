@@ -97,12 +97,12 @@ function preloadWizardFromEncuentro(enc: any, wizardStore: ReturnType<typeof use
 }
 
 /* ─── Componente de card activa ───────────────────────────────────── */
-const ActiveCard: React.FC<{
+export const ActiveCard: React.FC<{
   enc: any;
   onClick: () => void;
   participantesCache: any[] | null;
   miEstado?: string | null;
-  counts?: { total: number; confirmados: number } | null;
+  counts?: { total: number; confirmados: number; confirmed_seats?: number; available_slots?: number } | null;
   isHost?: boolean;
 }> = ({ enc, onClick, participantesCache, miEstado, counts, isHost = true }) => {
   if (!enc) return null;
@@ -115,7 +115,10 @@ const ActiveCard: React.FC<{
   // Label para estado propio del invitado (vista Participo)
   const miEstadoLabel = miEstado === 'confirmado' ? '✔ Vas a asistir' : miEstado === 'rechazado' ? '✖ No vas a asistir' : miEstado ? 'Respuesta registrada' : null;
 
+  const isOpenEncounter = Boolean(enc.is_open);
+
   const getBadgeLabel = () => {
+    if (isHost && isOpenEncounter) return "Abierto";
     if (!isCoordinationEncounter(enc)) return "Activo";
     if (enc.coordination_status === 'closed') return "Fecha confirmada";
     if (isExpired) return "Plazo vencido";
@@ -126,6 +129,17 @@ const ActiveCard: React.FC<{
     if (isExpired) return "pending";
     return "active";
   };
+
+  // Disponibilidad server-side canónica para encuentros abiertos del Host
+  const availableSlots = typeof enc.available_slots === 'number'
+    ? enc.available_slots
+    : (typeof counts?.available_slots === 'number'
+      ? counts.available_slots
+      : (typeof enc.max_participants === 'number' && typeof enc.confirmed_seats === 'number'
+        ? Math.max(0, enc.max_participants - enc.confirmed_seats)
+        : (typeof enc.max_participants === 'number'
+          ? Math.max(0, enc.max_participants - (counts?.confirmed_seats ?? 0))
+          : null)));
 
   return (
     <div
@@ -193,19 +207,27 @@ const ActiveCard: React.FC<{
           )}
         </div>
 
-        {/* Vista Participo: mostrar estado propio. Vista Organizo: mostrar conteo */}
+        {/* Vista Participo: mostrar estado propio. Vista Organizo: disponibilidad si es abierto, sino conteo de confirmados/invitados */}
         {miEstadoLabel ? (
           <span className={miEstado === 'confirmado' ? 'home-card-status--success' : miEstado === 'rechazado' ? 'home-card-status--danger' : 'home-card-status'}>
             {miEstadoLabel}
           </span>
+        ) : (isHost && isOpenEncounter && availableSlots !== null) ? (
+          <span className="home-card-status">
+            {availableSlots <= 0
+              ? 'Sin lugares disponibles'
+              : availableSlots === 1
+              ? '1 lugar disponible'
+              : `${availableSlots} lugares disponibles`}
+          </span>
         ) : (
           (confirmados !== null && confirmados > 0) ? (
             <span className="home-card-status">
-              {confirmados} confirmado{confirmados !== 1 ? 's' : ''}
+              {`${confirmados} ${confirmados === 1 ? 'confirmado' : 'confirmados'}`}
             </span>
           ) : (total !== null && total > 0) ? (
             <span className="home-card-status">
-              {total} invitado{total !== 1 ? 's' : ''}
+              {`${total} ${total === 1 ? 'invitado' : 'invitados'}`}
             </span>
           ) : null
         )}
@@ -221,7 +243,7 @@ const PastCard: React.FC<{
   onRepeat: (e: React.MouseEvent) => void;
   participantesCache: any[] | null;
   miEstado?: string | null;
-  counts?: { total: number; confirmados: number } | null;
+  counts?: { total: number; confirmados: number; confirmed_seats?: number; available_slots?: number } | null;
 }> = ({ enc, onClick, onRepeat, participantesCache, miEstado, counts }) => {
   if (!enc) return null;
   const isCancelled = enc.estado === 'cancelado';
@@ -577,7 +599,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   // Estados locales para las dos listas
   const [organizedEncuentros, setOrganizedEncuentros] = useState<any[]>(validCache?.organized || staleOrganized || []);
   const [participatedEncuentros, setParticipatedEncuentros] = useState<any[]>(validCache?.participated || staleParticipated || []);
-  const [counts, setCounts] = useState<Record<string, { total: number; confirmados: number }>>({});
+  const [counts, setCounts] = useState<Record<string, { total: number; confirmados: number; confirmed_seats?: number; available_slots?: number }>>({});
 
   // Conteo total de encuentros únicos combinando organizados y participados sin duplicaciones
   const allUniqueTodosCount = React.useMemo(() => {
