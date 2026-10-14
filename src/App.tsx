@@ -58,6 +58,8 @@ import InternalQAOverview from '@/screens/InternalQA/index';
 import QASessions from '@/screens/InternalQA/QASessions';
 import QASessionDetail from '@/screens/InternalQA/QASessionDetail';
 import { QAGate } from '@/components/qa/QAGate';
+import InternalModerationScreen from '@/screens/InternalModeration/index';
+import { ModerationGate } from '@/components/moderation/ModerationGate';
 
 import { CriticalCancellationModal } from '@/components/notifications/CriticalCancellationModal';
 
@@ -110,6 +112,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/internal/qa" element={<QAGate><InternalQAOverview /></QAGate>} />
       <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />
       <Route path="/internal/qa/sessions/:sessionId" element={<QAGate><QASessionDetail /></QAGate>} />
+      <Route path="/internal/moderation" element={<ModerationGate><InternalModerationScreen /></ModerationGate>} />
     </Routes>
   </>
 );

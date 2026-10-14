@@ -141,7 +141,9 @@ async function runStagingSmokeRoles() {
         .from('encuentros')
         .insert({
           titulo: title,
+          open_public_title: title,
           descripcion: desc,
+          open_description: desc,
           fecha: '2026-11-20',
           hora: '19:00',
           modalidad: 'presencial',

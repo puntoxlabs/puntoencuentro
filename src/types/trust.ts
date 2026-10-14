@@ -106,6 +106,10 @@ export interface ModerationQueueItem {
   titulo: string;
   open_public_title?: string | null;
   open_description: string | null;
+  modalidad?: string | null;
+  open_public_zone?: string | null;
+  fecha?: string | null;
+  hora?: string | null;
   host_id: string;
   moderation_status: ModerationStatus;
   moderation_reason: string | null;
@@ -116,4 +120,30 @@ export interface ModerationQueueItem {
   opened_at: string | null;
   report_count: number;
   report_reasons: string[];
+  content_hash?: string | null;
 }
+
+export interface ModeratorUser {
+  user_id: string;
+  email: string;
+  role: 'admin' | 'moderator';
+  active: boolean;
+  created_at: string;
+}
+
+export interface ModeratorListResponse {
+  ok: boolean;
+  moderators: ModeratorUser[];
+  error?: string;
+}
+
+export interface ModeratorMutationResponse {
+  ok: boolean;
+  user_id?: string;
+  email?: string;
+  role?: 'admin' | 'moderator';
+  active?: boolean;
+  error?: string;
+  message?: string;
+}
+

@@ -11,6 +11,7 @@ import type {
   QASession,
 } from '../../services/qaAdminService';
 import { QAWebPushDiagnostic } from './QAWebPushDiagnostic';
+import { QAModeratorsSection } from './QAModeratorsSection';
 import './InternalQA.css';
 
 interface QAOverviewServiceOverride {
@@ -264,6 +265,9 @@ const InternalQAOverview: React.FC<InternalQAOverviewProps> = ({
 
             {/* Diagnóstico y Prueba Web Push (Fase Staging / QA) */}
             <QAWebPushDiagnostic />
+
+            {/* Gestión de Moderadores (Trust & Safety) */}
+            <QAModeratorsSection />
 
             {/* Sesiones a revisar */}
             <section aria-label="Sesiones recientes a revisar">
