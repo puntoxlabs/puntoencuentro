@@ -231,4 +231,45 @@ describe('UX Matching Mis Ganas V1: "Ver opciones" y Resaltado en Discovery', ()
       'Home.tsx debe conservar intacta la renderización condicional para la variante V1'
     );
   });
+
+  test('J. Mobile UX: scroll-margin-top previene solapamiento con header sticky', () => {
+    const cssPath = path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf-8');
+
+    assert.ok(
+      cssContent.includes('scroll-margin-top: 72px;'),
+      'HomeOpenEncounters.css debe definir scroll-margin-top en .pe-discovery-section para clearance con header sticky'
+    );
+  });
+
+  test('K. Mobile UX: wrap defensivo para banner de feedback en viewports angostos', () => {
+    const cssPath = path.join(rootDir, 'src/components/home/intentions/HomeIntencionesSection.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf-8');
+
+    assert.ok(
+      cssContent.includes('@media (max-width: 480px)'),
+      'HomeIntencionesSection.css debe incluir breakpoint mobile para el feedback banner'
+    );
+    assert.ok(
+      cssContent.includes('flex-wrap: wrap;'),
+      'El banner debe permitir flex-wrap para evitar desbordes en 360-390px'
+    );
+  });
+
+  test('L. Flujo de resaltado: setActiveHighlightedIds se ejecuta sin bloqueos ni early-return prematuros', () => {
+    const tsxPath = path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.tsx');
+    const tsxContent = fs.readFileSync(tsxPath, 'utf-8');
+
+    // Comprobar que scrollTimer no causa un return prematuro dentro del bloque if (firstMatch)
+    const blockMatch = tsxContent.match(/if \(firstMatch && trackRef\.current\) \{([\s\S]*?)\}\s*\n\s*\/\/ 3\. Activar resaltado/);
+    assert.ok(blockMatch, 'Debe existir el bloque if (firstMatch && trackRef.current) previo al paso 3');
+    assert.ok(
+      !blockMatch[1].includes('return () =>'),
+      'El bloque firstMatch no debe contener un return prematuro que impida llegar al paso 3'
+    );
+    assert.ok(
+      tsxContent.includes('setActiveHighlightedIds(matchingSet)'),
+      'HomeOpenEncounters debe activar setActiveHighlightedIds(matchingSet)'
+    );
+  });
 });

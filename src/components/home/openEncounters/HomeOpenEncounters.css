@@ -6,6 +6,7 @@
   margin: 0.75rem auto 0;
   padding: 0 1rem;
   box-sizing: border-box;
+  scroll-margin-top: 72px;
 }
 
 /* En variante V2: Banda de descubrimiento con superficie diferenciada perceptible (gris frío / azul tenue) */

@@ -671,10 +671,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       .map((id) => visibleEncounters.find((e) => e.id === id))
       .find((e): e is OpenEncounterSummary => Boolean(e));
 
+    let scrollTimer: number | null = null;
     if (firstMatch && trackRef.current) {
       const track = trackRef.current;
       // Usar setTimeout para permitir que el layout DOM esté completamente asentado
-      const scrollTimer = window.setTimeout(() => {
+      scrollTimer = window.setTimeout(() => {
         const cardEl = track.querySelector<HTMLElement>(`[data-encounter-id="${firstMatch.id}"]`);
         if (cardEl) {
           const trackRect = track.getBoundingClientRect();
@@ -691,10 +692,6 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           });
         }
       }, 50);
-
-      return () => {
-        window.clearTimeout(scrollTimer);
-      };
     }
 
     // 3. Activar resaltado temporal para todas las cards coincidentes encontradas
@@ -717,6 +714,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }, 3500);
 
     return () => {
+      if (scrollTimer !== null) {
+        window.clearTimeout(scrollTimer);
+      }
       if (highlightTimerRef.current) {
         window.clearTimeout(highlightTimerRef.current);
       }

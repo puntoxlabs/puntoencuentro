@@ -281,3 +281,15 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+@media (max-width: 480px) {
+  .pe-intenciones-match-feedback {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pe-intenciones-match-feedback-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
