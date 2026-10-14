@@ -131,6 +131,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [avisameTab, setAvisameTab] = useState<'create' | 'list'>('create');
   const [avisameDraft, setAvisameDraft] = useState<Partial<CrearAlertaParams> | null>(null);
 
+  // Filtro simple: Solo con lugares disponibles (por defecto false/OFF)
+  const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
+
   // Catálogo activo para reconciliación de preferencias stale y cálculo de otras macrozonas
   const [activeCatalogue, setActiveCatalogue] = useState<Localidad[]>(DEFAULT_LOCALIDADES);
 
@@ -218,9 +221,12 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     else if (allowDemoFallback && !hookLoading) list = OPEN_ENCOUNTERS_DEMO;
     else list = hookEncounters || [];
 
-    // Microcheck A: Para usuario autenticado, Discovery nunca debe incluir encuentros propios del Host
+    // Marcar isHost para el anfitrión (el host ve su propia publicación como "Tu encuentro")
     if (user?.id) {
-      list = list.filter((e) => e.hostId !== user.id && (e as any).host_id !== user.id);
+      list = list.map((e) => {
+        const isUserHost = e.hostId === user.id || (e as any).host_id === user.id;
+        return isUserHost ? { ...e, isHost: true } : e;
+      });
     }
     return list;
   }, [propEncounters, hookEncounters, allowDemoFallback, hookLoading, user?.id]);
@@ -251,6 +257,13 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return filtered;
   }, [liveEncounters, effectiveZones, isV2Variant]);
 
+  // Filtro simple: "Solo con lugares disponibles" (OFF: disponibles + completos; ON: oculta completos)
+  const displayedEncounters = useMemo(() => {
+    if (!visibleEncounters || visibleEncounters.length === 0) return [];
+    if (!onlyAvailableFilter) return visibleEncounters;
+    return visibleEncounters.filter((e) => e.openSlots > 0 || e.isHost);
+  }, [visibleEncounters, onlyAvailableFilter]);
+
   const visibleIntentions = useMemo(() => {
     if (!liveIntentions || liveIntentions.length === 0) return [];
     if (!effectiveZones || effectiveZones.length === 0) return liveIntentions;
@@ -265,9 +278,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     if (propSecondaryEncounters !== undefined) list = propSecondaryEncounters;
     else list = hookSecondaryEncounters || [];
 
-    // Microcheck A: Para usuario autenticado, Discovery nunca debe incluir encuentros propios del Host
     if (user?.id) {
-      list = list.filter((e) => e.hostId !== user.id && (e as any).host_id !== user.id);
+      list = list.map((e) => {
+        const isUserHost = e.hostId === user.id || (e as any).host_id === user.id;
+        return isUserHost ? { ...e, isHost: true } : e;
+      });
     }
     return list;
   }, [propSecondaryEncounters, hookSecondaryEncounters, user?.id]);
@@ -486,7 +501,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       trackRef.current.scrollLeft = 0;
     }
     updateScrollState();
-  }, [visibleEncounters.length, updateScrollState]);
+  }, [displayedEncounters.length, updateScrollState]);
 
   // Listener para scroll y resize de track
   useEffect(() => {
@@ -506,7 +521,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       track.removeEventListener('scroll', handleScrollEvent);
       window.removeEventListener('resize', updateScrollState);
     };
-  }, [updateScrollState, visibleEncounters.length]);
+  }, [updateScrollState, displayedEncounters.length]);
 
   // Avanza un paso en el carrusel (reutilizado por autoplay y flecha siguiente)
   const advanceCarousel = useCallback((track: HTMLElement) => {
@@ -537,7 +552,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return;
     }
-    if (visibleEncounters.length <= 1) return;
+    if (displayedEncounters.length <= 1) return;
 
     autoplayTimerRef.current = window.setTimeout(() => {
       if (isInteractingRef.current || isDetailOpenRef.current) return;
@@ -553,7 +568,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       }
       resetAutoplayTimer(delayMs);
     }, delayMs);
-  }, [visibleEncounters.length, advanceCarousel]);
+  }, [displayedEncounters.length, advanceCarousel]);
 
   // Pausa temporal de auto-avance con reanudación diferida que reinicia el timer completo de ~10s
   const pauseAutoAdvance = useCallback((resumeDelayMs = 10000) => {
@@ -805,20 +820,35 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    if (visibleEncounters.length === 0) {
+    if (displayedEncounters.length === 0) {
       return (
         <div className="pe-discovery-empty">
           <p className="pe-discovery-empty-title">
-            {t('open_encounters.empty_title', {
-              defaultValue: 'No hay encuentros abiertos ahora en tus zonas.',
-            })}
+            {onlyAvailableFilter
+              ? t('open_encounters.empty_only_available', {
+                  defaultValue: 'No hay encuentros con lugares disponibles ahora.',
+                })
+              : t('open_encounters.empty_title', {
+                  defaultValue: 'No hay encuentros abiertos ahora en tus zonas.',
+                })}
           </p>
           <p className="pe-discovery-empty-desc">
-            {t('open_encounters.empty_prompt', {
-              defaultValue: '¿Ya tenés un plan y te falta gente?',
-            })}
+            {onlyAvailableFilter
+              ? 'Podés desactivar el filtro para ver todos los encuentros o abrir tu propio plan.'
+              : t('open_encounters.empty_prompt', {
+                  defaultValue: '¿Ya tenés un plan y te falta gente?',
+                })}
           </p>
           <div className="pe-discovery-empty-actions">
+            {onlyAvailableFilter ? (
+              <button
+                type="button"
+                className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
+                onClick={() => setOnlyAvailableFilter(false)}
+              >
+                Ver todos los encuentros
+              </button>
+            ) : null}
             <button
               type="button"
               className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
@@ -905,7 +935,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           tabIndex={0}
           onScroll={updateScrollState}
         >
-          {visibleEncounters.map((encounter) => (
+          {displayedEncounters.map((encounter) => (
             <div
               key={encounter.id}
               className="pe-discovery-item"
@@ -1059,6 +1089,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         </div>
 
         <div className="pe-discovery-header-actions">
+          <button
+            type="button"
+            className={`pe-discovery-filter-btn ${onlyAvailableFilter ? 'pe-discovery-filter-btn--active' : ''}`}
+            onClick={() => setOnlyAvailableFilter((prev) => !prev)}
+            aria-pressed={onlyAvailableFilter}
+            title={t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}
+          >
+            <span>{t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}</span>
+          </button>
+
           <button
             type="button"
             className="pe-discovery-avisame-btn"

@@ -25,7 +25,13 @@ export type NotificationType =
   | 'internal_invitation'
   | 'invitation_accepted'
   | 'invitation_declined'
-  | 'open_encounter_join_request';
+  | 'open_encounter_join_request'
+  | 'encounter_cancelled_for_participant'
+  | 'open_encounter_request_cancelled_by_host'
+  | 'min_participants_confirmed'
+  | 'min_participants_dropped'
+  | 'encounter_realization_forced'
+  | 'final_confirmation';
 
 export type TargetType = 'encounter' | 'invitation';
 

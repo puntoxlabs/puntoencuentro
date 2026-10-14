@@ -74,6 +74,8 @@ const DetailHost: React.FC = () => {
   const [copiedShare, setCopiedShare] = useState(false);
   // Estado para discriminar qué botón destructivo del bottom sheet de cancelación fue clickeado
   const [cancellingMode, setCancellingMode] = useState<'cancel' | 'create' | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
   // UX: Preview and Theme Selector
   const [showPreview, setShowPreview] = useState(false);
@@ -414,10 +416,20 @@ const DetailHost: React.FC = () => {
 
   const handleCancelEncuentro = async () => {
     if (!id || cancelling) return;
+    const hasAffected = (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
+      (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)));
+    const trimmedReason = cancellationReason.trim();
+
+    if (hasAffected && (!trimmedReason || trimmedReason.length < 3)) {
+      setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes (mínimo 3 caracteres).');
+      return;
+    }
+    setReasonError(null);
+
     try {
       setCancelling(true);
       const hostId = user?.id ?? getHostId();
-      await encuentrosService.cancelarEncuentro(id, hostId);
+      await encuentrosService.cancelarEncuentro(id, hostId, trimmedReason || undefined);
 
       // Refetch obligatorio para asegurar datos reales de Supabase
       const updatedEnc = await encuentrosService.getDetalleHostSeguro(id, hostId);
@@ -430,7 +442,11 @@ const DetailHost: React.FC = () => {
       navigate(`/cancel-summary/${id}`);
     } catch (err: any) {
       console.error('[DetailHost] Error cancelando encuentro:', err);
-      alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
+      if (err?.message === 'cancellation_reason_required') {
+        setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes.');
+      } else {
+        alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
+      }
     } finally { setCancelling(false); }
   };
 
@@ -468,12 +484,22 @@ const DetailHost: React.FC = () => {
   // evitando que el usuario tenga que navegar a /cancel-summary primero.
   const handleCancelAndCreate = async () => {
     if (!id || cancelling) return;
+    const hasAffected = (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
+      (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)));
+    const trimmedReason = cancellationReason.trim();
+
+    if (hasAffected && (!trimmedReason || trimmedReason.length < 3)) {
+      setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes (mínimo 3 caracteres).');
+      return;
+    }
+    setReasonError(null);
+
     try {
       setCancelling(true);
       const hostId = user?.id ?? getHostId();
 
       // 1. Cancelar en Supabase (mismo flujo validado)
-      await encuentrosService.cancelarEncuentro(id, hostId);
+      await encuentrosService.cancelarEncuentro(id, hostId, trimmedReason || undefined);
       const updatedEnc = await encuentrosService.getDetalleHostSeguro(id, hostId);
 
       useHomeStore.getState().invalidateCache();
@@ -811,6 +837,19 @@ const DetailHost: React.FC = () => {
                   <span className={`dh-participant-chip dh-participant-chip--${statusClass}`}>
                     {sLabel}
                   </span>
+                  {encuentro?.inscriptions_closed && p.estado === 'confirmado' && (
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        marginTop: 2,
+                        color: p.reconfirmation_status === 'confirmed' ? '#047857' : p.reconfirmation_status === 'declined' ? '#b91c1c' : '#b45309',
+                        fontWeight: 600
+                      }}
+                    >
+                      {p.reconfirmation_status === 'confirmed' ? '✓ Reconfirmó' : p.reconfirmation_status === 'declined' ? '✗ No asiste' : '⏳ Pendiente'}
+                    </span>
+                  )}
                 </div>
                 <div className="dh-participant-share-col">
                   {!isReadOnly && !isCancelado && p.token_invitacion && (
@@ -901,6 +940,11 @@ const DetailHost: React.FC = () => {
     </div>
   ) : null;
 
+  const hasAffectedUsers = Boolean(
+    (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
+    (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)))
+  );
+
   // Bottom sheet de cancelación unificado:
   // 3 opciones en un solo paso para evitar la doble instancia modal → CancelSummary.
   const cancelModal = showCancelModal ? (
@@ -914,8 +958,38 @@ const DetailHost: React.FC = () => {
         </h3>
         <p className="dh-sheet-text">
           Si lo cancelás, el encuentro quedará marcado como cancelado.
-          Después podrás compartir el aviso con los invitados.
+          {hasAffectedUsers ? ' Al haber participantes confirmados o solicitudes, es obligatorio indicar el motivo para avisarles.' : ' Después podrás compartir el aviso con los invitados.'}
         </p>
+
+        <div style={{ margin: '0.75rem 0' }}>
+          <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-on-surface)', marginBottom: '0.35rem' }}>
+            Motivo de la cancelación {hasAffectedUsers ? '*' : '(opcional)'}
+          </label>
+          <textarea
+            value={cancellationReason}
+            onChange={(e) => {
+              setCancellationReason(e.target.value);
+              setReasonError(null);
+            }}
+            placeholder={hasAffectedUsers ? "Explicá brevemente por qué se cancela (mínimo 3 caracteres)..." : "Motivo de la cancelación (opcional)..."}
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: reasonError ? '1px solid var(--color-danger)' : '1px solid var(--color-outline, #cbd5e1)',
+              fontSize: '0.875rem',
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+              resize: 'vertical'
+            }}
+          />
+          {reasonError && (
+            <p style={{ color: 'var(--color-danger)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+              {reasonError}
+            </p>
+          )}
+        </div>
 
         <div className="dh-sheet-actions">
           {/* Opción 1: Cancelar y quedar en cancel-summary */}
@@ -1519,6 +1593,23 @@ const DetailHost: React.FC = () => {
                       </div>
                     )
                 )}
+                {encuentro?.inscriptions_closed && confirmados.length > 0 && (() => {
+                  const reconfirmedCount = confirmados.filter(p => p.reconfirmation_status === 'confirmed').length;
+                  const pendingReconfCount = confirmados.filter(p => !p.reconfirmation_status || p.reconfirmation_status === 'pending').length;
+                  const declinedCount = (participantes || []).filter(p => p.reconfirmation_status === 'declined').length;
+                  return (
+                    <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                      <strong style={{ display: 'block', color: '#1e293b', marginBottom: 4 }}>
+                        Reconfirmación de asistencia
+                      </strong>
+                      <span style={{ color: '#047857', fontWeight: 600 }}>{reconfirmedCount} confirmaron</span>
+                      <span style={{ color: '#64748b' }}> · {pendingReconfCount} pendientes</span>
+                      {declinedCount > 0 && (
+                        <span style={{ color: '#b91c1c' }}> · {declinedCount} avisaron que no asisten</span>
+                      )}
+                    </div>
+                  );
+                })()}
                 {renderParticipantList('Confirmados', confirmados)}
                 {renderParticipantList('Pendientes', pendientes)}
                 {renderParticipantList('No asisten', rechazados)}

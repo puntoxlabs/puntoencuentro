@@ -574,13 +574,14 @@ export const encuentrosService = {
     return result;
   },
 
-  async cancelarEncuentro(id: string, hostId: string) {
+  async cancelarEncuentro(id: string, hostId: string, cancellationReason?: string) {
     if (!hostId) throw new Error('host_id requerido para cancelar');
     if (import.meta.env.DEV) console.log('[CANCEL] Iniciando cancelación. encuentroId:', id);
 
     const { data, error } = await supabase.rpc('cancelar_encuentro_seguro', {
       p_encuentro_id: id,
-      p_host_id: hostId
+      p_host_id: hostId,
+      p_cancellation_reason: cancellationReason?.trim() || null,
     });
     if (error) throw error;
     const result = data as any;

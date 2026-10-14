@@ -59,6 +59,8 @@ import QASessions from '@/screens/InternalQA/QASessions';
 import QASessionDetail from '@/screens/InternalQA/QASessionDetail';
 import { QAGate } from '@/components/qa/QAGate';
 
+import { CriticalCancellationModal } from '@/components/notifications/CriticalCancellationModal';
+
 const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
@@ -79,7 +81,9 @@ const AppRoutes: React.FC = () => {
   }, []);
 
   return (
-    <Routes>
+    <>
+      <CriticalCancellationModal />
+      <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/preview/home-d" element={<PreviewHomeD />} />
       <Route path="/preview/home-gsap" element={<PreviewHomeGsap />} />
@@ -107,7 +111,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />
       <Route path="/internal/qa/sessions/:sessionId" element={<QAGate><QASessionDetail /></QAGate>} />
     </Routes>
-  );
+  </>
+);
 };
 
 const App: React.FC = () => {

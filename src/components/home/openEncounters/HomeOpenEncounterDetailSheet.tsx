@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle } from 'lucide-react';
+import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle, DoorClosed } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { OpenEncounterSummary, EncuentroParticipanteAutorizado } from './types';
@@ -58,10 +58,37 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isReported, setIsReported] = useState(false);
   const [authorizedDetail, setAuthorizedDetail] = useState<EncuentroParticipanteAutorizado | null>(null);
+  const [reconfirming, setReconfirming] = useState(false);
+  const [reconfirmStatus, setReconfirmStatus] = useState<'pending' | 'confirmed' | 'declined' | undefined>(undefined);
   const [pendingReportData, setPendingReportData] = useState<{
     reason?: PublicContentReportReason | null;
     comment?: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (authorizedDetail?.reconfirmation_status) {
+      setReconfirmStatus(authorizedDetail.reconfirmation_status);
+    } else {
+      setReconfirmStatus(undefined);
+    }
+  }, [authorizedDetail?.reconfirmation_status]);
+
+  const handleReconfirm = async (decision: 'confirm' | 'decline') => {
+    if (!encounter?.id || reconfirming) return;
+    setReconfirming(true);
+    try {
+      const res = await openEncountersService.reconfirmarAsistencia(encounter.id, decision);
+      if (res.ok) {
+        setReconfirmStatus(decision === 'confirm' ? 'confirmed' : 'declined');
+      } else {
+        setErrorMsg(res.error || 'No se pudo actualizar tu confirmación de asistencia.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al reconfirmar asistencia.');
+    } finally {
+      setReconfirming(false);
+    }
+  };
 
   const isDemo = encounter?.id?.startsWith('demo-') ?? false;
   const isHost = Boolean(
@@ -288,6 +315,16 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       return;
     }
 
+    if (encounter.inscriptionsClosed) {
+      setErrorMsg('Las inscripciones para este encuentro están cerradas.');
+      return;
+    }
+
+    if (encounter.openSlots <= 0) {
+      setErrorMsg('No quedan lugares disponibles para este encuentro.');
+      return;
+    }
+
     if (isBelowMin) {
       setErrorMsg(`Quedan ${encounter.openSlots} ${encounter.openSlots === 1 ? 'lugar' : 'lugares'}, pero el mínimo por solicitud es ${minSeats}.`);
       return;
@@ -489,8 +526,23 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           </div>
         )}
 
+        {/* Banner de Encuentro Cancelado */}
+        {authorizedDetail?.estado === 'cancelado' && (
+          <div className="pe-detail-sheet__cancellation-banner" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1rem', margin: '0 1rem 1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontWeight: 600 }}>
+              <XCircle size={18} />
+              <span>Este encuentro fue cancelado por el anfitrión</span>
+            </div>
+            {authorizedDetail.cancellation_reason && (
+              <p style={{ color: '#991b1b', fontSize: '0.875rem', margin: '0.5rem 0 0', lineHeight: 1.4 }}>
+                <strong>Motivo:</strong> {authorizedDetail.cancellation_reason}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Banner de Participante Aprobado */}
-        {isApprovedParticipant && (
+        {isApprovedParticipant && authorizedDetail?.estado !== 'cancelado' && (
           <div className="pe-detail-sheet__approved-banner">
             <div className="pe-detail-sheet__approved-title-row">
               <CheckCircle2 size={18} className="pe-detail-sheet__approved-icon" aria-hidden="true" />
@@ -505,6 +557,24 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 ? `${participantSeats} lugares confirmados para este encuentro.`
                 : '1 lugar confirmado para este encuentro.'}
             </p>
+            {authorizedDetail?.realization_status === 'pending' && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', padding: '0.35rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Clock size={14} />
+                <span>Esperando mínimo de participantes para confirmar realización.</span>
+              </div>
+            )}
+            {authorizedDetail?.realization_status === 'confirmed' && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#047857', background: '#d1fae5', padding: '0.35rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <CheckCircle2 size={14} />
+                <span>¡Se hace! El encuentro alcanzó el mínimo de participantes.</span>
+              </div>
+            )}
+            {authorizedDetail?.realization_status === 'forced' && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#047857', background: '#d1fae5', padding: '0.35rem 0.6rem', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <CheckCircle2 size={14} />
+                <span>¡Confirmado por el anfitrión! El encuentro se realizará.</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -675,9 +745,56 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               <p className="pe-detail-sheet__status-desc">
                 Ya formás parte de este encuentro. Podés ver los detalles y coordinar en Mis encuentros.
               </p>
+
+              {/* Reconfirmación de asistencia si inscripciones están cerradas y el encuentro está confirmado o forzado */}
+              {authorizedDetail?.inscriptions_closed &&
+                (authorizedDetail.realization_status === 'confirmed' || authorizedDetail.realization_status === 'forced') && (
+                  <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <p style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b', marginBottom: '0.25rem' }}>
+                      ¿Seguís viniendo?
+                    </p>
+                    {reconfirmStatus === 'confirmed' ? (
+                      <p style={{ fontSize: '0.8rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '0.25rem', margin: 0 }}>
+                        <CheckCircle2 size={14} /> Confirmaste tu asistencia. ¡Nos vemos!
+                      </p>
+                    ) : reconfirmStatus === 'declined' ? (
+                      <p style={{ fontSize: '0.8rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.25rem', margin: 0 }}>
+                        <XCircle size={14} /> Avisaste que no vas a poder asistir. Tus lugares fueron liberados.
+                      </p>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.5rem' }}>
+                          El encuentro ya está confirmado. Por favor confirmale al anfitrión si vas a asistir.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            className="pe-detail-sheet__cta"
+                            style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.8rem', background: '#059669', color: '#fff', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+                            onClick={() => handleReconfirm('confirm')}
+                            disabled={reconfirming}
+                          >
+                            {reconfirming ? 'Guardando…' : 'Confirmar asistencia'}
+                          </button>
+                          <button
+                            type="button"
+                            className="pe-detail-sheet__btn-cancel"
+                            style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer', border: '1px solid #cbd5e1' }}
+                            onClick={() => handleReconfirm('decline')}
+                            disabled={reconfirming}
+                          >
+                            No voy a poder
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
               <button
                 type="button"
                 className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                style={{ marginTop: '0.75rem' }}
                 onClick={handleNavigateToEncounter}
               >
                 {t('open_encounters.request_view_encounter', { defaultValue: 'Ir a Mis encuentros' })}
@@ -813,6 +930,26 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 </button>
               </div>
             </form>
+          ) : encounter.inscriptionsClosed ? (
+            <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--closed" style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '12px' }}>
+              <div className="pe-detail-sheet__status-title" style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                <DoorClosed size={16} />
+                <span>Inscripciones cerradas</span>
+              </div>
+              <p className="pe-detail-sheet__status-desc" style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                El anfitrión ha cerrado las inscripciones para este encuentro.
+              </p>
+            </div>
+          ) : encounter.openSlots <= 0 ? (
+            <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--full" style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '12px' }}>
+              <div className="pe-detail-sheet__status-title" style={{ color: '#4b5563', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                <AlertCircle size={16} />
+                <span>Completo · Sin lugares disponibles</span>
+              </div>
+              <p className="pe-detail-sheet__status-desc" style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                No quedan lugares disponibles para este encuentro.
+              </p>
+            </div>
           ) : isBelowMin ? (
             <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--rejected">
               <div className="pe-detail-sheet__status-title" style={{ color: '#d97706' }}>
@@ -832,9 +969,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 disabled={isDemo || encounter.openSlots <= 0}
                 title={isDemo ? 'Función demo para el lanzamiento' : undefined}
               >
-                {encounter.openSlots <= 0
-                  ? t('open_encounters.full', { defaultValue: 'Completo' })
-                  : t('open_encounters.request_join', { defaultValue: 'Solicitar sumarme' })}
+                {t('open_encounters.request_join', { defaultValue: 'Solicitar sumarme' })}
               </button>
               {isDemo && (
                 <p className="pe-detail-sheet__demo-hint">

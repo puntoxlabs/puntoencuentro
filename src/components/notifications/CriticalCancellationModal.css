@@ -1,0 +1,119 @@
+/* CriticalCancellationModal.css */
+.pe-critical-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: pe-modal-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pe-critical-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface, #ffffff);
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  box-shadow: 0 20px 40px -8px rgba(15, 23, 42, 0.3);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  animation: pe-modal-scale-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pe-critical-modal__icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.pe-critical-modal__title {
+  margin: 0 0 8px 0;
+  font-size: 1.2rem;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+}
+
+.pe-critical-modal__body {
+  margin: 0 0 16px 0;
+  font-size: 0.94rem;
+  line-height: 1.45;
+  color: #475569;
+  word-break: break-word;
+}
+
+.pe-critical-modal__reason-box {
+  width: 100%;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3.5px solid #dc2626;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 20px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.pe-critical-modal__reason-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #dc2626;
+  letter-spacing: 0.04em;
+}
+
+.pe-critical-modal__reason-text {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #334155;
+  word-break: break-word;
+}
+
+.pe-critical-modal__cta {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  background-color: #0f172a;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pe-critical-modal__cta:hover {
+  background-color: #1e293b;
+}
+
+.pe-critical-modal__cta:focus-visible {
+  outline: 2.5px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@keyframes pe-modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pe-modal-scale-up {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}

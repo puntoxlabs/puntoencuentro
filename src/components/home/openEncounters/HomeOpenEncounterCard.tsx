@@ -50,7 +50,10 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
     ? `${t('open_encounters.matched_intention_badge', { defaultValue: 'Coincide con tus ganas' })}. `
     : '';
 
-  const accessibleLabel = `${hostPrefix}${matchLabel}${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
+  const closedNotice = encounter.inscriptionsClosed ? 'Inscripciones cerradas. ' : '';
+  const noSlotsNotice = encounter.openSlots <= 0 ? 'Sin lugares disponibles. ' : '';
+
+  const accessibleLabel = `${hostPrefix}${matchLabel}${closedNotice}${noSlotsNotice}${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
 
   return (
     <button
@@ -81,7 +84,7 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
           <h3 className="pe-open-card__title">{encounter.title}</h3>
         </div>
         <span className={`pe-open-card__badge pe-open-card__badge--${badgeModifier}`}>
-          {slotLabel}
+          {encounter.openSlots <= 0 ? 'Completo' : slotLabel}
         </span>
       </div>
 
@@ -94,6 +97,16 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
           <MapPin className="pe-open-card__meta-icon" aria-hidden="true" />
           <span className="pe-open-card__zone">{encounter.approximateZone}</span>
         </div>
+        {encounter.openSlots <= 0 && (
+          <div className="pe-open-card__meta-item pe-open-card__meta-item--no-slots" style={{ color: '#64748b', fontSize: '0.78rem', fontWeight: 600 }}>
+            <span>Sin lugares disponibles</span>
+          </div>
+        )}
+        {encounter.inscriptionsClosed && (
+          <div className="pe-open-card__meta-item pe-open-card__meta-item--closed" style={{ color: '#d97706', fontSize: '0.78rem', fontWeight: 600 }}>
+            <span>Inscripciones cerradas</span>
+          </div>
+        )}
       </div>
 
       <div className="pe-open-card__footer">

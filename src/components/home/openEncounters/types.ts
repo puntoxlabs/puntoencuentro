@@ -18,6 +18,9 @@ export interface OpenEncounterSummary {
   maxSeatsPerRequest?: number;
   minSeatsPerRequest?: number;
   isHost?: boolean;
+  minParticipants?: number | null;
+  realizationStatus?: 'pending' | 'confirmed' | 'forced';
+  inscriptionsClosed?: boolean;
 }
 
 export interface Localidad {
@@ -74,6 +77,11 @@ export interface EncuentroParticipanteAutorizado {
   link_virtual?: string | null;
   seat_count?: number;
   estado?: string;
+  cancellation_reason?: string | null;
+  min_participants?: number | null;
+  realization_status?: 'pending' | 'confirmed' | 'forced';
+  inscriptions_closed?: boolean;
+  reconfirmation_status?: 'pending' | 'confirmed' | 'declined';
   error?: string;
 }
 

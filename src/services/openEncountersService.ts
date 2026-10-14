@@ -129,6 +129,9 @@ export const openEncountersService = {
         maxSeatsPerRequest: Number(item.max_seats_per_request ?? 1),
         minSeatsPerRequest: Number(item.min_seats_per_request ?? 1),
         isHost: Boolean(item.is_host),
+        minParticipants: item.min_participants ?? null,
+        realizationStatus: item.realization_status || 'pending',
+        inscriptionsClosed: Boolean(item.inscriptions_closed),
       }));
 
       return { ok: true, data: mapped };
@@ -540,6 +543,113 @@ export const openEncountersService = {
         return { ok: false, error: error.message };
       }
       return data as EncuentroParticipanteAutorizado;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Configura o actualiza el mínimo de participantes requeridos y recalcula el estado de realización.
+   */
+  async setMinParticipants(
+    encounterId: string,
+    hostId: string,
+    minParticipants: number | null
+  ): Promise<{ ok: boolean; min_participants?: number | null; realization_status?: string; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('set_min_participants_seguro', {
+        p_encuentro_id: encounterId,
+        p_host_id: hostId,
+        p_min_participants: minParticipants,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * El anfitrión fuerza la realización del encuentro aun estando por debajo del mínimo ("Hacerlo igual").
+   */
+  async hacerloIgual(
+    encounterId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; realization_status?: string; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('hacerlo_igual_seguro', {
+        p_encuentro_id: encounterId,
+        p_host_id: hostId,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Cierra inscripciones para nuevas solicitudes y envía confirmación final si está confirmado/forzado.
+   */
+  async cerrarInscripciones(
+    encounterId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; inscriptions_closed?: boolean; final_confirmation_sent?: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('cerrar_inscripciones_seguro', {
+        p_encuentro_id: encounterId,
+        p_host_id: hostId,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Reabre inscripciones si el encuentro está activo y no cancelado.
+   */
+  async reabrirInscripciones(
+    encounterId: string,
+    hostId: string
+  ): Promise<{ ok: boolean; inscriptions_closed?: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('reabrir_inscripciones_seguro', {
+        p_encuentro_id: encounterId,
+        p_host_id: hostId,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * El participante confirmado reconfirma su asistencia ('confirm') o desiste liberando lugares ('decline').
+   */
+  async reconfirmarAsistencia(
+    encounterId: string,
+    decision: 'confirm' | 'decline'
+  ): Promise<{ ok: boolean; decision?: string; reconfirmation_status?: string; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('reconfirmar_asistencia_seguro', {
+        p_encuentro_id: encounterId,
+        p_decision: decision,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
     }

@@ -68,6 +68,114 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
   const [postEditNotice, setPostEditNotice] = useState<string | null>(null);
 
+  const [isEditingMin, setIsEditingMin] = useState(false);
+  const [newMinVal, setNewMinVal] = useState<string>(encuentro?.min_participants ? String(encuentro.min_participants) : '');
+  const [savingMin, setSavingMin] = useState(false);
+  const [forcingRealization, setForcingRealization] = useState(false);
+  const [togglingInscriptions, setTogglingInscriptions] = useState(false);
+
+  useEffect(() => {
+    if (encuentro?.min_participants) {
+      setNewMinVal(String(encuentro.min_participants));
+    } else {
+      setNewMinVal('');
+    }
+  }, [encuentro?.min_participants]);
+
+  const handleSaveMinParticipants = async () => {
+    const val = parseInt(newMinVal, 10);
+    if (isNaN(val) || val < 1) {
+      alert('Ingresá un número válido mayor a 0');
+      return;
+    }
+    setSavingMin(true);
+    try {
+      const res = await openEncountersService.setMinParticipants(encuentro.id, hostId, val);
+      if (res.ok) {
+        setIsEditingMin(false);
+        onRefresh();
+      } else {
+        alert(res.error || 'Error al actualizar el mínimo de participantes');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar el mínimo');
+    } finally {
+      setSavingMin(false);
+    }
+  };
+
+  const handleRemoveMinParticipants = async () => {
+    setSavingMin(true);
+    try {
+      const res = await openEncountersService.setMinParticipants(encuentro.id, hostId, null);
+      if (res.ok) {
+        setIsEditingMin(false);
+        setNewMinVal('');
+        onRefresh();
+      } else {
+        alert(res.error || 'Error al quitar el mínimo');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al quitar el mínimo');
+    } finally {
+      setSavingMin(false);
+    }
+  };
+
+  const handleHacerloIgual = async () => {
+    if (!window.confirm('¿Confirmar que el encuentro se realiza de todas formas? Se notificará a los participantes confirmados.')) {
+      return;
+    }
+    setForcingRealization(true);
+    try {
+      const res = await openEncountersService.hacerloIgual(encuentro.id, hostId);
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert(res.error || 'Error al confirmar realización');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al confirmar realización');
+    } finally {
+      setForcingRealization(false);
+    }
+  };
+
+  const handleCerrarInscripciones = async () => {
+    if (!window.confirm('¿Cerrar inscripciones para nuevas solicitudes? Si el encuentro ya está confirmado, se enviará la confirmación final a los participantes.')) {
+      return;
+    }
+    setTogglingInscriptions(true);
+    try {
+      const res = await openEncountersService.cerrarInscripciones(encuentro.id, hostId);
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert(res.error || 'Error al cerrar inscripciones');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al cerrar inscripciones');
+    } finally {
+      setTogglingInscriptions(false);
+    }
+  };
+
+  const handleReabrirInscripciones = async () => {
+    setTogglingInscriptions(true);
+    try {
+      const res = await openEncountersService.reabrirInscripciones(encuentro.id, hostId);
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert(res.error || 'Error al reabrir inscripciones');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al reabrir inscripciones');
+    } finally {
+      setTogglingInscriptions(false);
+    }
+  };
+
   const isOpen = Boolean(encuentro?.is_open);
   const hasActiveModeration = Boolean(
     encuentro?.moderation_status && encuentro?.moderation_status !== 'draft'
@@ -330,6 +438,29 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 <Edit2 size={13} aria-hidden="true" />
                 <span>{t('open_encounters.action_edit_publication', { defaultValue: 'Editar publicación' })}</span>
               </button>
+              {encuentro?.inscriptions_closed ? (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn pe-host-open-card__action-btn--primary"
+                  onClick={handleReabrirInscripciones}
+                  disabled={togglingInscriptions}
+                  title="Permitir nuevas solicitudes"
+                >
+                  <Sparkles size={13} aria-hidden="true" />
+                  <span>{togglingInscriptions ? 'Reabriendo…' : 'Reabrir inscripciones'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn"
+                  onClick={handleCerrarInscripciones}
+                  disabled={togglingInscriptions}
+                  title="No recibir nuevas solicitudes"
+                >
+                  <DoorClosed size={13} aria-hidden="true" />
+                  <span>{togglingInscriptions ? 'Cerrando…' : 'Cerrar inscripciones'}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="pe-host-open-card__close-btn"
@@ -463,6 +594,106 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
             {availableSlots > 0 ? `${availableSlots} ${availableSlots === 1 ? 'lugar para sumarse' : 'lugares para sumarse'}` : 'Sin lugares libres'}
           </span>
         </div>
+      </div>
+
+      {/* Realización y Mínimo de participantes */}
+      <div className="pe-host-realization-card" style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Users size={14} /> Mínimo de participantes: {encuentro.min_participants ? `${encuentro.min_participants} personas` : 'Sin mínimo'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsEditingMin(!isEditingMin)}
+            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {isEditingMin ? 'Cancelar' : (encuentro.min_participants ? 'Cambiar mínimo' : 'Definir mínimo')}
+          </button>
+        </div>
+
+        {isEditingMin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <input
+              type="number"
+              min={1}
+              max={maxParticipants || 50}
+              placeholder="Ej: 4"
+              value={newMinVal}
+              onChange={(e) => setNewMinVal(e.target.value)}
+              style={{ width: '80px', padding: '0.25rem 0.5rem', fontSize: '0.8125rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+            />
+            <button
+              type="button"
+              onClick={handleSaveMinParticipants}
+              disabled={savingMin}
+              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', background: '#2563eb', color: '#fff', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+            >
+              {savingMin ? 'Guardando…' : 'Guardar'}
+            </button>
+            {encuentro.min_participants && (
+              <button
+                type="button"
+                onClick={() => handleRemoveMinParticipants()}
+                disabled={savingMin}
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', background: '#f1f5f9', color: '#475569', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+              >
+                Quitar mínimo
+              </button>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            {encuentro.min_participants ? (
+              encuentro.realization_status === 'confirmed' ? (
+                <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <CheckCircle2 size={14} /> ¡Se hace! Alcanzó el mínimo ({confirmedSeats}/{encuentro.min_participants}).
+                </span>
+              ) : encuentro.realization_status === 'forced' ? (
+                <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <CheckCircle2 size={14} /> Confirmado por vos (hacerlo igual).
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.8rem', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Clock size={14} /> Pendiente del mínimo: {confirmedSeats}/{encuentro.min_participants} personas confirmadas.
+                </span>
+              )
+            ) : (
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                Sin condición de mínimo para realizarse.
+              </span>
+            )}
+          </div>
+
+          {encuentro.min_participants && encuentro.realization_status === 'pending' && (
+            <button
+              type="button"
+              onClick={handleHacerloIgual}
+              disabled={forcingRealization}
+              style={{
+                padding: '0.3rem 0.6rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                background: '#047857',
+                color: '#fff',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              title="Confirmar que se realiza aunque no llegue al mínimo"
+            >
+              {forcingRealization ? 'Confirmando…' : 'Hacerlo igual'}
+            </button>
+          )}
+        </div>
+
+        {encuentro.inscriptions_closed && (
+          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#475569', fontSize: '0.75rem' }}>
+            <DoorClosed size={14} />
+            <span>Inscripciones cerradas para nuevas solicitudes.</span>
+          </div>
+        )}
       </div>
 
       {encuentro.open_description && (
