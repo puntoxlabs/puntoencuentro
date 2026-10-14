@@ -261,9 +261,53 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!isPermanentUser) return;
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         fetchUnreadCount();
+
+        // Si hay listeners de match en vivo activos (ej. Home con Discovery en pantalla)
+        if (matchListenersRef.current.size > 0) {
+          try {
+            const res = await notificationService.getMisNotificaciones(5, null, null);
+            if (res.ok && res.data) {
+              const recentMatches = res.data.filter((n) => {
+                if (n.isRead) return false;
+                return (
+                  n.notificationType === 'match_found' ||
+                  n.notificationType === 'intention_converted_to_encounter' ||
+                  n.notificationType === 'interes_convertido' ||
+                  (n.targetType === 'encounter' && Boolean((n.payload as any)?.primary_source === 'intention'))
+                );
+              });
+
+              for (const n of recentMatches) {
+                const rawPayload = n.payload as any;
+                const encounterId =
+                  n.targetId ||
+                  rawPayload?.encounter_id ||
+                  rawPayload?.encounterId ||
+                  rawPayload?.data?.encounterId ||
+                  rawPayload?.data?.encounter_id;
+
+                if (encounterId) {
+                  matchListenersRef.current.forEach((listener) => {
+                    try {
+                      listener({
+                        encounterId: String(encounterId),
+                        notificationId: n.id,
+                        payload: rawPayload,
+                      });
+                    } catch (err) {
+                      console.error('[NotificationsContext] Error notificando match listener en revalidación:', err);
+                    }
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[NotificationsContext] Error revalidando matches al volver a primer plano:', err);
+          }
+        }
       }
     };
 

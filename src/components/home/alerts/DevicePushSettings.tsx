@@ -3,6 +3,7 @@ import { Bell, BellOff, Check, RefreshCw, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { webPushService } from '@/services/webPushService';
 import type { WebPushActivateError, WebPushDeviceState } from '@/types/webPush';
+import './DevicePushSettings.css';
 
 const ERROR_COPY: Record<WebPushActivateError, string> = {
   unsupported: 'Este navegador no permite notificaciones push.',

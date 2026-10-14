@@ -609,6 +609,21 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
   }, [authLoading, isPermanentUser, location.search, location.pathname, navigate, setIsNotificationsOpen]);
 
+  // ── REFRESCO DE DISCOVERY AL VOLVER A PRIMER PLANO (Mobile resume) ──
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        setDiscoveryRefreshTrigger(Date.now());
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
+    }
+  }, []);
+
   // ── ESCUCHA DE MATCHES EN VIVO (Mis ganas → Discovery en caliente) ──
   useEffect(() => {
     if (!subscribeToIncomingMatches) return;

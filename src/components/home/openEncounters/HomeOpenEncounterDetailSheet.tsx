@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video } from 'lucide-react';
+import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { OpenEncounterSummary, EncuentroParticipanteAutorizado } from './types';
@@ -79,6 +79,18 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     )
   );
   const participantSeats = authorizedDetail?.seat_count || requestedSeats || 1;
+
+  const minSeats = encounter?.minSeatsPerRequest || 1;
+  const effectiveMax = Math.min(encounter?.maxSeatsPerRequest || 1, encounter?.openSlots ?? 1);
+  const isBelowMin = Boolean(encounter && encounter.openSlots > 0 && encounter.openSlots < minSeats);
+
+  useEffect(() => {
+    if (encounter) {
+      const minS = encounter.minSeatsPerRequest || 1;
+      const effMax = Math.min(encounter.maxSeatsPerRequest || 1, encounter.openSlots);
+      setRequestedSeats((prev) => Math.max(minS, Math.min(prev, effMax > 0 ? effMax : minS)));
+    }
+  }, [encounter?.id, encounter?.minSeatsPerRequest, encounter?.maxSeatsPerRequest, encounter?.openSlots]);
 
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
@@ -276,6 +288,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       return;
     }
 
+    if (isBelowMin) {
+      setErrorMsg(`Quedan ${encounter.openSlots} ${encounter.openSlots === 1 ? 'lugar' : 'lugares'}, pero el mínimo por solicitud es ${minSeats}.`);
+      return;
+    }
+
     // Verificación de identidad: requiere cuenta permanente
     if (!isPermanentUser) {
       // Preservar draft y contexto en sessionStorage antes de abrir LoginRequiredSheet
@@ -373,6 +390,12 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           setErrorMsg('Ya estás registrado como participante de este encuentro.');
         } else if (res.error === 'encounter_full') {
           setErrorMsg('El cupo para este encuentro ya se encuentra completo.');
+        } else if (res.error === 'available_seats_below_min_request') {
+          setErrorMsg(res.message || `Quedan ${encounter.openSlots} lugares, pero el mínimo por solicitud es ${minSeats}.`);
+        } else if (res.error === 'seats_below_minimum') {
+          setErrorMsg(res.message || `El mínimo de lugares por solicitud es ${minSeats}.`);
+        } else if (res.error === 'insufficient_available_slots') {
+          setErrorMsg(res.message || 'No hay suficientes lugares disponibles.');
         } else if (res.error === 'seats_exceed_limit' || res.error === 'seats_exceed_capacity') {
           setErrorMsg('La cantidad de lugares solicitados supera el límite disponible para este encuentro.');
         } else if (res.error === 'permanent_account_required' || res.error === 'authentication_required') {
@@ -386,13 +409,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         } else if (
           res.error === 'encuentro_not_found' ||
           res.error === 'encuentro_not_active' ||
-          res.error === 'encuentro_not_open'
+          res.error === 'encuentro_not_open' ||
+          res.error === 'encuentro_not_available' ||
+          res.error === 'encounter_not_available'
         ) {
           setErrorMsg('Este encuentro ya no está disponible para sumarse.');
         } else if (res.error === 'request_not_available') {
           setErrorMsg('Esta solicitud no está disponible en este momento.');
         } else {
-          setErrorMsg('No pudimos enviar tu solicitud. Intentá nuevamente.');
+          setErrorMsg(res.message || 'No pudimos enviar tu solicitud. Intentá nuevamente.');
         }
       }
     } catch (err: any) {
@@ -718,15 +743,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                       Lugares que querés reservar
                     </label>
                     <span className="pe-detail-sheet__seats-helper">
-                      Incluyéndote a vos
+                      Incluyéndote a vos{minSeats > 1 ? ` (mínimo ${minSeats})` : ''}
                     </span>
                   </div>
                   <div className="pe-detail-sheet__seats-stepper">
                     <button
                       type="button"
                       className="pe-detail-sheet__seats-btn pe-detail-sheet__seats-btn--minus"
-                      onClick={() => setRequestedSeats((s) => Math.max(1, s - 1))}
-                      disabled={requestedSeats <= 1}
+                      onClick={() => setRequestedSeats((s) => Math.max(minSeats, Math.max(1, s - 1)))}
+                      disabled={requestedSeats <= 1 || requestedSeats <= minSeats}
                       aria-label="Disminuir lugares"
                     >
                       −
@@ -740,15 +765,12 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                       onClick={() =>
                         setRequestedSeats((s) =>
                           Math.min(
-                            Math.min(encounter.maxSeatsPerRequest || 2, encounter.openSlots),
+                            effectiveMax,
                             s + 1
                           )
                         )
                       }
-                      disabled={
-                        requestedSeats >=
-                        Math.min(encounter.maxSeatsPerRequest || 2, encounter.openSlots)
-                      }
+                      disabled={requestedSeats >= effectiveMax}
                       aria-label="Aumentar lugares"
                     >
                       +
@@ -791,6 +813,16 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 </button>
               </div>
             </form>
+          ) : isBelowMin ? (
+            <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--rejected">
+              <div className="pe-detail-sheet__status-title" style={{ color: '#d97706' }}>
+                <AlertCircle size={16} />
+                <span>Lugares no disponibles</span>
+              </div>
+              <p className="pe-detail-sheet__status-desc">
+                Quedan {encounter.openSlots} {encounter.openSlots === 1 ? 'lugar' : 'lugares'}, pero el mínimo por solicitud es {minSeats}.
+              </p>
+            </div>
           ) : (
             <>
               <button

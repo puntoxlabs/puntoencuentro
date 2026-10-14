@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { getPostEventMinutes, setPostEventMinutes } from '@/lib/preferencesStorage';
+import { DevicePushSettings } from '@/components/home/alerts';
+import type { WebPushDeviceState } from '@/types/webPush';
 import './BottomSheet.css';
 import './AccountSheet.css';
 
@@ -38,6 +40,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
   const [hostAlias, setHostAliasState] = useState('');
   const [aliasFeedback, setAliasFeedback] = useState(false);
   const [postEventMinutes, setPostEventMinutesState] = useState<number>(45);
+  const [pushState, setPushState] = useState<WebPushDeviceState | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -250,6 +253,25 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
             <option value={120}>120 minutos (2 horas)</option>
           </select>
         </div>
+
+        {/* ── Notificaciones en este dispositivo ───────────────────── */}
+        {isPermanentUser && (
+          <div style={{
+            marginTop: 8, marginBottom: 24, padding: '16px', borderRadius: 14,
+            background: '#fff', border: '1px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+          }}>
+            <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Notificaciones en este dispositivo
+            </p>
+            <DevicePushSettings onStateChange={setPushState} />
+            {pushState?.kind === 'not_configured' && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)' }}>
+                Las notificaciones push todavía no están habilitadas en este entorno.
+              </p>
+            )}
+          </div>
+        )}
 
         {error && (
           <p style={{ color: '#DC2626', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>

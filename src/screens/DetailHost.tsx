@@ -1087,12 +1087,23 @@ const DetailHost: React.FC = () => {
                   >
                     Ir al inicio
                   </button>
-                  <button
-                    onClick={() => { setShowContextMenu(false); setShowDeleteModal(true); }}
-                    className="dh-context-menu-item dh-context-menu-item--danger"
-                  >
-                    Eliminar
-                  </button>
+                  {!isCancelado && (
+                    (encuentro?.is_open || (encuentro as any)?.opened_at || (participantes && participantes.length > 0)) ? (
+                      <button
+                        onClick={() => { setShowContextMenu(false); setShowCancelModal(true); }}
+                        className="dh-context-menu-item dh-context-menu-item--danger"
+                      >
+                        Cancelar encuentro
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setShowContextMenu(false); setShowDeleteModal(true); }}
+                        className="dh-context-menu-item dh-context-menu-item--danger"
+                      >
+                        Eliminar
+                      </button>
+                    )
+                  )}
                 </div>
               </>
             )}

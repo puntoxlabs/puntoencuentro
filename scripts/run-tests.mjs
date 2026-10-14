@@ -105,6 +105,9 @@ try {
   await server.ssrLoadModule('./scripts/test-participante-aprobado-detalle.ts');
   console.log('✅ Approved Participant Authorized Experience & Privacy tests (7 casos) executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-lifecycle-cancellation-and-quotas.ts');
+  console.log('✅ Lifecycle cancellation, deletion guard, strict quotas & host discovery tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);

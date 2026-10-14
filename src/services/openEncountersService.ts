@@ -127,6 +127,8 @@ export const openEncountersService = {
         hostId: item.host_id,
         allowMultiSeatRequests: Boolean(item.allow_multi_seat_requests),
         maxSeatsPerRequest: Number(item.max_seats_per_request ?? 1),
+        minSeatsPerRequest: Number(item.min_seats_per_request ?? 1),
+        isHost: Boolean(item.is_host),
       }));
 
       return { ok: true, data: mapped };
@@ -222,6 +224,7 @@ export const openEncountersService = {
       p_open_public_title: payload.open_public_title ?? null,
       p_allow_multi_seat_requests: payload.allow_multi_seat_requests ?? false,
       p_max_seats_per_request: payload.max_seats_per_request ?? 1,
+      p_min_seats_per_request: payload.min_seats_per_request ?? 1,
     });
 
     if (error) {
@@ -303,8 +306,15 @@ export const openEncountersService = {
     nombre: string,
     mensaje?: string,
     seatCount: number = 1
-    // DEPRECATED: usuarioId eliminado. El backend deriva identidad de auth.uid().
-  ): Promise<{ ok: boolean; request_id?: string; error?: string; seat_count?: number }> {
+  ): Promise<{
+    ok: boolean;
+    request_id?: string;
+    error?: string;
+    seat_count?: number;
+    message?: string;
+    available_slots?: number;
+    min_seats_per_request?: number;
+  }> {
     const { data, error } = await supabase.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: encuentroId,
       p_nombre: nombre,

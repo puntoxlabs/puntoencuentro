@@ -676,9 +676,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       });
     }
 
-    // 2. Localizar la primera card coincidente según el orden de backend o del catálogo
+    // 2. Localizar la primera card coincidente según el orden de backend o del catálogo (excluyendo encuentros propios del host)
     const firstMatch = highlightEncounterIds
-      .map((id) => visibleEncounters.find((e) => e.id === id))
+      .map((id) => visibleEncounters.find((e) => e.id === id && !e.isHost && !(user?.id && e.hostId === user.id)))
       .find((e): e is OpenEncounterSummary => Boolean(e));
 
     let scrollTimer: number | null = null;
@@ -704,9 +704,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       }, 50);
     }
 
-    // 3. Activar resaltado temporal para todas las cards coincidentes encontradas
+    // 3. Activar resaltado temporal para todas las cards coincidentes encontradas (excluyendo al propio host)
     const matchingSet = new Set(
-      highlightEncounterIds.filter((id) => visibleEncounters.some((e) => e.id === id))
+      highlightEncounterIds.filter((id) =>
+        visibleEncounters.some((e) => e.id === id && !e.isHost && !(user?.id && e.hostId === user.id))
+      )
     );
 
     if (matchingSet.size > 0) {

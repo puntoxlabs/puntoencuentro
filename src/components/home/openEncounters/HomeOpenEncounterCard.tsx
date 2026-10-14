@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, MapPin, ChevronRight, Sparkles } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight, Sparkles, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary } from './types';
 import { getSlotLabel } from './types';
@@ -17,6 +17,9 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
   isHighlighted = false,
 }) => {
   const { t } = useTranslation();
+
+  const isHost = Boolean(encounter.isHost);
+  const effectiveHighlighted = !isHost && isHighlighted;
 
   const slotLabel = getSlotLabel(encounter.openSlots, t);
   const badgeModifier =
@@ -39,26 +42,35 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
           defaultValue: `${confirmedPersons} personas confirmadas`,
         });
 
-  const matchLabel = isHighlighted
+  const hostPrefix = isHost
+    ? `${t('open_encounters.host_own_badge', { defaultValue: 'Tu encuentro' })}. `
+    : '';
+
+  const matchLabel = effectiveHighlighted
     ? `${t('open_encounters.matched_intention_badge', { defaultValue: 'Coincide con tus ganas' })}. `
     : '';
 
-  const accessibleLabel = `${matchLabel}${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
+  const accessibleLabel = `${hostPrefix}${matchLabel}${encounter.title}. ${encounter.dateLabel}. ${encounter.approximateZone}. ${slotLabel}. ${confirmedLabel}.`;
 
   return (
     <button
       type="button"
-      className={`pe-open-card${isHighlighted ? ' pe-open-card--highlighted' : ''}`}
+      className={`pe-open-card${isHost ? ' pe-open-card--host' : ''}${effectiveHighlighted ? ' pe-open-card--highlighted' : ''}`}
       onClick={() => onClick(encounter)}
       aria-label={accessibleLabel}
       data-encounter-id={encounter.id}
     >
-      {isHighlighted && (
+      {isHost ? (
+        <div className="pe-open-card__host-badge" role="status">
+          <Users className="pe-open-card__host-badge-icon" size={11} aria-hidden="true" />
+          <span>{t('open_encounters.host_own_badge', { defaultValue: 'Tu encuentro' })}</span>
+        </div>
+      ) : effectiveHighlighted ? (
         <div className="pe-open-card__match-badge" role="status">
           <Sparkles className="pe-open-card__match-badge-icon" size={11} aria-hidden="true" />
           <span>{t('open_encounters.matched_intention_badge', { defaultValue: 'Coincide con tus ganas' })}</span>
         </div>
-      )}
+      ) : null}
       <div className="pe-open-card__header">
         <div className="pe-open-card__title-box">
           {encounter.emoji && (
@@ -87,6 +99,11 @@ export const HomeOpenEncounterCard: React.FC<HomeOpenEncounterCardProps> = ({
       <div className="pe-open-card__footer">
         <span className="pe-open-card__confirmed">{confirmedLabel}</span>
         <span className="pe-open-card__action-hint" aria-hidden="true">
+          {isHost ? (
+            <span className="pe-open-card__host-action">
+              {t('open_encounters.manage_action', { defaultValue: 'Gestionar' })}
+            </span>
+          ) : null}
           <ChevronRight size={14} />
         </span>
       </div>

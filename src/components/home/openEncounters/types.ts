@@ -16,6 +16,8 @@ export interface OpenEncounterSummary {
   hostId?: string;
   allowMultiSeatRequests?: boolean;
   maxSeatsPerRequest?: number;
+  minSeatsPerRequest?: number;
+  isHost?: boolean;
 }
 
 export interface Localidad {
@@ -83,6 +85,7 @@ export interface AbrirEncuentroPayload {
   open_public_zone?: string | null;
   allow_multi_seat_requests?: boolean;
   max_seats_per_request?: number;
+  min_seats_per_request?: number;
 }
 
 export type OpenEncounterSlotState = 'single' | 'remaining' | 'count' | 'full';
