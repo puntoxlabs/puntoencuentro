@@ -37,8 +37,20 @@ export const CriticalCancellationModal: React.FC = () => {
         </div>
 
         <h3 id="pe-critical-modal-title" className="pe-critical-modal__title">
-          {criticalNotif.title || 'Encuentro cancelado'}
+          Encuentro cancelado
         </h3>
+
+        {payload?.title && (
+          <div className="pe-critical-modal__encounter-name">
+            {payload.title}
+          </div>
+        )}
+
+        {payload?.original_date_label && (
+          <div className="pe-critical-modal__datetime-label">
+            {payload.original_date_label}
+          </div>
+        )}
 
         <p id="pe-critical-modal-desc" className="pe-critical-modal__body">
           {criticalNotif.body}

@@ -257,11 +257,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return filtered;
   }, [liveEncounters, effectiveZones, isV2Variant]);
 
-  // Filtro simple: "Solo con lugares disponibles" (OFF: disponibles + completos; ON: oculta completos)
+  // Filtro simple: "Solo con lugares disponibles" (OFF: disponibles + completos; ON: oculta completos e inscripciones cerradas)
   const displayedEncounters = useMemo(() => {
     if (!visibleEncounters || visibleEncounters.length === 0) return [];
     if (!onlyAvailableFilter) return visibleEncounters;
-    return visibleEncounters.filter((e) => e.openSlots > 0 || e.isHost);
+    return visibleEncounters.filter((e) => (e.openSlots > 0 && !e.inscriptionsClosed) || e.isHost);
   }, [visibleEncounters, onlyAvailableFilter]);
 
   const visibleIntentions = useMemo(() => {

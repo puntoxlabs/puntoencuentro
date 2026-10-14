@@ -111,6 +111,9 @@ try {
   await server.ssrLoadModule('./scripts/test-lifecycle-realization-and-inscriptions.ts');
   console.log('✅ Lifecycle realization by minimum, cancellation reason, inscriptions & reconfirmation tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-lifecycle-concurrency-and-hardening.ts');
+  console.log('✅ Lifecycle concurrency, invariants, security & discovery filtering hardening tests executed successfully via Vite SSR loader.');
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);

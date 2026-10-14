@@ -554,13 +554,15 @@ export const openEncountersService = {
   async setMinParticipants(
     encounterId: string,
     hostId: string,
-    minParticipants: number | null
-  ): Promise<{ ok: boolean; min_participants?: number | null; realization_status?: string; error?: string }> {
+    minParticipants: number | null,
+    confirmReversion: boolean = false
+  ): Promise<{ ok: boolean; min_participants?: number | null; realization_status?: string; error?: string; message?: string }> {
     try {
       const { data, error } = await supabase.rpc('set_min_participants_seguro', {
         p_encuentro_id: encounterId,
         p_host_id: hostId,
         p_min_participants: minParticipants,
+        p_confirm_reversion: confirmReversion,
       });
       if (error) {
         return { ok: false, error: error.message };

@@ -88,14 +88,41 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       alert('Ingresá un número válido mayor a 0');
       return;
     }
+
+    let confirmReversion = false;
+    const wouldRevert =
+      encuentro?.realization_status === 'confirmed' &&
+      Boolean(encuentro?.inscriptions_closed) &&
+      val > confirmedSeats;
+
+    if (wouldRevert) {
+      const ok = window.confirm(
+        'Este cambio hará que el encuentro vuelva a depender del mínimo de participantes. ¿Querés continuar?'
+      );
+      if (!ok) return;
+      confirmReversion = true;
+    }
+
     setSavingMin(true);
     try {
-      const res = await openEncountersService.setMinParticipants(encuentro.id, hostId, val);
+      let res = await openEncountersService.setMinParticipants(encuentro.id, hostId, val, confirmReversion);
+
+      if (!res.ok && res.error === 'reversion_confirmation_required') {
+        const ok = window.confirm(
+          res.message || 'Este cambio hará que el encuentro vuelva a depender del mínimo de participantes. ¿Querés continuar?'
+        );
+        if (ok) {
+          res = await openEncountersService.setMinParticipants(encuentro.id, hostId, val, true);
+        } else {
+          return;
+        }
+      }
+
       if (res.ok) {
         setIsEditingMin(false);
         onRefresh();
       } else {
-        alert(res.error || 'Error al actualizar el mínimo de participantes');
+        alert(res.message || res.error || 'Error al actualizar el mínimo de participantes');
       }
     } catch (err: any) {
       alert(err?.message || 'Error al actualizar el mínimo');
