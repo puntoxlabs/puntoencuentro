@@ -10,6 +10,7 @@ import type {
   QADashboardMetrics,
   QASession,
 } from '../../services/qaAdminService';
+import { QAWebPushDiagnostic } from './QAWebPushDiagnostic';
 import './InternalQA.css';
 
 interface QAOverviewServiceOverride {
@@ -260,6 +261,9 @@ const InternalQAOverview: React.FC<InternalQAOverviewProps> = ({
                 </div>
               </div>
             </section>
+
+            {/* Diagnóstico y Prueba Web Push (Fase Staging / QA) */}
+            <QAWebPushDiagnostic />
 
             {/* Sesiones a revisar */}
             <section aria-label="Sesiones recientes a revisar">

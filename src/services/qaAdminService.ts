@@ -173,3 +173,62 @@ export const getQASessionTimeline = async (sessionId: string): Promise<QASession
   if (!data?.ok) throw new Error(`Failed to fetch timeline for session ${sessionId}`);
   return data as QASessionTimelineResponse;
 };
+
+// ============================================================
+// Diagnóstico y Prueba Web Push (Fase QA / Staging)
+// ============================================================
+
+export interface QAPushTestResponse {
+  ok: boolean;
+  inbox_notification_id?: string;
+  active_devices_count?: number;
+  outbox_id?: string;
+  outbox_status?: string;
+  endpoint_origin?: string;
+  created_at?: string;
+  error?: string;
+  message?: string;
+}
+
+export interface QAPushDeliveryItem {
+  outbox_id: string;
+  status: 'pending' | 'processing' | 'delivered' | 'retry' | 'failed' | 'cancelled';
+  attempt_count: number;
+  created_at: string;
+  processing_started_at: string | null;
+  delivered_at: string | null;
+  last_error: string | null;
+  endpoint_origin: string | null;
+  subscription_status: string;
+  device_last_seen: string | null;
+}
+
+export interface QAPushDeliveryStatusResponse {
+  ok: boolean;
+  inbox_notification_id?: string;
+  deliveries?: QAPushDeliveryItem[];
+  error?: string;
+}
+
+/**
+ * Dispara una notificación push de prueba hacia los dispositivos activos del operador QA.
+ * Utiliza el pipeline canónico completo (Inbox -> Outbox -> Worker).
+ */
+export const sendQAPushTest = async (): Promise<QAPushTestResponse> => {
+  const { data, error } = await supabase.rpc('enviar_qa_web_push_prueba_seguro');
+  if (error) throw error;
+  return data as QAPushTestResponse;
+};
+
+/**
+ * Consulta el estado y trazabilidad del outbox para una notificación de prueba de QA.
+ */
+export const getQAPushDeliveryStatus = async (
+  inboxNotificationId: string
+): Promise<QAPushDeliveryStatusResponse> => {
+  const { data, error } = await supabase.rpc('get_qa_web_push_delivery_status_seguro', {
+    p_inbox_notification_id: inboxNotificationId,
+  });
+  if (error) throw error;
+  return data as QAPushDeliveryStatusResponse;
+};

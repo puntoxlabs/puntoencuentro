@@ -88,32 +88,42 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       {state.kind === 'unsupported' && (
         <div className="pe-push-device__row">
           <Smartphone size={16} aria-hidden="true" />
-          <p className="pe-push-device__text">
-            {state.iosInstallHint
-              ? t('push.ios_install_hint', {
-                  defaultValue:
-                    'En iPhone y iPad, agregá PuntoEncuentro a tu pantalla de inicio y abrila desde ahí para activar las notificaciones.',
-                })
-              : t('push.unsupported', {
-                  defaultValue: 'Este navegador no permite notificaciones push.',
-                })}
-          </p>
+          <div>
+            <p className="pe-push-device__title">
+              {t('push.unsupported_badge', { defaultValue: 'No disponibles' })}
+            </p>
+            <p className="pe-push-device__text">
+              {state.iosInstallHint
+                ? t('push.ios_install_hint', {
+                    defaultValue:
+                      'En iPhone y iPad, agregá PuntoEncuentro a tu pantalla de inicio y abrila desde ahí para activar las notificaciones.',
+                  })
+                : t('push.unsupported', {
+                    defaultValue: 'Este navegador o entorno no permite notificaciones push.',
+                  })}
+            </p>
+          </div>
         </div>
       )}
 
       {state.kind === 'denied' && (
         <div className="pe-push-device__row">
           <BellOff size={16} aria-hidden="true" />
-          <p className="pe-push-device__text">
-            {t('push.denied', {
-              defaultValue:
-                'Bloqueaste las notificaciones en este dispositivo. Para activarlas, cambiá el permiso desde la configuración del navegador.',
-            })}
-          </p>
+          <div>
+            <p className="pe-push-device__title">
+              {t('push.denied_badge', { defaultValue: 'Bloqueadas' })}
+            </p>
+            <p className="pe-push-device__text">
+              {t('push.denied', {
+                defaultValue:
+                  'Bloqueaste las notificaciones en este dispositivo. Para activarlas, cambiá el permiso desde la configuración del navegador o sistema.',
+              })}
+            </p>
+          </div>
         </div>
       )}
 
-      {(state.kind === 'default' || state.kind === 'granted_unsubscribed') && (
+      {state.kind === 'default' && (
         <>
           <div className="pe-push-device__row">
             <Bell size={16} aria-hidden="true" />
@@ -123,7 +133,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
               </p>
               <p className="pe-push-device__text">
                 {t('push.subtitle', {
-                  defaultValue: 'Te avisamos aunque no tengas PuntoEncuentro abierto.',
+                  defaultValue: 'Disponibles para activar. Te avisamos aunque no tengas PuntoEncuentro abierto.',
                 })}
               </p>
             </div>
@@ -135,7 +145,34 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             disabled={busy}
           >
             {busy ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-            <span>{t('push.activate', { defaultValue: 'Activar' })}</span>
+            <span>{t('push.activate', { defaultValue: 'Activar notificaciones' })}</span>
+          </button>
+        </>
+      )}
+
+      {state.kind === 'granted_unsubscribed' && (
+        <>
+          <div className="pe-push-device__row">
+            <Bell size={16} aria-hidden="true" />
+            <div>
+              <p className="pe-push-device__title">
+                {t('push.reactivate_title', { defaultValue: 'Notificaciones desactivadas en este dispositivo' })}
+              </p>
+              <p className="pe-push-device__text">
+                {t('push.reactivate_subtitle', {
+                  defaultValue: 'El permiso del navegador está concedido. Podés volver a activarlas para recibir avisos.',
+                })}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="pe-push-device__btn pe-push-device__btn--primary"
+            onClick={() => void handleActivate()}
+            disabled={busy}
+          >
+            {busy ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+            <span>{t('push.reactivate', { defaultValue: 'Volver a activar' })}</span>
           </button>
         </>
       )}
@@ -145,7 +182,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
           <div className="pe-push-device__row">
             <Check size={16} aria-hidden="true" style={{ color: '#059669', flexShrink: 0 }} />
             <p className="pe-push-device__title" style={{ color: '#065f46' }}>
-              {t('push.active', { defaultValue: 'Notificaciones activadas en este dispositivo' })}
+              {t('push.active', { defaultValue: 'Activadas en este dispositivo' })}
             </p>
           </div>
           <button
@@ -154,7 +191,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             onClick={() => void handleDeactivate()}
             disabled={busy}
           >
-            <span>{t('push.deactivate', { defaultValue: 'Desactivar' })}</span>
+            <span>{t('push.deactivate', { defaultValue: 'Desactivar en este dispositivo' })}</span>
           </button>
         </div>
       )}
