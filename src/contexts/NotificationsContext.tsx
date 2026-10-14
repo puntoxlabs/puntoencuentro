@@ -180,6 +180,15 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     fetchUnreadCount();
   }, [authLoading, isPermanentUser, user?.id, fetchUnreadCount]);
 
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+
+  const fetchUnreadCountRef = useRef(fetchUnreadCount);
+  fetchUnreadCountRef.current = fetchUnreadCount;
+
+  const fetchNotificationsRef = useRef(fetchNotifications);
+  fetchNotificationsRef.current = fetchNotifications;
+
   // 6.1. Suscripción Realtime en app abierta para inbox_notifications
   useEffect(() => {
     if (!isPermanentUser || !user?.id) return;
@@ -195,18 +204,19 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
           filter: `recipient_user_id=eq.${user.id}`,
         },
         (change) => {
-          fetchUnreadCount();
-          if (isOpen) {
-            fetchNotifications(true);
+          fetchUnreadCountRef.current();
+          if (isOpenRef.current) {
+            fetchNotificationsRef.current(true);
           }
 
           const newRow = change?.new as any;
-          if (newRow && newRow.target_type === 'encounter') {
+          if (newRow && (newRow.target_type === 'encounter' || newRow.notification_type === 'match_found')) {
             const isMatch =
               newRow.notification_type === 'match_found' ||
               newRow.notification_type === 'match_alert' ||
               newRow.notification_type === 'intention_converted_to_encounter' ||
-              newRow.notification_type === 'interes_convertido';
+              newRow.notification_type === 'interes_convertido' ||
+              (newRow.target_type === 'encounter' && Boolean(newRow.payload?.primary_source === 'intention'));
 
             let rawPayload = newRow.payload;
             if (typeof rawPayload === 'string') {
@@ -245,7 +255,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isPermanentUser, user?.id, isOpen, fetchUnreadCount, fetchNotifications]);
+  }, [isPermanentUser, user?.id]);
 
   // 7. Revalidación al volver a primer plano (visibilitychange)
   useEffect(() => {

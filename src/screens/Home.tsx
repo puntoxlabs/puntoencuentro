@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
@@ -628,10 +629,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       sessionSeenMatchEncounterIdsRef.current.add(encounterId);
 
-      // 1. Refrescar automáticamente Discovery
+      // 1. Refrescar automáticamente Discovery de inmediato
       setDiscoveryRefreshTrigger(Date.now());
 
-      // 2. Acumular feedback visible en vivo
+      // 2. Refresco secundario escalonado (anti-race DB/replica) tras 600ms
+      window.setTimeout(() => {
+        setDiscoveryRefreshTrigger(Date.now());
+      }, 600);
+
+      // 3. Acumular feedback visible en vivo
       setLiveMatchFeedback((prev) => {
         const prevIds = prev ? prev.encounterIds : [];
         if (prevIds.includes(encounterId)) return prev;
@@ -652,6 +658,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     if (!liveMatchFeedback || liveMatchFeedback.encounterIds.length === 0) return;
     const targetIds = [...liveMatchFeedback.encounterIds];
     setLiveMatchFeedback(null);
+    setDiscoveryRefreshTrigger(Date.now());
     handleViewMatches(targetIds);
   }, [liveMatchFeedback, handleViewMatches]);
 
@@ -1681,8 +1688,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         </div>
       </header>
 
-      {/* Banner de Feedback EN VIVO para Nuevos Matches de Mis Ganas */}
-      {liveMatchFeedback && liveMatchFeedback.count > 0 && (
+      {/* Banner de Feedback EN VIVO para Nuevos Matches de Mis Ganas (Portal a document.body para visibilidad fija garantizada en mobile) */}
+      {liveMatchFeedback && liveMatchFeedback.count > 0 && typeof document !== 'undefined' && createPortal(
         <aside
           className="home-live-match-banner"
           role="alert"
@@ -1727,7 +1734,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               ✕
             </button>
           </div>
-        </aside>
+        </aside>,
+        document.body
       )}
 
       {/* Hero Section con Composición Centrada Envolvente V2 y Espacio Vivo Dinámico */}
