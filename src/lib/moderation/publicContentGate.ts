@@ -25,12 +25,13 @@ import {
 } from './normalizer.ts';
 import { detectSupportedLanguage } from './languageDetector.ts';
 import { checkDuplicateContent } from './duplicateDetector.ts';
-import type { ModerationEvaluationResult, RecentEncounterHistory } from './types.ts';
+import type { ModerationEvaluationResult, RecentEncounterHistory, PublicEncounterCandidate } from './types.ts';
 
 export function evaluatePublicContentGate(
   title: string,
   description: string = '',
-  recentHostHistory: RecentEncounterHistory[] = []
+  recentHostHistory: RecentEncounterHistory[] = [],
+  candidateContext?: Partial<PublicEncounterCandidate>
 ): ModerationEvaluationResult {
   const rawTitle = (title || '').trim();
   const rawDesc = (description || '').trim();
@@ -367,28 +368,34 @@ export function evaluatePublicContentGate(
 
   // 14. Detección de Duplicados contra el historial reciente del mismo anfitrión (24 horas)
   if (recentHostHistory && recentHostHistory.length > 0) {
-    const dupResult = checkDuplicateContent(normTitle, normDesc, recentHostHistory, 0.85);
-    if (dupResult.isDuplicate) {
-      if (dupResult.isExactMatch || dupResult.similarity >= 0.95) {
-        return {
-          decision: 'block',
-          categories: ['spam', 'duplicate'],
-          confidence: 0.95,
-          reason_code: 'duplicate_content',
-          explanation_for_moderator: `Publicación idéntica o casi idéntica (${Math.round(dupResult.similarity * 100)}% de similitud) creada recientemente por el mismo anfitrión.`,
-          user_friendly_message: 'Ya creaste una publicación idéntica o muy similar recientemente.',
-        };
-      } else {
-        return {
-          decision: 'review',
-          categories: ['duplicate'],
-          confidence: 0.8,
-          reason_code: 'duplicate_content',
-          explanation_for_moderator: `Publicación con alta similitud (${Math.round(dupResult.similarity * 100)}%) respecto a otra reciente del mismo anfitrión.`,
-          user_friendly_message: 'Estamos revisando esta publicación antes de mostrarla públicamente.',
-        };
-      }
+    const dupResult = checkDuplicateContent(
+      normTitle,
+      normDesc,
+      recentHostHistory,
+      candidateContext,
+      0.85
+    );
+
+    if (dupResult.decision === 'block') {
+      return {
+        decision: 'block',
+        categories: ['spam', 'duplicate'],
+        confidence: 0.95,
+        reason_code: dupResult.reason_code || 'duplicate_content',
+        explanation_for_moderator: dupResult.explanation_for_moderator || 'Publicación duplicada o ráfaga de spam.',
+        user_friendly_message: dupResult.user_friendly_message || 'Ya creaste una publicación idéntica o muy similar recientemente.',
+      };
+    } else if (dupResult.decision === 'review') {
+      return {
+        decision: 'review',
+        categories: ['duplicate'],
+        confidence: 0.8,
+        reason_code: 'duplicate_content',
+        explanation_for_moderator: dupResult.explanation_for_moderator || 'Publicación con alta similitud que requiere verificación humana.',
+        user_friendly_message: dupResult.user_friendly_message || 'Estamos revisando esta publicación antes de mostrarla públicamente.',
+      };
     }
+    // Si dupResult.decision === 'allow', el encuentro es un recurrente legítimo y se permite continuar limpio.
   }
 
   // 15. Contenido Limpio

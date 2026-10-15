@@ -223,38 +223,161 @@ function evaluateLanguage(text: string): { isSupported: boolean; detectedLanguag
 function checkDuplicates(
   candidateTitle: string,
   candidateDesc: string,
-  previousEncounters: { id: string; open_public_title: string; open_description: string | null }[]
-): { isDuplicate: boolean; similarity: number; isExactMatch: boolean } {
+  previousEncounters: any[],
+  candidateContext?: { fecha?: string | null; hora?: string | null; zona?: string | null; created_at?: string | null }
+): {
+  isDuplicate: boolean;
+  similarity: number;
+  isExactMatch: boolean;
+  decision: "allow" | "review" | "block";
+  reason_code?: string;
+  explanation?: string;
+  user_friendly_message?: string;
+} {
   if (!previousEncounters || previousEncounters.length === 0) {
-    return { isDuplicate: false, similarity: 0, isExactMatch: false };
+    return { isDuplicate: false, similarity: 0, isExactMatch: false, decision: "allow" };
   }
 
   const candNorm = canonicalForCompare(`${candidateTitle} ${candidateDesc || ""}`);
   const candWords = candNorm.split(/\s+/).filter(Boolean);
   const candSet = new Set(candWords);
 
+  const candFecha = candidateContext?.fecha ? candidateContext.fecha.trim() : null;
+  const candHora = candidateContext?.hora ? candidateContext.hora.trim().slice(0, 5) : null;
+  const candZona = (candidateContext?.zona || "").trim().toLowerCase();
+  const candCreatedAt = candidateContext?.created_at ? new Date(candidateContext.created_at).getTime() : Date.now();
+
   let maxSim = 0;
-  let isExact = false;
+  const matchingItems: { prev: any; sim: number; isExact: boolean }[] = [];
 
   for (const prev of previousEncounters) {
-    const prevNorm = canonicalForCompare(`${prev.open_public_title || ""} ${prev.open_description || ""}`);
+    const prevTitle = (prev.open_public_title || prev.title || "").trim();
+    const prevDesc = (prev.open_description || prev.description || "").trim();
+    const prevNorm = canonicalForCompare(`${prevTitle} ${prevDesc}`);
+
+    let sim = 0;
+    let isExact = false;
+
     if (candNorm === prevNorm && candNorm.length > 5) {
-      return { isDuplicate: true, similarity: 1.0, isExactMatch: true };
+      sim = 1.0;
+      isExact = true;
+    } else {
+      const prevWords = prevNorm.split(/\s+/).filter(Boolean);
+      const prevSet = new Set(prevWords);
+
+      let inter = 0;
+      for (const w of candSet) {
+        if (prevSet.has(w)) inter++;
+      }
+      const union = candSet.size + prevSet.size - inter;
+      sim = union > 0 ? inter / union : 0;
     }
 
-    const prevWords = prevNorm.split(/\s+/).filter(Boolean);
-    const prevSet = new Set(prevWords);
-
-    let inter = 0;
-    for (const w of candSet) {
-      if (prevSet.has(w)) inter++;
+    if (sim > maxSim) {
+      maxSim = sim;
     }
-    const union = candSet.size + prevSet.size - inter;
-    const sim = union > 0 ? inter / union : 0;
-    if (sim > maxSim) maxSim = sim;
+
+    if (sim >= 0.85) {
+      matchingItems.push({ prev, sim, isExact });
+    }
   }
 
-  return { isDuplicate: maxSim >= 0.85, similarity: maxSim, isExactMatch: isExact };
+  if (matchingItems.length === 0) {
+    return { isDuplicate: false, similarity: maxSim, isExactMatch: false, decision: "allow" };
+  }
+
+  // 1. Clon exacto de slot (mismo contenido + misma fecha + misma hora + misma zona)
+  const exactSlotMatch = matchingItems.find(({ prev }) => {
+    const prevFecha = prev.fecha ? prev.fecha.trim() : null;
+    const prevHora = prev.hora ? prev.hora.trim().slice(0, 5) : null;
+    const prevZona = (prev.open_public_zone || prev.locality_id || prev.zona || "").trim().toLowerCase();
+
+    const sameFecha = Boolean(candFecha && prevFecha && candFecha === prevFecha);
+    const sameHora = Boolean(candHora && prevHora && candHora === prevHora);
+    const sameZona = Boolean(candZona === prevZona || (!candZona && !prevZona));
+
+    return sameFecha && sameHora && sameZona;
+  });
+
+  if (exactSlotMatch) {
+    return {
+      isDuplicate: true,
+      similarity: exactSlotMatch.sim,
+      isExactMatch: exactSlotMatch.isExact,
+      decision: "block",
+      reason_code: "duplicate_content",
+      explanation: "Mismo contenido público duplicado para la misma fecha, horario y zona exacta.",
+      user_friendly_message: "Ya existe una publicación activa para este mismo horario y lugar.",
+    };
+  }
+
+  // 2. Ráfaga de spam masivo
+  if (matchingItems.length >= 3) {
+    return {
+      isDuplicate: true,
+      similarity: maxSim,
+      isExactMatch: false,
+      decision: "block",
+      reason_code: "duplicate_content_burst",
+      explanation: `Volumen anormal de publicaciones casi idénticas (${matchingItems.length + 1} publicaciones en 24h).`,
+      user_friendly_message: "Se detectaron múltiples publicaciones similares en un lapso breve. Por favor esperá antes de publicar nuevamente.",
+    };
+  }
+
+  if (matchingItems.length >= 2) {
+    const hasBurstTiming = matchingItems.some(({ prev }) => {
+      const prevDateStr = prev.creado_en || prev.created_at;
+      if (!prevDateStr) return false;
+      const prevTime = new Date(prevDateStr).getTime();
+      return Math.abs(candCreatedAt - prevTime) <= 10 * 60 * 1000;
+    });
+
+    if (hasBurstTiming) {
+      return {
+        isDuplicate: true,
+        similarity: maxSim,
+        isExactMatch: false,
+        decision: "block",
+        reason_code: "duplicate_content_burst",
+        explanation: `Ráfaga de publicaciones similares detectada en un intervalo corto (${matchingItems.length + 1} publicaciones creadas en pocos minutos).`,
+        user_friendly_message: "Se detectaron múltiples publicaciones similares en un lapso muy breve. Por favor esperá antes de publicar nuevamente.",
+      };
+    }
+  }
+
+  // 3. Encuentros legítimos diferenciados (recurrente semanal, días distintos, horas distintas, zonas distintas)
+  const allDifferentiated = matchingItems.every(({ prev }) => {
+    const prevFecha = prev.fecha ? prev.fecha.trim() : null;
+    const prevHora = prev.hora ? prev.hora.trim().slice(0, 5) : null;
+    const prevZona = (prev.open_public_zone || prev.locality_id || prev.zona || "").trim().toLowerCase();
+
+    const diffFecha = Boolean(candFecha && prevFecha && candFecha !== prevFecha);
+    const diffHora = Boolean(candHora && prevHora && candHora !== prevHora);
+    const diffZona = Boolean(candZona && prevZona && candZona !== prevZona);
+
+    return diffFecha || diffHora || diffZona;
+  });
+
+  if (allDifferentiated) {
+    return {
+      isDuplicate: false,
+      similarity: maxSim,
+      isExactMatch: false,
+      decision: "allow",
+      explanation: "Contenido similar pero con fecha, horario o zona diferenciada legítima (encuentro recurrente).",
+    };
+  }
+
+  // 4. Ambigüedad -> REVIEW (Nunca BLOCK por texto solo)
+  return {
+    isDuplicate: true,
+    similarity: maxSim,
+    isExactMatch: false,
+    decision: "review",
+    reason_code: "duplicate_content",
+    explanation: `Publicación con alta similitud (${Math.round(maxSim * 100)}%) respecto a otra reciente del mismo anfitrión. Requiere verificación humana.`,
+    user_friendly_message: "Estamos revisando esta publicación antes de mostrarla públicamente.",
+  };
 }
 
 // ------------------------------------------------------------------------------
@@ -263,7 +386,8 @@ function checkDuplicates(
 function evaluatePublicQualityGate(
   title: string,
   description: string,
-  previousEncounters: { id: string; open_public_title: string; open_description: string | null }[] = []
+  previousEncounters: any[] = [],
+  candidateContext?: { fecha?: string | null; hora?: string | null; zona?: string | null; created_at?: string | null }
 ): ModerateContentResult {
   const cleanTitle = (title || "").trim();
   const cleanDesc = (description || "").trim();
@@ -582,28 +706,27 @@ function evaluatePublicQualityGate(
 
   // 14. Detección de Duplicados en ventana 24h
   if (previousEncounters && previousEncounters.length > 0) {
-    const dupRes = checkDuplicates(cleanTitle, cleanDesc, previousEncounters);
-    if (dupRes.isDuplicate) {
-      if (dupRes.isExactMatch || dupRes.similarity >= 0.95) {
-        return {
-          decision: "block",
-          categories: ["spam", "duplicate"],
-          confidence: 0.95,
-          reason_code: "duplicate_content",
-          explanation_for_moderator: `Publicación idéntica o casi idéntica (${Math.round(dupRes.similarity * 100)}% similitud) creada recientemente por el mismo anfitrión.`,
-          user_friendly_message: "Ya creaste una publicación idéntica o muy similar recientemente.",
-        };
-      } else {
-        return {
-          decision: "review",
-          categories: ["duplicate"],
-          confidence: 0.8,
-          reason_code: "duplicate_content",
-          explanation_for_moderator: `Publicación con alta similitud (${Math.round(dupRes.similarity * 100)}%) respecto a otra reciente del mismo anfitrión.`,
-          user_friendly_message: "Estamos revisando esta publicación antes de mostrarla públicamente.",
-        };
-      }
+    const dupRes = checkDuplicates(cleanTitle, cleanDesc, previousEncounters, candidateContext);
+    if (dupRes.decision === "block") {
+      return {
+        decision: "block",
+        categories: ["spam", "duplicate"],
+        confidence: 0.95,
+        reason_code: dupRes.reason_code || "duplicate_content",
+        explanation_for_moderator: dupRes.explanation || "Duplicado en ráfaga o clon idéntico.",
+        user_friendly_message: dupRes.user_friendly_message || "Ya creaste una publicación idéntica o muy similar recientemente.",
+      };
+    } else if (dupRes.decision === "review") {
+      return {
+        decision: "review",
+        categories: ["duplicate"],
+        confidence: 0.8,
+        reason_code: "duplicate_content",
+        explanation_for_moderator: dupRes.explanation || "Publicación similar que requiere verificación humana.",
+        user_friendly_message: "Estamos revisando esta publicación antes de mostrarla públicamente.",
+      };
     }
+    // Si dupRes.decision === "allow", el encuentro es legítimo y se permite continuar limpio
   }
 
   // 15. Contenido Aprobado
@@ -735,7 +858,7 @@ Deno.serve(async (req: Request) => {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recentEncounters } = await supabaseAdmin
       .from("encuentros")
-      .select("id, open_public_title, open_description")
+      .select("id, open_public_title, open_description, fecha, hora, open_public_zone, locality_id, creado_en")
       .eq("host_id", enc.host_id)
       .neq("id", payload.encounter_id)
       .gte("creado_en", oneDayAgo);
@@ -748,11 +871,19 @@ Deno.serve(async (req: Request) => {
       p_open_public_zone: enc.open_public_zone,
     });
 
+    const candidateContext = {
+      fecha: enc.fecha,
+      hora: enc.hora,
+      zona: enc.open_public_zone || enc.locality_id,
+      created_at: enc.creado_en,
+    };
+
     // 8. Evaluación sobre contenido canónico exclusivamente
     const gateResult = evaluatePublicQualityGate(
       effectiveTitle,
       enc.open_description || "",
-      recentEncounters || []
+      recentEncounters || [],
+      candidateContext
     );
 
     // 9. Choke point: aplicar resolución atómica con service_role validando hash

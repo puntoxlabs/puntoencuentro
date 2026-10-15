@@ -31,6 +31,8 @@ export const formatModerationReason = (reason?: string | null): string => {
       return 'Contenido comercial o publicitario';
     case 'duplicate_content':
       return 'Publicación duplicada o similar del mismo anfitrión';
+    case 'duplicate_content_burst':
+      return 'Ráfaga o volumen anormal de duplicados';
     case 'suspicious_url':
       return 'Enlace sospechoso o acortador externo';
     case 'possible_scam':

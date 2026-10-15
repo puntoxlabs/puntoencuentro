@@ -9,6 +9,7 @@ export type ModerationReasonCode =
   | 'obfuscated_contact'
   | 'commercial_spam'
   | 'duplicate_content'
+  | 'duplicate_content_burst'
   | 'suspicious_url'
   | 'possible_scam'
   | 'low_information_content'
@@ -34,16 +35,29 @@ export interface PublicEncounterCandidate {
   id?: string;
   title: string;
   description?: string | null;
+  fecha?: string | null;
+  hora?: string | null;
   modality?: string;
   approximate_zone?: string;
+  zona?: string | null;
+  open_public_zone?: string | null;
+  locality_id?: string | null;
   host_id?: string;
+  created_at?: string | null;
 }
 
 export interface RecentEncounterHistory {
   id: string;
-  title: string;
+  title?: string;
+  open_public_title?: string;
   description?: string | null;
-  created_at: string;
+  open_description?: string | null;
+  fecha?: string | null;
+  hora?: string | null;
+  zona?: string | null;
+  open_public_zone?: string | null;
+  locality_id?: string | null;
+  created_at?: string | null;
 }
 
 export interface PrivateContentGateResult {

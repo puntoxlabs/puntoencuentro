@@ -408,30 +408,166 @@ describe('Moderación v1.1: Calidad Pública + Anti-Spam Gate & Piso Antiabuso P
     assert.equal(res.user_friendly_message, 'Necesitamos un título y una descripción que expliquen claramente de qué se trata el encuentro.');
   });
 
-  test('Duplicados del mismo usuario en ventana 24h → BLOCK / REVIEW', () => {
-    const history = [
+  test('Duplicados v1.1 ajustado: Reglas estructurales y protección de recurrentes', () => {
+    // 1. Texto idéntico + día distinto razonable → NO BLOCK (ALLOW)
+    const historyDay = [
       {
         id: 'enc-prev-1',
-        title: 'Torneo de Truco en Güemes',
-        description: 'Vengan a jugar al truco con parejas armadas o individuales.',
-        created_at: new Date().toISOString(),
+        title: 'Fútbol 5 en Güemes',
+        description: 'Partido mixto semanal, llevar zapatillas de césped.',
+        fecha: '2026-10-23', // Viernes
+        hora: '19:00',
+        zona: 'Güemes',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
       },
     ];
-
-    // Publicación idéntica
-    const resExact = evaluatePublicContentGate(
-      'Torneo de Truco en Güemes',
-      'Vengan a jugar al truco con parejas armadas o individuales.',
-      history
+    const resDay = evaluatePublicContentGate(
+      'Fútbol 5 en Güemes',
+      'Partido mixto semanal, llevar zapatillas de césped.',
+      historyDay,
+      { fecha: '2026-10-24', hora: '19:00', zona: 'Güemes' } // Sábado
     );
-    assert.equal(resExact.decision, 'block');
-    assert.equal(resExact.reason_code, 'duplicate_content');
+    assert.notEqual(resDay.decision, 'block', 'No debe bloquear con días distintos');
+    assert.equal(resDay.decision, 'allow');
 
-    // Publicación diferente del mismo usuario → ALLOW
+    // 2. Texto idéntico + hora distinta razonable → NO BLOCK (ALLOW)
+    const historyHour = [
+      {
+        id: 'enc-prev-2',
+        title: 'Torneo de Ajedrez',
+        description: 'Partidas blitz a 5 minutos en el club.',
+        fecha: '2026-10-25',
+        hora: '15:00',
+        zona: 'Centro',
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+      },
+    ];
+    const resHour = evaluatePublicContentGate(
+      'Torneo de Ajedrez',
+      'Partidas blitz a 5 minutos en el club.',
+      historyHour,
+      { fecha: '2026-10-25', hora: '19:00', zona: 'Centro' }
+    );
+    assert.notEqual(resHour.decision, 'block', 'No debe bloquear con horas distintas');
+    assert.equal(resHour.decision, 'allow');
+
+    // 3. Texto idéntico + zona distinta → NO BLOCK (ALLOW)
+    const historyZone = [
+      {
+        id: 'enc-prev-3',
+        title: 'Clase abierta de Yoga',
+        description: 'Vení a relajarte y respirar al aire libre.',
+        fecha: '2026-10-26',
+        hora: '10:00',
+        zona: 'Playa Grande',
+        created_at: new Date(Date.now() - 5000000).toISOString(),
+      },
+    ];
+    const resZone = evaluatePublicContentGate(
+      'Clase abierta de Yoga',
+      'Vení a relajarte y respirar al aire libre.',
+      historyZone,
+      { fecha: '2026-10-26', hora: '10:00', zona: 'Parque Camet' }
+    );
+    assert.notEqual(resZone.decision, 'block', 'No debe bloquear con zonas distintas');
+    assert.equal(resZone.decision, 'allow');
+
+    // 4. Dos encuentros recurrentes legítimos → ALLOW o REVIEW
+    const historyRec = [
+      {
+        id: 'enc-rec-1',
+        title: 'Grupo de Conversación en Inglés',
+        description: 'Práctica semanal de conversación intermedia y avanzada.',
+        fecha: '2026-10-18',
+        hora: '18:30',
+        zona: 'Güemes',
+        created_at: new Date(Date.now() - 86400000 + 3600000).toISOString(),
+      },
+    ];
+    const resRec = evaluatePublicContentGate(
+      'Grupo de Conversación en Inglés',
+      'Práctica semanal de conversación intermedia y avanzada.',
+      historyRec,
+      { fecha: '2026-10-25', hora: '18:30', zona: 'Güemes' }
+    );
+    assert.ok(resRec.decision === 'allow' || resRec.decision === 'review');
+    assert.notEqual(resRec.decision, 'block');
+
+    // 5. 4–5 clones prácticamente idénticos creados en pocos minutos → BLOCK
+    const now = Date.now();
+    const historyBurst = [
+      {
+        id: 'clone-1',
+        title: 'Fiesta Privada Exclusiva',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(now - 4 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'clone-2',
+        title: 'Fiesta Privada Exclusiva',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(now - 3 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'clone-3',
+        title: 'Fiesta Privada Exclusiva',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(now - 1 * 60 * 1000).toISOString(),
+      },
+    ];
+    const resBurst = evaluatePublicContentGate(
+      'Fiesta Privada Exclusiva',
+      'Vengan todos a bailar esta noche.',
+      historyBurst,
+      { created_at: new Date(now).toISOString() }
+    );
+    assert.equal(resBurst.decision, 'block');
+    assert.ok(resBurst.reason_code === 'duplicate_content_burst' || resBurst.reason_code === 'duplicate_content');
+
+    // 6. Mismo texto + misma fecha/hora/zona repetido → BLOCK
+    const historySlot = [
+      {
+        id: 'enc-slot-1',
+        title: 'Taller de Cerámica Inicial',
+        description: 'Aprende las técnicas básicas de modelado en arcilla.',
+        fecha: '2026-10-30',
+        hora: '17:00',
+        zona: 'Centro',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ];
+    const resSlot = evaluatePublicContentGate(
+      'Taller de Cerámica Inicial',
+      'Aprende las técnicas básicas de modelado en arcilla.',
+      historySlot,
+      { fecha: '2026-10-30', hora: '17:00', zona: 'Centro' }
+    );
+    assert.equal(resSlot.decision, 'block');
+    assert.equal(resSlot.reason_code, 'duplicate_content');
+
+    // 7. Similitud >= 0.95 sin otras señales → nunca BLOCK automático (REVIEW)
+    const historyAmbiguous = [
+      {
+        id: 'enc-prev-ambiguous',
+        title: 'Juntada a charlar y tomar mate',
+        description: 'Nos encontramos en una plaza para charlar tranquilos.',
+        created_at: new Date(Date.now() - 10000000).toISOString(),
+      },
+    ];
+    const resAmbiguous = evaluatePublicContentGate(
+      'Juntada a charlar y tomar mate',
+      'Nos encontramos en una plaza para charlar tranquilos.',
+      historyAmbiguous
+    );
+    assert.notEqual(resAmbiguous.decision, 'block', 'Similitud textual sola jamás debe ser BLOCK');
+    assert.equal(resAmbiguous.decision, 'review', 'Sin contexto estructural debe ir a revisión humana');
+    assert.equal(resAmbiguous.reason_code, 'duplicate_content');
+
+    // Publicación completamente diferente → ALLOW
     const resDiff = evaluatePublicContentGate(
       'Pádel en Los Naranjos',
       'Buscamos 2 personas para armar un partido de 6ta categoría.',
-      history
+      historyDay
     );
     assert.equal(resDiff.decision, 'allow');
     assert.equal(resDiff.reason_code, 'clean_social_meetup');

@@ -123,7 +123,7 @@ async function runStagingSmokeV11() {
     console.log('  ✔ Borrador privado accesible vía link sin restricciones de calidad pública.');
 
     // 4. Invocar Edge Function moderate-public-content desplegada en Staging
-    console.log('[4/4] Invocando Edge Function moderate-public-content en Staging...');
+    console.log('[4/5] Invocando Edge Function moderate-public-content en Staging...');
     const { data: fnRes, error: eFn } = await hostClient.functions.invoke('moderate-public-content', {
       body: {
         encuentro_id: actualEncId,
@@ -132,10 +132,66 @@ async function runStagingSmokeV11() {
         description: 'Vení a jugar un partido amistoso de fútbol 5 y tomar mates. Traer zapatillas de césped.',
       },
     });
-    // La función verificará permisos o hash TOCTOU
     console.log('  Respuesta de Edge Function:', fnRes || eFn?.message);
     assert.ok(fnRes !== undefined || eFn !== undefined, 'Edge Function debe estar accesible');
     console.log('  ✔ Edge Function moderate-public-content invocada exitosamente.');
+
+    // 5. Smoke focalizado de duplicados: Recurrente legítimo vs. Ráfaga de spam
+    console.log('[5/5] Smoke focalizado de duplicados en Staging (recurrente legítimo vs ráfaga spam)...');
+    const { checkDuplicateContent } = await import('../src/lib/moderation/index.ts');
+
+    // Caso A: Recurrente legítimo semanal (días distintos) -> ALLOW (no BLOCK)
+    const recHistory = [
+      {
+        id: 'hist-rec-1',
+        title: 'Fútbol 5 en Güemes',
+        description: 'Partido mixto semanal, llevar zapatillas de césped.',
+        fecha: '2026-10-23',
+        hora: '19:00',
+        zona: 'Güemes',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ];
+    const recResult = checkDuplicateContent(
+      'Fútbol 5 en Güemes',
+      'Partido mixto semanal, llevar zapatillas de césped.',
+      recHistory,
+      { fecha: '2026-10-24', hora: '19:00', zona: 'Güemes' }
+    );
+    assert.equal(recResult.decision, 'allow', 'Encuentro recurrente legítimo con día distinto debe ser ALLOW');
+    console.log('  ✔ Recurrente legítimo con diferente fecha: PERMITIDO (ALLOW).');
+
+    // Caso B: Ráfaga de spam masivo (4 clones en pocos minutos) -> BLOCK
+    const nowTime = Date.now();
+    const burstHistory = [
+      {
+        id: 'hist-clone-1',
+        title: 'Fiesta Privada VIP',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(nowTime - 4 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'hist-clone-2',
+        title: 'Fiesta Privada VIP',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(nowTime - 3 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'hist-clone-3',
+        title: 'Fiesta Privada VIP',
+        description: 'Vengan todos a bailar esta noche.',
+        created_at: new Date(nowTime - 1 * 60 * 1000).toISOString(),
+      },
+    ];
+    const burstResult = checkDuplicateContent(
+      'Fiesta Privada VIP',
+      'Vengan todos a bailar esta noche.',
+      burstHistory,
+      { created_at: new Date(nowTime).toISOString() }
+    );
+    assert.equal(burstResult.decision, 'block', 'Ráfaga de clones en pocos minutos debe ser BLOCK');
+    assert.ok(burstResult.reason_code === 'duplicate_content_burst' || burstResult.reason_code === 'duplicate_content');
+    console.log('  ✔ Ráfaga de spam masivo en pocos minutos: BLOQUEADA (BLOCK).');
 
     console.log('\n========================================================');
     console.log('SMOKE TEST MODERACIÓN V1.1 EN STAGING: EXITOSO ✔');
