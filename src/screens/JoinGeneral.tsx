@@ -228,9 +228,13 @@ const JoinGeneral: React.FC = () => {
         const suggested = getSuggestedName(user);
         if (suggested) setNombre(suggested);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading encuentro', err);
-      setError('No se pudo encontrar el encuentro o el enlace es inválido.');
+      if (err?.code === 'private_content_blocked') {
+        setError(err.message || 'Este enlace de invitación no está disponible por razones de seguridad.');
+      } else {
+        setError('No se pudo encontrar el encuentro o el enlace es inválido.');
+      }
     } finally { setLoading(false); }
   };
 

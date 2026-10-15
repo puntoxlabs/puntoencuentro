@@ -539,10 +539,16 @@ export const encuentrosService = {
     });
     if (error) throw error;
     if (!data) return null;
-    if (data) {
-      data.invitation_template = resolveInvitationTemplateForTheme(data.tema_invitacion, data.invitation_template);
+    const parsed: any = typeof data === 'string' ? JSON.parse(data) : data;
+    if (parsed?.error === 'private_content_blocked') {
+      const err = new Error(parsed.message || 'Este enlace de invitación no está disponible por razones de seguridad.');
+      (err as any).code = 'private_content_blocked';
+      throw err;
     }
-    return data;
+    if (parsed) {
+      parsed.invitation_template = resolveInvitationTemplateForTheme(parsed.tema_invitacion, parsed.invitation_template);
+    }
+    return parsed;
   },
 
   async getDetalleHostSeguro(id: string, hostId: string) {

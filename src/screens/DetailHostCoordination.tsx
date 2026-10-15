@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
 import { useAuth } from '@/contexts/AuthContext';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
+import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -98,6 +99,11 @@ const DetailHostCoordination: React.FC = () => {
 
   const handleShare = async () => {
     if (isLinkGeneral) {
+      const gateCheck = evaluatePrivateAntiAbuseGate(encuentro.titulo, encuentro.descripcion);
+      if (!gateCheck.allowed) {
+        alert(gateCheck.user_friendly_message || 'Este encuentro no se puede compartir porque contiene elementos que infringen las normas de seguridad.');
+        return;
+      }
       if (!shareUrl) {
         console.error('[DetailHostCoordination] Cannot share: Missing public_token');
         return;

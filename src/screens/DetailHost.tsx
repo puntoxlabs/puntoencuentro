@@ -40,6 +40,7 @@ import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
+import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -663,6 +664,11 @@ const DetailHost: React.FC = () => {
   const handleShareGeneral = async () => {
     if (!encuentro) return;
     try {
+      const gateCheck = evaluatePrivateAntiAbuseGate(encuentro.titulo, encuentro.descripcion);
+      if (!gateCheck.allowed) {
+        alert(gateCheck.user_friendly_message || 'Este encuentro no se puede compartir porque contiene elementos que infringen las normas de seguridad.');
+        return;
+      }
       const shareUrl = buildGeneralInvitationUrl(encuentro.public_token);
       if (!shareUrl) return;
       const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);

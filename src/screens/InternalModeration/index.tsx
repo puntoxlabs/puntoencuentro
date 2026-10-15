@@ -6,12 +6,53 @@ import { getModerationQueue, resolverModeracion } from '../../services/moderatio
 import type { ModerationQueueItem } from '../../types/trust';
 import './InternalModeration.css';
 
-const REJECTION_PRESETS = [
+export const REJECTION_PRESETS = [
+  'Necesitamos un título y una descripción que expliquen claramente de qué se trata el encuentro.',
   'El contenido incluye información de contacto o datos personales que deben mantenerse privados hasta confirmar asistencia.',
   'La publicación contiene enlaces externos o publicidad no permitida en el contenido público.',
-  'El contenido requiere mayor claridad en la descripción de la actividad para los participantes.',
+  'La publicación contiene elementos comerciales o promocionales no permitidos en Discovery.',
   'El texto no cumple con las pautas de respeto y convivencia de la comunidad.',
 ];
+
+export const formatModerationReason = (reason?: string | null): string => {
+  if (!reason) return 'Revisión por publicación o edición';
+  switch (reason) {
+    case 'unsupported_language':
+      return 'Idioma no soportado (requiere revisión)';
+    case 'gibberish':
+      return 'Texto incomprensible o aleatorio';
+    case 'excessive_symbols':
+      return 'Uso excesivo de símbolos o caracteres repetidos';
+    case 'external_contact':
+      return 'Datos de contacto externos detectados';
+    case 'obfuscated_contact':
+      return 'Contacto ofuscado o indirecto';
+    case 'commercial_spam':
+      return 'Contenido comercial o publicitario';
+    case 'duplicate_content':
+      return 'Publicación duplicada o similar del mismo anfitrión';
+    case 'suspicious_url':
+      return 'Enlace sospechoso o acortador externo';
+    case 'possible_scam':
+      return 'Posible estafa o captación engañosa';
+    case 'low_information_content':
+      return 'Contenido escaso o con baja información';
+    case 'contains_link':
+      return 'Contiene enlace externo';
+    case 'contains_personal_contact_data':
+      return 'Datos personales de contacto';
+    case 'sensitive_terms_ambiguous':
+      return 'Términos sensibles (verificar contexto)';
+    case 'malicious_payload':
+      return 'Código o script malicioso';
+    case 'violence_threat':
+      return 'Amenaza de violencia física';
+    case 'illegal_activity':
+      return 'Actividad ilícita o no permitida';
+    default:
+      return reason;
+  }
+};
 
 export const InternalModerationScreen: React.FC = () => {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
@@ -240,7 +281,7 @@ export const InternalModerationScreen: React.FC = () => {
                         )}
                         {item.moderation_reason && (
                           <span className="moderation-meta-tag moderation-meta-tag--reason">
-                            Motivo: {item.moderation_reason}
+                            Motivo: {formatModerationReason(item.moderation_reason)}
                           </span>
                         )}
                         {item.report_count > 0 && (
@@ -303,7 +344,7 @@ export const InternalModerationScreen: React.FC = () => {
                 <div className="moderation-signals-box">
                   <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 600 }}>Señales de moderación</h4>
                   <div style={{ fontSize: '12px', lineHeight: 1.5 }}>
-                    <div><strong>Motivo inicial:</strong> {selectedCase.moderation_reason || 'Revisión por nueva publicación o edición'}</div>
+                    <div><strong>Motivo inicial:</strong> {formatModerationReason(selectedCase.moderation_reason)}</div>
                     {selectedCase.moderation_categories && selectedCase.moderation_categories.length > 0 && (
                       <div><strong>Categorías detectadas:</strong> {selectedCase.moderation_categories.join(', ')}</div>
                     )}

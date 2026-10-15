@@ -256,12 +256,18 @@ export const openEncountersService = {
           message: 'Encuentro moderado y publicado exitosamente.',
         };
       } else if (funcRes.data?.ok && funcRes.data?.data?.decision === 'block') {
+        const reasonCode = funcRes.data?.data?.reason_code;
+        const defaultBlockMsg =
+          reasonCode === 'low_information_content'
+            ? 'Necesitamos un título y una descripción que expliquen claramente de qué se trata el encuentro.'
+            : 'Tu publicación no cumple con las pautas comunitarias de contenido público.';
         return {
           ok: false,
           is_open: false,
           moderation_status: 'rejected',
           error: 'content_moderation_blocked',
-          reason: funcRes.data?.data?.reason_code,
+          reason: reasonCode,
+          message: funcRes.data?.data?.user_friendly_message || defaultBlockMsg,
         };
       }
     } catch (fnErr) {
