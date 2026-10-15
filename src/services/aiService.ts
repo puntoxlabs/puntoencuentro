@@ -149,7 +149,7 @@ export const aiService = {
             error: errorBody?.error || 'rate_limit_exceeded',
             details:
               errorBody?.message ||
-              'Alcanzaste el límite de consultas permitidas. Podés continuar manualmente.',
+              'Hubo demasiados intentos en poco tiempo. Probá nuevamente en unos minutos.',
           };
         }
 

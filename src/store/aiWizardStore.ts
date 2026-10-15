@@ -532,7 +532,15 @@ function applyInterpretationResponse(
       response.error === 'session_limit_reached' ||
       response.error === 'rate_limit_exceeded' ||
       response.error === 'session_locked_off_topic' ||
-      response.error === 'input_too_long';
+      response.error === 'input_too_long' ||
+      response.error === 'malicious_payload' ||
+      response.error === 'extreme_repetition' ||
+      response.error === 'excessive_symbols' ||
+      response.error === 'automated_gibberish';
+
+    const isSoftInputError =
+      response.error === 'invalid_input' ||
+      response.error === 'too_short';
 
     const isTimeout = response.error === 'timeout_client';
     const isNetwork = response.error === 'network_error';
@@ -544,7 +552,7 @@ function applyInterpretationResponse(
       errorReply = 'No pudimos conectarnos con Crear con IA. Revisá tu conexión e intentá nuevamente.';
     }
 
-    const newMessages = isAbuseOrLimit
+    const newMessages = (isAbuseOrLimit || isSoftInputError)
       ? [
           ...get().messages,
           {

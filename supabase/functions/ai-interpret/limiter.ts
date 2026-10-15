@@ -1,9 +1,10 @@
 // Supabase Edge Function: ai-interpret abuse limiter
-// Server-side enforcement of session turn limits, hourly user rate limits, and off-topic locking.
+// Server-side enforcement of session turn limits, durable short-burst limit, hourly user rate limits, and off-topic locking.
 
 export interface AbuseLimiterConfig {
   maxTurnsPerSession: number;
   maxRequestsPerHour: number;
+  maxBurstRequestsPerMinute: number;
   maxConsecutiveOffTopic: number;
 }
 
@@ -22,19 +23,24 @@ export interface LimitCheckResult {
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const PROMPT_REPEAT_WINDOW_MS = 120 * 1000; // 2 minutes
+const MAX_PROMPT_REPEATS = 3; // Allow up to 3 identical prompts in 2m; 4th is blocked
 
-// In-memory state (fast isolate-level sliding window and session trackers)
+// In-memory state (fast isolate-level sliding window, prompt repeat tracking, and session trackers)
 const sessions = new Map<string, SessionTracker>();
 const userRequestTimestamps = new Map<string, number[]>();
+const userPromptTimestamps = new Map<string, number[]>();
 
 export function resolveLimiterConfig(env: { get: (k: string) => string | undefined }): AbuseLimiterConfig {
   const turnsRaw = env.get('AI_MAX_TURNS_PER_SESSION');
   const hourlyRaw = env.get('AI_MAX_REQUESTS_PER_USER_HOUR');
+  const burstRaw = env.get('AI_MAX_BURST_PER_MINUTE');
   const offTopicRaw = env.get('AI_MAX_CONSECUTIVE_OFF_TOPIC');
 
   return {
     maxTurnsPerSession: turnsRaw ? parseInt(turnsRaw, 10) : 20,
     maxRequestsPerHour: hourlyRaw ? parseInt(hourlyRaw, 10) : 40,
+    maxBurstRequestsPerMinute: burstRaw ? parseInt(burstRaw, 10) : 10,
     maxConsecutiveOffTopic: offTopicRaw ? parseInt(offTopicRaw, 10) : 2,
   };
 }
@@ -54,6 +60,105 @@ function cleanupStaleEntries(now: number): void {
       userRequestTimestamps.set(uId, valid);
     }
   }
+
+  for (const [key, timestamps] of userPromptTimestamps.entries()) {
+    const valid = timestamps.filter((t) => now - t < PROMPT_REPEAT_WINDOW_MS);
+    if (valid.length === 0) {
+      userPromptTimestamps.delete(key);
+    } else {
+      userPromptTimestamps.set(key, valid);
+    }
+  }
+}
+
+/**
+ * Computes a SHA-256 hash of a normalized prompt for safe, privacy-preserving repeat tracking.
+ * Never stores or transmits the raw prompt text in tracking structures.
+ */
+export async function computePromptHash(prompt: string): Promise<string> {
+  const normalized = prompt.trim().toLowerCase().replace(/\s+/g, ' ');
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalized);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Checks for abnormal repetition of the exact same normalized prompt within a short window (120s).
+ * Allows normal human retries (up to 3 attempts), blocking 4th+ with controlled 429.
+ */
+export function checkPromptRepetition(userId: string, promptHash: string): LimitCheckResult {
+  const now = Date.now();
+  if (userPromptTimestamps.size > 500) {
+    cleanupStaleEntries(now);
+  }
+
+  const key = `${userId}:${promptHash}`;
+  const existing = userPromptTimestamps.get(key) || [];
+  const valid = existing.filter((t) => now - t < PROMPT_REPEAT_WINDOW_MS);
+
+  if (valid.length >= MAX_PROMPT_REPEATS) {
+    userPromptTimestamps.set(key, valid);
+    return {
+      allowed: false,
+      error: 'rate_limit_exceeded',
+      message: 'Hubo demasiados intentos en poco tiempo. Probá nuevamente en unos minutos.',
+    };
+  }
+
+  valid.push(now);
+  userPromptTimestamps.set(key, valid);
+  return { allowed: true };
+}
+
+/**
+ * Durable short-burst rate limiter (1-minute window) via atomic PostgreSQL RPC.
+ * Guaranteed to operate across distributed Edge Function isolates and limit rapid bursts.
+ */
+export async function checkShortBurstLimit(
+  userId: string,
+  config: AbuseLimiterConfig,
+  supabaseClient?: any
+): Promise<LimitCheckResult> {
+  if (!supabaseClient) {
+    return {
+      allowed: false,
+      error: 'rate_limit_unavailable',
+      message: 'No pudimos validar temporalmente el uso de Crear con IA. Podés continuar manualmente o intentar nuevamente.',
+    };
+  }
+
+  try {
+    const { data, error } = await supabaseClient.rpc('check_and_increment_ai_burst_limit', {
+      p_max_burst_requests: config.maxBurstRequestsPerMinute,
+    });
+
+    if (error || !data) {
+      return {
+        allowed: false,
+        error: 'rate_limit_unavailable',
+        message: 'No pudimos validar temporalmente el uso de Crear con IA. Podés continuar manualmente o intentar nuevamente.',
+      };
+    }
+
+    if (data.allowed === false) {
+      return {
+        allowed: false,
+        error: 'rate_limit_exceeded',
+        message: data.message || 'Hubo demasiados intentos en poco tiempo. Probá nuevamente en unos minutos.',
+      };
+    }
+
+    return { allowed: true };
+  } catch (_err) {
+    return {
+      allowed: false,
+      error: 'rate_limit_unavailable',
+      message: 'No pudimos validar temporalmente el uso de Crear con IA. Podés continuar manualmente o intentar nuevamente.',
+    };
+  }
 }
 
 /**
@@ -65,10 +170,11 @@ export async function checkAbuseLimits(
   userId: string,
   sessionId: string,
   config: AbuseLimiterConfig,
-  supabaseClient?: any
+  supabaseClient?: any,
+  promptHash?: string
 ): Promise<LimitCheckResult> {
   const now = Date.now();
-  if (sessions.size > 500 || userRequestTimestamps.size > 500) {
+  if (sessions.size > 500 || userRequestTimestamps.size > 500 || userPromptTimestamps.size > 500) {
     cleanupStaleEntries(now);
   }
 
@@ -91,7 +197,15 @@ export async function checkAbuseLimits(
     };
   }
 
-  // 3. Fast isolate-level pre-check (soft protection / optimization before touching DB)
+  // 3. Repeated prompt check (if promptHash provided)
+  if (promptHash) {
+    const repeatCheck = checkPromptRepetition(userId, promptHash);
+    if (!repeatCheck.allowed) {
+      return repeatCheck;
+    }
+  }
+
+  // 4. Fast isolate-level pre-check (soft protection / optimization before touching DB)
   const timestamps = userRequestTimestamps.get(userId) || [];
   const validTimestamps = timestamps.filter((t) => now - t < ONE_HOUR_MS);
   if (validTimestamps.length >= config.maxRequestsPerHour) {
@@ -103,7 +217,7 @@ export async function checkAbuseLimits(
     };
   }
 
-  // 4. Durable Distributed Rate Limit via atomic Postgres RPC (Hard Limit, FAIL-CLOSED)
+  // 5. Durable Distributed Rate Limit via atomic Postgres RPC (Hard Limit, FAIL-CLOSED)
   // Operates exclusively via auth.uid() inside Postgres; no user ID is passed.
   if (!supabaseClient) {
     return {
@@ -216,4 +330,5 @@ export function recordInteraction(
 export function resetLimiterStateForTesting(): void {
   sessions.clear();
   userRequestTimestamps.clear();
+  userPromptTimestamps.clear();
 }

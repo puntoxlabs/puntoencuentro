@@ -16,7 +16,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-import { resolveLimiterConfig, checkAbuseLimits, recordInteraction } from "./limiter.ts";
+import { resolveLimiterConfig, checkAbuseLimits, checkShortBurstLimit, computePromptHash, recordInteraction } from "./limiter.ts";
+import { evaluateAiInputAbuseGate } from "./abuseGate.ts";
 
 declare const Deno: {
   env: {
@@ -137,23 +138,33 @@ Deno.serve(async (req: Request) => {
 
     verifiedUserId = user.id;
 
-    // 2. Parse input body
-    const body = await req.json();
-    const { message, currentDraft, sessionId } = body;
-
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "invalid_input", message: "El mensaje no puede estar vacío." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (message.length > 1000) {
+    // 2. Short-burst limit check (atomic & durable in PostgreSQL, stops flooding even on rejected payloads)
+    const limiterConfig = resolveLimiterConfig(Deno.env);
+    const burstCheck = await checkShortBurstLimit(verifiedUserId, limiterConfig, userClient);
+    if (!burstCheck.allowed) {
+      const statusCode = burstCheck.error === "rate_limit_unavailable" ? 503 : 429;
       return new Response(
         JSON.stringify({
           ok: false,
-          error: "input_too_long",
-          message: "El mensaje es demasiado largo. Contame brevemente qué querés organizar o cambiar."
+          error: burstCheck.error || "rate_limit_exceeded",
+          message: burstCheck.message || "Hubo demasiados intentos en poco tiempo. Probá nuevamente en unos minutos."
+        }),
+        { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3. Parse input body
+    const body = await req.json();
+    const { message, currentDraft, sessionId } = body;
+
+    // 4. Deterministic AI Input Abuse Gate (Zero LLM, zero monthly quota reservation on reject)
+    const abuseResult = evaluateAiInputAbuseGate(message);
+    if (!abuseResult.allowed) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: abuseResult.reason || "invalid_input",
+          message: abuseResult.message || "Escribí brevemente qué te gustaría hacer."
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -165,9 +176,9 @@ Deno.serve(async (req: Request) => {
         ? sessionId.trim()
         : crypto.randomUUID();
 
-    // 3. Technical hourly anti-abuse limiter check
-    const limiterConfig = resolveLimiterConfig(Deno.env);
-    const limitCheck = await checkAbuseLimits(verifiedUserId, effectiveSessionId, limiterConfig, userClient);
+    // 5. Prompt repetition & Technical hourly anti-abuse limiter check
+    const promptHash = await computePromptHash(message);
+    const limitCheck = await checkAbuseLimits(verifiedUserId, effectiveSessionId, limiterConfig, userClient, promptHash);
 
     if (!limitCheck.allowed) {
       const statusCode = limitCheck.error === "rate_limit_unavailable" ? 503 : 429;
