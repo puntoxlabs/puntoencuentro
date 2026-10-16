@@ -493,4 +493,130 @@ describe('Fase 1.5: UI Mínima de Notificaciones In-App', () => {
       assert.equal(none, undefined);
     });
   });
+
+  // -------------------------------------------------------------
+  // 6. AISLAMIENTO Y RESILIENCIA EN CAMBIOS DE SESIÓN
+  // -------------------------------------------------------------
+  describe('6. Aislamiento y Resiliencia en Cambios de Sesión (In-flight Races)', () => {
+    test('Petición en vuelo de Usuario A se descarta si la sesión cambia a Usuario B antes de resolver', async () => {
+      let activeFetch = 0;
+      let currentUserId: string | undefined = 'user-a';
+      let stateNotifications: InboxNotificationItem[] = [];
+
+      // Simulación del gestor de peticiones con guard de generación e identidad
+      const performFetch = async (userId: string, simulateDelayMs: number, items: InboxNotificationItem[]) => {
+        const fetchId = ++activeFetch;
+        const expectedUserId = userId;
+
+        await new Promise((resolve) => setTimeout(resolve, simulateDelayMs));
+
+        // Verificación idéntica a NotificationsContext
+        if (fetchId !== activeFetch || currentUserId !== expectedUserId) {
+          return; // Descartada
+        }
+
+        stateNotifications = items;
+      };
+
+      const userANotifs: InboxNotificationItem[] = [
+        {
+          id: 'notif-a',
+          notificationType: 'encounter_cancelled_for_participant',
+          targetType: 'encounter',
+          targetId: 'enc-a',
+          deepLink: '/?open_detail=enc-a',
+          title: 'Cancelación A',
+          body: 'Aviso confidencial Usuario A',
+          payload: { priority: 'critical' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T10:00:00Z',
+        },
+      ];
+
+      const userBNotifs: InboxNotificationItem[] = [
+        {
+          id: 'notif-b',
+          notificationType: 'encounter_schedule_changed',
+          targetType: 'encounter',
+          targetId: 'enc-b',
+          deepLink: '/?open_detail=enc-b',
+          title: 'Cambio fecha B',
+          body: 'Aviso Usuario B',
+          payload: { priority: 'critical' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T11:00:00Z',
+        },
+      ];
+
+      // 1. Usuario A inicia petición lenta (50ms)
+      const promiseA = performFetch('user-a', 50, userANotifs);
+
+      // 2. Cambio de sesión a Usuario B antes de resolver A (invalida fetch e identidad)
+      currentUserId = 'user-b';
+      activeFetch++;
+      stateNotifications = []; // Limpieza inmediata al cambiar de usuario
+
+      // 3. Usuario B inicia su petición más rápida (10ms)
+      const promiseB = performFetch('user-b', 10, userBNotifs);
+
+      await Promise.all([promiseA, promiseB]);
+
+      // 4. El estado final debe ser exclusivamente de Usuario B; datos de A nunca contaminaron
+      assert.equal(stateNotifications.length, 1);
+      assert.equal(stateNotifications[0].id, 'notif-b');
+      assert.equal(stateNotifications[0].title, 'Cambio fecha B');
+    });
+
+    test('Petición en vuelo de Usuario A se descarta si la sesión se cierra (logout)', async () => {
+      let activeFetch = 0;
+      let currentUserId: string | undefined = 'user-a';
+      let stateNotifications: InboxNotificationItem[] = [];
+
+      const performFetch = async (userId: string, simulateDelayMs: number, items: InboxNotificationItem[]) => {
+        const fetchId = ++activeFetch;
+        const expectedUserId = userId;
+
+        await new Promise((resolve) => setTimeout(resolve, simulateDelayMs));
+
+        if (fetchId !== activeFetch || currentUserId !== expectedUserId) {
+          return;
+        }
+
+        stateNotifications = items;
+      };
+
+      const userANotifs: InboxNotificationItem[] = [
+        {
+          id: 'notif-a',
+          notificationType: 'encounter_cancelled_for_participant',
+          targetType: 'encounter',
+          targetId: 'enc-a',
+          deepLink: '/?open_detail=enc-a',
+          title: 'Cancelación A',
+          body: 'Privado',
+          payload: {},
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T10:00:00Z',
+        },
+      ];
+
+      const promiseA = performFetch('user-a', 30, userANotifs);
+
+      // Usuario cierra sesión a los 5ms
+      currentUserId = undefined;
+      activeFetch++;
+      stateNotifications = [];
+
+      await promiseA;
+
+      // El estado queda completamente vacío
+      assert.equal(stateNotifications.length, 0);
+    });
+  });
 });

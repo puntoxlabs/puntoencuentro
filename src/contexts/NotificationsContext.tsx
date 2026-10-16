@@ -45,6 +45,9 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Ref para evitar condiciones de carrera entre peticiones simultáneas
   const activeFetchRef = useRef<number>(0);
+  const activeCountFetchRef = useRef<number>(0);
+  const currentUserIdRef = useRef<string | undefined>(user?.id);
+  currentUserIdRef.current = user?.id;
 
   // Registro de listeners activos para eventos en vivo de matches de Mis Ganas
   const matchListenersRef = useRef<Set<IncomingMatchListener>>(new Set());
@@ -58,19 +61,24 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 1. Obtener conteo de no leídas
   const fetchUnreadCount = useCallback(async () => {
-    if (!isPermanentUser) {
+    if (!isPermanentUser || !user?.id) {
       setUnreadCount(0);
       return;
     }
+    const countFetchId = ++activeCountFetchRef.current;
+    const expectedUserId = user.id;
     const res = await notificationService.getContadorNoLeidas();
+    if (countFetchId !== activeCountFetchRef.current || currentUserIdRef.current !== expectedUserId) {
+      return;
+    }
     if (res.ok) {
       setUnreadCount(res.unreadCount);
     }
-  }, [isPermanentUser]);
+  }, [isPermanentUser, user?.id]);
 
   // 2. Obtener lista inicial o refrescar (incluye notificaciones críticas no leídas de forma ligera)
   const fetchNotifications = useCallback(async (reset: boolean = false) => {
-    if (!isPermanentUser) {
+    if (!isPermanentUser || !user?.id) {
       setNotifications([]);
       setHasMore(false);
       setNextCursor(null);
@@ -82,6 +90,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     const fetchId = ++activeFetchRef.current;
+    const expectedUserId = user.id;
     setLoading(true);
     setError(null);
 
@@ -90,7 +99,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       notificationService.getNotificacionesCriticasNoLeidas(),
     ]);
 
-    if (fetchId !== activeFetchRef.current) return;
+    if (fetchId !== activeFetchRef.current || currentUserIdRef.current !== expectedUserId) return;
 
     if (res.ok) {
       // Priorizar e integrar cualquier notificación crítica no leída sin duplicar
@@ -111,20 +120,27 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       setError(res.error || 'Error al cargar notificaciones');
     }
     setLoading(false);
-  }, [isPermanentUser]);
+  }, [isPermanentUser, user?.id]);
 
   // 3. Paginación: Cargar siguiente lote
   const cargarMas = useCallback(async () => {
-    if (!isPermanentUser || !hasMore || !nextCursor || loadingMore) {
+    if (!isPermanentUser || !user?.id || !hasMore || !nextCursor || loadingMore) {
       return;
     }
 
+    const fetchId = activeFetchRef.current;
+    const expectedUserId = user.id;
     setLoadingMore(true);
     const res = await notificationService.getMisNotificaciones(
       20,
       nextCursor.createdAt,
       nextCursor.id
     );
+
+    if (fetchId !== activeFetchRef.current || currentUserIdRef.current !== expectedUserId) {
+      setLoadingMore(false);
+      return;
+    }
 
     if (res.ok) {
       setNotifications((prev) => [...prev, ...res.data]);
@@ -134,7 +150,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       console.warn('[Notifications] Error cargando más notificaciones:', res.error);
     }
     setLoadingMore(false);
-  }, [isPermanentUser, hasMore, nextCursor, loadingMore]);
+  }, [isPermanentUser, user?.id, hasMore, nextCursor, loadingMore]);
 
   // 4. Marcar notificación individual como leída (optimista + server-side)
   const marcarLeida = useCallback(async (id: string): Promise<boolean> => {
@@ -179,9 +195,12 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isPermanentUser) {
-      // Limpiar estrictamente datos locales si no hay sesión permanente e invalidar solicitudes asíncronas en vuelo
-      activeFetchRef.current++;
+    // Invalidar inmediatamente cualquier solicitud asíncrona en vuelo
+    activeFetchRef.current++;
+    activeCountFetchRef.current++;
+
+    if (!isPermanentUser || !user?.id) {
+      // Limpiar estrictamente datos locales si no hay sesión permanente
       setUnreadCount(0);
       setNotifications([]);
       setHasMore(false);
@@ -190,6 +209,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsOpen(false);
       return;
     }
+
+    // Al cambiar de usuario permanente, limpiar inmediatamente el estado previo antes de la nueva carga
+    setNotifications([]);
+    setUnreadCount(0);
+    setHasMore(false);
+    setNextCursor(null);
+    setError(null);
 
     // Usuario permanente autenticado: carga inicial de contador y notificaciones críticas / recientes
     fetchUnreadCount();
