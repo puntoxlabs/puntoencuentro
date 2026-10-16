@@ -242,7 +242,16 @@
     "rejected_notice": "Esta publicación no puede mostrarse públicamente con el contenido actual. Podés editarla e intentarlo nuevamente.",
     "hidden_review_notice": "Esta publicación está temporalmente en revisión. Mientras la revisamos, no se muestra en Me sumo.",
     "post_edit_review_notice": "Guardamos los cambios. La publicación se está revisando nuevamente.",
-    "action_edit_publication": "Editar publicación"
+    "action_edit_publication": "Editar publicación",
+    "withdraw_action": "No voy a poder asistir",
+    "withdraw_confirm_title": "¿No vas a poder asistir?",
+    "withdraw_confirm_desc": "Tus lugares se liberarán inmediatamente para que otras personas puedan sumarse. Le avisaremos al organizador.",
+    "withdraw_reason_label": "Mensaje para el organizador (opcional)",
+    "withdraw_reason_placeholder": "ej. Me surgió un imprevisto familiar…",
+    "withdraw_confirm_btn": "Avisar que no voy",
+    "request_withdrawn_title": "Te diste de baja",
+    "request_withdrawn_desc": "Avisaste que no podías asistir y tus lugares fueron liberados.",
+    "reapply_action": "Volver a solicitar sumarme"
   },
   "your_encounters": {
     "section_title": "Tus encuentros",

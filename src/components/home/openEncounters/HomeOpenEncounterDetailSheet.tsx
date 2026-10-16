@@ -44,9 +44,10 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   // Estados de solicitud
   const [requestState, setRequestState] = useState<{
     hasRequest: boolean;
-    status?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+    status?: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
     tokenParticipante?: string;
   }>({ hasRequest: false });
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -60,6 +61,9 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   const [authorizedDetail, setAuthorizedDetail] = useState<EncuentroParticipanteAutorizado | null>(null);
   const [reconfirming, setReconfirming] = useState(false);
   const [reconfirmStatus, setReconfirmStatus] = useState<'pending' | 'confirmed' | 'declined' | undefined>(undefined);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState('');
+  const [withdrawing, setWithdrawing] = useState(false);
   const [pendingReportData, setPendingReportData] = useState<{
     reason?: PublicContentReportReason | null;
     comment?: string;
@@ -75,11 +79,15 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
   const handleReconfirm = async (decision: 'confirm' | 'decline') => {
     if (!encounter?.id || reconfirming) return;
+    if (decision === 'decline') {
+      setIsWithdrawModalOpen(true);
+      return;
+    }
     setReconfirming(true);
     try {
       const res = await openEncountersService.reconfirmarAsistencia(encounter.id, decision);
       if (res.ok) {
-        setReconfirmStatus(decision === 'confirm' ? 'confirmed' : 'declined');
+        setReconfirmStatus('confirmed');
       } else {
         setErrorMsg(res.error || 'No se pudo actualizar tu confirmación de asistencia.');
       }
@@ -87,6 +95,31 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       setErrorMsg(err?.message || 'Error al reconfirmar asistencia.');
     } finally {
       setReconfirming(false);
+    }
+  };
+
+  const handleExecuteWithdrawal = async () => {
+    if (!encounter?.id || withdrawing) return;
+    setWithdrawing(true);
+    setErrorMsg(null);
+    try {
+      const res = await openEncountersService.desistirEncuentroAbierto(
+        encounter.id,
+        withdrawReason.trim() ? withdrawReason.trim() : undefined
+      );
+      if (res.ok) {
+        setReconfirmStatus('declined');
+        setIsWithdrawModalOpen(false);
+        setWithdrawReason('');
+        setAuthorizedDetail(null);
+        setRequestState({ hasRequest: true, status: 'withdrawn' });
+      } else {
+        setErrorMsg(res.error || 'No se pudo procesar la baja del encuentro.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al darse de baja del encuentro.');
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -791,15 +824,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   </div>
                 )}
 
-              <button
-                type="button"
-                className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
-                style={{ marginTop: '0.75rem' }}
-                onClick={handleNavigateToEncounter}
-              >
-                {t('open_encounters.request_view_encounter', { defaultValue: 'Ir a Mis encuentros' })}
-                <ArrowRight size={16} />
-              </button>
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                  onClick={handleNavigateToEncounter}
+                >
+                  {t('open_encounters.request_view_encounter', { defaultValue: 'Ir a Mis encuentros' })}
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="pe-detail-sheet__btn-cancel"
+                  style={{ color: '#dc2626', borderColor: '#fca5a5', padding: '0.5rem', fontSize: '0.8125rem' }}
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  disabled={withdrawing}
+                >
+                  {t('open_encounters.withdraw_action', { defaultValue: 'No voy a poder asistir' })}
+                </button>
+              </div>
             </div>
 
           ) : requestState.hasRequest ? (
@@ -829,7 +872,32 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   </p>
                 </>
               )}
+
+              {(requestState.status === 'withdrawn' || requestState.status === 'cancelled') && (
+                <>
+                  <div className="pe-detail-sheet__status-title" style={{ color: '#64748b' }}>
+                    <XCircle size={16} />
+                    <span>{t('open_encounters.request_withdrawn_title', { defaultValue: 'Te diste de baja' })}</span>
+                  </div>
+                  <p className="pe-detail-sheet__status-desc">
+                    {t('open_encounters.request_withdrawn_desc', {
+                      defaultValue: 'Avisaste que no podías asistir y tus lugares fueron liberados.',
+                    })}
+                  </p>
+                  {!encounter.inscriptionsClosed && encounter.openSlots > 0 && (
+                    <button
+                      type="button"
+                      className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                      style={{ marginTop: '0.5rem' }}
+                      onClick={() => setIsFormOpen(true)}
+                    >
+                      {t('open_encounters.reapply_action', { defaultValue: 'Volver a solicitar sumarme' })}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
+
           ) : isFormOpen ? (
             <form onSubmit={handleSubmitRequest} className="pe-detail-sheet__request-form">
               <h4 className="pe-detail-sheet__form-title">
@@ -1031,7 +1099,118 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           }}
         />
       )}
+
+      {/* Modal de confirmación de baja voluntaria (H9 / H10) */}
+
+      {isWithdrawModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pe-withdraw-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10001,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              maxWidth: '400px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+          >
+            <h3
+              id="pe-withdraw-dialog-title"
+              style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}
+            >
+              {t('open_encounters.withdraw_confirm_title', { defaultValue: '¿No vas a poder asistir?' })}
+            </h3>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#475569', lineHeight: 1.4 }}>
+              {t('open_encounters.withdraw_confirm_desc', {
+                defaultValue: 'Tus lugares se liberarán inmediatamente para que otras personas puedan sumarse. Le avisaremos al organizador.',
+              })}
+            </p>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label
+                htmlFor="pe-withdraw-reason"
+                style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}
+              >
+                {t('open_encounters.withdraw_reason_label', {
+                  defaultValue: 'Mensaje para el organizador (opcional)',
+                })}
+              </label>
+              <textarea
+                id="pe-withdraw-reason"
+                rows={3}
+                maxLength={280}
+                value={withdrawReason}
+                onChange={(e) => setWithdrawReason(e.target.value)}
+                placeholder={t('open_encounters.withdraw_reason_placeholder', {
+                  defaultValue: 'ej. Me surgió un imprevisto familiar…',
+                })}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0.5rem',
+                  fontSize: '0.85rem',
+                  fontFamily: 'inherit',
+                  resize: 'none',
+                }}
+              />
+              <span style={{ display: 'block', textAlign: 'right', fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
+                {withdrawReason.length}/280
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="pe-detail-sheet__btn-cancel"
+                onClick={() => {
+                  setIsWithdrawModalOpen(false);
+                  setWithdrawReason('');
+                }}
+                disabled={withdrawing}
+              >
+                {t('common.cancel', { defaultValue: 'Volver' })}
+              </button>
+              <button
+                type="button"
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                onClick={handleExecuteWithdrawal}
+                disabled={withdrawing}
+              >
+                {withdrawing
+                  ? t('common.loading', { defaultValue: 'Avisando…' })
+                  : t('open_encounters.withdraw_confirm_btn', { defaultValue: 'Avisar que no voy' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
+
   );
 
   if (typeof document !== 'undefined' && document.body) {

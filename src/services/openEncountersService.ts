@@ -644,15 +644,40 @@ export const openEncountersService = {
 
   /**
    * El participante confirmado reconfirma su asistencia ('confirm') o desiste liberando lugares ('decline').
+   * Opcionalmente envía un motivo privado para el organizador (máx 280 caracteres).
    */
   async reconfirmarAsistencia(
     encounterId: string,
-    decision: 'confirm' | 'decline'
-  ): Promise<{ ok: boolean; decision?: string; reconfirmation_status?: string; error?: string }> {
+    decision: 'confirm' | 'decline',
+    motivo?: string
+  ): Promise<{ ok: boolean; decision?: string; reconfirmation_status?: string; released_seats?: number; fell_below_min?: boolean; error?: string }> {
     try {
       const { data, error } = await supabase.rpc('reconfirmar_asistencia_seguro', {
         p_encuentro_id: encounterId,
         p_decision: decision,
+        p_motivo: motivo ?? null,
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Baja voluntaria canónica del participante en un Encuentro Abierto (H9 / H10).
+   * Libera cupos reservados, sincroniza la solicitud y notifica al anfitrión.
+   */
+  async desistirEncuentroAbierto(
+    encounterId: string,
+    motivo?: string
+  ): Promise<{ ok: boolean; released_seats?: number; fell_below_min?: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('desistir_encuentro_abierto_seguro', {
+        p_encuentro_id: encounterId,
+        p_motivo: motivo ?? null,
       });
       if (error) {
         return { ok: false, error: error.message };
@@ -663,3 +688,4 @@ export const openEncountersService = {
     }
   },
 };
+

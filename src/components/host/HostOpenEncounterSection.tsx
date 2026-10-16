@@ -866,9 +866,14 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                       <span
                         className={`pe-host-resolved-item__status pe-host-resolved-item__status--${req.estado}`}
                       >
-                        {req.estado === 'approved' ? 'Aceptada' : req.estado === 'withdrawn' ? 'Retirada' : 'Rechazada'}
+                        {req.estado === 'approved'
+                          ? 'Aceptada'
+                          : req.estado === 'withdrawn' || req.estado === 'cancelled'
+                          ? 'Baja'
+                          : 'Rechazada'}
                       </span>
                     </div>
+
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                       <ContextualBlockAction
                         solicitudId={req.id}

@@ -616,8 +616,9 @@ const DetailHost: React.FC = () => {
 
   const confirmados = (participantes || []).filter(p => p && p.estado === 'confirmado').sort(sortByName);
   const pendientes  = (participantes || []).filter(p => p && p.estado === 'pendiente').sort(sortByName);
-  const rechazados  = (participantes || []).filter(p => p && p.estado === 'rechazado').sort(sortByName);
+  const rechazados  = (participantes || []).filter(p => p && (p.estado === 'rechazado' || p.estado === 'cancelado')).sort(sortByName);
   const hasAnyResponse = confirmados.length > 0 || pendientes.length > 0 || rechazados.length > 0;
+
 
   const isCancelado  = encuentro.estado === 'cancelado';
   const isFinalizado = !isCancelado && isEncuentroPasado(encuentro.fecha, encuentro.hora);
@@ -806,8 +807,9 @@ const DetailHost: React.FC = () => {
         <div className="dh-participant-list">
           {list.map(p => {
             const avatarChar = p.nombre_invitado ? p.nombre_invitado.charAt(0).toUpperCase() : '?';
-            const sLabel = p.estado === 'confirmado' ? 'Confirmado' : p.estado === 'rechazado' ? 'No asiste' : 'Pendiente';
-            const statusClass = p.estado === 'confirmado' ? 'confirmado' : p.estado === 'rechazado' ? 'rechazado' : 'pendiente';
+            const sLabel = p.estado === 'confirmado' ? 'Confirmado' : (p.estado === 'rechazado' || p.estado === 'cancelado') ? 'No asiste' : 'Pendiente';
+            const statusClass = p.estado === 'confirmado' ? 'confirmado' : (p.estado === 'rechazado' || p.estado === 'cancelado') ? 'rechazado' : 'pendiente';
+
 
             return (
               <div key={p.id} className="dh-participant-row">

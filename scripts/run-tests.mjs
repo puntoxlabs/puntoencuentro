@@ -120,6 +120,10 @@ try {
   await server.ssrLoadModule('./scripts/test-critical-communications-p0.ts');
   console.log('✅ P0 Block 1: Critical Communications & State Integrity tests (H1, H5, H8) executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-open-encounter-withdrawal-h9-h10.ts');
+  console.log('✅ H9/H10: Voluntary withdrawal, quotas & participant synchronization tests executed successfully via Vite SSR loader.');
+
+
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
   console.log(`External QA calls blocked (Failsafe): ${globalThis.__QA_TELEMETRY_EXTERNAL_CALLS || 0}`);

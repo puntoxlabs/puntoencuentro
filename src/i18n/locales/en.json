@@ -241,7 +241,16 @@
     "rejected_notice": "This publication cannot be displayed publicly with its current content. You can edit it and try again.",
     "hidden_review_notice": "This publication is temporarily under review. While under review, it will not appear in I'm in.",
     "post_edit_review_notice": "Changes saved. The publication is being reviewed again.",
-    "action_edit_publication": "Edit publication"
+    "action_edit_publication": "Edit publication",
+    "withdraw_action": "I won't be able to attend",
+    "withdraw_confirm_title": "Won't be able to make it?",
+    "withdraw_confirm_desc": "Your spots will be released immediately so others can join. We'll notify the host.",
+    "withdraw_reason_label": "Message for the host (optional)",
+    "withdraw_reason_placeholder": "e.g. A family emergency came up…",
+    "withdraw_confirm_btn": "Let them know I can't come",
+    "request_withdrawn_title": "You stepped down",
+    "request_withdrawn_desc": "You indicated you cannot attend and your spots were released.",
+    "reapply_action": "Apply to join again"
   },
   "your_encounters": {
     "section_title": "Your encounters",
