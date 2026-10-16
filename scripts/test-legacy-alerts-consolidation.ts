@@ -211,7 +211,22 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
     }
   };
 
+  function getFutureDateArgString(daysAhead: number): string {
+    const now = new Date();
+    const target = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(target);
+  }
+
   test('1. Setup de fixtures: intenciones, intereses y encuentros', async () => {
+    const futureDate1 = getFutureDateArgString(7);
+    const futureDate2 = getFutureDateArgString(8);
+
     // Host crea intención 1
     await setAuthContext(hostUser, false);
     const { rows: intRows1 }: any = await db.query(`
@@ -219,8 +234,8 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
         'Jugar al Pádel Sábado',
         'Busco 3 personas para armar partido en Palermo',
         'Este fin de semana',
-        '2026-10-15',
-        '2026-10-15',
+        '${futureDate1}',
+        '${futureDate1}',
         'presencial',
         'caba_palermo'
       ) AS res;
@@ -234,8 +249,8 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
         'Café y Juegos de Mesa',
         'Buscamos gente para tarde de juegos',
         'El domingo por la tarde',
-        '2026-10-16',
-        '2026-10-16',
+        '${futureDate2}',
+        '${futureDate2}',
         'presencial',
         'caba_palermo'
       ) AS res;
@@ -263,7 +278,7 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
         INSERT INTO public.encuentros (
           host_id, titulo, descripcion, fecha, hora, modalidad, locality_id, is_open, max_participants
         ) VALUES (
-          '${hostUser}', 'Pádel Abierto Palermo', 'Torneo relámpago', '2026-10-15', '18:00', 'presencial', 'caba_palermo', true, 4
+          '${hostUser}', 'Pádel Abierto Palermo', 'Torneo relámpago', '${futureDate1}', '18:00', 'presencial', 'caba_palermo', true, 4
         ) RETURNING id;
       `);
       openEncounterId = encRows1[0].id;
@@ -273,7 +288,7 @@ describe('Consolidación de Alertas Legacy en Inbox (Fase Consolidación)', () =
         INSERT INTO public.encuentros (
           host_id, titulo, descripcion, fecha, hora, modalidad, locality_id, is_open, max_participants
         ) VALUES (
-          '${hostUser}', 'Café & Juegos Privado', 'Reunión privada de prueba', '2026-10-16', '16:00', 'presencial', 'caba_palermo', false, 4
+          '${hostUser}', 'Café & Juegos Privado', 'Reunión privada de prueba', '${futureDate2}', '16:00', 'presencial', 'caba_palermo', false, 4
         ) RETURNING id;
       `);
       privateEncounterId = encRows2[0].id;
