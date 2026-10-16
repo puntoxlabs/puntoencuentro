@@ -766,9 +766,17 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
     assert.equal(finalPart.rows[0].mensaje_respuesta, 'Se canceló el viaje, ahora somos 3!');
     assert.equal(finalPart.rows[0].token_invitacion, tokenCycle2);
 
-    // Verificar trazabilidad de ambos ciclos en solicitudes_encuentro_abierto (no se borró la fila cancelled del Ciclo 1)
-    const allSolicitudes = await db.query<{ id: string; estado: string; seat_count: number; token_participante: string | null }>(`
-      SELECT id, estado, seat_count, token_participante
+    // Verificar trazabilidad de ambos ciclos en solicitudes_encuentro_abierto (no se borró la fila cancelled del Ciclo 1
+    // y el motivo de la primera baja persiste en motivo_baja sin sobrescribir el mensaje original de ninguna solicitud)
+    const allSolicitudes = await db.query<{
+      id: string;
+      estado: string;
+      seat_count: number;
+      token_participante: string | null;
+      mensaje: string | null;
+      motivo_baja: string | null;
+    }>(`
+      SELECT id, estado, seat_count, token_participante, mensaje, motivo_baja
       FROM public.solicitudes_encuentro_abierto
       WHERE encuentro_id = '${encId}' AND usuario_id = '${participantUser1}'
       ORDER BY created_at ASC;
@@ -778,11 +786,47 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
     assert.equal(allSolicitudes.rows[0].estado, 'cancelled');
     assert.equal(allSolicitudes.rows[0].seat_count, 2);
     assert.equal(allSolicitudes.rows[0].token_participante, null);
+    assert.equal(allSolicitudes.rows[0].mensaje, 'Vamos con mi pareja (2 lugares)', 'El mensaje original de la Solicitud 1 no debe sobrescribirse');
+    assert.equal(allSolicitudes.rows[0].motivo_baja, 'Nos surgió un viaje imprevisto', 'El motivo de la primera baja debe persistir en la Solicitud 1 incluso tras la segunda aprobación');
 
     assert.equal(allSolicitudes.rows[1].id, req2Id);
     assert.equal(allSolicitudes.rows[1].estado, 'approved');
     assert.equal(allSolicitudes.rows[1].seat_count, 3);
     assert.equal(allSolicitudes.rows[1].token_participante, tokenCycle2);
+    assert.equal(allSolicitudes.rows[1].mensaje, 'Se canceló el viaje, ahora somos 3!', 'El mensaje de la Solicitud 2 debe conservarse intacto');
+    assert.equal(allSolicitudes.rows[1].motivo_baja, null, 'La Solicitud 2 aprobada no debe tener motivo_baja');
+
+    // Verificar que el organizador autorizado ve el motivo histórico por ciclo y en participantes, y terceros no tienen acceso
+    await setAuthContext(hostUser);
+    const hostSolsRes = await db.query<{ get_solicitudes_host_seguro: any }>(`
+      SELECT public.get_solicitudes_host_seguro('${encId}', '${hostUser}');
+    `);
+    assert.equal(hostSolsRes.rows[0].get_solicitudes_host_seguro.ok, true);
+    const hostSols = hostSolsRes.rows[0].get_solicitudes_host_seguro.solicitudes;
+    const hostSol1 = hostSols.find((s: any) => s.id === req1Id);
+    const hostSol2 = hostSols.find((s: any) => s.id === req2Id);
+    assert.equal(hostSol1.mensaje, 'Vamos con mi pareja (2 lugares)');
+    assert.equal(hostSol1.motivo_baja, 'Nos surgió un viaje imprevisto');
+    assert.equal(hostSol2.mensaje, 'Se canceló el viaje, ahora somos 3!');
+    assert.equal(hostSol2.motivo_baja, null);
+
+    const hostPartsAfterCycle2 = await db.query<{ get_participantes_host_seguro: any[] }>(`
+      SELECT public.get_participantes_host_seguro('${encId}', '${hostUser}');
+    `);
+    const activeHostPart = hostPartsAfterCycle2.rows[0].get_participantes_host_seguro.find(
+      (p: any) => p.user_id === participantUser1
+    );
+    assert.equal(activeHostPart.estado, 'confirmado');
+    assert.equal(activeHostPart.mensaje_respuesta, 'Se canceló el viaje, ahora somos 3!');
+    assert.equal(activeHostPart.ultimo_motivo_baja_historico, 'Nos surgió un viaje imprevisto');
+
+    // Verificar que un tercero no puede consultar las solicitudes ni motivos del organizador
+    await setAuthContext(outsiderUser);
+    const outsiderSolsRes = await db.query<{ get_solicitudes_host_seguro: any }>(`
+      SELECT public.get_solicitudes_host_seguro('${encId}', '${hostUser}');
+    `);
+    assert.equal(outsiderSolsRes.rows[0].get_solicitudes_host_seguro.ok, false);
+    assert.equal(outsiderSolsRes.rows[0].get_solicitudes_host_seguro.error, 'unauthorized');
 
     // Verificar que no hubo colisión de deduplicación en Inbox ni Outbox entre Ciclo 1 y Ciclo 2
     const hostJoinNotifs = await db.query<{ id: string; payload: any }>(`
@@ -809,6 +853,65 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
     assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.join_request.created.v1').length, 2);
     assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.join_request.approved.v1').length, 2);
     assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.participant.withdrawn.v1').length, 1);
+  });
+
+  test('H9.9d: Índices parciales de unicidad impiden dos pending, dos approved o pending+approved simultáneos, pero permiten múltiples históricas terminales', async () => {
+    const encId = await setupOpenEncounter({ maxParticipants: 6 });
+
+    // Múltiples solicitudes históricas terminales del mismo usuario se conservan sin conflicto
+    await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado, motivo_baja)
+      VALUES
+        ('${encId}', '${participantUser1}', 'Ciclo 1', 'cancelled', 'Motivo baja 1'),
+        ('${encId}', '${participantUser1}', 'Ciclo 2', 'rejected', NULL),
+        ('${encId}', '${participantUser1}', 'Ciclo 3', 'cancelled', 'Motivo baja 2');
+    `);
+
+    // Insertar una solicitud pending activa es válido
+    const pendingRes = await db.query<{ id: string }>(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+      VALUES ('${encId}', '${participantUser1}', 'Ciclo 4 Activo', 'pending')
+      RETURNING id;
+    `);
+    const activeId = pendingRes.rows[0].id;
+
+    // Intentar insertar una segunda solicitud pending para el mismo usuario y encuentro falla por índice único parcial
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+          VALUES ('${encId}', '${participantUser1}', 'Duplicado Pending', 'pending');
+        `);
+      },
+      /idx_solicitudes_pendientes_unicas|idx_solicitudes_activas_unicas|duplicate key value/
+    );
+
+    // Intentar insertar una solicitud approved mientras ya existe una pending también falla por idx_solicitudes_activas_unicas
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+          VALUES ('${encId}', '${participantUser1}', 'Simultáneo Approved', 'approved');
+        `);
+      },
+      /idx_solicitudes_activas_unicas|duplicate key value/
+    );
+
+    // Transicionar la solicitud activa a approved
+    await db.query(`
+      UPDATE public.solicitudes_encuentro_abierto SET estado = 'approved' WHERE id = '${activeId}';
+    `);
+
+    // Intentar insertar otra solicitud approved mientras ya existe una approved falla por idx_solicitudes_aprobadas_unicas / idx_solicitudes_activas_unicas
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado)
+          VALUES ('${encId}', '${participantUser1}', 'Duplicado Approved', 'approved');
+        `);
+      },
+      /idx_solicitudes_aprobadas_unicas|idx_solicitudes_activas_unicas|duplicate key value/
+    );
   });
 
   test('H9.9b: Cooldown de rechazo activo no se puede saltar con historial de baja, y rechazo vencido (>24h) no borra historial previo', async () => {

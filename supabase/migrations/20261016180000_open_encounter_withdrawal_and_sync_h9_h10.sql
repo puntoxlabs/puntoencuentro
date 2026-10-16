@@ -34,28 +34,22 @@ ALTER TABLE public.participantes
     ADD CONSTRAINT participantes_estado_check
     CHECK (estado IN ('pendiente', 'confirmado', 'rechazado', 'cancelado', 'asistio'));
 
--- Asegurar que no exista una restricción UNIQUE global no parcial sobre (encuentro_id, usuario_id)
--- que impida conservar el historial de ciclos (rejected / cancelled) al re-postularse,
--- manteniendo la unicidad estricta sobre solicitudes activas ('pending' y 'approved').
-DO $$
-DECLARE
-    v_con record;
-BEGIN
-    FOR v_con IN
-        SELECT c.conname
-        FROM pg_catalog.pg_constraint c
-        JOIN pg_catalog.pg_class t ON t.oid = c.conrelid
-        JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
-        WHERE n.nspname = 'public'
-          AND t.relname = 'solicitudes_encuentro_abierto'
-          AND c.contype = 'u'
-    LOOP
-        EXECUTE pg_catalog.format(
-            'ALTER TABLE public.solicitudes_encuentro_abierto DROP CONSTRAINT IF EXISTS %I',
-            v_con.conname
-        );
-    END LOOP;
-END $$;
+-- En Staging (wougfhfwqgmxhgvjqoua) no existe constraint UNIQUE global sobre (encuentro_id, usuario_id),
+-- pero se elimina explícitamente por nombre si existiera en un entorno de prueba local.
+ALTER TABLE public.solicitudes_encuentro_abierto
+    DROP CONSTRAINT IF EXISTS solicitudes_encuentro_abierto_encuentro_id_usuario_id_key;
+
+-- Columna histórica durable y privada para conservar el motivo de baja por ciclo
+-- sin sobrescribir el mensaje original de la solicitud ni perderse al reutilizar participantes.
+ALTER TABLE public.solicitudes_encuentro_abierto
+    ADD COLUMN IF NOT EXISTS motivo_baja text;
+
+ALTER TABLE public.solicitudes_encuentro_abierto
+    DROP CONSTRAINT IF EXISTS check_solicitud_motivo_baja_len;
+
+ALTER TABLE public.solicitudes_encuentro_abierto
+    ADD CONSTRAINT check_solicitud_motivo_baja_len
+    CHECK (motivo_baja IS NULL OR pg_catalog.char_length(motivo_baja) <= 280);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_pendientes_unicas
     ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
@@ -64,6 +58,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_pendientes_unicas
 CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_aprobadas_unicas
     ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
     WHERE estado = 'approved';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_activas_unicas
+    ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
+    WHERE estado IN ('pending', 'approved');
 
 -- ------------------------------------------------------------------------------
 -- 2. RECONFIRMAR_ASISTENCIA_SEGURO (3 PARÁMETROS, CON MOTIVO OPCIONAL)
@@ -205,10 +203,12 @@ BEGIN
         WHERE id = v_part.id;
 
         -- 2. Sincronizar únicamente la solicitud activa ('approved') de este ciclo a 'cancelled' (H9),
-        --    anulando su token_participante y preservando intacto el historial de ciclos anteriores.
+        --    anulando su token_participante, guardando motivo_baja en la solicitud de este ciclo
+        --    (sin alterar mensaje original) y preservando intacto el historial de ciclos anteriores.
         UPDATE public.solicitudes_encuentro_abierto
         SET estado = 'cancelled',
             token_participante = NULL,
+            motivo_baja = v_clean_motivo,
             resolved_at = v_now,
             updated_at = v_now
         WHERE encuentro_id = p_encuentro_id
@@ -1190,5 +1190,127 @@ $$;
 
 REVOKE ALL ON FUNCTION public.get_mi_solicitud_encuentro_abierto(UUID, UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_mi_solicitud_encuentro_abierto(UUID, UUID) TO authenticated, anon;
+
+-- ------------------------------------------------------------------------------
+-- 8. PROYECCIÓN PRIVADA DEL MOTIVO DE BAJA HISTÓRICO PARA EL ORGANIZADOR
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_solicitudes_host_seguro(
+    p_encuentro_id UUID,
+    p_host_id UUID DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+    v_encuentro public.encuentros%ROWTYPE;
+    v_result JSON;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
+    END IF;
+
+    IF v_is_anon THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required');
+    END IF;
+
+    SELECT * INTO v_encuentro
+    FROM public.encuentros
+    WHERE id = p_encuentro_id;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'encuentro_not_found');
+    END IF;
+
+    IF v_encuentro.host_id <> v_user_id THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'unauthorized');
+    END IF;
+
+    SELECT pg_catalog.json_agg(r) INTO v_result
+    FROM (
+        SELECT
+            id,
+            encuentro_id,
+            usuario_id,
+            nombre_solicitante,
+            mensaje,
+            motivo_baja,
+            estado,
+            participante_id,
+            token_participante,
+            created_at,
+            resolved_at,
+            COALESCE(seat_count, 1) AS seat_count
+        FROM public.solicitudes_encuentro_abierto
+        WHERE encuentro_id = p_encuentro_id
+        ORDER BY created_at DESC, id DESC
+    ) r;
+
+    RETURN pg_catalog.json_build_object('ok', true, 'solicitudes', COALESCE(v_result, '[]'::json));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_solicitudes_host_seguro(UUID, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_solicitudes_host_seguro(UUID, UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_participantes_host_seguro(p_encuentro_id uuid, p_host_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id uuid := auth.uid();
+    v_result json;
+    v_enc_exists boolean;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_authenticated');
+    END IF;
+
+    SELECT EXISTS(
+        SELECT 1 FROM public.encuentros
+        WHERE id = p_encuentro_id AND host_id = v_user_id
+    ) INTO v_enc_exists;
+
+    IF NOT v_enc_exists THEN
+        RETURN pg_catalog.json_build_object('error', 'encuentro_not_found_or_not_owner');
+    END IF;
+
+    SELECT pg_catalog.json_agg(pg_catalog.json_build_object(
+        'id', p.id,
+        'nombre_invitado', p.nombre_invitado,
+        'estado', p.estado,
+        'tipo_invitacion', p.tipo_invitacion,
+        'token_invitacion', p.token_invitacion,
+        'user_id', p.user_id,
+        'mensaje_respuesta', p.mensaje_respuesta,
+        'ultimo_motivo_baja_historico', (
+            SELECT s.motivo_baja
+            FROM public.solicitudes_encuentro_abierto s
+            WHERE s.encuentro_id = p.encuentro_id
+              AND (s.participante_id = p.id OR (p.user_id IS NOT NULL AND s.usuario_id = p.user_id))
+              AND s.estado = 'cancelled'
+              AND s.motivo_baja IS NOT NULL
+            ORDER BY COALESCE(s.resolved_at, s.updated_at, s.created_at) DESC, s.id DESC
+            LIMIT 1
+        ),
+        'seat_count', COALESCE(p.seat_count, 1),
+        'reconfirmation_status', COALESCE(p.reconfirmation_status, 'pending'),
+        'reconfirmed_at', p.reconfirmed_at,
+        'creado_en', p.creado_en
+    ) ORDER BY p.creado_en ASC) INTO v_result
+    FROM public.participantes p
+    WHERE p.encuentro_id = p_encuentro_id;
+
+    RETURN COALESCE(v_result, '[]'::json);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_participantes_host_seguro(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_participantes_host_seguro(uuid, uuid) TO authenticated;
 
 COMMIT;
