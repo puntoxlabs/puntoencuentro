@@ -415,10 +415,24 @@ const DetailHost: React.FC = () => {
     };
   }, [participantes, encuentro, loading]);
 
+  const computeHasAffected = () => {
+    if (typeof (encuentro as any)?.has_affected_users === 'boolean') {
+      return (encuentro as any).has_affected_users;
+    }
+    const hasConfirmedParts = Boolean(participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id));
+    const hasConfirmedSeats = Boolean(
+      (typeof encuentro?.confirmed_seats === 'number' && encuentro.confirmed_seats > 0) ||
+      (typeof encuentro?.confirmed_count === 'number' && encuentro.confirmed_count > 0)
+    );
+    const hasPendingReqs = Boolean(
+      typeof (encuentro as any)?.pending_requests_count === 'number' && (encuentro as any).pending_requests_count > 0
+    );
+    return hasConfirmedParts || hasConfirmedSeats || hasPendingReqs;
+  };
+
   const handleCancelEncuentro = async () => {
     if (!id || cancelling) return;
-    const hasAffected = (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
-      (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)));
+    const hasAffected = computeHasAffected();
     const trimmedReason = cancellationReason.trim();
 
     if (hasAffected && (!trimmedReason || trimmedReason.length < 3)) {
@@ -444,7 +458,8 @@ const DetailHost: React.FC = () => {
     } catch (err: any) {
       console.error('[DetailHost] Error cancelando encuentro:', err);
       if (err?.message === 'cancellation_reason_required') {
-        setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes.');
+        setShowCancelModal(true);
+        setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes (mínimo 3 caracteres).');
       } else {
         alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
       }
@@ -485,8 +500,7 @@ const DetailHost: React.FC = () => {
   // evitando que el usuario tenga que navegar a /cancel-summary primero.
   const handleCancelAndCreate = async () => {
     if (!id || cancelling) return;
-    const hasAffected = (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
-      (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)));
+    const hasAffected = computeHasAffected();
     const trimmedReason = cancellationReason.trim();
 
     if (hasAffected && (!trimmedReason || trimmedReason.length < 3)) {
@@ -538,7 +552,12 @@ const DetailHost: React.FC = () => {
       navigate('/create', { state: { autoFocusTitle: true } });
     } catch (err: any) {
       console.error('[DetailHost] Error en cancelar y crear:', err);
-      alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
+      if (err?.message === 'cancellation_reason_required') {
+        setShowCancelModal(true);
+        setReasonError('Debés indicar un motivo de cancelación para avisar a los participantes (mínimo 3 caracteres).');
+      } else {
+        alert(`Error al cancelar: ${err?.message || 'Error desconocido'}`);
+      }
     } finally {
       setCancelling(false);
     }
@@ -948,10 +967,7 @@ const DetailHost: React.FC = () => {
     </div>
   ) : null;
 
-  const hasAffectedUsers = Boolean(
-    (participantes && participantes.some(p => p.estado === 'confirmado' && p.user_id && p.user_id !== user?.id)) ||
-    (encuentro?.is_open && ((encuentro.confirmed_seats && encuentro.confirmed_seats > 0) || (encuentro.confirmed_count && encuentro.confirmed_count > 0)))
-  );
+  const hasAffectedUsers = computeHasAffected();
 
   // Bottom sheet de cancelación unificado:
   // 3 opciones en un solo paso para evitar la doble instancia modal → CancelSummary.

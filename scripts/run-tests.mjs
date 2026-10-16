@@ -126,6 +126,9 @@ try {
   await server.ssrLoadModule('./scripts/test-open-encounter-h2-h3-concurrency-and-legacy-rpcs.ts');
   console.log('✅ H2/H3: Legacy RPC security, canonical lock hierarchy & concurrency tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-lifecycle-notifications-h4-h6-h7.ts');
+  console.log('✅ H4/H6/H7: Cancellation integrity, lifecycle cycle notifications & safe navigation tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

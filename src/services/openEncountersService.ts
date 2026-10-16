@@ -190,6 +190,10 @@ export const openEncountersService = {
           hostId: authRes.is_host ? 'current-user' : '',
           allowMultiSeatRequests: false,
           maxSeatsPerRequest: 1,
+          isHost: authRes.is_host,
+          minParticipants: authRes.min_participants,
+          realizationStatus: authRes.realization_status as any,
+          inscriptionsClosed: authRes.inscriptions_closed,
         };
       }
 

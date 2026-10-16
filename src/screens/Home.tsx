@@ -527,6 +527,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   // Estado para visualización de Encuentro Abierto desde deep link
   const [selectedDeepLinkEncounter, setSelectedDeepLinkEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDeepLinkEncounterDetailOpen, setIsDeepLinkEncounterDetailOpen] = useState(false);
+  const [deepLinkNotice, setDeepLinkNotice] = useState<string | null>(null);
 
   // ── DEEP LINK "open_encounter" (Fase 2B) ──
   // Abre automáticamente el sheet de detalle seguro al navegar a /?open_encounter=<uuid>
@@ -544,6 +545,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(encounterId)) {
       console.warn('[Home] ID de encuentro abierto inválido en deep link:', encounterId);
+      setDeepLinkNotice('El enlace de encuentro no tiene un formato válido.');
       // Limpiar parámetro de la URL sin recargar
       params.delete('open_encounter');
       params.delete('open_detail');
@@ -563,8 +565,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           setSelectedDeepLinkEncounter(enc);
           setIsDeepLinkEncounterDetailOpen(true);
         } else {
-          // 4. Fallback discreto si no existe o ya no está abierto
+          // 4. Fallback con aviso claro si no existe o ya no está disponible
           console.info('[Home] El encuentro abierto ya no está disponible o no existe:', encounterId);
+          setDeepLinkNotice('El encuentro solicitado ya no está disponible o no contás con autorización para ver sus detalles.');
         }
 
         // 5. Limpiar open_encounter y open_detail de la URL mediante navegación replace
@@ -576,6 +579,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       .catch((err) => {
         if (!isMounted) return;
         console.error('[Home] Error cargando encuentro abierto desde deep link:', err);
+        setDeepLinkNotice('No se pudo cargar el encuentro solicitado.');
         params.delete('open_encounter');
         params.delete('open_detail');
         const cleanSearch = params.toString();
@@ -1702,6 +1706,43 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           </button>
         </div>
       </header>
+
+      {/* Banner de Feedback para Deep Links inválidos o no disponibles */}
+      {deepLinkNotice && (
+        <aside
+          role="alert"
+          style={{
+            margin: '0.75rem 1rem 0',
+            padding: '0.75rem 1rem',
+            background: 'var(--color-surface-variant, #f1f5f9)',
+            border: '1px solid var(--color-outline, #cbd5e1)',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.875rem',
+            color: 'var(--color-on-surface, #1e293b)',
+            gap: '0.5rem',
+          }}
+        >
+          <span>{deepLinkNotice}</span>
+          <button
+            type="button"
+            onClick={() => setDeepLinkNotice(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--color-on-surface-variant, #64748b)',
+              padding: '0.25rem',
+              fontWeight: 600,
+            }}
+            aria-label="Cerrar aviso"
+          >
+            ✕
+          </button>
+        </aside>
+      )}
 
       {/* Banner de Feedback EN VIVO para Nuevos Matches de Mis Ganas (Portal a document.body para visibilidad fija garantizada en mobile) */}
       {liveMatchFeedback && liveMatchFeedback.count > 0 && typeof document !== 'undefined' && createPortal(
