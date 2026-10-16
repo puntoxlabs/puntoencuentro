@@ -294,7 +294,7 @@ describe('Discovery V1 Closure: Realtime, Modal Stacking & Anonymous Auth Flow',
       'utf-8'
     );
     assert.ok(
-      code.includes('setIsLoginRequired(false);\n          try {\n            sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY)'),
+      code.replace(/\r\n/g, '\n').includes('setIsLoginRequired(false);\n          try {\n            sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY)'),
       'Al cancelar LoginRequired limpia el draft pendiente'
     );
   });
