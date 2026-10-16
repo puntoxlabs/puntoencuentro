@@ -63,7 +63,7 @@ BEGIN
               OR (payload->>'priority' = 'critical')
           )
         ORDER BY created_at ASC, id ASC
-        LIMIT 10
+        LIMIT 50
     LOOP
         v_items := v_items || pg_catalog.jsonb_build_object(
             'id', v_rows.id,
@@ -86,7 +86,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_notificaciones_criticas_no_leidas_seguro() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_notificaciones_criticas_no_leidas_seguro() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_notificaciones_criticas_no_leidas_seguro() TO authenticated;
 
 
 -- ------------------------------------------------------------------------------
@@ -152,6 +152,8 @@ DECLARE
     v_datetime_label TEXT;
     v_part RECORD;
     v_sol RECORD;
+    v_schedule_mutation_id UUID;
+    v_logistics_mutation_id UUID;
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'unauthorized');
@@ -417,6 +419,8 @@ BEGIN
 
         -- A. Cambio de fecha u horario
         IF v_schedule_changed THEN
+            v_schedule_mutation_id := pg_catalog.gen_random_uuid();
+
             -- Si inscripciones cerradas, reiniciar reconfirmación de confirmados sin alterar participación
             IF COALESCE(v_encuentro.inscriptions_closed, false) = true THEN
                 UPDATE public.participantes
@@ -452,7 +456,7 @@ BEGIN
                         'priority', 'critical',
                         'change_type', 'schedule'
                     ),
-                    'sched:' || p_encuentro_id || ':' || v_part.user_id || ':' || COALESCE(v_final_fecha::text, 'none') || ':' || COALESCE(v_final_hora::text, 'none')
+                    'sched:' || v_schedule_mutation_id || ':' || v_part.user_id
                 );
             END LOOP;
 
@@ -483,13 +487,15 @@ BEGIN
                         'change_type', 'schedule',
                         'is_applicant', true
                     ),
-                    'sched_req:' || p_encuentro_id || ':' || v_sol.usuario_id || ':' || COALESCE(v_final_fecha::text, 'none') || ':' || COALESCE(v_final_hora::text, 'none')
+                    'sched_req:' || v_schedule_mutation_id || ':' || v_sol.usuario_id
                 );
             END LOOP;
         END IF;
 
         -- B. Cambio de punto de encuentro o enlace virtual
         IF v_logistics_changed THEN
+            v_logistics_mutation_id := pg_catalog.gen_random_uuid();
+
             -- Notificar ÚNICAMENTE a participantes confirmados (sin modal, dirige al detalle)
             FOR v_part IN
                 SELECT DISTINCT user_id
@@ -512,7 +518,7 @@ BEGIN
                         'title', v_title,
                         'change_type', 'logistics'
                     ),
-                    'logistics:' || p_encuentro_id || ':' || v_part.user_id || ':' || pg_catalog.md5(COALESCE(v_final_lugar_texto, '') || '|' || COALESCE(v_final_link_virtual, ''))
+                    'logistics:' || v_logistics_mutation_id || ':' || v_part.user_id
                 );
             END LOOP;
         END IF;

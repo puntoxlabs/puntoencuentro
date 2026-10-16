@@ -180,7 +180,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (authLoading) return;
 
     if (!isPermanentUser) {
-      // Limpiar estrictamente datos locales si no hay sesión permanente
+      // Limpiar estrictamente datos locales si no hay sesión permanente e invalidar solicitudes asíncronas en vuelo
+      activeFetchRef.current++;
       setUnreadCount(0);
       setNotifications([]);
       setHasMore(false);

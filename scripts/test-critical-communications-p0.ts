@@ -706,6 +706,111 @@ describe('P0 / Bloque 1: Comunicaciones Críticas e Integridad de Estados', () =
     assert.ok(notifs.rows[1].body.includes('03/11/2026'));
   });
 
+  test('H5.6: Cambios sucesivos cíclicos (A -> B -> A) para horario, fecha, dirección y enlace virtual emiten avisos legítimos sin colisión', async () => {
+    await setAuthContext(hostUser);
+
+    const encRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        titulo, host_id, estado, is_open, fecha, hora, lugar_texto, link_virtual, modalidad
+      ) VALUES (
+        'Ciclos Test', '${hostUser}', 'activo', true, '2026-12-01', '10:00:00', 'Sede A', 'https://meet.a.com', 'hibrido'
+      ) RETURNING id;
+    `);
+    const encId = encRes.rows[0].id;
+
+    await db.query(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado)
+      VALUES ('${encId}', '${participantUser2}', 'Martin', 'confirmado');
+    `);
+
+    // --- 1. HORARIO: 10:00 (A) -> 11:00 (B) -> 10:00 (A) ---
+    // A -> B: debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"hora": "11:00:00"}'::jsonb);
+    `);
+    // B -> B (idéntico): NO debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"hora": "11:00:00"}'::jsonb);
+    `);
+    // B -> A (regreso a valor original): DEBE NOTIFICAR (sin colisión)
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"hora": "10:00:00"}'::jsonb);
+    `);
+
+    const horaNotifs = await db.query<{ body: string }>(`
+      SELECT body FROM public.inbox_notifications
+      WHERE recipient_user_id = '${participantUser2}'
+        AND target_id = '${encId}'
+        AND notification_type = 'encounter_schedule_changed'
+      ORDER BY created_at ASC;
+    `);
+    assert.equal(horaNotifs.rows.length, 2, 'Deben existir exactamente 2 avisos por cambio de horario A -> B -> A');
+    assert.ok(horaNotifs.rows[0].body.includes('11:00'));
+    assert.ok(horaNotifs.rows[1].body.includes('10:00'));
+
+    // --- 2. FECHA: 2026-12-01 (A) -> 2026-12-05 (B) -> 2026-12-01 (A) ---
+    // A -> B: debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"fecha": "2026-12-05"}'::jsonb);
+    `);
+    // B -> B (idéntico): NO debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"fecha": "2026-12-05"}'::jsonb);
+    `);
+    // B -> A (regreso a fecha original): DEBE NOTIFICAR
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"fecha": "2026-12-01"}'::jsonb);
+    `);
+
+    const fechaNotifs = await db.query<{ body: string }>(`
+      SELECT body FROM public.inbox_notifications
+      WHERE recipient_user_id = '${participantUser2}'
+        AND target_id = '${encId}'
+        AND notification_type = 'encounter_schedule_changed'
+      ORDER BY created_at ASC;
+    `);
+    assert.equal(fechaNotifs.rows.length, 4, 'Deben existir 4 avisos acumulados de agenda (2 hora + 2 fecha)');
+    assert.ok(fechaNotifs.rows[2].body.includes('05/12/2026'));
+    assert.ok(fechaNotifs.rows[3].body.includes('01/12/2026'));
+
+    // --- 3. DIRECCIÓN / LOGÍSTICA: Sede A -> Sede B -> Sede A ---
+    // A -> B: debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"lugar_texto": "Sede B"}'::jsonb);
+    `);
+    // B -> B: NO notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"lugar_texto": "Sede B"}'::jsonb);
+    `);
+    // B -> A: DEBE NOTIFICAR (sin colisión)
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"lugar_texto": "Sede A"}'::jsonb);
+    `);
+
+    // --- 4. ENLACE VIRTUAL: Meet A -> Meet B -> Meet A ---
+    // A -> B: debe notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"link_virtual": "https://meet.b.com"}'::jsonb);
+    `);
+    // B -> B: NO notificar
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"link_virtual": "https://meet.b.com"}'::jsonb);
+    `);
+    // B -> A: DEBE NOTIFICAR
+    await db.query(`
+      SELECT public.actualizar_encuentro_seguro('${encId}', '${hostUser}', '{"link_virtual": "https://meet.a.com"}'::jsonb);
+    `);
+
+    const logNotifs = await db.query<{ id: string }>(`
+      SELECT id FROM public.inbox_notifications
+      WHERE recipient_user_id = '${participantUser2}'
+        AND target_id = '${encId}'
+        AND notification_type = 'encounter_logistics_changed'
+      ORDER BY created_at ASC;
+    `);
+    assert.equal(logNotifs.rows.length, 4, 'Deben existir 4 avisos de logística (2 lugar + 2 virtual)');
+  });
+
   // ============================================================
   // BLOQUE 3: NOTIFICACIONES CRÍTICAS AUTOMÁTICAS (H8)
   // ============================================================
@@ -748,5 +853,67 @@ describe('P0 / Bloque 1: Comunicaciones Críticas e Integridad de Estados', () =
     const listAfter = resAfter.rows[0].get_notificaciones_criticas_no_leidas_seguro.data;
     const stillPresent = listAfter.some((n: any) => n.id === firstNotifId);
     assert.equal(stillPresent, false);
+  });
+
+  test('H8.3: get_notificaciones_criticas_no_leidas_seguro recupera más de 10 notificaciones críticas (límite 50) y presentación secuencial', async () => {
+    await setAuthContext(hostUser);
+
+    // Crear 15 notificaciones críticas para participantUser2
+    for (let i = 1; i <= 15; i++) {
+      await db.query(`
+        SELECT public.insertar_inbox_notification_seguro(
+          '${participantUser2}',
+          'encounter_cancelled_for_participant',
+          'encounter',
+          gen_random_uuid(),
+          '/?open_detail=' || gen_random_uuid(),
+          'Cancelación #${i}',
+          'Motivo #${i}',
+          '{"cancellation_reason": "Motivo ${i}"}'::jsonb,
+          'crit_test_${i}:' || '${participantUser2}'
+        );
+      `);
+    }
+
+    await setAuthContext(participantUser2);
+
+    const res = await db.query<{ get_notificaciones_criticas_no_leidas_seguro: any }>(`
+      SELECT public.get_notificaciones_criticas_no_leidas_seguro();
+    `);
+    const data = res.rows[0].get_notificaciones_criticas_no_leidas_seguro;
+    assert.equal(data.ok, true);
+    // Debe haber recuperado las 15 (más las anteriores que tuviera participantUser2)
+    assert.ok(data.data.length >= 15, `Debe recuperar al menos 15 notificaciones críticas, obtuvo ${data.data.length}`);
+
+    // Reconocer 5 notificaciones
+    for (let i = 0; i < 5; i++) {
+      await db.query(`SELECT public.marcar_notificacion_leida_seguro('${data.data[i].id}');`);
+    }
+
+    // Consulta subsecuente debe devolver las restantes sin errores
+    const resRemaining = await db.query<{ get_notificaciones_criticas_no_leidas_seguro: any }>(`
+      SELECT public.get_notificaciones_criticas_no_leidas_seguro();
+    `);
+    const remainingData = resRemaining.rows[0].get_notificaciones_criticas_no_leidas_seguro;
+    assert.equal(remainingData.ok, true);
+    assert.equal(remainingData.data.length, data.data.length - 5);
+  });
+
+  test('H8.4: Rechazo estricto de usuarios no autorizados e inexistencia de filtración de datos', async () => {
+    // 1. Usuario anónimo / sin sesión
+    await setAuthContext(null);
+    const unauthRes = await db.query<{ get_notificaciones_criticas_no_leidas_seguro: any }>(`
+      SELECT public.get_notificaciones_criticas_no_leidas_seguro();
+    `);
+    assert.equal(unauthRes.rows[0].get_notificaciones_criticas_no_leidas_seguro.ok, false);
+    assert.equal(unauthRes.rows[0].get_notificaciones_criticas_no_leidas_seguro.error, 'authentication_required');
+
+    // 2. Attacker no ve ninguna notificación de otros usuarios
+    await setAuthContext(attackerUser);
+    const attackerRes = await db.query<{ get_notificaciones_criticas_no_leidas_seguro: any }>(`
+      SELECT public.get_notificaciones_criticas_no_leidas_seguro();
+    `);
+    assert.equal(attackerRes.rows[0].get_notificaciones_criticas_no_leidas_seguro.ok, true);
+    assert.equal(attackerRes.rows[0].get_notificaciones_criticas_no_leidas_seguro.data.length, 0);
   });
 });
