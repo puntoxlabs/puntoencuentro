@@ -162,8 +162,13 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
         token_participante UUID,
         created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
         resolved_at TIMESTAMPTZ,
-        updated_at TIMESTAMPTZ
+        updated_at TIMESTAMPTZ,
+        UNIQUE (encuentro_id, usuario_id)
       );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_pendientes_unicas
+        ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
+        WHERE estado = 'pending';
 
       CREATE TABLE IF NOT EXISTS public.bloqueos_usuario (
         blocker_id UUID NOT NULL REFERENCES auth.users(id),
@@ -271,13 +276,15 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
       $$ LANGUAGE plpgsql;
     `);
 
-    // 2. Cargar migraciones de ciclo de vida vigentes
+    // 2. Cargar migraciones vigentes
+    const mParity = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261001080000_normalize_production_schema_parity.sql'), 'utf8');
+    await db.exec(mParity);
+
     const mLifecycle18 = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261014180000_fase_lifecycle_realization_and_cancellation_reasons.sql'), 'utf8');
     await db.exec(mLifecycle18);
 
     const mLifecycle = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261014190000_harden_lifecycle_rpc_concurrency_and_invariants.sql'), 'utf8');
     await db.exec(mLifecycle);
-
 
     // 3. Cargar migración P0
     const mP0 = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261016150000_harden_actualizar_encuentro_and_critical_notifications.sql'), 'utf8');
@@ -608,59 +615,316 @@ describe('H9 / H10: Bajas Voluntarias, Cupos y Sincronización de Participantes'
   });
 
   // ============================================================
-  // BLOQUE 8: RE-POSTULACIÓN POST-BAJA
+  // BLOQUE 8: RE-POSTULACIÓN POST-BAJA (SECUENCIA COMPLETA DE 9 PASOS, HISTORIAL, TOKENS, COOLDOWN Y CONCURRENCIA)
   // ============================================================
 
-  test('H9.9: Usuario que se dio de baja puede volver a solicitar sumarse si hay cupos e inscripciones abiertas', async () => {
-    const encId = await setupOpenEncounter({ maxParticipants: 4 });
+  test('H9.9: Secuencia completa de 9 pasos por RPC: solicitar (2 cupos) -> aprobar -> confirmado -> desistir -> cancelado/cancelled -> re-solicitar (3 cupos) -> pending -> aprobar -> confirmado (3 cupos)', async () => {
+    const encId = await setupOpenEncounter({ maxParticipants: 5, minParticipants: 2, realizationStatus: 'pending' });
+    await db.query(`DELETE FROM public.inbox_notifications;`);
+    await db.query(`DELETE FROM public.domain_events_outbox;`);
 
-    // 1. Participante entra y luego se da de baja
-    const partRes = await db.query<{ id: string }>(`
-      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, seat_count)
-      VALUES ('${encId}', '${participantUser1}', 'Reaplicante', 'confirmado', 1)
-      RETURNING id;
-    `);
-    const originalPartId = partRes.rows[0].id;
-
-    await db.query(`
-      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado, seat_count, participante_id)
-      VALUES ('${encId}', '${participantUser1}', 'Reaplicante', 'approved', 1, '${originalPartId}');
-    `);
-
+    // PASO 1: Usuario solicita sumarse con 2 cupos
     await setAuthContext(participantUser1);
-    await db.query(`SELECT public.desistir_encuentro_abierto_seguro('${encId}');`);
-
-    // 2. Nueva solicitud de sumarse
-    const reqRes = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+    const req1Res = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
       SELECT public.solicitar_sumarse_encuentro_abierto(
         '${encId}',
-        'Reaplicante',
-        'Cambiaron mis horarios, ahora sí puedo!',
+        'Reaplicante Ciclo 1',
+        'Vamos con mi pareja (2 lugares)',
         '${participantUser1}',
-        1
+        2
       );
     `);
+    assert.equal(req1Res.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+    assert.equal(req1Res.rows[0].solicitar_sumarse_encuentro_abierto.seat_count, 2);
+    const req1Id = req1Res.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+    assert.equal(req1Id, req1Res.rows[0].solicitar_sumarse_encuentro_abierto.solicitud_id);
+    assert.ok(req1Id);
 
-    assert.equal(reqRes.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
-    const newReqId = reqRes.rows[0].solicitar_sumarse_encuentro_abierto.solicitud_id;
-
-    // 3. El anfitrión aprueba la nueva solicitud
+    // PASO 2: Organizador aprueba la primera solicitud
     await setAuthContext(hostUser);
-    const appRes = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(`
-      SELECT public.aprobar_solicitud_encuentro_abierto('${newReqId}', '${hostUser}');
+    const app1Res = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(`
+      SELECT public.aprobar_solicitud_encuentro_abierto('${req1Id}', '${hostUser}');
     `);
+    assert.equal(app1Res.rows[0].aprobar_solicitud_encuentro_abierto.ok, true);
+    assert.equal(app1Res.rows[0].aprobar_solicitud_encuentro_abierto.confirmed_seats, 2);
+    assert.equal(app1Res.rows[0].aprobar_solicitud_encuentro_abierto.available_slots, 3);
+    const partIdCycle1 = app1Res.rows[0].aprobar_solicitud_encuentro_abierto.participante_id;
+    const tokenCycle1 = app1Res.rows[0].aprobar_solicitud_encuentro_abierto.token_invitacion;
+    assert.ok(tokenCycle1);
 
-    assert.equal(appRes.rows[0].aprobar_solicitud_encuentro_abierto.ok, true);
-
-    // Debe reutilizar la fila de participante reactivándola a confirmado
-    const finalPart = await db.query<{ id: string; estado: string; mensaje_respuesta: string }>(`
-      SELECT id, estado, mensaje_respuesta FROM public.participantes WHERE encuentro_id = '${encId}' AND user_id = '${participantUser1}';
+    // PASO 3: Usuario queda confirmado con 2 cupos y acceso autorizado
+    await setAuthContext(participantUser1);
+    const authCycle1 = await db.query<{ get_encuentro_participante_autorizado: any }>(`
+      SELECT public.get_encuentro_participante_autorizado('${encId}');
     `);
+    assert.equal(authCycle1.rows[0].get_encuentro_participante_autorizado.ok, true);
+    assert.equal(authCycle1.rows[0].get_encuentro_participante_autorizado.seat_count, 2);
 
+    // Confirmar asistencia antes de desistir para verificar luego el reset de reconfirmación
+    await db.query(`SELECT public.reconfirmar_asistencia_seguro('${encId}', 'confirm');`);
+
+    // PASO 4: Usuario desiste voluntariamente con motivo privado para el organizador
+    const withdraw1Res = await db.query<{ desistir_encuentro_abierto_seguro: any }>(`
+      SELECT public.desistir_encuentro_abierto_seguro('${encId}', 'Nos surgió un viaje imprevisto');
+    `);
+    assert.equal(withdraw1Res.rows[0].desistir_encuentro_abierto_seguro.ok, true);
+    assert.equal(withdraw1Res.rows[0].desistir_encuentro_abierto_seguro.released_seats, 2);
+    assert.equal(withdraw1Res.rows[0].desistir_encuentro_abierto_seguro.fell_below_min, true);
+
+    // PASO 5: Participante pasa a 'cancelado', solicitud 1 pasa a 'cancelled' y token 1 queda invalidado
+    const partAfterWithdraw = await db.query<{ estado: string; reconfirmation_status: string; token_invitacion: string; mensaje_respuesta: string }>(`
+      SELECT estado, reconfirmation_status, token_invitacion, mensaje_respuesta
+      FROM public.participantes WHERE id = '${partIdCycle1}';
+    `);
+    assert.equal(partAfterWithdraw.rows[0].estado, 'cancelado');
+    assert.equal(partAfterWithdraw.rows[0].reconfirmation_status, 'declined');
+    assert.equal(partAfterWithdraw.rows[0].mensaje_respuesta, 'Nos surgió un viaje imprevisto');
+    assert.notEqual(partAfterWithdraw.rows[0].token_invitacion, tokenCycle1, 'El token del ciclo 1 debe rotarse al desistir');
+
+    const sol1AfterWithdraw = await db.query<{ estado: string; token_participante: string | null; resolved_at: string | null }>(`
+      SELECT estado, token_participante, resolved_at FROM public.solicitudes_encuentro_abierto WHERE id = '${req1Id}';
+    `);
+    assert.equal(sol1AfterWithdraw.rows[0].estado, 'cancelled');
+    assert.equal(sol1AfterWithdraw.rows[0].token_participante, null, 'token_participante de la solicitud cancelada debe anularse');
+    assert.ok(sol1AfterWithdraw.rows[0].resolved_at);
+
+    // Verificar que el token antiguo del Ciclo 1 no permite acceder por get_encuentros_participados_por_tokens
+    const byOldToken = await db.query<{ get_encuentros_participados_por_tokens: any[] }>(`
+      SELECT public.get_encuentros_participados_por_tokens(ARRAY['${tokenCycle1}']);
+    `);
+    assert.equal(byOldToken.rows[0].get_encuentros_participados_por_tokens.length, 0, 'Token antiguo no debe devolver el encuentro tras desistir');
+
+    // PASO 6: Usuario vuelve a solicitar participación con 3 cupos (sin violar UNIQUE ni borrar historial)
+    const req2Res = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto(
+        '${encId}',
+        'Reaplicante Ciclo 2',
+        'Se canceló el viaje, ahora somos 3!',
+        '${participantUser1}',
+        3
+      );
+    `);
+    assert.equal(req2Res.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+    assert.equal(req2Res.rows[0].solicitar_sumarse_encuentro_abierto.seat_count, 3);
+    const req2Id = req2Res.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+    assert.ok(req2Id);
+    assert.notEqual(req2Id, req1Id, 'La segunda postulación debe tener su propio ID de ciclo');
+
+    // PASO 7: Nueva postulación queda 'pending' y NO restaura automáticamente la participación antes de que el host apruebe
+    const miSolPending = await db.query<{ get_mi_solicitud_encuentro_abierto: any }>(`
+      SELECT public.get_mi_solicitud_encuentro_abierto('${encId}', '${participantUser1}');
+    `);
+    assert.equal(miSolPending.rows[0].get_mi_solicitud_encuentro_abierto.ok, true);
+    assert.equal(miSolPending.rows[0].get_mi_solicitud_encuentro_abierto.has_request, true);
+    assert.equal(miSolPending.rows[0].get_mi_solicitud_encuentro_abierto.request_id, req2Id);
+    assert.equal(miSolPending.rows[0].get_mi_solicitud_encuentro_abierto.estado, 'pending');
+    assert.equal(miSolPending.rows[0].get_mi_solicitud_encuentro_abierto.seat_count, 3);
+
+    const authWhilePending = await db.query<{ get_encuentro_participante_autorizado: any }>(`
+      SELECT public.get_encuentro_participante_autorizado('${encId}');
+    `);
+    assert.equal(authWhilePending.rows[0].get_encuentro_participante_autorizado.ok, false);
+    assert.equal(authWhilePending.rows[0].get_encuentro_participante_autorizado.error, 'unauthorized');
+
+    const partWhilePending = await db.query<{ estado: string; mensaje_respuesta: string }>(`
+      SELECT estado, mensaje_respuesta FROM public.participantes WHERE id = '${partIdCycle1}';
+    `);
+    assert.equal(partWhilePending.rows[0].estado, 'cancelado', 'No debe restaurarse participación sin aprobación del host');
+    assert.equal(partWhilePending.rows[0].mensaje_respuesta, 'Nos surgió un viaje imprevisto', 'El motivo de baja previo sigue intacto mientras está pendiente');
+
+    // PASO 8: Organizador aprueba nuevamente la segunda solicitud
+    await setAuthContext(hostUser);
+    const app2Res = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(`
+      SELECT public.aprobar_solicitud_encuentro_abierto('${req2Id}', '${hostUser}');
+    `);
+    assert.equal(app2Res.rows[0].aprobar_solicitud_encuentro_abierto.ok, true);
+    assert.equal(app2Res.rows[0].aprobar_solicitud_encuentro_abierto.confirmed_seats, 3);
+    assert.equal(app2Res.rows[0].aprobar_solicitud_encuentro_abierto.available_slots, 2);
+    const tokenCycle2 = app2Res.rows[0].aprobar_solicitud_encuentro_abierto.token_invitacion;
+    assert.notEqual(tokenCycle2, tokenCycle1, 'El ciclo 2 debe emitir un nuevo token_invitacion');
+
+    // PASO 9: Usuario vuelve a quedar confirmado con los 3 cupos solicitados en esta segunda ocasión
+    const finalPart = await db.query<{
+      id: string;
+      estado: string;
+      seat_count: number;
+      reconfirmation_status: string;
+      reconfirmed_at: string | null;
+      mensaje_respuesta: string;
+      token_invitacion: string;
+    }>(`
+      SELECT id, estado, seat_count, reconfirmation_status, reconfirmed_at, mensaje_respuesta, token_invitacion
+      FROM public.participantes
+      WHERE encuentro_id = '${encId}' AND user_id = '${participantUser1}';
+    `);
     assert.equal(finalPart.rows.length, 1);
-    assert.equal(finalPart.rows[0].id, originalPartId);
+    assert.equal(finalPart.rows[0].id, partIdCycle1);
     assert.equal(finalPart.rows[0].estado, 'confirmado');
-    assert.equal(finalPart.rows[0].mensaje_respuesta, 'Cambiaron mis horarios, ahora sí puedo!');
+    assert.equal(finalPart.rows[0].seat_count, 3);
+    assert.equal(finalPart.rows[0].reconfirmation_status, 'pending');
+    assert.equal(finalPart.rows[0].reconfirmed_at, null);
+    assert.equal(finalPart.rows[0].mensaje_respuesta, 'Se canceló el viaje, ahora somos 3!');
+    assert.equal(finalPart.rows[0].token_invitacion, tokenCycle2);
+
+    // Verificar trazabilidad de ambos ciclos en solicitudes_encuentro_abierto (no se borró la fila cancelled del Ciclo 1)
+    const allSolicitudes = await db.query<{ id: string; estado: string; seat_count: number; token_participante: string | null }>(`
+      SELECT id, estado, seat_count, token_participante
+      FROM public.solicitudes_encuentro_abierto
+      WHERE encuentro_id = '${encId}' AND usuario_id = '${participantUser1}'
+      ORDER BY created_at ASC;
+    `);
+    assert.equal(allSolicitudes.rows.length, 2, 'Deben conservarse los registros de ambos ciclos');
+    assert.equal(allSolicitudes.rows[0].id, req1Id);
+    assert.equal(allSolicitudes.rows[0].estado, 'cancelled');
+    assert.equal(allSolicitudes.rows[0].seat_count, 2);
+    assert.equal(allSolicitudes.rows[0].token_participante, null);
+
+    assert.equal(allSolicitudes.rows[1].id, req2Id);
+    assert.equal(allSolicitudes.rows[1].estado, 'approved');
+    assert.equal(allSolicitudes.rows[1].seat_count, 3);
+    assert.equal(allSolicitudes.rows[1].token_participante, tokenCycle2);
+
+    // Verificar que no hubo colisión de deduplicación en Inbox ni Outbox entre Ciclo 1 y Ciclo 2
+    const hostJoinNotifs = await db.query<{ id: string; payload: any }>(`
+      SELECT id, payload FROM public.inbox_notifications
+      WHERE recipient_user_id = '${hostUser}' AND notification_type = 'open_encounter_join_requested' AND target_id = '${encId}';
+    `);
+    assert.equal(hostJoinNotifs.rows.length, 2, 'El host debe recibir notificación de solicitud en ambos ciclos');
+
+    const userApprovedNotifs = await db.query<{ id: string }>(`
+      SELECT id FROM public.inbox_notifications
+      WHERE recipient_user_id = '${participantUser1}' AND notification_type = 'open_encounter_request_accepted' AND target_id = '${encId}';
+    `);
+    assert.equal(userApprovedNotifs.rows.length, 2, 'El usuario debe recibir notificación de aprobación en ambos ciclos');
+
+    const userMinReachedNotifs = await db.query<{ id: string }>(`
+      SELECT id FROM public.inbox_notifications
+      WHERE recipient_user_id = '${participantUser1}' AND notification_type = 'encounter_min_participants_reached' AND target_id = '${encId}';
+    `);
+    assert.equal(userMinReachedNotifs.rows.length, 2, 'Al volver a alcanzar el mínimo en el Ciclo 2 debe emitirse un nuevo aviso sin colisionar con el Ciclo 1');
+
+    const outboxEvents = await db.query<{ event_type: string }>(`
+      SELECT event_type FROM public.domain_events_outbox WHERE aggregate_id = '${encId}';
+    `);
+    assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.join_request.created.v1').length, 2);
+    assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.join_request.approved.v1').length, 2);
+    assert.equal(outboxEvents.rows.filter((r) => r.event_type === 'encounter.participant.withdrawn.v1').length, 1);
+  });
+
+  test('H9.9b: Cooldown de rechazo activo no se puede saltar con historial de baja, y rechazo vencido (>24h) no borra historial previo', async () => {
+    const encId = await setupOpenEncounter({ maxParticipants: 5 });
+
+    // Usuario tiene una solicitud previa cancelada (baja) y luego una rechazada hace 2 horas (cooldown activo)
+    const threeDaysAgo = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+
+    const solCancelledRes = await db.query<{ id: string }>(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado, seat_count, created_at, updated_at, resolved_at)
+      VALUES ('${encId}', '${participantUser1}', 'Histórico Cancelado', 'cancelled', 1, '${threeDaysAgo}', '${threeDaysAgo}', '${threeDaysAgo}')
+      RETURNING id;
+    `);
+    const solCancelledId = solCancelledRes.rows[0].id;
+
+    const solRejectedRes = await db.query<{ id: string }>(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, estado, seat_count, created_at, updated_at, resolved_at)
+      VALUES ('${encId}', '${participantUser1}', 'Rechazado Reciente', 'rejected', 1, '${twoHoursAgo}', '${twoHoursAgo}', '${twoHoursAgo}')
+      RETURNING id;
+    `);
+    const solRejectedId = solRejectedRes.rows[0].id;
+
+    await setAuthContext(participantUser1);
+
+    // Intento de postularse dentro de las 24h del rechazo -> bloqueado por cooldown_active
+    const blockedRes = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Intento En Cooldown', 'Quiero volver', '${participantUser1}', 1);
+    `);
+    assert.equal(blockedRes.rows[0].solicitar_sumarse_encuentro_abierto.ok, false);
+    assert.equal(blockedRes.rows[0].solicitar_sumarse_encuentro_abierto.error, 'cooldown_active');
+
+    // Envejecer el rechazo a 25 horas atrás -> cooldown expirado
+    const twentyFiveHoursAgo = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    await db.query(`
+      UPDATE public.solicitudes_encuentro_abierto
+      SET resolved_at = '${twentyFiveHoursAgo}', updated_at = '${twentyFiveHoursAgo}', created_at = '${twentyFiveHoursAgo}'
+      WHERE id = '${solRejectedId}';
+    `);
+
+    // Ahora sí puede postularse y NO debe haberse eliminado ni la fila 'cancelled' ni la 'rejected' previa
+    const allowedRes = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Post Cooldown', 'Ahora sí', '${participantUser1}', 2);
+    `);
+    assert.equal(allowedRes.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+    const newPendingId = allowedRes.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    const historyRows = await db.query<{ id: string; estado: string }>(`
+      SELECT id, estado FROM public.solicitudes_encuentro_abierto
+      WHERE encuentro_id = '${encId}' AND usuario_id = '${participantUser1}'
+      ORDER BY created_at ASC;
+    `);
+    assert.equal(historyRows.rows.length, 3, 'Se deben conservar la solicitud cancelada, la rechazada vencida y la nueva pendiente');
+    assert.ok(historyRows.rows.some((r) => r.id === solCancelledId && r.estado === 'cancelled'));
+    assert.ok(historyRows.rows.some((r) => r.id === solRejectedId && r.estado === 'rejected'));
+    assert.ok(historyRows.rows.some((r) => r.id === newPendingId && r.estado === 'pending'));
+  });
+
+  test('H9.9c: Concurrencia y cupos en re-postulación: competencia por últimos lugares tras una baja y cierre de inscripciones', async () => {
+    // Encuentro con capacidad 3; participantUser2 ya ocupa 1 lugar confirmado y participantUser1 ocupa 2 lugares confirmados (3/3 lleno)
+    const encId = await setupOpenEncounter({ maxParticipants: 3 });
+
+    await setAuthContext(participantUser2);
+    const r2 = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Fijo', null, '${participantUser2}', 1);
+    `);
+    const reqUser2 = r2.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    await setAuthContext(participantUser1);
+    const r1 = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Va y vuelve', null, '${participantUser1}', 2);
+    `);
+    const reqUser1Cycle1 = r1.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    await setAuthContext(hostUser);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqUser2}', '${hostUser}');`);
+    await db.query(`SELECT public.aprobar_solicitud_encuentro_abierto('${reqUser1Cycle1}', '${hostUser}');`);
+
+    // participantUser1 desiste -> libera 2 lugares (quedan 2 disponibles de 3)
+    await setAuthContext(participantUser1);
+    await db.query(`SELECT public.desistir_encuentro_abierto_seguro('${encId}', 'Duda temporal');`);
+
+    // Simultáneamente: participantUser1 re-solicita 2 lugares Y applicantUser1 solicita 2 lugares
+    await setAuthContext(participantUser1);
+    const reReq1 = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Va y vuelve', 'Volví', '${participantUser1}', 2);
+    `);
+    assert.equal(reReq1.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+    const reqUser1Cycle2 = reReq1.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    await setAuthContext(applicantUser1);
+    const compReq = await db.query<{ solicitar_sumarse_encuentro_abierto: any }>(`
+      SELECT public.solicitar_sumarse_encuentro_abierto('${encId}', 'Competidor', 'Quiero ir con un amigo', '${applicantUser1}', 2);
+    `);
+    assert.equal(compReq.rows[0].solicitar_sumarse_encuentro_abierto.ok, true);
+    const reqCompetitor = compReq.rows[0].solicitar_sumarse_encuentro_abierto.request_id;
+
+    // Host aprueba primero a applicantUser1 (ocupa los 2 lugares libres -> 3/3 lleno)
+    await setAuthContext(hostUser);
+    const appComp = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(`
+      SELECT public.aprobar_solicitud_encuentro_abierto('${reqCompetitor}', '${hostUser}');
+    `);
+    assert.equal(appComp.rows[0].aprobar_solicitud_encuentro_abierto.ok, true);
+    assert.equal(appComp.rows[0].aprobar_solicitud_encuentro_abierto.is_full, true);
+
+    // Host intenta aprobar la re-postulación de participantUser1 -> debe fallar por quota_exceeded sin reactivar su fila cancelada
+    const appReReq = await db.query<{ aprobar_solicitud_encuentro_abierto: any }>(`
+      SELECT public.aprobar_solicitud_encuentro_abierto('${reqUser1Cycle2}', '${hostUser}');
+    `);
+    assert.equal(appReReq.rows[0].aprobar_solicitud_encuentro_abierto.ok, false);
+    assert.equal(appReReq.rows[0].aprobar_solicitud_encuentro_abierto.error, 'quota_exceeded');
+
+    const part1State = await db.query<{ estado: string }>(`
+      SELECT estado FROM public.participantes WHERE encuentro_id = '${encId}' AND user_id = '${participantUser1}';
+    `);
+    assert.equal(part1State.rows[0].estado, 'cancelado');
   });
 
   // ============================================================

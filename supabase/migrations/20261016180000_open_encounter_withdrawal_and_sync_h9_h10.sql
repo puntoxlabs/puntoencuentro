@@ -25,7 +25,7 @@
 BEGIN;
 
 -- ------------------------------------------------------------------------------
--- 1. RESTRICCIÓN CHECK EN public.participantes.estado
+-- 1. RESTRICCIÓN CHECK EN public.participantes.estado E ÍNDICES DE CICLO
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.participantes
     DROP CONSTRAINT IF EXISTS participantes_estado_check;
@@ -33,6 +33,37 @@ ALTER TABLE public.participantes
 ALTER TABLE public.participantes
     ADD CONSTRAINT participantes_estado_check
     CHECK (estado IN ('pendiente', 'confirmado', 'rechazado', 'cancelado', 'asistio'));
+
+-- Asegurar que no exista una restricción UNIQUE global no parcial sobre (encuentro_id, usuario_id)
+-- que impida conservar el historial de ciclos (rejected / cancelled) al re-postularse,
+-- manteniendo la unicidad estricta sobre solicitudes activas ('pending' y 'approved').
+DO $$
+DECLARE
+    v_con record;
+BEGIN
+    FOR v_con IN
+        SELECT c.conname
+        FROM pg_catalog.pg_constraint c
+        JOIN pg_catalog.pg_class t ON t.oid = c.conrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = 'public'
+          AND t.relname = 'solicitudes_encuentro_abierto'
+          AND c.contype = 'u'
+    LOOP
+        EXECUTE pg_catalog.format(
+            'ALTER TABLE public.solicitudes_encuentro_abierto DROP CONSTRAINT IF EXISTS %I',
+            v_con.conname
+        );
+    END LOOP;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_pendientes_unicas
+    ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
+    WHERE estado = 'pending';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_aprobadas_unicas
+    ON public.solicitudes_encuentro_abierto(encuentro_id, usuario_id)
+    WHERE estado = 'approved';
 
 -- ------------------------------------------------------------------------------
 -- 2. RECONFIRMAR_ASISTENCIA_SEGURO (3 PARÁMETROS, CON MOTIVO OPCIONAL)
@@ -54,12 +85,13 @@ DECLARE
     v_new_confirmed_seats int := 0;
     v_part_rec record;
     v_title text;
-    v_now timestamptz := pg_catalog.now();
+    v_now timestamptz := pg_catalog.clock_timestamp();
     v_clean_motivo text := NULL;
     v_fell_below_min boolean := false;
     v_notif_body text;
     v_participant_name text;
     v_freed_seats int := 1;
+    v_withdrawal_event_id uuid;
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_authenticated');
@@ -102,11 +134,13 @@ BEGIN
         );
     END IF;
 
-    -- Buscar participante con bloqueo exclusivo
+    -- Buscar participante con bloqueo exclusivo (priorizando fila activa si existiera más de una)
     SELECT * INTO v_part
     FROM public.participantes
     WHERE encuentro_id = p_encuentro_id
       AND user_id = v_user_id
+    ORDER BY (estado IN ('confirmado', 'asistio')) DESC, creado_en DESC
+    LIMIT 1
     FOR UPDATE;
 
     IF NOT FOUND THEN
@@ -155,21 +189,31 @@ BEGIN
         );
     ELSE
         -- Decision = 'decline' (Baja voluntaria H9/H10):
-        -- 1. Actualizar participante a cancelado
+        v_withdrawal_event_id := pg_catalog.gen_random_uuid();
+
+        -- 1. Actualizar participante a cancelado y rotar token_invitacion si es encuentro abierto
+        --    para invalidar cualquier token_participante / token_invitacion previo.
         UPDATE public.participantes
         SET reconfirmation_status = 'declined',
             reconfirmed_at = v_now,
             estado = 'cancelado',
-            mensaje_respuesta = COALESCE(v_clean_motivo, mensaje_respuesta)
+            mensaje_respuesta = COALESCE(v_clean_motivo, mensaje_respuesta),
+            token_invitacion = CASE
+                WHEN COALESCE(v_encuentro.is_open, false) = true THEN pg_catalog.gen_random_uuid()
+                ELSE token_invitacion
+            END
         WHERE id = v_part.id;
 
-        -- 2. Sincronizar solicitud de encuentro abierto si existe (H9)
+        -- 2. Sincronizar únicamente la solicitud activa ('approved') de este ciclo a 'cancelled' (H9),
+        --    anulando su token_participante y preservando intacto el historial de ciclos anteriores.
         UPDATE public.solicitudes_encuentro_abierto
         SET estado = 'cancelled',
+            token_participante = NULL,
             resolved_at = v_now,
             updated_at = v_now
         WHERE encuentro_id = p_encuentro_id
-          AND (participante_id = v_part.id OR (usuario_id = v_user_id AND estado = 'approved'));
+          AND estado = 'approved'
+          AND (participante_id = v_part.id OR usuario_id = v_user_id);
 
         -- 3. Recalcular cupos confirmados restantes
         SELECT COALESCE(pg_catalog.sum(seat_count), 0)::int
@@ -212,12 +256,42 @@ BEGIN
                         'encounter_id', p_encuentro_id,
                         'title', v_title
                     ),
-                    p_dedup_key := 'below_min_part:' || p_encuentro_id || ':' || v_part_rec.user_id || ':' || pg_catalog.to_char(v_now, 'YYYYMMDDHH24MISS')
+                    p_dedup_key := 'below_min_part:' || p_encuentro_id || ':' || v_withdrawal_event_id || ':' || v_part_rec.user_id
                 );
             END LOOP;
         END IF;
 
-        -- 5. Notificación obligatoria al organizador (H9/H10)
+        -- 5. Registrar evento de dominio en Outbox con clave única por evento de baja
+        INSERT INTO public.domain_events_outbox (
+            event_type,
+            event_version,
+            aggregate_type,
+            aggregate_id,
+            actor_user_id,
+            payload,
+            dedup_key,
+            status
+        ) VALUES (
+            'encounter.participant.withdrawn.v1',
+            1,
+            'encounter',
+            p_encuentro_id,
+            v_user_id,
+            pg_catalog.jsonb_build_object(
+                'withdrawal_event_id', v_withdrawal_event_id,
+                'encounter_id', p_encuentro_id,
+                'participant_id', v_part.id,
+                'participant_user_id', v_user_id,
+                'host_id', v_encuentro.host_id,
+                'freed_seats', v_freed_seats,
+                'fell_below_min', v_fell_below_min
+            ),
+            pg_catalog.format('encounter:%s:participant_withdrawn:%s', p_encuentro_id, v_withdrawal_event_id),
+            'pending'
+        )
+        ON CONFLICT (dedup_key) DO NOTHING;
+
+        -- 6. Notificación obligatoria al organizador (H9/H10)
         -- Si v_fell_below_min es true, se unifica en este único aviso al anfitrión
         -- para evitar duplicados molestos.
         IF v_encuentro.host_id IS NOT NULL AND v_encuentro.host_id <> v_user_id THEN
@@ -240,6 +314,7 @@ BEGIN
                 p_body := v_notif_body,
                 p_payload := pg_catalog.jsonb_build_object(
                     'encounter_id', p_encuentro_id,
+                    'withdrawal_event_id', v_withdrawal_event_id,
                     'title', v_title,
                     'participant_user_id', v_user_id,
                     'participant_name', v_participant_name,
@@ -247,7 +322,7 @@ BEGIN
                     'cancellation_reason', v_clean_motivo,
                     'fell_below_min', v_fell_below_min
                 ),
-                p_dedup_key := 'part_withdrawn:' || p_encuentro_id || ':' || v_user_id || ':' || pg_catalog.to_char(v_now, 'YYYYMMDDHH24MISS')
+                p_dedup_key := 'part_withdrawn:' || p_encuentro_id || ':' || v_withdrawal_event_id
             );
         END IF;
 
@@ -320,7 +395,7 @@ DECLARE
     v_token_invitacion UUID;
     v_req_seats INT := 1;
     v_nuevo_disponible INT;
-    v_now TIMESTAMPTZ := pg_catalog.now();
+    v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
     v_part record;
     v_title text;
     v_existing_part_id UUID;
@@ -518,9 +593,10 @@ BEGIN
                         p_body := '¡Se hace! El encuentro alcanzó el mínimo de participantes.',
                         p_payload := pg_catalog.jsonb_build_object(
                             'encounter_id', v_encuentro.id,
+                            'request_id', p_request_id,
                             'title', v_title
                         ),
-                        p_dedup_key := 'min_reached:' || v_encuentro.id || ':' || v_part.user_id
+                        p_dedup_key := 'min_reached:' || v_encuentro.id || ':' || p_request_id || ':' || v_part.user_id
                     );
                 END LOOP;
             END IF;
@@ -536,6 +612,7 @@ BEGIN
         'token_invitacion', v_token_invitacion,
         'confirmed_seats', v_confirmed_seats + v_req_seats,
         'available_slots', v_nuevo_disponible,
+        'nuevo_cupo_disponible', v_nuevo_disponible,
         'is_full', (v_nuevo_disponible = 0)
     );
 END;
@@ -737,7 +814,7 @@ DECLARE
     v_encuentro public.encuentros%ROWTYPE;
     v_part public.participantes%ROWTYPE;
     v_new_confirmed_seats int := 0;
-    v_now timestamptz := pg_catalog.now();
+    v_now timestamptz := pg_catalog.clock_timestamp();
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_authenticated');
@@ -767,14 +844,17 @@ BEGIN
         );
     END IF;
 
-    -- Si el encuentro es abierto, sincronizar su solicitud a cancelled si existiera
+    -- Si el encuentro es abierto, sincronizar su solicitud activa ('approved') a cancelled
+    -- y limpiar token_participante sin alterar el historial previo.
     IF COALESCE(v_encuentro.is_open, false) = true THEN
         UPDATE public.solicitudes_encuentro_abierto
         SET estado = 'cancelled',
+            token_participante = NULL,
             resolved_at = v_now,
             updated_at = v_now
         WHERE encuentro_id = v_encuentro.id
-          AND (participante_id = p_participante_id OR (usuario_id = v_part.user_id AND estado = 'approved'));
+          AND estado = 'approved'
+          AND (participante_id = p_participante_id OR usuario_id = v_part.user_id);
     END IF;
 
     DELETE FROM public.participante_disponibilidades WHERE participante_id = p_participante_id;
@@ -805,5 +885,310 @@ $$;
 
 REVOKE ALL ON FUNCTION public.eliminar_participante_seguro(uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.eliminar_participante_seguro(uuid, uuid) TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 6. SOLICITAR_SUMARSE_ENCUENTRO_ABIERTO (RE-POSTULACIÓN SIN BORRAR HISTORIAL)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.solicitar_sumarse_encuentro_abierto(
+    p_encuentro_id UUID,
+    p_nombre TEXT,
+    p_mensaje TEXT DEFAULT NULL,
+    p_usuario_id UUID DEFAULT NULL,
+    p_seat_count INT DEFAULT 1
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+    v_encuentro public.encuentros%ROWTYPE;
+    v_confirmed_seats INT := 0;
+    v_solicitud_id UUID;
+    v_clean_nombre TEXT;
+    v_rejected_at TIMESTAMPTZ;
+    v_rl JSONB;
+    v_effective_seat_count INT := 1;
+    v_available_seats INT;
+    v_notif_body TEXT;
+    v_min_seats INT := 1;
+    v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
+    END IF;
+
+    IF v_is_anon THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required');
+    END IF;
+
+    v_clean_nombre := pg_catalog.btrim(COALESCE(p_nombre, ''));
+    IF pg_catalog.length(v_clean_nombre) < 2 THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_name');
+    END IF;
+
+    -- Concurrencia: FOR SHARE bloquea lectura stale si una transacción concurrente está
+    -- cerrando inscripciones (cerrar_inscripciones_seguro), aprobando cupos o cancelando con FOR UPDATE.
+    SELECT * INTO v_encuentro
+    FROM public.encuentros
+    WHERE id = p_encuentro_id
+    FOR SHARE;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_found');
+    END IF;
+
+    IF v_encuentro.is_open <> true OR v_encuentro.estado <> 'activo' THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_available');
+    END IF;
+
+    -- INVARIANTE: Bloqueo cuando las inscripciones están cerradas por el host
+    IF COALESCE(v_encuentro.inscriptions_closed, false) = true THEN
+        RETURN pg_catalog.json_build_object(
+            'ok', false,
+            'error', 'inscriptions_closed',
+            'message', 'Las inscripciones para este encuentro están cerradas.'
+        );
+    END IF;
+
+    IF v_encuentro.moderation_status <> 'approved' THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'content_not_approved');
+    END IF;
+
+    IF v_encuentro.host_id = v_user_id THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'cannot_request_own_encounter');
+    END IF;
+
+    -- Validar bloqueos bilaterales
+    IF EXISTS (
+        SELECT 1 FROM public.bloqueos_usuario b
+        WHERE (b.blocker_id = v_user_id AND b.blocked_id = v_encuentro.host_id)
+           OR (b.blocker_id = v_encuentro.host_id AND b.blocked_id = v_user_id)
+    ) THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'not_available');
+    END IF;
+
+    -- Validar que no tenga ya una solicitud pendiente activa
+    IF EXISTS (
+        SELECT 1 FROM public.solicitudes_encuentro_abierto
+        WHERE encuentro_id = p_encuentro_id
+          AND usuario_id = v_user_id
+          AND estado = 'pending'
+    ) THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'already_requested');
+    END IF;
+
+    -- Validar que no sea ya un participante activo confirmado
+    IF EXISTS (
+        SELECT 1 FROM public.participantes
+        WHERE encuentro_id = p_encuentro_id
+          AND user_id = v_user_id
+          AND estado IN ('confirmado', 'asistio')
+    ) THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'already_joined');
+    END IF;
+
+    -- Comprobar cooldown del rechazo más reciente SIN eliminar historial de rechazos o bajas previas
+    SELECT COALESCE(resolved_at, updated_at, created_at)
+    INTO v_rejected_at
+    FROM public.solicitudes_encuentro_abierto
+    WHERE encuentro_id = p_encuentro_id
+      AND usuario_id = v_user_id
+      AND estado = 'rejected'
+    ORDER BY COALESCE(resolved_at, updated_at, created_at) DESC
+    LIMIT 1;
+
+    IF v_rejected_at IS NOT NULL AND v_rejected_at > (v_now - INTERVAL '24 hours') THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'cooldown_active');
+    END IF;
+
+    -- Validar cupos disponibles
+    SELECT COALESCE(pg_catalog.sum(seat_count), 0)::int INTO v_confirmed_seats
+    FROM public.participantes
+    WHERE encuentro_id = p_encuentro_id AND estado IN ('confirmado', 'asistio');
+
+    v_available_seats := GREATEST(0, v_encuentro.max_participants - v_confirmed_seats);
+
+    IF v_available_seats <= 0 THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'quota_exceeded');
+    END IF;
+
+    -- Multi-seat y límites
+    v_min_seats := COALESCE(v_encuentro.min_seats_per_request, 1);
+
+    IF v_available_seats < v_min_seats THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'quota_exceeded');
+    END IF;
+
+    IF COALESCE(v_encuentro.allow_multi_seat_requests, false) = true THEN
+        v_effective_seat_count := GREATEST(1, COALESCE(p_seat_count, 1));
+        IF v_effective_seat_count < v_min_seats THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'below_min_seats_per_request');
+        END IF;
+        IF v_effective_seat_count > COALESCE(v_encuentro.max_seats_per_request, 1) THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'exceeds_max_seats_per_request');
+        END IF;
+        IF v_effective_seat_count > v_available_seats THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'quota_exceeded');
+        END IF;
+    ELSE
+        IF p_seat_count IS NOT NULL AND p_seat_count > 1 THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'multi_seat_disabled');
+        END IF;
+        v_effective_seat_count := 1;
+    END IF;
+
+    -- Rate limiting inmediatamente antes de la mutación productiva
+    v_rl := public.verificar_y_consumir_rate_limit(v_user_id, 'join_request', 5, INTERVAL '1 hour');
+    IF (v_rl->>'allowed')::boolean = false THEN
+        RETURN pg_catalog.json_build_object(
+            'ok', false,
+            'error', 'rate_limit_exceeded',
+            'reset_at', v_rl->>'reset_at'
+        );
+    END IF;
+
+    -- Insertar nueva solicitud preservando registros históricos ('cancelled', 'rejected', 'withdrawn')
+    INSERT INTO public.solicitudes_encuentro_abierto (
+        encuentro_id,
+        usuario_id,
+        nombre_solicitante,
+        mensaje,
+        estado,
+        seat_count,
+        created_at,
+        updated_at
+    ) VALUES (
+        p_encuentro_id,
+        v_user_id,
+        v_clean_nombre,
+        NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
+        'pending',
+        v_effective_seat_count,
+        v_now,
+        v_now
+    )
+    RETURNING id INTO v_solicitud_id;
+
+    -- Registrar evento en Outbox con clave única por ciclo de solicitud (v_solicitud_id)
+    INSERT INTO public.domain_events_outbox (
+        event_type,
+        event_version,
+        aggregate_type,
+        aggregate_id,
+        actor_user_id,
+        payload,
+        dedup_key,
+        status
+    ) VALUES (
+        'encounter.join_request.created.v1',
+        1,
+        'encounter',
+        p_encuentro_id,
+        v_user_id,
+        pg_catalog.jsonb_build_object(
+            'request_id', v_solicitud_id,
+            'encounter_id', p_encuentro_id,
+            'applicant_id', v_user_id,
+            'host_id', v_encuentro.host_id,
+            'seat_count', v_effective_seat_count
+        ),
+        pg_catalog.format('encounter:%s:join_request:%s', p_encuentro_id, v_solicitud_id),
+        'pending'
+    )
+    ON CONFLICT (dedup_key) DO NOTHING;
+
+    v_notif_body := CASE
+        WHEN v_effective_seat_count > 1 THEN v_clean_nombre || ' solicitó ' || v_effective_seat_count || ' lugares.'
+        ELSE v_clean_nombre || ' solicitó 1 lugar.'
+    END;
+
+    PERFORM public.insertar_inbox_notification_seguro(
+        p_recipient_user_id := v_encuentro.host_id,
+        p_notification_type := 'open_encounter_join_requested',
+        p_target_type := 'encounter',
+        p_target_id := p_encuentro_id,
+        p_deep_link := '/meet/' || p_encuentro_id || '#solicitudes',
+        p_title := 'Nueva solicitud para sumarse',
+        p_body := v_notif_body,
+        p_payload := pg_catalog.jsonb_build_object(
+            'encounter_id', p_encuentro_id,
+            'request_id', v_solicitud_id,
+            'applicant_id', v_user_id,
+            'applicant_name', v_clean_nombre,
+            'seat_count', v_effective_seat_count
+        ),
+        p_dedup_key := 'join_requested:' || v_solicitud_id
+    );
+
+    RETURN pg_catalog.json_build_object(
+        'ok', true,
+        'request_id', v_solicitud_id,
+        'solicitud_id', v_solicitud_id,
+        'encuentro_id', p_encuentro_id,
+        'estado', 'pending',
+        'seat_count', v_effective_seat_count
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.solicitar_sumarse_encuentro_abierto(UUID, TEXT, TEXT, UUID, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.solicitar_sumarse_encuentro_abierto(UUID, TEXT, TEXT, UUID, INT) TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 7. GET_MI_SOLICITUD_ENCUENTRO_ABIERTO (PRIORIZACIÓN DETERMINÍSTICA DE CICLO ACTIVO)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_mi_solicitud_encuentro_abierto(
+    p_encuentro_id UUID,
+    p_usuario_id UUID DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_solicitud public.solicitudes_encuentro_abierto%ROWTYPE;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', true, 'has_request', false);
+    END IF;
+
+    SELECT * INTO v_solicitud
+    FROM public.solicitudes_encuentro_abierto
+    WHERE encuentro_id = p_encuentro_id
+      AND usuario_id = v_user_id
+    ORDER BY
+        CASE estado
+            WHEN 'approved' THEN 3
+            WHEN 'pending'  THEN 2
+            ELSE 1
+        END DESC,
+        COALESCE(resolved_at, updated_at, created_at) DESC,
+        created_at DESC,
+        id DESC
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', true, 'has_request', false);
+    END IF;
+
+    RETURN pg_catalog.json_build_object(
+        'ok', true,
+        'has_request', true,
+        'request_id', v_solicitud.id,
+        'estado', v_solicitud.estado,
+        'seat_count', COALESCE(v_solicitud.seat_count, 1),
+        'token_participante', v_solicitud.token_participante,
+        'created_at', v_solicitud.created_at
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_mi_solicitud_encuentro_abierto(UUID, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_mi_solicitud_encuentro_abierto(UUID, UUID) TO authenticated, anon;
 
 COMMIT;
