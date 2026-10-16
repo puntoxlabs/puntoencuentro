@@ -145,4 +145,48 @@ export const notificationService = {
       return { ok: false, error: err?.message || 'unknown_error' };
     }
   },
+
+  /**
+   * Obtiene las notificaciones críticas no leídas del usuario de forma directa y liviana.
+   */
+  async getNotificacionesCriticasNoLeidas(): Promise<InboxNotificationItem[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_notificaciones_criticas_no_leidas_seguro');
+      if (error || !data) return [];
+      const res = data as {
+        ok: boolean;
+        data?: Array<{
+          id: string;
+          notification_type: string;
+          target_type: string;
+          target_id: string;
+          deep_link: string;
+          title: string;
+          body: string;
+          payload: any;
+          read_at: string | null;
+          is_read: boolean;
+          expires_at: string;
+          created_at: string;
+        }>;
+      };
+      if (!res?.ok || !Array.isArray(res.data)) return [];
+      return res.data.map((row) => ({
+        id: row.id,
+        notificationType: row.notification_type as any,
+        targetType: row.target_type as any,
+        targetId: row.target_id,
+        deepLink: row.deep_link,
+        title: row.title,
+        body: row.body,
+        payload: row.payload,
+        readAt: row.read_at,
+        isRead: false,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      }));
+    } catch {
+      return [];
+    }
+  },
 };

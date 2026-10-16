@@ -28,6 +28,8 @@ export type NotificationType =
   | 'open_encounter_join_request'
   | 'encounter_cancelled_for_participant'
   | 'open_encounter_request_cancelled_by_host'
+  | 'encounter_schedule_changed'
+  | 'encounter_logistics_changed'
   | 'min_participants_confirmed'
   | 'min_participants_dropped'
   | 'encounter_realization_forced'

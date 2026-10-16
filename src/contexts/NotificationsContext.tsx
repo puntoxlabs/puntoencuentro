@@ -68,7 +68,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [isPermanentUser]);
 
-  // 2. Obtener lista inicial o refrescar
+  // 2. Obtener lista inicial o refrescar (incluye notificaciones críticas no leídas de forma ligera)
   const fetchNotifications = useCallback(async (reset: boolean = false) => {
     if (!isPermanentUser) {
       setNotifications([]);
@@ -85,12 +85,26 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(true);
     setError(null);
 
-    const res = await notificationService.getMisNotificaciones(20, null, null);
+    const [res, criticas] = await Promise.all([
+      notificationService.getMisNotificaciones(20, null, null),
+      notificationService.getNotificacionesCriticasNoLeidas(),
+    ]);
 
     if (fetchId !== activeFetchRef.current) return;
 
     if (res.ok) {
-      setNotifications(res.data);
+      // Priorizar e integrar cualquier notificación crítica no leída sin duplicar
+      const criticalMap = new Map<string, InboxNotificationItem>();
+      criticas.forEach((c) => criticalMap.set(c.id, c));
+
+      const combined: InboxNotificationItem[] = [...criticas];
+      res.data.forEach((item) => {
+        if (!criticalMap.has(item.id)) {
+          combined.push(item);
+        }
+      });
+
+      setNotifications(combined);
       setHasMore(res.hasMore);
       setNextCursor(res.nextCursor || null);
     } else {
@@ -176,9 +190,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    // Usuario permanente autenticado: carga inicial de contador
+    // Usuario permanente autenticado: carga inicial de contador y notificaciones críticas / recientes
     fetchUnreadCount();
-  }, [authLoading, isPermanentUser, user?.id, fetchUnreadCount]);
+    fetchNotifications(true);
+  }, [authLoading, isPermanentUser, user?.id, fetchUnreadCount, fetchNotifications]);
 
   const isOpenRef = useRef(isOpen);
   isOpenRef.current = isOpen;
@@ -198,19 +213,18 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Capturar INSERT y UPDATE para sincronización en vivo y multi-dispositivo
           schema: 'public',
           table: 'inbox_notifications',
           filter: `recipient_user_id=eq.${user.id}`,
         },
         (change) => {
           fetchUnreadCountRef.current();
-          if (isOpenRef.current) {
-            fetchNotificationsRef.current(true);
-          }
+          // Actualizar notificaciones siempre para detectar avisos críticos o lecturas remotas
+          fetchNotificationsRef.current(true);
 
           const newRow = change?.new as any;
-          if (newRow && (newRow.target_type === 'encounter' || newRow.notification_type === 'match_found')) {
+          if (change.eventType === 'INSERT' && newRow && (newRow.target_type === 'encounter' || newRow.notification_type === 'match_found')) {
             const isMatch =
               newRow.notification_type === 'match_found' ||
               newRow.notification_type === 'match_alert' ||
@@ -257,65 +271,77 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [isPermanentUser, user?.id]);
 
-  // 7. Revalidación al volver a primer plano (visibilitychange)
+  // 7. Revalidación al volver a primer plano (visibilitychange) y recuperación de red (online)
   useEffect(() => {
     if (!isPermanentUser) return;
 
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        fetchUnreadCount();
+    const handleSync = async () => {
+      fetchUnreadCount();
+      fetchNotifications(true);
 
-        // Si hay listeners de match en vivo activos (ej. Home con Discovery en pantalla)
-        if (matchListenersRef.current.size > 0) {
-          try {
-            const res = await notificationService.getMisNotificaciones(5, null, null);
-            if (res.ok && res.data) {
-              const recentMatches = res.data.filter((n) => {
-                if (n.isRead) return false;
-                return (
-                  n.notificationType === 'match_found' ||
-                  n.notificationType === 'intention_converted_to_encounter' ||
-                  n.notificationType === 'interes_convertido' ||
-                  (n.targetType === 'encounter' && Boolean((n.payload as any)?.primary_source === 'intention'))
-                );
-              });
+      // Si hay listeners de match en vivo activos (ej. Home con Discovery en pantalla)
+      if (matchListenersRef.current.size > 0) {
+        try {
+          const res = await notificationService.getMisNotificaciones(5, null, null);
+          if (res.ok && res.data) {
+            const recentMatches = res.data.filter((n) => {
+              if (n.isRead) return false;
+              return (
+                n.notificationType === 'match_found' ||
+                n.notificationType === 'intention_converted_to_encounter' ||
+                n.notificationType === 'interes_convertido' ||
+                (n.targetType === 'encounter' && Boolean((n.payload as any)?.primary_source === 'intention'))
+              );
+            });
 
-              for (const n of recentMatches) {
-                const rawPayload = n.payload as any;
-                const encounterId =
-                  n.targetId ||
-                  rawPayload?.encounter_id ||
-                  rawPayload?.encounterId ||
-                  rawPayload?.data?.encounterId ||
-                  rawPayload?.data?.encounter_id;
+            for (const n of recentMatches) {
+              const rawPayload = n.payload as any;
+              const encounterId =
+                n.targetId ||
+                rawPayload?.encounter_id ||
+                rawPayload?.encounterId ||
+                rawPayload?.data?.encounterId ||
+                rawPayload?.data?.encounter_id;
 
-                if (encounterId) {
-                  matchListenersRef.current.forEach((listener) => {
-                    try {
-                      listener({
-                        encounterId: String(encounterId),
-                        notificationId: n.id,
-                        payload: rawPayload,
-                      });
-                    } catch (err) {
-                      console.error('[NotificationsContext] Error notificando match listener en revalidación:', err);
-                    }
-                  });
-                }
+              if (encounterId) {
+                matchListenersRef.current.forEach((listener) => {
+                  try {
+                    listener({
+                      encounterId: String(encounterId),
+                      notificationId: n.id,
+                      payload: rawPayload,
+                    });
+                  } catch (err) {
+                    console.error('[NotificationsContext] Error notificando match listener en revalidación:', err);
+                  }
+                });
               }
             }
-          } catch (err) {
-            console.warn('[NotificationsContext] Error revalidando matches al volver a primer plano:', err);
           }
+        } catch (err) {
+          console.warn('[NotificationsContext] Error revalidando matches al volver a primer plano:', err);
         }
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void handleSync();
+      }
+    };
+
+    const handleOnline = () => {
+      void handleSync();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
-  }, [isPermanentUser, fetchUnreadCount]);
+  }, [isPermanentUser, fetchUnreadCount, fetchNotifications]);
 
   // 8. Revalidación al abrir la bandeja
   useEffect(() => {

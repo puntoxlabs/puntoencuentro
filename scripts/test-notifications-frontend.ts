@@ -338,4 +338,159 @@ describe('Fase 1.5: UI Mínima de Notificaciones In-App', () => {
       assert.equal(res.replacedUrl, null);
     });
   });
+
+  // -------------------------------------------------------------
+  // 7. LÓGICA DE DETECCIÓN Y MODAL CRÍTICO (H8)
+  // -------------------------------------------------------------
+  describe('7. Detección y Selección de Notificaciones Críticas (H8)', () => {
+    function findCriticalNotification(notifications: InboxNotificationItem[]) {
+      return notifications.find(
+        (n) =>
+          !n.isRead &&
+          (n.notificationType === 'encounter_cancelled_for_participant' ||
+            n.notificationType === 'open_encounter_request_cancelled_by_host' ||
+            (n.notificationType === 'encounter_schedule_changed' && !(n.payload as any)?.is_applicant) ||
+            (n.payload && (n.payload as any).priority === 'critical' && !(n.payload as any)?.is_applicant))
+      );
+    }
+
+    test('Identifica cancelación para participante confirmado', () => {
+      const notifs: InboxNotificationItem[] = [
+        {
+          id: 'c1',
+          notificationType: 'encounter_cancelled_for_participant',
+          targetType: 'encounter',
+          targetId: 'enc-1',
+          deepLink: '/?open_detail=enc-1',
+          title: 'Encuentro cancelado',
+          body: 'El encuentro ha sido cancelado.',
+          payload: { cancellation_reason: 'Lluvia' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T12:00:00Z',
+        },
+      ];
+      const crit = findCriticalNotification(notifs);
+      assert.ok(crit);
+      assert.equal(crit.id, 'c1');
+    });
+
+    test('Identifica cambio crítico de fecha/horario para participante confirmado', () => {
+      const notifs: InboxNotificationItem[] = [
+        {
+          id: 's1',
+          notificationType: 'encounter_schedule_changed',
+          targetType: 'encounter',
+          targetId: 'enc-2',
+          deepLink: '/?open_detail=enc-2',
+          title: 'Cambio de fecha u horario',
+          body: 'El organizador cambió el horario.',
+          payload: { date_label: '15/11/2026 19:00', priority: 'critical' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T12:00:00Z',
+        },
+      ];
+      const crit = findCriticalNotification(notifs);
+      assert.ok(crit);
+      assert.equal(crit.id, 's1');
+    });
+
+    test('NO activa modal bloqueante para solicitante pendiente en cambio de horario', () => {
+      const notifs: InboxNotificationItem[] = [
+        {
+          id: 's-app',
+          notificationType: 'encounter_schedule_changed',
+          targetType: 'encounter',
+          targetId: 'enc-3',
+          deepLink: '/?open_detail=enc-3',
+          title: 'Cambio de fecha u horario',
+          body: 'El organizador modificó la fecha.',
+          payload: { is_applicant: true, public_zone: 'Palermo' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T12:00:00Z',
+        },
+      ];
+      const crit = findCriticalNotification(notifs);
+      assert.equal(crit, undefined);
+    });
+
+    test('NO activa modal bloqueante para cambios puramente logísticos (dirección/link)', () => {
+      const notifs: InboxNotificationItem[] = [
+        {
+          id: 'log-1',
+          notificationType: 'encounter_logistics_changed',
+          targetType: 'encounter',
+          targetId: 'enc-4',
+          deepLink: '/?open_detail=enc-4',
+          title: 'Actualización de punto de encuentro',
+          body: 'Se actualizó la ubicación.',
+          payload: { change_type: 'logistics' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T12:00:00Z',
+        },
+      ];
+      const crit = findCriticalNotification(notifs);
+      assert.equal(crit, undefined);
+    });
+
+    test('Múltiples avisos críticos: muestra el primero y tras ser reconocido muestra el segundo', () => {
+      const notifs: InboxNotificationItem[] = [
+        {
+          id: 'c1',
+          notificationType: 'encounter_cancelled_for_participant',
+          targetType: 'encounter',
+          targetId: 'enc-1',
+          deepLink: '/?open_detail=enc-1',
+          title: 'Encuentro cancelado 1',
+          body: 'Cancelado 1',
+          payload: {},
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T10:00:00Z',
+        },
+        {
+          id: 'c2',
+          notificationType: 'encounter_schedule_changed',
+          targetType: 'encounter',
+          targetId: 'enc-2',
+          deepLink: '/?open_detail=enc-2',
+          title: 'Cambio fecha 2',
+          body: 'Reprogramado 2',
+          payload: { priority: 'critical' },
+          readAt: null,
+          isRead: false,
+          expiresAt: '2026-12-01T00:00:00Z',
+          createdAt: '2026-10-16T11:00:00Z',
+        },
+      ];
+
+      // Paso 1: Encuentra la primera
+      const first = findCriticalNotification(notifs);
+      assert.equal(first?.id, 'c1');
+
+      // Paso 2: Usuario reconoce la primera
+      notifs[0].isRead = true;
+      notifs[0].readAt = '2026-10-16T12:00:00Z';
+
+      // Paso 3: Siguiente evaluación encuentra la segunda
+      const second = findCriticalNotification(notifs);
+      assert.equal(second?.id, 'c2');
+
+      // Paso 4: Usuario reconoce la segunda
+      notifs[1].isRead = true;
+      notifs[1].readAt = '2026-10-16T12:01:00Z';
+
+      // Paso 5: No quedan críticas pendientes
+      const none = findCriticalNotification(notifs);
+      assert.equal(none, undefined);
+    });
+  });
 });
