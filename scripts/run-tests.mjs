@@ -129,6 +129,9 @@ try {
   await server.ssrLoadModule('./scripts/test-lifecycle-notifications-h4-h6-h7.ts');
   console.log('✅ H4/H6/H7: Cancellation integrity, lifecycle cycle notifications & safe navigation tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-pre-staging-verification-h1-h10.ts');
+  console.log('✅ Pre-Staging Verification: H1-H10 Migrations, Notifications Dedup & Safe Navigation tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

@@ -623,38 +623,78 @@ BEGIN
         WHERE id = v_participante_id;
     ELSE
         v_token_invitacion := pg_catalog.gen_random_uuid();
+        v_participante_id := pg_catalog.gen_random_uuid();
         INSERT INTO public.participantes (
+            id,
             encuentro_id,
             user_id,
             nombre_invitado,
             rol,
+            tipo_invitacion,
             estado,
             token_invitacion,
             seat_count,
+            reconfirmation_status,
             created_at,
             updated_at
         ) VALUES (
+            v_participante_id,
             v_encuentro.id,
             v_solicitud.usuario_id,
             v_solicitud.nombre_solicitante,
             'invitado',
+            'individual',
             'confirmado',
             v_token_invitacion,
             v_req_seats,
+            'pending',
             v_now,
             v_now
-        )
-        RETURNING id INTO v_participante_id;
+        );
     END IF;
 
-    -- 7. Actualizar la solicitud a approved
-    UPDATE public.solicitudes_encuentro_abierto
-    SET estado = 'approved',
-        participante_id = v_participante_id,
-        token_participante = v_token_invitacion,
-        resolved_at = v_now,
-        updated_at = v_now
-    WHERE id = p_request_id;
+    -- 7. Actualizar la solicitud a approved con protección contra carreras
+    BEGIN
+        UPDATE public.solicitudes_encuentro_abierto
+        SET estado = 'approved',
+            participante_id = v_participante_id,
+            token_participante = v_token_invitacion,
+            resolved_at = v_now,
+            updated_at = v_now
+        WHERE id = p_request_id
+          AND estado = 'pending';
+    EXCEPTION
+        WHEN unique_violation THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'request_already_processed');
+    END;
+
+    -- 8. Insertar Domain Event en Outbox (auditoría / replay)
+    INSERT INTO public.domain_events_outbox (
+        event_type,
+        event_version,
+        aggregate_type,
+        aggregate_id,
+        actor_user_id,
+        payload,
+        dedup_key,
+        status
+    ) VALUES (
+        'encounter.join_request.approved.v1',
+        1,
+        'encounter',
+        v_encuentro.id,
+        v_user_id,
+        pg_catalog.jsonb_build_object(
+            'request_id', p_request_id,
+            'encounter_id', v_encuentro.id,
+            'applicant_id', v_solicitud.usuario_id,
+            'host_id', v_user_id,
+            'seat_count', v_req_seats
+        ),
+        pg_catalog.format('encounter:%s:join_request_approved:%s', v_encuentro.id, p_request_id),
+        'pending'
+    )
+    ON CONFLICT (dedup_key) DO NOTHING;
 
     v_title := COALESCE(v_encuentro.open_public_title, v_encuentro.titulo, 'Encuentro');
     v_datetime_label := CASE
