@@ -138,6 +138,9 @@ try {
   await server.ssrLoadModule('./scripts/test-microfix-reconfirmation-and-rate-limiting.ts');
   console.log('✅ Post-H1-H10 Microfix: Reconfirmation reset on re-approval & hardened fail-closed rate limiting tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-h2-h3-restored-guards.ts');
+  console.log('✅ H2/H3 Restored Guards: Security controls, invariants & concurrency tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
