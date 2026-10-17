@@ -130,10 +130,8 @@ describe('H4 / H6 / H7: Cancelaciones, Notificaciones por Ciclos y Navegación S
       CREATE TABLE IF NOT EXISTS public.participantes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
-        usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
         user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
         nombre_invitado TEXT NOT NULL,
-        rol TEXT DEFAULT 'invitado',
         estado TEXT NOT NULL DEFAULT 'pendiente',
         token_invitacion UUID DEFAULT gen_random_uuid(),
         seat_count INT NOT NULL DEFAULT 1,
@@ -142,8 +140,6 @@ describe('H4 / H6 / H7: Cancelaciones, Notificaciones por Ciclos y Navegación S
         mensaje_respuesta TEXT,
         tipo_invitacion TEXT DEFAULT 'individual',
         respondido_en TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
         creado_en TIMESTAMPTZ DEFAULT now() NOT NULL
       );
 
@@ -282,6 +278,12 @@ describe('H4 / H6 / H7: Cancelaciones, Notificaciones por Ciclos y Navegación S
       'utf8'
     );
     await db.exec(migH4H6H7);
+
+    const migLatestFix = fs.readFileSync(
+      path.join(__dirname, '../supabase/migrations/20261016220000_fix_reconfirmation_and_hardened_rate_limiting.sql'),
+      'utf8'
+    );
+    await db.exec(migLatestFix);
   });
 
   async function setAuthContext(userId: string | null, isAnon = false) {

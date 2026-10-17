@@ -140,7 +140,6 @@ describe('H2 / H3: Seguridad de RPCs Antiguos, Concurrencia y Orden de Bloqueos'
       CREATE TABLE IF NOT EXISTS public.participantes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
-        usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
         user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
         nombre_invitado TEXT NOT NULL,
         estado TEXT NOT NULL DEFAULT 'pendiente',

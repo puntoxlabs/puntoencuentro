@@ -132,6 +132,12 @@ try {
   await server.ssrLoadModule('./scripts/test-pre-staging-verification-h1-h10.ts');
   console.log('✅ Pre-Staging Verification: H1-H10 Migrations, Notifications Dedup & Safe Navigation tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-schema-parity-guard.ts');
+  console.log('✅ Schema Parity Guard: Staging schema compatibility & mock parity tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-microfix-reconfirmation-and-rate-limiting.ts');
+  console.log('✅ Post-H1-H10 Microfix: Reconfirmation reset on re-approval & hardened fail-closed rate limiting tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

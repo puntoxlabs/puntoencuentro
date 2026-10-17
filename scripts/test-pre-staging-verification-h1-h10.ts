@@ -102,22 +102,16 @@ test('Pre-Staging Verification: H1-H10 Migrations, Notifications Dedup & Safe Na
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
       user_id UUID,
-      usuario_id UUID,
-      nombre_invitado TEXT,
-      rol TEXT DEFAULT 'invitado',
+      nombre_invitado TEXT NOT NULL,
       tipo_invitacion TEXT DEFAULT 'individual',
-      estado TEXT DEFAULT 'pendiente',
       token_invitacion UUID DEFAULT gen_random_uuid(),
-      seat_count INT DEFAULT 1,
-      reconfirmation_status TEXT DEFAULT 'pending',
-      reconfirmed_at TIMESTAMPTZ,
+      estado TEXT NOT NULL DEFAULT 'pendiente',
       mensaje_respuesta TEXT,
-      motivo_baja TEXT,
-      motivo_baja_privado TEXT,
-      motivo_baja_updated_at TIMESTAMPTZ,
-      creado_en TIMESTAMPTZ DEFAULT NOW(),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
+      respondido_en TIMESTAMPTZ,
+      creado_en TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      seat_count INT NOT NULL DEFAULT 1,
+      reconfirmation_status TEXT DEFAULT 'pending',
+      reconfirmed_at TIMESTAMPTZ
     );
 
     CREATE TABLE IF NOT EXISTS public.solicitudes_encuentro_abierto (
@@ -211,17 +205,69 @@ test('Pre-Staging Verification: H1-H10 Migrations, Notifications Dedup & Safe Na
     END;
     $$;
 
-    CREATE OR REPLACE FUNCTION public.verificar_y_consumir_rate_limit(
-      p_user_id UUID,
+    CREATE TABLE IF NOT EXISTS public.rate_limit_policies (
+      action TEXT PRIMARY KEY,
+      max_requests INTEGER NOT NULL CHECK (max_requests > 0),
+      window_seconds INTEGER NOT NULL CHECK (window_seconds > 0),
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.rate_limit_buckets (
+      action TEXT NOT NULL REFERENCES public.rate_limit_policies(action) ON DELETE CASCADE,
+      user_id UUID NOT NULL,
+      scope_key TEXT NOT NULL DEFAULT '',
+      window_start TIMESTAMPTZ NOT NULL,
+      request_count INTEGER NOT NULL DEFAULT 1,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (action, user_id, scope_key, window_start)
+    );
+
+    INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
+    VALUES ('join_open_encounter', 12, 3600, true)
+    ON CONFLICT (action) DO NOTHING;
+
+    CREATE OR REPLACE FUNCTION public.check_rate_limit_internal(
       p_action TEXT,
-      p_limit INT,
-      p_window INTERVAL
+      p_scope_key TEXT DEFAULT ''
     )
-    RETURNS JSONB AS $$
+    RETURNS JSONB
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = ''
+    AS $$
+    DECLARE
+      v_user_id UUID := auth.uid();
+      v_policy RECORD;
+      v_window_start TIMESTAMPTZ;
     BEGIN
+      IF v_user_id IS NULL THEN
+        RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'authentication_required');
+      END IF;
+      SELECT max_requests, window_seconds, enabled INTO v_policy
+      FROM public.rate_limit_policies WHERE action = p_action;
+      IF NOT FOUND THEN
+        RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'rate_limit_policy_not_found');
+      END IF;
+      IF v_policy.enabled = false THEN
+        RETURN pg_catalog.jsonb_build_object('allowed', true, 'disabled', true);
+      END IF;
+      v_window_start := pg_catalog.to_timestamp(
+        pg_catalog.floor(extract(epoch from pg_catalog.now()) / v_policy.window_seconds) * v_policy.window_seconds
+      );
+      INSERT INTO public.rate_limit_buckets (action, user_id, scope_key, window_start, request_count, updated_at)
+      VALUES (p_action, v_user_id, COALESCE(p_scope_key, ''), v_window_start, 1, pg_catalog.now())
+      ON CONFLICT (action, user_id, scope_key, window_start)
+      DO UPDATE SET request_count = public.rate_limit_buckets.request_count + 1, updated_at = pg_catalog.now()
+      WHERE public.rate_limit_buckets.request_count < v_policy.max_requests;
+      IF NOT FOUND THEN
+        RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'rate_limit_exceeded');
+      END IF;
       RETURN pg_catalog.jsonb_build_object('allowed', true);
+    EXCEPTION WHEN OTHERS THEN
+      RETURN pg_catalog.jsonb_build_object('allowed', false, 'error', 'rate_limit_error');
     END;
-    $$ LANGUAGE plpgsql;
+    $$;
   `);
 
   // 2. Aplicar migraciones previas necesarias para get_encuentro_participante_autorizado
@@ -340,6 +386,10 @@ test('Pre-Staging Verification: H1-H10 Migrations, Notifications Dedup & Safe Na
   const migH6H7 = readMigration('supabase/migrations/20261016200000_harden_lifecycle_transitions_and_navigation_h6_h7.sql');
   await db.exec(migH6H7);
   console.log('  ✔ 20261016200000_harden_lifecycle_transitions_and_navigation_h6_h7.sql aplicada correctamente.');
+
+  const migLatest = readMigration('supabase/migrations/20261016220000_fix_reconfirmation_and_hardened_rate_limiting.sql');
+  await db.exec(migLatest);
+  console.log('  ✔ 20261016220000_fix_reconfirmation_and_hardened_rate_limiting.sql aplicada correctamente.');
 
   // Constantes de prueba
   const hostId = '11111111-1111-4111-8111-111111111111';
