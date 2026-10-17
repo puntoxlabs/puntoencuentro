@@ -33,3 +33,7 @@ dist-ssr
 # Supabase
 supabase/.temp/
 supabase/.branches/
+
+# QA evidence artifacts
+qa-evidence/
+

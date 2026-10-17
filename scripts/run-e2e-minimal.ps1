@@ -1,0 +1,26 @@
+# Runner de PowerShell para Prueba Mínima E2E en Staging
+param(
+    [string]$BypassSecret = $env:VERCEL_AUTOMATION_BYPASS_SECRET
+)
+
+$ErrorActionPreference = "Stop"
+
+if (-not $BypassSecret -or $BypassSecret.Trim() -eq "") {
+    Write-Host ""
+    Write-Host "❌ ERROR: No se detectó la variable VERCEL_AUTOMATION_BYPASS_SECRET." -ForegroundColor Red
+    Write-Host "Por favor configúrela en su sesión de PowerShell antes de ejecutar:" -ForegroundColor Yellow
+    Write-Host '   $env:VERCEL_AUTOMATION_BYPASS_SECRET = "<su-secreto-de-bypass>"' -ForegroundColor Cyan
+    Write-Host "   .\scripts\run-e2e-minimal.ps1" -ForegroundColor Cyan
+    Write-Host ""
+    exit 1
+}
+
+$env:VERCEL_AUTOMATION_BYPASS_SECRET = $BypassSecret
+
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "Iniciando Prueba Mínima E2E en Staging (Playwright + Chromium)" -ForegroundColor Cyan
+Write-Host "Target: https://staging.puntoencuentro.com.ar" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host ""
+
+npx --workspaces=false tsx scripts/e2e-minimal-test.ts
