@@ -141,6 +141,12 @@ try {
   await server.ssrLoadModule('./scripts/test-h2-h3-restored-guards.ts');
   console.log('✅ H2/H3 Restored Guards: Security controls, invariants & concurrency tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-internal-invitations-backend.ts');
+  console.log('✅ Internal Invitations V1: Backend, RLS, idempotency & edge cases tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-internal-invitations-frontend.tsx');
+  console.log('✅ Internal Invitations V1: Frontend, UI & privacy invariants tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
