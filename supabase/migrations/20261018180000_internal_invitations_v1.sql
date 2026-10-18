@@ -882,6 +882,8 @@ BEGIN
         SELECT * INTO v_part FROM public.participantes WHERE id = v_inv.participante_id;
     END IF;
 
+    -- Proteger logística privada: si el consultante no es el anfitrión y la invitación
+    -- no ha sido aceptada, ocultar lugar_texto y link_virtual.
     RETURN pg_catalog.jsonb_build_object(
         'ok', true,
         'invitacion', pg_catalog.jsonb_build_object(
@@ -893,7 +895,7 @@ BEGIN
             'expira_en', v_inv.expira_en,
             'created_at', v_inv.created_at,
             'is_host', (v_inv.host_id = v_user_id),
-            'token_invitacion', v_part.token_invitacion
+            'token_invitacion', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_part.token_invitacion ELSE NULL END)
         ),
         'encuentro', pg_catalog.jsonb_build_object(
             'id', v_encuentro.id,
@@ -902,7 +904,8 @@ BEGIN
             'fecha', v_encuentro.fecha,
             'hora', v_encuentro.hora,
             'modalidad', v_encuentro.modalidad,
-            'lugar_texto', v_encuentro.lugar_texto,
+            'lugar_texto', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.lugar_texto ELSE NULL END),
+            'link_virtual', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.link_virtual ELSE NULL END),
             'date_mode', v_encuentro.date_mode,
             'estado', v_encuentro.estado,
             'tema', v_encuentro.tema,

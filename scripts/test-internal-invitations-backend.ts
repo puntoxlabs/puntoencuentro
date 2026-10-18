@@ -362,6 +362,18 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
     assert.equal(res1.ok, true);
     assert.equal(res1.invitacion.id, invId);
     assert.equal(res1.encuentro.titulo, 'Picnic de Primavera');
+    // Invariante de Privacidad: lugar_texto debe ser NULL mientras la invitación esté pendiente
+    assert.equal(res1.encuentro.lugar_texto, null);
+    assert.equal(res1.invitacion.token_invitacion, null);
+
+    // Host sí puede ver la logística completa en el detalle
+    await setAuthContext(hostUser, false);
+    const hostDetail = await db.query<{ result: any }>(`
+      SELECT public.get_detalle_invitacion_interna_seguro('${invId}') as result;
+    `);
+    const resHost = parseResult(hostDetail.rows[0].result);
+    assert.equal(resHost.ok, true);
+    assert.equal(resHost.encuentro.lugar_texto, 'Plaza Central');
 
     // Tercero no autorizado
     await setAuthContext(otherUser, false);
@@ -388,6 +400,15 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
     const res = parseResult(acceptRes.rows[0].result);
     assert.equal(res.ok, true);
     assert.equal(res.estado, 'aceptada');
+
+    // Comprobar que una vez aceptada, el invitado ahora SÍ tiene acceso a lugar_texto
+    const acceptedDetail = await db.query<{ result: any }>(`
+      SELECT public.get_detalle_invitacion_interna_seguro('${invId}') as result;
+    `);
+    const resAcceptedDetail = parseResult(acceptedDetail.rows[0].result);
+    assert.equal(resAcceptedDetail.ok, true);
+    assert.equal(resAcceptedDetail.encuentro.lugar_texto, 'Plaza Central');
+    assert.ok(resAcceptedDetail.invitacion.token_invitacion);
 
     // Comprobar estado en tabla invitaciones_internas
     const updatedInv = await db.query<any>(`
