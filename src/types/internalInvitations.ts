@@ -61,8 +61,9 @@ export interface InternalInvitationDetail {
 
 export interface SendInternalInvitationResponse {
   ok: boolean;
-  sent: boolean;
+  sent?: boolean;
   invitation_id?: string;
+  request_id?: string;
   message?: string;
   error?: string;
 }

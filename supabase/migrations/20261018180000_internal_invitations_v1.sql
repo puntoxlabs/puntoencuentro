@@ -1,7 +1,9 @@
 -- ============================================================
 -- Migración: 20261018180000_internal_invitations_v1.sql
 -- Módulo: Invitaciones Internas V1 entre usuarios registrados
--- Tablas: invitaciones_internas
+-- Tablas:
+--   - public.solicitudes_invitacion_interna (solicitudes del organizador, desacopladas)
+--   - public.invitaciones_internas (invitaciones reales exclusivas de usuarios permanentes)
 -- RPCs:
 --   - enviar_invitacion_interna_seguro
 --   - responder_invitacion_interna_seguro
@@ -9,6 +11,7 @@
 --   - get_invitaciones_internas_encuentro_seguro
 --   - get_mis_invitaciones_internas_seguro
 --   - get_detalle_invitacion_interna_seguro
+--   - purgar_solicitudes_invitaciones_antiguas_seguro
 -- Trigger:
 --   - trg_cancelar_invitaciones_on_encuentro_cancel
 -- ============================================================
@@ -16,10 +19,34 @@
 BEGIN;
 
 -- ============================================================
--- 1. TABLA: public.invitaciones_internas
+-- 1. TABLA: public.solicitudes_invitacion_interna
+--    Registra toda solicitud de invitación enviada por el organizador
+--    sin filtrar ni revelar si el correo está registrado en la plataforma.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.solicitudes_invitacion_interna (
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+    encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
+    host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    destinatario_email TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'pendiente'
+        CHECK (estado IN ('pendiente', 'aceptada', 'rechazada', 'cancelada', 'expirada')),
+    invitacion_id UUID,
+    mensaje TEXT,
+    respondido_en TIMESTAMPTZ,
+    cancelado_en TIMESTAMPTZ,
+    expira_en TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.timezone('utc', pg_catalog.now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT pg_catalog.timezone('utc', pg_catalog.now())
+);
+
+-- ============================================================
+-- 2. TABLA: public.invitaciones_internas
+--    Contiene únicamente invitaciones reales vinculadas a usuarios
+--    permanentes registrados y elegibles. No contiene cuentas ficticias.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.invitaciones_internas (
     id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+    solicitud_id UUID REFERENCES public.solicitudes_invitacion_interna(id) ON DELETE CASCADE,
     encuentro_id UUID NOT NULL REFERENCES public.encuentros(id) ON DELETE CASCADE,
     host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     destinatario_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -37,10 +64,37 @@ CREATE TABLE IF NOT EXISTS public.invitaciones_internas (
     CONSTRAINT chk_no_self_invitation CHECK (host_id <> destinatario_id)
 );
 
+-- Vincular clave foránea recíproca de solicitud a invitación real de forma segura
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_solicitudes_invitacion_invitacion_id'
+    ) THEN
+        ALTER TABLE public.solicitudes_invitacion_interna
+            ADD CONSTRAINT fk_solicitudes_invitacion_invitacion_id
+            FOREIGN KEY (invitacion_id) REFERENCES public.invitaciones_internas(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 -- ============================================================
--- 2. ÍNDICES
+-- 3. ÍNDICES DE RENDIMIENTO Y PRIVACIDAD
 -- ============================================================
--- Evita invitaciones duplicadas pendientes para el mismo encuentro y destinatario
+-- Evita solicitudes pendientes duplicadas por correo y encuentro (mismo comportamiento para registrados y no registrados)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_solicitudes_invitacion_unique_pending
+    ON public.solicitudes_invitacion_interna (encuentro_id, destinatario_email)
+    WHERE estado = 'pendiente';
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_invitacion_encuentro
+    ON public.solicitudes_invitacion_interna (encuentro_id, estado, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_invitacion_host
+    ON public.solicitudes_invitacion_interna (host_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_invitacion_expiradas
+    ON public.solicitudes_invitacion_interna (expira_en)
+    WHERE estado = 'pendiente';
+
+-- Índices de invitaciones internas reales
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invitaciones_internas_unique_pending
     ON public.invitaciones_internas (encuentro_id, destinatario_id)
     WHERE estado = 'pendiente';
@@ -56,13 +110,29 @@ CREATE INDEX IF NOT EXISTS idx_invitaciones_internas_expiradas
     WHERE estado = 'pendiente';
 
 -- ============================================================
--- 3. RLS Y PERMISOS
+-- 4. RLS Y SEGURIDAD ESTRICTA
 -- ============================================================
-ALTER TABLE public.invitaciones_internas ENABLE ROW LEVEL SECURITY;
+-- 4a. Solicitudes de invitación (solo el host puede consultarlas)
+ALTER TABLE public.solicitudes_invitacion_interna ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.solicitudes_invitacion_interna FROM PUBLIC, anon;
 
+DROP POLICY IF EXISTS solicitudes_invitacion_interna_select_host ON public.solicitudes_invitacion_interna;
+CREATE POLICY solicitudes_invitacion_interna_select_host
+    ON public.solicitudes_invitacion_interna
+    FOR SELECT
+    TO authenticated
+    USING (
+        auth.uid() = host_id
+        AND COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
+    );
+
+GRANT SELECT ON TABLE public.solicitudes_invitacion_interna TO authenticated;
+GRANT ALL ON TABLE public.solicitudes_invitacion_interna TO service_role;
+
+-- 4b. Invitaciones reales (host o destinatario legítimo)
+ALTER TABLE public.invitaciones_internas ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.invitaciones_internas FROM PUBLIC, anon;
 
--- Solo el anfitrión o el destinatario autenticados pueden ver la invitación
 DROP POLICY IF EXISTS invitaciones_internas_select_parties ON public.invitaciones_internas;
 CREATE POLICY invitaciones_internas_select_parties
     ON public.invitaciones_internas
@@ -77,14 +147,14 @@ GRANT SELECT ON TABLE public.invitaciones_internas TO authenticated;
 GRANT ALL ON TABLE public.invitaciones_internas TO service_role;
 
 -- ============================================================
--- 4. POLÍTICA DE RATE LIMIT DURABLE
+-- 5. POLÍTICA DE RATE LIMIT DURABLE
 -- ============================================================
 INSERT INTO public.rate_limit_policies (action, max_tokens, refill_rate_per_second, bucket_capacity, window_seconds)
 VALUES ('internal_invitation', 20, 0.005555, 20, 3600)
 ON CONFLICT (action) DO NOTHING;
 
 -- ============================================================
--- 5. TRIGGER: Cancelar invitaciones pendientes al cancelar encuentro
+-- 6. TRIGGER: Cancelar invitaciones pendientes al cancelar encuentro
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.trigger_cancelar_invitaciones_on_encuentro_cancel()
 RETURNS TRIGGER
@@ -94,11 +164,26 @@ SET search_path = ''
 AS $$
 BEGIN
     IF NEW.estado = 'cancelado' AND OLD.estado <> 'cancelado' THEN
+        -- Cancelar solicitudes pendientes
+        UPDATE public.solicitudes_invitacion_interna
+        SET estado = 'cancelada',
+            cancelado_en = pg_catalog.timezone('utc', pg_catalog.now()),
+            updated_at = pg_catalog.timezone('utc', pg_catalog.now())
+        WHERE encuentro_id = NEW.id
+          AND estado = 'pendiente';
+
+        -- Cancelar invitaciones reales pendientes
         UPDATE public.invitaciones_internas
         SET estado = 'cancelada',
             cancelado_en = pg_catalog.timezone('utc', pg_catalog.now()),
             updated_at = pg_catalog.timezone('utc', pg_catalog.now())
         WHERE encuentro_id = NEW.id
+          AND estado = 'pendiente';
+
+        -- Limpiar participantes pendientes vinculados
+        DELETE FROM public.participantes
+        WHERE encuentro_id = NEW.id
+          AND tipo_invitacion = 'individual'
           AND estado = 'pendiente';
     END IF;
     RETURN NEW;
@@ -112,7 +197,8 @@ CREATE TRIGGER trg_cancelar_invitaciones_on_encuentro_cancel
     EXECUTE FUNCTION public.trigger_cancelar_invitaciones_on_encuentro_cancel();
 
 -- ============================================================
--- 6. RPC: enviar_invitacion_interna_seguro
+-- 7. RPC: enviar_invitacion_interna_seguro
+--    Respuesta neutra 100% uniforme sin enumeración de cuentas.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.enviar_invitacion_interna_seguro(
     p_encuentro_id UUID,
@@ -128,6 +214,7 @@ DECLARE
     v_user_id UUID := auth.uid();
     v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
     v_clean_email TEXT;
+    v_host_email TEXT;
     v_encuentro public.encuentros%ROWTYPE;
     v_target_user RECORD;
     v_target_name TEXT;
@@ -136,10 +223,13 @@ DECLARE
     v_confirmed_count INT;
     v_expira TIMESTAMPTZ;
     v_encounter_time TIMESTAMPTZ;
+    v_solicitud_id UUID;
     v_inv_id UUID;
     v_part_id UUID;
     v_token UUID;
     v_rl JSONB;
+    v_now TIMESTAMPTZ := pg_catalog.timezone('utc', pg_catalog.now());
+    v_eligible BOOLEAN := false;
 BEGIN
     -- 1. Verificación de identidad y permanencia
     IF v_user_id IS NULL THEN
@@ -193,68 +283,31 @@ BEGIN
         END IF;
     END IF;
 
-    -- 5. Rate limiting defensivo
+    -- 5. Rate limiting defensivo (consume por host)
     v_rl := public.verificar_y_consumir_rate_limit(v_user_id, 'internal_invitation', 20, INTERVAL '1 hour');
     IF NOT COALESCE((v_rl ->> 'allowed')::boolean, true) THEN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'rate_limit_exceeded', 'message', 'Superaste el límite de envíos de invitaciones. Por favor esperá unos minutos.');
     END IF;
 
-    -- 6. Resolución del destinatario en auth.users (sin enumeración)
-    SELECT id, is_anonymous, raw_user_meta_data, email
-    INTO v_target_user
-    FROM auth.users
-    WHERE pg_catalog.lower(email) = v_clean_email
-    LIMIT 1;
-
-    -- Si no existe o es anónimo, responder respuesta exitosa genérica sin revelar su existencia
-    IF NOT FOUND OR v_target_user.is_anonymous IS TRUE THEN
-        RETURN pg_catalog.jsonb_build_object(
-            'ok', true,
-            'sent', false,
-            'message', 'Si el correo corresponde a una cuenta registrada en PuntoEncuentro, recibirá la notificación.'
-        );
-    END IF;
-
-    -- 7. Prevenir auto-invitación
-    IF v_target_user.id = v_user_id THEN
+    -- 6. Prevenir auto-invitación
+    SELECT email INTO v_host_email FROM auth.users WHERE id = v_user_id;
+    IF v_clean_email = pg_catalog.lower(COALESCE(v_host_email, '')) THEN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'self_invitation_not_allowed', 'message', 'No podés invitarte a vos mismo.');
     END IF;
 
-    -- 8. Prevenir invitaciones si existe bloqueo mutuo
+    -- 7. Prevenir solicitudes pendientes duplicadas para este encuentro y correo
+    --    (Se aplica con exactitud idéntica tanto a correos registrados como inexistentes)
     IF EXISTS (
-        SELECT 1 FROM public.bloqueos_usuario
-        WHERE (blocker_id = v_user_id AND blocked_id = v_target_user.id)
-           OR (blocker_id = v_target_user.id AND blocked_id = v_user_id)
-    ) THEN
-        RETURN pg_catalog.jsonb_build_object(
-            'ok', true,
-            'sent', false,
-            'message', 'Si el correo corresponde a una cuenta registrada en PuntoEncuentro, recibirá la notificación.'
-        );
-    END IF;
-
-    -- 9. Verificar si el usuario ya es participante confirmado
-    IF EXISTS (
-        SELECT 1 FROM public.participantes
+        SELECT 1 FROM public.solicitudes_invitacion_interna
         WHERE encuentro_id = p_encuentro_id
-          AND user_id = v_target_user.id
-          AND estado = 'confirmado'
-    ) THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'user_already_participant', 'message', 'El usuario ya es un participante confirmado de este encuentro.');
-    END IF;
-
-    -- 10. Verificar si ya tiene invitación pendiente
-    IF EXISTS (
-        SELECT 1 FROM public.invitaciones_internas
-        WHERE encuentro_id = p_encuentro_id
-          AND destinatario_id = v_target_user.id
+          AND destinatario_email = v_clean_email
           AND estado = 'pendiente'
-          AND expira_en > pg_catalog.timezone('utc', pg_catalog.now())
+          AND expira_en > v_now
     ) THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_already_pending', 'message', 'Ya enviaste una invitación pendiente a este usuario.');
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_already_pending', 'message', 'Ya enviaste una invitación pendiente a este correo.');
     END IF;
 
-    -- 11. Calcular expiración
+    -- 8. Calcular expiración
     IF v_encuentro.date_mode = 'fixed' AND v_encuentro.fecha IS NOT NULL AND v_encuentro.hora IS NOT NULL THEN
         IF v_encounter_time < (pg_catalog.now() + INTERVAL '14 days') THEN
             v_expira := v_encounter_time;
@@ -265,7 +318,77 @@ BEGIN
         v_expira := pg_catalog.now() + INTERVAL '14 days';
     END IF;
 
-    -- 12. Generar identificadores y nombres
+    v_solicitud_id := pg_catalog.gen_random_uuid();
+
+    -- 9. Resolución de destinatario en auth.users
+    SELECT id, is_anonymous, raw_user_meta_data, email
+    INTO v_target_user
+    FROM auth.users
+    WHERE pg_catalog.lower(email) = v_clean_email
+    LIMIT 1;
+
+    -- 10. Si el usuario existe y ya es participante confirmado del encuentro
+    IF FOUND AND v_target_user.id IS NOT NULL THEN
+        IF EXISTS (
+            SELECT 1 FROM public.participantes
+            WHERE encuentro_id = p_encuentro_id
+              AND user_id = v_target_user.id
+              AND estado = 'confirmado'
+        ) THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'user_already_participant', 'message', 'El usuario ya es un participante confirmado de este encuentro.');
+        END IF;
+    END IF;
+
+    -- 11. Evaluar si califica para entrega real de invitación interna:
+    --     Debe existir, no ser anónimo y no tener bloqueo mutuo con el anfitrión.
+    IF FOUND AND v_target_user.id IS NOT NULL AND v_target_user.is_anonymous IS NOT TRUE THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.bloqueos_usuario
+            WHERE (blocker_id = v_user_id AND blocked_id = v_target_user.id)
+               OR (blocker_id = v_target_user.id AND blocked_id = v_user_id)
+        ) THEN
+            v_eligible := true;
+        END IF;
+    END IF;
+
+    -- 12. CASO A: Destinatario no elegible (correo inexistente, cuenta anónima o bloqueo activo)
+    --     Registrar exclusivamente la solicitud del organizador.
+    --     Respuesta neutra con estructura idéntica e identificador válido de solicitud.
+    IF NOT v_eligible THEN
+        INSERT INTO public.solicitudes_invitacion_interna (
+            id,
+            encuentro_id,
+            host_id,
+            destinatario_email,
+            estado,
+            invitacion_id,
+            mensaje,
+            expira_en,
+            created_at,
+            updated_at
+        ) VALUES (
+            v_solicitud_id,
+            p_encuentro_id,
+            v_user_id,
+            v_clean_email,
+            'pendiente',
+            NULL,
+            NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
+            v_expira,
+            v_now,
+            v_now
+        );
+
+        RETURN pg_catalog.jsonb_build_object(
+            'ok', true,
+            'invitation_id', v_solicitud_id,
+            'request_id', v_solicitud_id,
+            'message', 'Si el correo corresponde a una cuenta registrada en PuntoEncuentro, recibirá la notificación en su bandeja.'
+        );
+    END IF;
+
+    -- 13. CASO B: Destinatario elegible (cuenta permanente registrada)
+    --     Crear la invitación real, participante individual pendiente, outbox event e Inbox.
     v_inv_id := pg_catalog.gen_random_uuid();
     v_part_id := pg_catalog.gen_random_uuid();
     v_token := pg_catalog.gen_random_uuid();
@@ -283,7 +406,32 @@ BEGIN
         pg_catalog.split_part(COALESCE(v_host_user.email, 'Organizador'), '@', 1)
     );
 
-    -- 13. Crear registro de participante individual vinculado (estado 'pendiente')
+    -- Registrar solicitud del organizador (inicialmente con invitacion_id NULL para respetar FK recíproca)
+    INSERT INTO public.solicitudes_invitacion_interna (
+        id,
+        encuentro_id,
+        host_id,
+        destinatario_email,
+        estado,
+        invitacion_id,
+        mensaje,
+        expira_en,
+        created_at,
+        updated_at
+    ) VALUES (
+        v_solicitud_id,
+        p_encuentro_id,
+        v_user_id,
+        v_clean_email,
+        'pendiente',
+        NULL,
+        NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
+        v_expira,
+        v_now,
+        v_now
+    );
+
+    -- Registrar participante individual vinculado (estado 'pendiente')
     INSERT INTO public.participantes (
         id,
         encuentro_id,
@@ -301,12 +449,13 @@ BEGIN
         v_token,
         'pendiente',
         v_target_user.id,
-        pg_catalog.timezone('utc', pg_catalog.now())
+        v_now
     );
 
-    -- 14. Crear la invitación interna
+    -- Registrar invitación interna real
     INSERT INTO public.invitaciones_internas (
         id,
+        solicitud_id,
         encuentro_id,
         host_id,
         destinatario_id,
@@ -319,6 +468,7 @@ BEGIN
         updated_at
     ) VALUES (
         v_inv_id,
+        v_solicitud_id,
         p_encuentro_id,
         v_user_id,
         v_target_user.id,
@@ -327,11 +477,16 @@ BEGIN
         v_part_id,
         NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
         v_expira,
-        pg_catalog.timezone('utc', pg_catalog.now()),
-        pg_catalog.timezone('utc', pg_catalog.now())
+        v_now,
+        v_now
     );
 
-    -- 15. Transactional Outbox: Evento de dominio
+    -- Enlazar solicitud con la invitación real creada
+    UPDATE public.solicitudes_invitacion_interna
+    SET invitacion_id = v_inv_id
+    WHERE id = v_solicitud_id;
+
+    -- Transactional Outbox: Evento de dominio
     INSERT INTO public.domain_events_outbox (
         event_type,
         event_version,
@@ -349,6 +504,7 @@ BEGIN
         v_user_id,
         pg_catalog.jsonb_build_object(
             'invitation_id', v_inv_id,
+            'solicitud_id', v_solicitud_id,
             'encuentro_id', p_encuentro_id,
             'host_id', v_user_id,
             'destinatario_id', v_target_user.id,
@@ -359,7 +515,7 @@ BEGIN
         'pending'
     ) ON CONFLICT (dedup_key) DO NOTHING;
 
-    -- 16. Inserción atómica en Inbox del destinatario (alimenta Push sin filtrar datos privados)
+    -- Inserción atómica en Inbox del destinatario
     PERFORM public.insertar_inbox_notification_seguro(
         p_recipient_user_id := v_target_user.id,
         p_notification_type := 'internal_invitation',
@@ -379,11 +535,12 @@ BEGIN
         p_expires_at := v_expira
     );
 
+    -- Respuesta idéntica a la del caso A
     RETURN pg_catalog.jsonb_build_object(
         'ok', true,
-        'sent', true,
-        'invitation_id', v_inv_id,
-        'message', 'Invitación enviada exitosamente.'
+        'invitation_id', v_solicitud_id,
+        'request_id', v_solicitud_id,
+        'message', 'Si el correo corresponde a una cuenta registrada en PuntoEncuentro, recibirá la notificación en su bandeja.'
     );
 END;
 $$;
@@ -392,7 +549,9 @@ REVOKE ALL ON FUNCTION public.enviar_invitacion_interna_seguro(UUID, TEXT, TEXT)
 GRANT EXECUTE ON FUNCTION public.enviar_invitacion_interna_seguro(UUID, TEXT, TEXT) TO authenticated;
 
 -- ============================================================
--- 7. RPC: responder_invitacion_interna_seguro
+-- 8. RPC: responder_invitacion_interna_seguro
+--    Aceptación o rechazo interactivo por parte del destinatario.
+--    Actualiza la invitación real y la solicitud del organizador.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.responder_invitacion_interna_seguro(
     p_invitacion_id UUID,
@@ -448,39 +607,45 @@ BEGIN
             'ok', false,
             'error', 'invitation_not_pending',
             'current_estado', v_inv.estado,
-            'message', 'Esta invitación ya fue ' || v_inv.estado || '.'
+            'message', 'Esta invitación ya no está pendiente.'
         );
     END IF;
 
-    -- 4. Expiración
+    -- 4. Verificación de expiración
     IF v_now >= v_inv.expira_en THEN
         UPDATE public.invitaciones_internas
         SET estado = 'expirada',
             updated_at = v_now
         WHERE id = p_invitacion_id;
 
+        IF v_inv.solicitud_id IS NOT NULL THEN
+            UPDATE public.solicitudes_invitacion_interna
+            SET estado = 'expirada',
+                updated_at = v_now
+            WHERE id = v_inv.solicitud_id;
+        END IF;
+
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_expired', 'message', 'La invitación ha expirado.');
     END IF;
 
-    -- 5. Bloqueo y verificación de encuentro (FOR UPDATE)
+    -- 5. Obtener datos del encuentro
     SELECT * INTO v_encuentro
     FROM public.encuentros
     WHERE id = v_inv.encuentro_id
     FOR UPDATE;
 
     IF NOT FOUND OR v_encuentro.estado <> 'activo' THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'encuentro_not_active', 'message', 'El encuentro ha sido cancelado o ya no está disponible.');
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'encuentro_not_active', 'message', 'El encuentro ya no se encuentra activo.');
     END IF;
 
-    -- 6. Obtener nombre del destinatario
     SELECT raw_user_meta_data, email INTO v_responder_user FROM auth.users WHERE id = v_user_id;
     v_responder_name := COALESCE(
         v_responder_user.raw_user_meta_data ->> 'full_name',
         v_responder_user.raw_user_meta_data ->> 'name',
-        pg_catalog.split_part(v_responder_user.email, '@', 1)
+        pg_catalog.split_part(COALESCE(v_responder_user.email, 'Invitado'), '@', 1)
     );
 
-    -- 7. RAMA: RECHAZADA
+    -- 6. CASO RECHAZADA
     IF p_respuesta = 'rechazada' THEN
         UPDATE public.invitaciones_internas
         SET estado = 'rechazada',
@@ -489,11 +654,17 @@ BEGIN
             updated_at = v_now
         WHERE id = p_invitacion_id;
 
-        IF v_inv.participante_id IS NOT NULL THEN
-            UPDATE public.participantes
-            SET estado = 'rechazado',
+        IF v_inv.solicitud_id IS NOT NULL THEN
+            UPDATE public.solicitudes_invitacion_interna
+            SET estado = 'rechazada',
                 respondido_en = v_now,
-                mensaje_respuesta = NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), '')
+                mensaje = NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
+                updated_at = v_now
+            WHERE id = v_inv.solicitud_id;
+        END IF;
+
+        IF v_inv.participante_id IS NOT NULL THEN
+            DELETE FROM public.participantes
             WHERE id = v_inv.participante_id;
         END IF;
 
@@ -504,6 +675,7 @@ BEGIN
             'internal_invitation.declined.v1', 1, 'invitation', v_inv.id, v_user_id,
             pg_catalog.jsonb_build_object(
                 'invitation_id', v_inv.id,
+                'solicitud_id', v_inv.solicitud_id,
                 'encuentro_id', v_encuentro.id,
                 'responder_id', v_user_id,
                 'responder_name', v_responder_name
@@ -533,9 +705,9 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', true, 'estado', 'rechazada', 'message', 'Has rechazado la invitación.');
     END IF;
 
-    -- 8. RAMA: ACEPTADA
-    -- Si es fecha fija: verificar cupos y marcar confirmado
+    -- 7. CASO ACEPTADA
     IF v_encuentro.date_mode = 'fixed' THEN
+        -- Validar cupos disponibles en fecha fija
         IF v_encuentro.max_participants IS NOT NULL THEN
             SELECT pg_catalog.count(*) INTO v_confirmed_count
             FROM public.participantes
@@ -545,7 +717,7 @@ BEGIN
             IF v_confirmed_count >= v_encuentro.max_participants THEN
                 RETURN pg_catalog.jsonb_build_object(
                     'ok', false,
-                    'error', 'quota_exceeded',
+                    'error', 'no_spots_available',
                     'message', 'El encuentro ya no cuenta con cupos disponibles.'
                 );
             END IF;
@@ -570,13 +742,23 @@ BEGIN
         END IF;
     END IF;
 
-    -- Actualizar invitación a 'aceptada'
+    -- Actualizar invitación real
     UPDATE public.invitaciones_internas
     SET estado = 'aceptada',
         respondido_en = v_now,
         mensaje = NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
         updated_at = v_now
     WHERE id = p_invitacion_id;
+
+    -- Actualizar solicitud del organizador
+    IF v_inv.solicitud_id IS NOT NULL THEN
+        UPDATE public.solicitudes_invitacion_interna
+        SET estado = 'aceptada',
+            respondido_en = v_now,
+            mensaje = NULLIF(pg_catalog.btrim(COALESCE(p_mensaje, '')), ''),
+            updated_at = v_now
+        WHERE id = v_inv.solicitud_id;
+    END IF;
 
     -- Outbox event
     INSERT INTO public.domain_events_outbox (
@@ -585,6 +767,7 @@ BEGIN
         'internal_invitation.accepted.v1', 1, 'invitation', v_inv.id, v_user_id,
         pg_catalog.jsonb_build_object(
             'invitation_id', v_inv.id,
+            'solicitud_id', v_inv.solicitud_id,
             'encuentro_id', v_encuentro.id,
             'responder_id', v_user_id,
             'responder_name', v_responder_name,
@@ -627,7 +810,9 @@ REVOKE ALL ON FUNCTION public.responder_invitacion_interna_seguro(UUID, TEXT, TE
 GRANT EXECUTE ON FUNCTION public.responder_invitacion_interna_seguro(UUID, TEXT, TEXT) TO authenticated;
 
 -- ============================================================
--- 8. RPC: cancelar_invitacion_interna_seguro
+-- 9. RPC: cancelar_invitacion_interna_seguro
+--    Permite al organizador cancelar tanto solicitudes pendientes
+--    (por ID de solicitud) como invitaciones reales pendientes.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.cancelar_invitacion_interna_seguro(
     p_invitacion_id UUID
@@ -640,7 +825,10 @@ AS $$
 DECLARE
     v_user_id UUID := auth.uid();
     v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+    v_solicitud public.solicitudes_invitacion_interna%ROWTYPE;
     v_inv public.invitaciones_internas%ROWTYPE;
+    v_part_id UUID;
+    v_target_id UUID;
     v_now TIMESTAMPTZ := pg_catalog.timezone('utc', pg_catalog.now());
 BEGIN
     IF v_user_id IS NULL THEN
@@ -651,52 +839,120 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_user_not_allowed');
     END IF;
 
+    -- 1. Intentar cancelar por solicitud de invitación (lo habitual desde la vista de organizador)
+    SELECT * INTO v_solicitud
+    FROM public.solicitudes_invitacion_interna
+    WHERE id = p_invitacion_id
+    FOR UPDATE;
+
+    IF FOUND THEN
+        IF v_solicitud.host_id <> v_user_id THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_host');
+        END IF;
+
+        IF v_solicitud.estado <> 'pendiente' THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_pending', 'current_estado', v_solicitud.estado);
+        END IF;
+
+        UPDATE public.solicitudes_invitacion_interna
+        SET estado = 'cancelada',
+            cancelado_en = v_now,
+            updated_at = v_now
+        WHERE id = p_invitacion_id;
+
+        -- Si tenía invitación real asociada, cancelarla también
+        IF v_solicitud.invitacion_id IS NOT NULL THEN
+            UPDATE public.invitaciones_internas
+            SET estado = 'cancelada',
+                cancelado_en = v_now,
+                updated_at = v_now
+            WHERE id = v_solicitud.invitacion_id;
+
+            SELECT participante_id, destinatario_id INTO v_part_id, v_target_id
+            FROM public.invitaciones_internas
+            WHERE id = v_solicitud.invitacion_id;
+
+            IF v_part_id IS NOT NULL THEN
+                DELETE FROM public.participantes
+                WHERE id = v_part_id
+                  AND estado = 'pendiente';
+            END IF;
+
+            -- Domain event
+            INSERT INTO public.domain_events_outbox (
+                event_type, event_version, aggregate_type, aggregate_id, actor_user_id, payload, dedup_key, status
+            ) VALUES (
+                'internal_invitation.cancelled.v1', 1, 'invitation', v_solicitud.invitacion_id, v_user_id,
+                pg_catalog.jsonb_build_object(
+                    'invitation_id', v_solicitud.invitacion_id,
+                    'solicitud_id', v_solicitud.id,
+                    'encuentro_id', v_solicitud.encuentro_id,
+                    'host_id', v_user_id,
+                    'destinatario_id', v_target_id
+                ),
+                'internal_invitation:cancelled:' || v_solicitud.invitacion_id,
+                'pending'
+            ) ON CONFLICT (dedup_key) DO NOTHING;
+        END IF;
+
+        RETURN pg_catalog.jsonb_build_object('ok', true, 'estado', 'cancelada');
+    END IF;
+
+    -- 2. Compatibilidad: si se pasó directamente el ID de la invitación interna real
     SELECT * INTO v_inv
     FROM public.invitaciones_internas
     WHERE id = p_invitacion_id
     FOR UPDATE;
 
-    IF NOT FOUND THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_found');
+    IF FOUND THEN
+        IF v_inv.host_id <> v_user_id THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_host');
+        END IF;
+
+        IF v_inv.estado <> 'pendiente' THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_pending', 'current_estado', v_inv.estado);
+        END IF;
+
+        UPDATE public.invitaciones_internas
+        SET estado = 'cancelada',
+            cancelado_en = v_now,
+            updated_at = v_now
+        WHERE id = p_invitacion_id;
+
+        IF v_inv.solicitud_id IS NOT NULL THEN
+            UPDATE public.solicitudes_invitacion_interna
+            SET estado = 'cancelada',
+                cancelado_en = v_now,
+                updated_at = v_now
+            WHERE id = v_inv.solicitud_id;
+        END IF;
+
+        IF v_inv.participante_id IS NOT NULL THEN
+            DELETE FROM public.participantes
+            WHERE id = v_inv.participante_id
+              AND estado = 'pendiente';
+        END IF;
+
+        -- Domain event
+        INSERT INTO public.domain_events_outbox (
+            event_type, event_version, aggregate_type, aggregate_id, actor_user_id, payload, dedup_key, status
+        ) VALUES (
+            'internal_invitation.cancelled.v1', 1, 'invitation', v_inv.id, v_user_id,
+            pg_catalog.jsonb_build_object(
+                'invitation_id', v_inv.id,
+                'solicitud_id', v_inv.solicitud_id,
+                'encuentro_id', v_inv.encuentro_id,
+                'host_id', v_user_id,
+                'destinatario_id', v_inv.destinatario_id
+            ),
+            'internal_invitation:cancelled:' || v_inv.id,
+            'pending'
+        ) ON CONFLICT (dedup_key) DO NOTHING;
+
+        RETURN pg_catalog.jsonb_build_object('ok', true, 'estado', 'cancelada');
     END IF;
 
-    IF v_inv.host_id <> v_user_id THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_host');
-    END IF;
-
-    IF v_inv.estado <> 'pendiente' THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_pending', 'current_estado', v_inv.estado);
-    END IF;
-
-    UPDATE public.invitaciones_internas
-    SET estado = 'cancelada',
-        cancelado_en = v_now,
-        updated_at = v_now
-    WHERE id = p_invitacion_id;
-
-    -- Eliminar registro de participante si continuaba pendiente
-    IF v_inv.participante_id IS NOT NULL THEN
-        DELETE FROM public.participantes
-        WHERE id = v_inv.participante_id
-          AND estado = 'pendiente';
-    END IF;
-
-    -- Domain event
-    INSERT INTO public.domain_events_outbox (
-        event_type, event_version, aggregate_type, aggregate_id, actor_user_id, payload, dedup_key, status
-    ) VALUES (
-        'internal_invitation.cancelled.v1', 1, 'invitation', v_inv.id, v_user_id,
-        pg_catalog.jsonb_build_object(
-            'invitation_id', v_inv.id,
-            'encuentro_id', v_inv.encuentro_id,
-            'host_id', v_user_id,
-            'destinatario_id', v_inv.destinatario_id
-        ),
-        'internal_invitation:cancelled:' || v_inv.id,
-        'pending'
-    ) ON CONFLICT (dedup_key) DO NOTHING;
-
-    RETURN pg_catalog.jsonb_build_object('ok', true, 'estado', 'cancelada');
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_found');
 END;
 $$;
 
@@ -704,7 +960,10 @@ REVOKE ALL ON FUNCTION public.cancelar_invitacion_interna_seguro(UUID) FROM PUBL
 GRANT EXECUTE ON FUNCTION public.cancelar_invitacion_interna_seguro(UUID) TO authenticated;
 
 -- ============================================================
--- 9. RPC: get_invitaciones_internas_encuentro_seguro
+-- 10. RPC: get_invitaciones_internas_encuentro_seguro
+--     Retorna las solicitudes del organizador para este encuentro.
+--     No distingue entre usuarios registrados y no registrados mientras estén pendientes.
+--     Aplica retención y purga oportunista de solicitudes antiguas en estado terminal.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_invitaciones_internas_encuentro_seguro(
     p_encuentro_id UUID
@@ -730,7 +989,14 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_owner_or_not_found');
     END IF;
 
-    -- Reconciliar expiradas
+    -- Reconciliar expiradas en solicitudes e invitaciones
+    UPDATE public.solicitudes_invitacion_interna
+    SET estado = 'expirada',
+        updated_at = v_now
+    WHERE encuentro_id = p_encuentro_id
+      AND estado = 'pendiente'
+      AND expira_en <= v_now;
+
     UPDATE public.invitaciones_internas
     SET estado = 'expirada',
         updated_at = v_now
@@ -738,22 +1004,28 @@ BEGIN
       AND estado = 'pendiente'
       AND expira_en <= v_now;
 
+    -- Limpieza oportunista: eliminar solicitudes terminadas de más de 30 días
+    DELETE FROM public.solicitudes_invitacion_interna
+    WHERE encuentro_id = p_encuentro_id
+      AND estado IN ('expirada', 'cancelada')
+      AND updated_at < (v_now - INTERVAL '30 days');
+
     SELECT COALESCE(
         pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
-                'id', i.id,
-                'destinatario_email', i.destinatario_email,
-                'estado', i.estado,
-                'mensaje', i.mensaje,
-                'respondido_en', i.respondido_en,
-                'cancelado_en', i.cancelado_en,
-                'expira_en', i.expira_en,
-                'created_at', i.created_at
-            ) ORDER BY i.created_at DESC
+                'id', s.id,
+                'destinatario_email', s.destinatario_email,
+                'estado', s.estado,
+                'mensaje', s.mensaje,
+                'respondido_en', s.respondido_en,
+                'cancelado_en', s.cancelado_en,
+                'expira_en', s.expira_en,
+                'created_at', s.created_at
+            ) ORDER BY s.created_at DESC
         ), '[]'::jsonb
     ) INTO v_invs
-    FROM public.invitaciones_internas i
-    WHERE i.encuentro_id = p_encuentro_id;
+    FROM public.solicitudes_invitacion_interna s
+    WHERE s.encuentro_id = p_encuentro_id;
 
     RETURN pg_catalog.jsonb_build_object('ok', true, 'invitaciones', v_invs);
 END;
@@ -763,7 +1035,8 @@ REVOKE ALL ON FUNCTION public.get_invitaciones_internas_encuentro_seguro(UUID) F
 GRANT EXECUTE ON FUNCTION public.get_invitaciones_internas_encuentro_seguro(UUID) TO authenticated;
 
 -- ============================================================
--- 10. RPC: get_mis_invitaciones_internas_seguro
+-- 11. RPC: get_mis_invitaciones_internas_seguro
+--     Retorna las invitaciones reales recibidas por el usuario autenticado.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_mis_invitaciones_internas_seguro()
 RETURNS JSONB
@@ -819,7 +1092,9 @@ REVOKE ALL ON FUNCTION public.get_mis_invitaciones_internas_seguro() FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.get_mis_invitaciones_internas_seguro() TO authenticated;
 
 -- ============================================================
--- 11. RPC: get_detalle_invitacion_interna_seguro
+-- 12. RPC: get_detalle_invitacion_interna_seguro
+--     Retorna detalle seguro protegiendo logística privada si no fue aceptada.
+--     Compatible tanto para el invitado como para el organizador.
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_detalle_invitacion_interna_seguro(
     p_invitacion_id UUID
@@ -832,6 +1107,7 @@ AS $$
 DECLARE
     v_user_id UUID := auth.uid();
     v_inv public.invitaciones_internas%ROWTYPE;
+    v_solicitud public.solicitudes_invitacion_interna%ROWTYPE;
     v_encuentro public.encuentros%ROWTYPE;
     v_host_user RECORD;
     v_host_name TEXT;
@@ -842,80 +1118,177 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_authenticated');
     END IF;
 
+    -- 1. Buscar en invitaciones_internas (destinatario o host)
     SELECT * INTO v_inv
     FROM public.invitaciones_internas
     WHERE id = p_invitacion_id;
 
-    IF NOT FOUND THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_found');
+    IF FOUND THEN
+        IF v_inv.destinatario_id <> v_user_id AND v_inv.host_id <> v_user_id THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'unauthorized');
+        END IF;
+
+        IF v_now >= v_inv.expira_en AND v_inv.estado = 'pendiente' THEN
+            UPDATE public.invitaciones_internas
+            SET estado = 'expirada',
+                updated_at = v_now
+            WHERE id = p_invitacion_id;
+            v_inv.estado := 'expirada';
+        END IF;
+
+        SELECT * INTO v_encuentro
+        FROM public.encuentros
+        WHERE id = v_inv.encuentro_id;
+
+        SELECT raw_user_meta_data, email INTO v_host_user
+        FROM auth.users
+        WHERE id = v_inv.host_id;
+
+        v_host_name := COALESCE(
+            v_host_user.raw_user_meta_data ->> 'full_name',
+            v_host_user.raw_user_meta_data ->> 'name',
+            pg_catalog.split_part(COALESCE(v_host_user.email, 'Organizador'), '@', 1)
+        );
+
+        IF v_inv.participante_id IS NOT NULL THEN
+            SELECT * INTO v_part FROM public.participantes WHERE id = v_inv.participante_id;
+        END IF;
+
+        -- Proteger logística privada: si el consultante no es el anfitrión y la invitación
+        -- no ha sido aceptada, ocultar lugar_texto y link_virtual.
+        RETURN pg_catalog.jsonb_build_object(
+            'ok', true,
+            'invitacion', pg_catalog.jsonb_build_object(
+                'id', v_inv.id,
+                'estado', v_inv.estado,
+                'mensaje', v_inv.mensaje,
+                'respondido_en', v_inv.respondido_en,
+                'cancelado_en', v_inv.cancelado_en,
+                'expira_en', v_inv.expira_en,
+                'created_at', v_inv.created_at,
+                'is_host', (v_inv.host_id = v_user_id),
+                'token_invitacion', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_part.token_invitacion ELSE NULL END)
+            ),
+            'encuentro', pg_catalog.jsonb_build_object(
+                'id', v_encuentro.id,
+                'titulo', v_encuentro.titulo,
+                'descripcion', v_encuentro.descripcion,
+                'fecha', v_encuentro.fecha,
+                'hora', v_encuentro.hora,
+                'modalidad', v_encuentro.modalidad,
+                'lugar_texto', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.lugar_texto ELSE NULL END),
+                'link_virtual', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.link_virtual ELSE NULL END),
+                'date_mode', v_encuentro.date_mode,
+                'estado', v_encuentro.estado,
+                'tema', v_encuentro.tema,
+                'host_name', v_host_name
+            )
+        );
     END IF;
 
-    -- Solo el destinatario o el host pueden consultar el detalle
-    IF v_inv.destinatario_id <> v_user_id AND v_inv.host_id <> v_user_id THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'unauthorized');
+    -- 2. Buscar en solicitudes_invitacion_interna (organizador consultando su solicitud)
+    SELECT * INTO v_solicitud
+    FROM public.solicitudes_invitacion_interna
+    WHERE id = p_invitacion_id;
+
+    IF FOUND THEN
+        IF v_solicitud.host_id <> v_user_id THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'unauthorized');
+        END IF;
+
+        IF v_now >= v_solicitud.expira_en AND v_solicitud.estado = 'pendiente' THEN
+            UPDATE public.solicitudes_invitacion_interna
+            SET estado = 'expirada',
+                updated_at = v_now
+            WHERE id = p_invitacion_id;
+            v_solicitud.estado := 'expirada';
+        END IF;
+
+        SELECT * INTO v_encuentro
+        FROM public.encuentros
+        WHERE id = v_solicitud.encuentro_id;
+
+        SELECT raw_user_meta_data, email INTO v_host_user
+        FROM auth.users
+        WHERE id = v_solicitud.host_id;
+
+        v_host_name := COALESCE(
+            v_host_user.raw_user_meta_data ->> 'full_name',
+            v_host_user.raw_user_meta_data ->> 'name',
+            pg_catalog.split_part(COALESCE(v_host_user.email, 'Organizador'), '@', 1)
+        );
+
+        RETURN pg_catalog.jsonb_build_object(
+            'ok', true,
+            'invitacion', pg_catalog.jsonb_build_object(
+                'id', v_solicitud.id,
+                'estado', v_solicitud.estado,
+                'mensaje', v_solicitud.mensaje,
+                'respondido_en', v_solicitud.respondido_en,
+                'cancelado_en', v_solicitud.cancelado_en,
+                'expira_en', v_solicitud.expira_en,
+                'created_at', v_solicitud.created_at,
+                'is_host', true,
+                'token_invitacion', NULL
+            ),
+            'encuentro', pg_catalog.jsonb_build_object(
+                'id', v_encuentro.id,
+                'titulo', v_encuentro.titulo,
+                'descripcion', v_encuentro.descripcion,
+                'fecha', v_encuentro.fecha,
+                'hora', v_encuentro.hora,
+                'modalidad', v_encuentro.modalidad,
+                'lugar_texto', v_encuentro.lugar_texto,
+                'link_virtual', v_encuentro.link_virtual,
+                'date_mode', v_encuentro.date_mode,
+                'estado', v_encuentro.estado,
+                'tema', v_encuentro.tema,
+                'host_name', v_host_name
+            )
+        );
     END IF;
 
-    -- Reconciliar expiración si aplica
-    IF v_now >= v_inv.expira_en AND v_inv.estado = 'pendiente' THEN
-        UPDATE public.invitaciones_internas
-        SET estado = 'expirada',
-            updated_at = v_now
-        WHERE id = p_invitacion_id;
-        v_inv.estado := 'expirada';
-    END IF;
-
-    SELECT * INTO v_encuentro
-    FROM public.encuentros
-    WHERE id = v_inv.encuentro_id;
-
-    SELECT raw_user_meta_data, email INTO v_host_user
-    FROM auth.users
-    WHERE id = v_inv.host_id;
-
-    v_host_name := COALESCE(
-        v_host_user.raw_user_meta_data ->> 'full_name',
-        v_host_user.raw_user_meta_data ->> 'name',
-        pg_catalog.split_part(COALESCE(v_host_user.email, 'Organizador'), '@', 1)
-    );
-
-    IF v_inv.participante_id IS NOT NULL THEN
-        SELECT * INTO v_part FROM public.participantes WHERE id = v_inv.participante_id;
-    END IF;
-
-    -- Proteger logística privada: si el consultante no es el anfitrión y la invitación
-    -- no ha sido aceptada, ocultar lugar_texto y link_virtual.
-    RETURN pg_catalog.jsonb_build_object(
-        'ok', true,
-        'invitacion', pg_catalog.jsonb_build_object(
-            'id', v_inv.id,
-            'estado', v_inv.estado,
-            'mensaje', v_inv.mensaje,
-            'respondido_en', v_inv.respondido_en,
-            'cancelado_en', v_inv.cancelado_en,
-            'expira_en', v_inv.expira_en,
-            'created_at', v_inv.created_at,
-            'is_host', (v_inv.host_id = v_user_id),
-            'token_invitacion', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_part.token_invitacion ELSE NULL END)
-        ),
-        'encuentro', pg_catalog.jsonb_build_object(
-            'id', v_encuentro.id,
-            'titulo', v_encuentro.titulo,
-            'descripcion', v_encuentro.descripcion,
-            'fecha', v_encuentro.fecha,
-            'hora', v_encuentro.hora,
-            'modalidad', v_encuentro.modalidad,
-            'lugar_texto', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.lugar_texto ELSE NULL END),
-            'link_virtual', (CASE WHEN v_inv.estado = 'aceptada' OR v_inv.host_id = v_user_id THEN v_encuentro.link_virtual ELSE NULL END),
-            'date_mode', v_encuentro.date_mode,
-            'estado', v_encuentro.estado,
-            'tema', v_encuentro.tema,
-            'host_name', v_host_name
-        )
-    );
+    RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invitation_not_found');
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_detalle_invitacion_interna_seguro(UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_detalle_invitacion_interna_seguro(UUID) TO authenticated;
+
+-- ============================================================
+-- 13. RPC: purgar_solicitudes_invitaciones_antiguas_seguro
+--     Retención acotada y eliminación física de correos en solicitudes
+--     terminales (cancelada o expirada) que superaron el umbral.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.purgar_solicitudes_invitaciones_antiguas_seguro(
+    p_retention_interval INTERVAL DEFAULT INTERVAL '30 days'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_threshold TIMESTAMPTZ := pg_catalog.timezone('utc', pg_catalog.now()) - COALESCE(p_retention_interval, INTERVAL '30 days');
+    v_deleted INT;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'not_authenticated');
+    END IF;
+
+    DELETE FROM public.solicitudes_invitacion_interna
+    WHERE host_id = v_user_id
+      AND estado IN ('cancelada', 'expirada')
+      AND updated_at < v_threshold;
+
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+    RETURN pg_catalog.jsonb_build_object('ok', true, 'deleted_count', v_deleted);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.purgar_solicitudes_invitaciones_antiguas_seguro(INTERVAL) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purgar_solicitudes_invitaciones_antiguas_seguro(INTERVAL) TO authenticated;
 
 COMMIT;

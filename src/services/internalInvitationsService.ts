@@ -25,7 +25,7 @@ export const internalInvitationsService = {
 
     if (error) {
       console.error('[internalInvitationsService] Error enviando invitación:', error);
-      return { ok: false, sent: false, error: error.message };
+      return { ok: false, error: error.message };
     }
 
     const result = typeof data === 'string' ? JSON.parse(data) : data;
