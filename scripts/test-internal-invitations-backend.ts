@@ -70,11 +70,10 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
       -- Base rate limiting & bloqueo tables
       CREATE TABLE IF NOT EXISTS public.rate_limit_policies (
         action TEXT PRIMARY KEY,
-        max_tokens NUMERIC NOT NULL,
-        refill_rate_per_second NUMERIC NOT NULL,
-        bucket_capacity NUMERIC NOT NULL,
+        max_requests INTEGER NOT NULL,
         window_seconds INTEGER NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT now()
+        enabled BOOLEAN DEFAULT true,
+        updated_at TIMESTAMPTZ DEFAULT now()
       );
 
       CREATE OR REPLACE FUNCTION public.verificar_y_consumir_rate_limit(

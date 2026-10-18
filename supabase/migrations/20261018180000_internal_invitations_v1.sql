@@ -149,8 +149,8 @@ GRANT ALL ON TABLE public.invitaciones_internas TO service_role;
 -- ============================================================
 -- 5. POLÍTICA DE RATE LIMIT DURABLE
 -- ============================================================
-INSERT INTO public.rate_limit_policies (action, max_tokens, refill_rate_per_second, bucket_capacity, window_seconds)
-VALUES ('internal_invitation', 20, 0.005555, 20, 3600)
+INSERT INTO public.rate_limit_policies (action, max_requests, window_seconds, enabled)
+VALUES ('internal_invitation', 20, 3600, true)
 ON CONFLICT (action) DO NOTHING;
 
 -- ============================================================
