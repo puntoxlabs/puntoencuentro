@@ -10,6 +10,7 @@ import ShareLink from '@/screens/ShareLink';
 import InviteGuest from '@/screens/InviteGuest';
 import JoinGeneral from '@/screens/JoinGeneral';
 import CancelSummary from '@/screens/CancelSummary';
+import { InternalInvitationGuest } from '@/screens/InternalInvitationGuest';
 import CreateCoordinationWizard from '@/screens/CreateCoordinationWizard';
 import CreateAIWizard from '@/screens/CreateAIWizard';
 import DetailHostCoordination from '@/screens/DetailHostCoordination';
@@ -108,6 +109,7 @@ const AppRoutes: React.FC = () => {
           <InviteCoordination />
         </CoordinationFeatureGate>
       } />
+      <Route path="/invitation/:id" element={<InternalInvitationGuest />} />
       <Route path="/cancel-summary/:id" element={<CancelSummary />} />
       <Route path="/internal/qa" element={<QAGate><InternalQAOverview /></QAGate>} />
       <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />

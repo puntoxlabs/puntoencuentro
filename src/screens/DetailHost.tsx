@@ -40,6 +40,7 @@ import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
+import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import './DetailHost.css';
 
@@ -1451,6 +1452,13 @@ const DetailHost: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Invitaciones Internas en PuntoEncuentro */}
+              <HostInternalInvitationsSection
+                encuentroId={id!}
+                isCancelado={isCancelado}
+                isReadOnly={isReadOnly}
+              />
             </div>
           )}
 

@@ -1,0 +1,244 @@
+.pe-internal-invites-card {
+  padding: 20px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e2e8f0);
+  border-radius: var(--radius-lg, 16px);
+  margin-top: 16px;
+}
+
+.pe-internal-invites-header {
+  margin-bottom: 16px;
+}
+
+.pe-internal-invites-title {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-on-surface, #1e293b);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pe-internal-invites-icon {
+  color: var(--color-primary, #2563eb);
+}
+
+.pe-internal-invites-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #64748b);
+  line-height: 1.4;
+}
+
+.pe-internal-invites-auth-nudge {
+  padding: 14px 16px;
+  background: var(--color-primary-container, #eff6ff);
+  border: 1px solid var(--color-primary-light, #bfdbfe);
+  border-radius: var(--radius-md, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-internal-invites-auth-text {
+  margin: 0;
+  font-size: 13px;
+  color: #1e3a8a;
+  line-height: 1.4;
+}
+
+.pe-internal-invites-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-internal-invites-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pe-internal-invites-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant, #64748b);
+}
+
+.pe-internal-invites-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pe-internal-invites-submit-btn {
+  margin-top: 4px;
+  height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pe-internal-invites-feedback {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.pe-internal-invites-feedback--success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.pe-internal-invites-feedback--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.pe-feedback-icon {
+  flex-shrink: 0;
+}
+
+.pe-internal-invites-list-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-outline-variant, #f1f5f9);
+}
+
+.pe-internal-invites-list-title {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-on-surface, #334155);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pe-internal-invites-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.pe-internal-invites-loading {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.pe-internal-invites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pe-internal-invites-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.pe-internal-invites-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pe-internal-invites-email {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pe-internal-invites-item-msg {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pe-internal-invites-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pe-internal-invites-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pe-internal-invites-badge--pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pe-internal-invites-badge--aceptada {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pe-internal-invites-badge--rechazada {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.pe-internal-invites-badge--cancelada {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.pe-internal-invites-badge--expirada {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.pe-internal-invites-cancel-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.pe-internal-invites-cancel-btn:hover {
+  background-color: #fee2e2;
+}
+
+.pe-internal-invites-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
