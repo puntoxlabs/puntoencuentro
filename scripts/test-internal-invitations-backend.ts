@@ -111,7 +111,7 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
         estado TEXT NOT NULL DEFAULT 'activo',
         tema TEXT DEFAULT 'blue',
         date_mode TEXT DEFAULT 'fixed',
-        spots INT,
+        max_participants INT,
         creado_en TIMESTAMPTZ DEFAULT now() NOT NULL
       );
 
@@ -201,7 +201,7 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
 
     // 3. Crear encuentros de prueba
     const fixedRes = await db.query<{ id: string }>(`
-      INSERT INTO public.encuentros (titulo, host_id, fecha, hora, modalidad, lugar_texto, date_mode, spots)
+      INSERT INTO public.encuentros (titulo, host_id, fecha, hora, modalidad, lugar_texto, date_mode, max_participants)
       VALUES ('Picnic de Primavera', '${hostUser}', (CURRENT_DATE + 3), '15:00:00', 'presencial', 'Plaza Central', 'fixed', 5)
       RETURNING id;
     `);

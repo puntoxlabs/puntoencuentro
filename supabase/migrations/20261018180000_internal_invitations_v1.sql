@@ -182,13 +182,13 @@ BEGIN
     END IF;
 
     -- 4. Verificar cupos disponibles (si aplica)
-    IF v_encuentro.spots IS NOT NULL THEN
+    IF v_encuentro.max_participants IS NOT NULL THEN
         SELECT pg_catalog.count(*) INTO v_confirmed_count
         FROM public.participantes
         WHERE encuentro_id = p_encuentro_id
           AND estado = 'confirmado';
 
-        IF v_confirmed_count >= v_encuentro.spots THEN
+        IF v_confirmed_count >= v_encuentro.max_participants THEN
             RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'no_spots_available', 'message', 'El encuentro ya no cuenta con cupos disponibles.');
         END IF;
     END IF;
@@ -536,13 +536,13 @@ BEGIN
     -- 8. RAMA: ACEPTADA
     -- Si es fecha fija: verificar cupos y marcar confirmado
     IF v_encuentro.date_mode = 'fixed' THEN
-        IF v_encuentro.spots IS NOT NULL THEN
+        IF v_encuentro.max_participants IS NOT NULL THEN
             SELECT pg_catalog.count(*) INTO v_confirmed_count
             FROM public.participantes
             WHERE encuentro_id = v_encuentro.id
               AND estado = 'confirmado';
 
-            IF v_confirmed_count >= v_encuentro.spots THEN
+            IF v_confirmed_count >= v_encuentro.max_participants THEN
                 RETURN pg_catalog.jsonb_build_object(
                     'ok', false,
                     'error', 'quota_exceeded',
