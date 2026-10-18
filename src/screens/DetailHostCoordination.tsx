@@ -13,6 +13,7 @@ import { formatCoordinationDuration } from '@/lib/formatDuration';
 import { useAuth } from '@/contexts/AuthContext';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
+import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -632,6 +633,13 @@ const DetailHostCoordination: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Invitaciones Internas en PuntoEncuentro */}
+            <HostInternalInvitationsSection
+              encuentroId={id!}
+              isCancelado={encuentro.estado === 'cancelado'}
+              isReadOnly={derivedStatus === 'closed' || derivedStatus === 'expired_unconfirmed'}
+            />
 
             {/* Card 3: Respuestas */}
             <div style={{ background: '#ffffff', borderRadius: 20, padding: '24px', border: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
