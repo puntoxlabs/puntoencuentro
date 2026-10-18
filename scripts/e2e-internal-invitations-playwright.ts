@@ -1,17 +1,24 @@
 /**
  * Suite E2E Playwright: Flujo Completo de Invitaciones Internas V1
  *
- * 10 Escenarios comprobados de punta a punta:
- *  1. Creación de encuentro privado en Supabase Staging.
- *  2. Envío de invitación interna desde la UI del organizador.
- *  3. Recepción de notificación en Inbox del invitado.
- *  4. Acceso al detalle desde la notificación en navegador.
- *  5. Aceptación y reflejo en tiempo real en la gestión del organizador.
- *  6. Rechazo de otra invitación y limpieza del participante.
- *  7. Cancelación de una solicitud pendiente por el organizador.
- *  8. Protección de dirección privada antes de aceptar (y revelación posterior).
- *  9. Compatibilidad con coordinación de fechas (token emitido sin fecha fija).
- * 10. Ausencia de enumeración observable ante correos inexistentes.
+ * Cobertura y Metodología:
+ * Esta suite combina navegación real en navegador (Chromium/Playwright) sobre la UI web
+ * con aserciones administrativas y fixtures RPC/DB sobre Supabase Staging:
+ *
+ *  - Navegación e interacción real en UI (Playwright Page):
+ *      * Escenario 2: Host completa formulario y envía invitación por correo en interfaz web.
+ *      * Escenario 3 & 4: Invitado consulta Inbox en UI, hace click en notificación y navega a /invitation/:id.
+ *      * Escenario 5: Invitado pulsa "Aceptar invitación" en UI; host visualiza respuesta en UI en tiempo real.
+ *      * Escenario 6: Invitado pulsa botón "Rechazar" en UI (/invitation/:id); visualiza banner de rechazo.
+ *      * Escenario 8: Verificación en UI de que la dirección física permanece oculta antes de aceptar y se revela tras aceptar.
+ *      * Escenario 9: Invitado visualiza aviso de coordinación de fecha en UI y pulsa "Aceptar invitación".
+ *      * Escenario 10: Host ingresa correo inexistente en formulario UI y recibe mensaje neutral idéntico.
+ *
+ *  - Aserciones administrativas de backend / Fixtures RPC directas (Admin/RPC):
+ *      * Creación/eliminación de usuarios permanentes QA en auth.users (Admin API).
+ *      * Creación de encuentros de prueba vía inserción directa en public.encuentros (DB Fixture).
+ *      * Envío y cancelación programática en escenarios 6, 7 y 9 vía RPC hostClient para validar contratos de base de datos.
+ *      * Verificación de persistencia de filas, estados e invariantes de no-enumeración en solicitudes_invitacion_interna e invitaciones_internas.
  */
 
 import { chromium, type Browser } from 'playwright';

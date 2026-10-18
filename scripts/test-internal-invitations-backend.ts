@@ -194,9 +194,12 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
         ('${anonymousUser}', 'anon@puntoencuentro.com', true, '{"full_name": "Anonimo"}'::jsonb);
     `);
 
-    // 2. Ejecutar la migración bajo prueba
+    // 2. Ejecutar la migración base y la migración aditiva de hardening bajo prueba
     const migPath = path.resolve(process.cwd(), 'supabase/migrations/20261018180000_internal_invitations_v1.sql');
     await db.exec(fs.readFileSync(migPath, 'utf-8'));
+
+    const migHardenPath = path.resolve(process.cwd(), 'supabase/migrations/20261018200000_harden_internal_invitations_direct_select.sql');
+    await db.exec(fs.readFileSync(migHardenPath, 'utf-8'));
 
     // 3. Crear encuentros de prueba
     const fixedRes = await db.query<{ id: string }>(`
@@ -977,5 +980,140 @@ describe('Invitaciones Internas V1 — Backend & Migración Tests (PGlite)', () 
       `);
       assert.equal(purgedCheck.rows.length, 0, 'La solicitud vieja debe haber sido eliminada físicamente');
     });
+
+    test('C8. Seguridad P0: El host NO puede leer directamente public.solicitudes_invitacion_interna', async () => {
+      await setAuthContext(hostUser, false);
+      await db.exec(`SET ROLE authenticated;`);
+
+      try {
+        await assert.rejects(
+          async () => {
+            await db.query(`SELECT invitacion_id FROM public.solicitudes_invitacion_interna;`);
+          },
+          (err: any) => {
+            return err.message.includes('permission denied') || err.message.includes('solicitudes_invitacion_interna');
+          },
+          'SELECT directo a solicitudes_invitacion_interna debe fallar con permission denied para authenticated'
+        );
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+    });
+
+    test('C9. Seguridad P0: El host NO puede leer directamente public.invitaciones_internas', async () => {
+      await setAuthContext(hostUser, false);
+      await db.exec(`SET ROLE authenticated;`);
+
+      try {
+        await assert.rejects(
+          async () => {
+            await db.query(`SELECT * FROM public.invitaciones_internas;`);
+          },
+          (err: any) => {
+            return err.message.includes('permission denied') || err.message.includes('invitaciones_internas');
+          },
+          'SELECT directo a invitaciones_internas debe fallar con permission denied para authenticated'
+        );
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+    });
+
+    test('C10. Seguridad P0: El host SÍ puede consultar el listado neutro mediante RPC segura', async () => {
+      await setAuthContext(hostUser, false);
+      await db.exec(`SET ROLE authenticated;`);
+
+      let rpcRes;
+      try {
+        rpcRes = await db.query<{ result: any }>(`
+          SELECT public.get_invitaciones_internas_encuentro_seguro('${fixedEncuentroId}') as result;
+        `);
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+
+      const parsed = parseResult(rpcRes.rows[0].result);
+      assert.equal(parsed.ok, true, 'El host debe poder invocar la RPC segura');
+      assert.ok(Array.isArray(parsed.invitaciones), 'Debe devolver un arreglo de invitaciones');
+      // Cada item devuelto por la RPC neutra contiene id (de solicitud), destinatario_email y estado neutro, sin exponer invitacion_id
+      for (const item of parsed.invitaciones) {
+        assert.equal(item.invitacion_id, undefined, 'La RPC neutra jamás debe exponer invitacion_id');
+      }
+    });
+
+    test('C11. Seguridad P0: Los invitados pueden seguir consultando y respondiendo invitaciones vía RPCs', async () => {
+      // 1. Invitado consulta sus invitaciones
+      await setAuthContext(recipientUser, false);
+      await db.exec(`SET ROLE authenticated;`);
+      let myInvsRes;
+      try {
+        myInvsRes = await db.query<{ result: any }>(`
+          SELECT public.get_mis_invitaciones_internas_seguro() as result;
+        `);
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+
+      const myInvs = parseResult(myInvsRes.rows[0].result);
+      assert.equal(myInvs.ok, true, 'El invitado debe poder consultar mis_invitaciones vía RPC');
+
+      // 2. Crear un nuevo encuentro y enviar invitación para probar respuesta de invitado
+      await setAuthContext(hostUser, false);
+      const encNew = await db.query<{ id: string }>(`
+        INSERT INTO public.encuentros (titulo, host_id, fecha, hora, modalidad, lugar_texto, date_mode)
+        VALUES ('Cena de Seguridad P0', '${hostUser}', (CURRENT_DATE + 4), '21:00:00', 'presencial', 'Lugar Privado', 'fixed')
+        RETURNING id;
+      `);
+      const newEncId = encNew.rows[0].id;
+
+      await db.exec(`SET ROLE authenticated;`);
+      let sendRes;
+      try {
+        sendRes = await db.query<{ result: any }>(`
+          SELECT public.enviar_invitacion_interna_seguro('${newEncId}', 'invitado@puntoencuentro.com') as result;
+        `);
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+      const sendData = parseResult(sendRes.rows[0].result);
+      assert.equal(sendData.ok, true);
+
+      // Obtener el ID de invitación real desde la base (como service_role o interno)
+      const realInv = await db.query<any>(`
+        SELECT invitacion_id FROM public.solicitudes_invitacion_interna WHERE id = '${sendData.invitation_id}';
+      `);
+      const realInvId = realInv.rows[0].invitacion_id;
+
+      // 3. Invitado consulta detalle vía RPC
+      await setAuthContext(recipientUser, false);
+      await db.exec(`SET ROLE authenticated;`);
+      let detailRes;
+      try {
+        detailRes = await db.query<{ result: any }>(`
+          SELECT public.get_detalle_invitacion_interna_seguro('${realInvId}') as result;
+        `);
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+      const detailData = parseResult(detailRes.rows[0].result);
+      assert.equal(detailData.ok, true, 'El invitado debe poder ver el detalle vía RPC');
+      assert.equal(detailData.encuentro.titulo, 'Cena de Seguridad P0');
+
+      // 4. Invitado responde vía RPC
+      await db.exec(`SET ROLE authenticated;`);
+      let respondRes;
+      try {
+        respondRes = await db.query<{ result: any }>(`
+          SELECT public.responder_invitacion_interna_seguro('${realInvId}', 'aceptada', '¡Allí estaré!') as result;
+        `);
+      } finally {
+        await db.exec(`RESET ROLE;`);
+      }
+      const respondData = parseResult(respondRes.rows[0].result);
+      assert.equal(respondData.ok, true, 'El invitado debe poder aceptar vía responder_invitacion_interna_seguro');
+      assert.equal(respondData.estado, 'aceptada');
+    });
+
   });
 });
+
