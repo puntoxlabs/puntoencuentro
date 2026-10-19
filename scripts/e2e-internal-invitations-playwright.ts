@@ -380,9 +380,20 @@ async function runInternalInvitationsE2E() {
     // =========================================================================
     // ESCENARIO 4 y 8: Acceso al detalle & Protección de logística privada
     // =========================================================================
-    console.log('[5/10] Escenario 4 & 8: Invitado accede al detalle y se verifica privacidad...');
+    console.log('[5/10] Escenario 4 & 8: Invitado visualiza invitación pendiente en Home y accede al detalle...');
     const { page: guestPage } = await createContext(guestUser.session);
-    await guestPage.goto(`${TARGET_URL}/invitation/${invDb.id}`, { waitUntil: 'networkidle' });
+
+    // 1. Navegar a la Home del invitado para comprobar la nueva sección compacta de invitaciones
+    await guestPage.goto(`${TARGET_URL}/`, { waitUntil: 'networkidle' });
+    const pendingBar = guestPage.locator('[data-testid="home-pending-invitations-banner"]');
+    await pendingBar.waitFor({ state: 'visible', timeout: 10000 });
+    const pendingCard = pendingBar.locator(`.home-pending-invitation-card:has-text("${encData.titulo}")`);
+    await pendingCard.waitFor({ state: 'visible', timeout: 10000 });
+    console.log('   ✓ Invitación pendiente visible en la Home del invitado con contador y metadatos.');
+
+    // 2. Hacer clic en la tarjeta de invitación pendiente desde la Home
+    await pendingCard.click();
+    await guestPage.waitForURL(new RegExp(`/invitation/${invDb.id}`), { timeout: 10000 });
 
     // Verificar renderizado del detalle
     const guestTitleEl = guestPage.locator('.pe-inv-guest-title');
@@ -417,6 +428,15 @@ async function runInternalInvitationsE2E() {
       throw new Error('FALLO FUNCIONAL: La dirección privada no se reveló tras aceptar la invitación.');
     }
     console.log('   ✓ Logística revelada exitosamente al invitado tras la aceptación.');
+
+    // Comprobar que al regresar a Home ya NO figura en la sección de pendientes
+    await guestPage.goto(`${TARGET_URL}/`, { waitUntil: 'networkidle' });
+    const acceptedOnHome = guestPage.locator(`.home-pending-invitation-card:has-text("${encData.titulo}")`);
+    const countAcceptedOnHome = await acceptedOnHome.count();
+    if (countAcceptedOnHome > 0) {
+      throw new Error('FALLO HOME: La invitación aceptada no se removió de la sección de invitaciones pendientes de Home.');
+    }
+    console.log('   ✓ Home actualizada: la invitación aceptada ya no figura en la barra de pendientes.');
 
     // Verificar en Staging DB
     const { data: invDbAccepted } = await admin.from('invitaciones_internas').select('estado').eq('id', invDb.id).single();

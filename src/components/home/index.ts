@@ -13,3 +13,4 @@ export { HomeVariantSwitcher } from './HomeVariantSwitcher';
 export { HomeCreateOrOpenInfo } from './HomeCreateOrOpenInfo';
 export { HomeIntentionsBand } from './HomeIntentionsBand';
 export { HomeAmbientBrushes } from './HomeAmbientBrushes';
+export { HomePendingInvitationsBar } from './invitations/HomePendingInvitationsBar';

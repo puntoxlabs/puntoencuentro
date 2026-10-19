@@ -1,0 +1,256 @@
+.home-pending-invitations-banner {
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1px solid var(--color-primary-container, #dbeafe);
+  border-left: 4px solid var(--color-primary, #2563eb);
+  border-radius: var(--radius-lg, 14px);
+  padding: 12px 14px;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.06);
+  box-sizing: border-box;
+}
+
+.home-pending-invitations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.home-pending-invitations-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.home-pending-invitations-icon {
+  color: var(--color-primary, #2563eb);
+  flex-shrink: 0;
+}
+
+.home-pending-invitations-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  white-space: nowrap;
+}
+
+.home-pending-invitations-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background-color: var(--color-primary, #2563eb);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.home-pending-invitations-view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--color-primary, #2563eb);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.home-pending-invitations-view-all-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.home-pending-invitations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-pending-invitation-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: #ffffff;
+  border: 1px solid var(--color-outline-variant, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.home-pending-invitation-card:hover {
+  border-color: var(--color-primary, #2563eb);
+  background: #f8faff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.08);
+}
+
+.home-pending-invitation-card:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.home-pending-invitation-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.home-pending-invitation-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.home-pending-invitation-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--color-on-surface-variant, #64748b);
+  line-height: 1.2;
+}
+
+.home-pending-invitation-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.home-pending-invitation-meta-dot {
+  font-size: 0.7rem;
+  opacity: 0.5;
+}
+
+.home-pending-invitation-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary, #2563eb);
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.06);
+  transition: background 0.15s ease;
+}
+
+.home-pending-invitation-card:hover .home-pending-invitation-cta {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+/* Modal / Sheet para Ver Todas las Invitaciones Recibidas */
+.home-invitations-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.home-invitations-modal-container {
+  background: var(--color-surface, #ffffff);
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+  animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.home-invitations-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.85rem;
+  border-bottom: 1px solid var(--color-outline-variant, #e2e8f0);
+}
+
+.home-invitations-modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-invitations-modal-close-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--color-on-surface-variant, #64748b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.home-invitations-modal-close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.home-invitations-modal-body {
+  padding: 1rem 1.25rem 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@keyframes slideUpModal {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 768px) {
+  .home-invitations-modal-overlay {
+    align-items: center;
+    padding: 1.5rem;
+  }
+
+  .home-invitations-modal-container {
+    border-radius: 20px;
+    max-height: 80vh;
+  }
+}

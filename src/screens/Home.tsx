@@ -57,6 +57,7 @@ import {
   HomeCreateOrOpenInfo,
   HomeIntentionsBand,
   HomeAmbientBrushes,
+  HomePendingInvitationsBar,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -1592,6 +1593,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             {t('your_encounters.tab_solicitudes', { defaultValue: 'Mis solicitudes' })}
           </button>
         </div>
+
+        {/* Barra compacta de Invitaciones Internas recibidas y pendientes (solo usuarios permanentes) */}
+        {isPermanentUser && (
+          <HomePendingInvitationsBar
+            isPermanentUser={isPermanentUser}
+            userId={user?.id}
+            refreshTrigger={discoveryRefreshTrigger}
+          />
+        )}
 
         {userSectionTab === 'encuentros' ? (
           <>

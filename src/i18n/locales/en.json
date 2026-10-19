@@ -406,9 +406,15 @@
     "expired_banner": "This invitation has expired.",
     "go_to_encounter": "View encounter",
     "go_to_coordination": "Select availability",
-    "not_logged_in_prompt": "To view and respond to this invitation, please sign in with your registered account.",
     "modalidad_presencial": "In person",
     "modalidad_virtual": "Virtual",
-    "date_mode_coordination": "Date to be coordinated"
+    "date_mode_coordination": "Date to be coordinated",
+    "pending_section_title": "Received invitations",
+    "pending_badge_label": "pending invitations",
+    "view_remaining": "+{{count}} more",
+    "view_remaining_aria": "View all {{count}} remaining invitations",
+    "all_pending_title": "Received invitations ({{count}})",
+    "respond_cta": "Respond"
   }
 }
+
