@@ -158,13 +158,19 @@ type Sender = (encuentroId: string, email: string) => Promise<SendInternalInvita
  * Envía las invitaciones confirmadas por el organizador reutilizando la RPC existente
  * `enviar_invitacion_interna_seguro` (con todas sus validaciones: propiedad, anónimos,
  * bloqueos, duplicados, cupo y rate limit). Secuencial; se detiene ante límites de tasa
- * o pérdida de sesión.
+ * o pérdida de sesión, preservando todos los correos aún no enviados en `remaining` y
+ * notificando cada correo procesado (`onProcessed`) de inmediato para evitar duplicados
+ * en reintentos.
  */
 export async function sendConfirmedInvitations(
   encuentroId: string,
   emails: string[],
-  send: Sender
+  send: Sender,
+  onProcessed?: (email: string) => void
 ): Promise<PendingInvitationsResult> {
+  const normalized = Array.from(
+    new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))
+  );
   const result: PendingInvitationsResult = {
     sent: [],
     alreadyInvited: [],
@@ -172,10 +178,18 @@ export async function sendConfirmedInvitations(
     stoppedEarly: false,
     remaining: [],
   };
-  const fatal = new Set(['rate_limit_exceeded', 'not_authenticated', 'anonymous_user_not_allowed']);
+  const fatal = new Set([
+    'rate_limit_exceeded',
+    'not_authenticated',
+    'anonymous_user_not_allowed',
+    'no_spots_available',
+    'encuentro_not_active',
+    'encuentro_passed',
+    'encuentro_not_found_or_not_owner',
+  ]);
 
-  for (let i = 0; i < emails.length; i++) {
-    const email = emails[i];
+  for (let i = 0; i < normalized.length; i++) {
+    const email = normalized[i];
     let res: SendInternalInvitationResponse;
     try {
       res = await send(encuentroId, email);
@@ -184,19 +198,26 @@ export async function sendConfirmedInvitations(
     }
     if (res.ok) {
       result.sent.push(email);
+      onProcessed?.(email);
       continue;
     }
     const code = res.error ?? 'unknown_error';
     if (code === 'invitation_already_pending' || code === 'user_already_participant') {
       result.alreadyInvited.push(email);
+      onProcessed?.(email);
       continue;
     }
     result.failed.push({ email, error: code });
     if (fatal.has(code)) {
       result.stoppedEarly = true;
-      result.remaining = emails.slice(i + 1);
-      break;
+      result.remaining = [
+        ...result.failed.map((f) => f.email),
+        ...normalized.slice(i + 1),
+      ];
+      return result;
     }
   }
+  result.remaining = result.failed.map((f) => f.email);
   return result;
 }
+

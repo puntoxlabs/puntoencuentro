@@ -42,20 +42,23 @@ export const PendingGuestsReview: React.FC<PendingGuestsReviewProps> = ({
     setSending(true);
     setError(null);
     try {
-      const res = await sendConfirmedInvitations(encuentroId, emails, (id, email) =>
-        internalInvitationsService.enviarInvitacion(id, email)
+      const res = await sendConfirmedInvitations(
+        encuentroId,
+        emails,
+        (id, email) => internalInvitationsService.enviarInvitacion(id, email),
+        (doneEmail) => removeGuest(doneEmail)
       );
-      // Quitar los ya procesados; si se detuvo por límite de tasa, conservar los restantes
-      for (const done of [...res.sent, ...res.alreadyInvited]) {
-        removeGuest(done);
-      }
       if (res.stoppedEarly) {
         setError(t('encounter_reuse.errors.rate_limit_exceeded'));
       } else if (res.failed.length > 0) {
         setError(t('encounter_reuse.pending_guests_partial'));
       } else {
         clearGuests();
-        setFeedback(t('encounter_reuse.pending_guests_sent', { count: res.sent.length }));
+        setFeedback(
+          t('encounter_reuse.pending_guests_sent', {
+            count: res.sent.length + res.alreadyInvited.length,
+          })
+        );
       }
       onSent?.();
     } finally {

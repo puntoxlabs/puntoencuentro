@@ -245,14 +245,26 @@ async function run() {
     assert(forOtherUser.length === 0, 'Otro usuario nunca puede leer los invitados pendientes');
   });
 
-  // 5. Envío confirmado de invitaciones reutilizando la RPC existente (sin auto-envío)
-  await test('5. sendConfirmedInvitations envía solo los correos confirmados, maneja duplicados y corta ante rate limit', async () => {
-    const sendCalls: string[] = [];
-    const summary = await sendConfirmedInvitations(
+  // 5. Envío confirmado de invitaciones: preserva pendientes en envíos parciales y evita duplicados en reintentos
+  await test('5. sendConfirmedInvitations preserva correos no enviados ante rate limit o error y evita duplicados al reintentar', async () => {
+    const res = applyReusablePayload(
+      makeFixedPayload({}, ['uno@example.com', 'dos@example.com', 'tres@example.com', 'cuatro@example.com']),
+      { ownerUserId: 'host-uuid-1', includeGuests: true }
+    );
+    useRepeatEncounterStore.getState().bindEncuentro('enc-confirm-test', res.token);
+
+    const sendCallsAttempt1: string[] = [];
+    const currentPending1 = getPendingGuestsFor(
+      useRepeatEncounterStore.getState(),
       'enc-confirm-test',
-      ['uno@example.com', 'dos@example.com', 'tres@example.com', 'cuatro@example.com'],
+      'host-uuid-1'
+    );
+
+    const summary1 = await sendConfirmedInvitations(
+      'enc-confirm-test',
+      currentPending1,
       async (_encId, email) => {
-        sendCalls.push(email);
+        sendCallsAttempt1.push(email);
         if (email === 'dos@example.com') {
           return { ok: false, error: 'invitation_already_pending' };
         }
@@ -260,14 +272,57 @@ async function run() {
           return { ok: false, error: 'rate_limit_exceeded' };
         }
         return { ok: true, id: 'inv-1', estado: 'pendiente' };
-      }
+      },
+      (doneEmail) => useRepeatEncounterStore.getState().removeGuest(doneEmail)
     );
 
-    assert(sendCalls.length === 3, 'Debe detenerse tras rate_limit_exceeded sin invocar cuatro@example.com');
-    assert(summary.sent.length === 1 && summary.sent[0] === 'uno@example.com', 'uno@example.com enviado');
-    assert(summary.alreadyInvited.length === 1 && summary.alreadyInvited[0] === 'dos@example.com', 'dos@example.com ya invitado');
-    assert(summary.stoppedEarly === true, 'Debe marcar stoppedEarly ante rate_limit_exceeded');
-    assert(summary.remaining.length === 1 && summary.remaining[0] === 'cuatro@example.com', 'cuatro@example.com queda en remaining');
+    assert(sendCallsAttempt1.length === 3, 'Debe detenerse tras rate_limit_exceeded sin invocar cuatro@example.com');
+    assert(summary1.sent.length === 1 && summary1.sent[0] === 'uno@example.com', 'uno@example.com enviado');
+    assert(summary1.alreadyInvited.length === 1 && summary1.alreadyInvited[0] === 'dos@example.com', 'dos@example.com ya invitado');
+    assert(summary1.stoppedEarly === true, 'Debe marcar stoppedEarly ante rate_limit_exceeded');
+    assert(
+      summary1.remaining.length === 2 &&
+        summary1.remaining[0] === 'tres@example.com' &&
+        summary1.remaining[1] === 'cuatro@example.com',
+      'Tanto el correo que sufrió rate limit como los siguientes deben quedar en remaining'
+    );
+
+    // Verificar que en el store siguen exactamente los 2 correos aún no enviados
+    const remainingInStore = getPendingGuestsFor(
+      useRepeatEncounterStore.getState(),
+      'enc-confirm-test',
+      'host-uuid-1'
+    );
+    assert(
+      remainingInStore.length === 2 &&
+        remainingInStore[0] === 'tres@example.com' &&
+        remainingInStore[1] === 'cuatro@example.com',
+      'El store debe preservar exactamente los correos pendientes de envío'
+    );
+
+    // Segundo intento (reintento): solo debe intentar enviar tres@example.com y cuatro@example.com
+    const sendCallsAttempt2: string[] = [];
+    const summary2 = await sendConfirmedInvitations(
+      'enc-confirm-test',
+      remainingInStore,
+      async (_encId, email) => {
+        sendCallsAttempt2.push(email);
+        return { ok: true, id: 'inv-2', estado: 'pendiente' };
+      },
+      (doneEmail) => useRepeatEncounterStore.getState().removeGuest(doneEmail)
+    );
+
+    assert(
+      sendCallsAttempt2.length === 2 &&
+        sendCallsAttempt2[0] === 'tres@example.com' &&
+        sendCallsAttempt2[1] === 'cuatro@example.com',
+      'El reintento no debe volver a enviar los correos ya procesados en el primer intento'
+    );
+    assert(summary2.remaining.length === 0, 'Tras el reintento exitoso no deben quedar pendientes');
+    assert(
+      getPendingGuestsFor(useRepeatEncounterStore.getState(), 'enc-confirm-test', 'host-uuid-1').length === 0,
+      'El store debe quedar vacío tras completarse todos los envíos'
+    );
   });
 
   // 6. Hint de enlace virtual requiere acción explícita
@@ -338,6 +393,27 @@ async function run() {
     const noticeHtml = renderToStaticMarkup(<ReuseWizardNotice active={true} />);
     assert(noticeHtml.includes('pe-reuse-notice'), 'ReuseWizardNotice debe renderizar el aviso cuando active=true');
     assert(renderToStaticMarkup(<ReuseWizardNotice active={false} />) === '', 'ReuseWizardNotice oculto cuando active=false');
+  });
+
+  // 9. Claridad de la interfaz sobre el alcance de «Plantilla con invitados»
+  await test('9. ReuseModeChoice explica que Plantilla con invitados solo recupera correos de invitaciones internas y no personas agregadas por enlace', () => {
+    const htmlWithGuests = renderToStaticMarkup(
+      <ReuseModeChoice
+        value="template_with_guests"
+        onChange={() => {}}
+        guestCount={4}
+        guestsAllowed={true}
+      />
+    );
+    const mentionsInternal =
+      htmlWithGuests.includes('invitaciones internas') ||
+      htmlWithGuests.includes('internal invitations');
+    const mentionsNoLink =
+      htmlWithGuests.includes('enlace') || htmlWithGuests.includes('link');
+    assert(
+      mentionsInternal && mentionsNoLink,
+      'El texto de Plantilla con invitados debe aclarar que solo recupera invitaciones internas y no personas por enlace'
+    );
   });
 
   console.log(`\nResultado Frontend: ${passed} pasaron, ${failed} fallaron.\n`);
