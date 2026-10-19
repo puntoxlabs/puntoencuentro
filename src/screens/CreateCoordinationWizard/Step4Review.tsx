@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
+import { useRepeatEncounterStore } from '@/store/repeatEncounterStore';
 import { encuentrosService, getCoordinationCreateErrorMessage } from '@/services/encuentrosService';
 import type { CoordinationCreatePayload, CoordinationOptionPayload } from '@/services/encuentrosService';
 import { Button } from '@/components/ui/Button';
@@ -112,6 +113,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
       if (result.ok) {
         // Mark as created to prevent duplicate submissions
         createdSuccessfullyRef.current = true;
+        useRepeatEncounterStore.getState().bindEncuentro(result.encuentro.id, draft.repeatToken);
         resetDraft();
         navigate(`/coordination/${result.encuentro.id}`);
 

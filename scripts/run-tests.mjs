@@ -147,6 +147,12 @@ try {
   await server.ssrLoadModule('./scripts/test-internal-invitations-frontend.tsx');
   console.log('✅ Internal Invitations V1: Frontend, UI & privacy invariants tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-encounter-templates-backend.ts');
+  console.log('✅ Encounter Templates & Repeat V1: Backend, RLS, privacy & isolation tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-encounter-templates-frontend.tsx');
+  console.log('✅ Encounter Templates & Repeat V1: Frontend, wizard preload & confirmation invariants tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

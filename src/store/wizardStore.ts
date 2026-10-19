@@ -17,6 +17,8 @@ export interface WizardState {
   invitation_template: string | null;
   encuentro_id: string | null;
   sourceIntentionId: string | null;
+  /** Marca el borrador originado por Repetir encuentro / Favoritos (enlaza invitados pendientes). */
+  repeat_token: string | null;
   creation_source?: 'manual' | 'ai';
   setField: (field: string, value: any) => void;
   setSourceIntentionId: (id: string | null) => void;
@@ -42,6 +44,7 @@ export const useWizardStore = create<WizardState>()(
       invitation_template: null,
       encuentro_id: null,
       sourceIntentionId: null,
+      repeat_token: null,
       creation_source: 'manual',
       setField: (field, value) => set({ [field]: value }),
       setSourceIntentionId: (id) => set({ sourceIntentionId: id }),
@@ -62,6 +65,7 @@ export const useWizardStore = create<WizardState>()(
         invitation_template: null,
         encuentro_id: null,
         sourceIntentionId: null,
+        repeat_token: null,
         creation_source: 'manual',
       }),
     }),
@@ -110,6 +114,7 @@ export const useWizardStore = create<WizardState>()(
           invitation_template: null,
           encuentro_id: null,
           sourceIntentionId: null,
+          repeat_token: null,
           setField: () => {},
           setSourceIntentionId: () => {},
           nextStep: () => {},
@@ -140,6 +145,7 @@ export const useWizardStore = create<WizardState>()(
           invitation_template: typeof state.invitation_template === 'string' ? state.invitation_template : null,
           encuentro_id: typeof state.encuentro_id === 'string' ? state.encuentro_id : null,
           sourceIntentionId: typeof state.sourceIntentionId === 'string' ? state.sourceIntentionId : null,
+          repeat_token: typeof state.repeat_token === 'string' ? state.repeat_token : null,
         };
       },
     }

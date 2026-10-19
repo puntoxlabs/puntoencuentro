@@ -28,6 +28,9 @@ export interface CoordinationDraft {
   hostAlias: string;
   mostrarRespuestasAInvitados: boolean;
   visibilidadRespuestas: 'hidden' | 'summary' | 'detail';
+
+  // Marca el borrador originado por Repetir encuentro / Favoritos (enlaza invitados pendientes)
+  repeatToken: string | null;
 }
 
 interface CoordinationWizardStore {
@@ -54,6 +57,7 @@ const initialDraft: CoordinationDraft = {
   hostAlias: '',
   mostrarRespuestasAInvitados: false,
   visibilidadRespuestas: 'hidden',
+  repeatToken: null,
 };
 
 export const useCoordinationWizardStore = create<CoordinationWizardStore>()(

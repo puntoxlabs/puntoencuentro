@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MapPin, Video } from 'lucide-react';
 import { SelectableOptionCard } from '@/components/ui/SelectableOptionCard';
+import { ReuseWizardNotice, ReuseLinkCandidateHint } from '@/components/reuse';
 import '../CreateWizard.css';
 
 interface Step1DataProps {
@@ -92,6 +93,8 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
         <p style={{ color: 'var(--pe-text-muted)', marginBottom: 24, fontSize: 15, lineHeight: 1.5 }}>
           Completá los datos básicos para que todos sepan de qué se trata.
         </p>
+
+        <ReuseWizardNotice active={Boolean(draft.repeatToken)} />
 
         <Input
           ref={nameInputRef}
@@ -205,6 +208,13 @@ const Step1Data: React.FC<Step1DataProps> = ({ onNext, onBack }) => {
                 Pegar
               </Button>
             </div>
+            <ReuseLinkCandidateHint
+              currentValue={draft.virtualLink}
+              onConfirmReuse={(link) => {
+                updateDraft({ virtualLink: link });
+                if (errors.virtualLink) setErrors({ ...errors, virtualLink: '' });
+              }}
+            />
           </div>
         )}
 

@@ -5,11 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Plus, User, MoreVertical, Bell, Sparkles } from 'lucide-react';
+import { Calendar, Plus, User, MoreVertical, Bell, Sparkles, Bookmark } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { NotificationsSheet } from '@/components/notifications';
+import { FavoritesManagerSheet } from '@/components/reuse';
 import { HomeOpenEncounterDetailSheet } from '@/components/home/openEncounters/HomeOpenEncounterDetailSheet';
 import type { OpenEncounterSummary } from '@/components/home/openEncounters/types';
 import { useNotifications } from '@/contexts/NotificationsContext';
@@ -1548,13 +1549,30 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     );
   };
 
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+
   const personalActivitySection = (
     <div className="home-encounters-section">
       <div className="pe-encounters-inner">
-        {isV2Variant && (
-          <h2 className="home-user-section-title">
-            {t('your_encounters.section_title_v2', { defaultValue: 'Mi espacio' })}
-          </h2>
+        {(isV2Variant || isPermanentUser) && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: isV2Variant ? 0 : 8 }}>
+            {isV2Variant ? (
+              <h2 className="home-user-section-title" style={{ margin: 0 }}>
+                {t('your_encounters.section_title_v2', { defaultValue: 'Mi espacio' })}
+              </h2>
+            ) : <span />}
+            {isPermanentUser && (
+              <button
+                type="button"
+                className="pe-fav-access-btn"
+                onClick={() => setIsFavoritesOpen(true)}
+                data-testid="home-favorites-access-btn"
+              >
+                <Bookmark size={14} />
+                <span>{t('encounter_reuse.my_space_button', { defaultValue: 'Favoritos' })}</span>
+              </button>
+            )}
+          </div>
         )}
         <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
           <button
@@ -2180,6 +2198,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           setIsDeepLinkEncounterDetailOpen(false);
           setSelectedDeepLinkEncounter(null);
         }}
+      />
+
+      {/* Gestor de encuentros favoritos (Mi espacio) */}
+      <FavoritesManagerSheet
+        isOpen={isFavoritesOpen}
+        onClose={() => setIsFavoritesOpen(false)}
       />
     </ScreenContainer>
 

@@ -41,6 +41,8 @@ import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
+import { ReuseEncounterSheet } from '@/components/reuse';
+import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import './DetailHost.css';
 
@@ -69,6 +71,7 @@ const DetailHost: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(false);
+  const [reuseIntent, setReuseIntent] = useState<'repeat' | 'favorite' | null>(null);
   // Estados para bloque de invitación unificado (link_general)
   const [personalMessage, setPersonalMessage] = useState('');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -1181,6 +1184,18 @@ const DetailHost: React.FC = () => {
                 />
                 <div className="dh-context-menu-dropdown">
                   <button
+                    onClick={() => { setShowContextMenu(false); setReuseIntent('repeat'); }}
+                    className="dh-context-menu-item dh-context-menu-item--regular"
+                  >
+                    {t('encounter_reuse.repeat_action', 'Repetir encuentro')}
+                  </button>
+                  <button
+                    onClick={() => { setShowContextMenu(false); setReuseIntent('favorite'); }}
+                    className="dh-context-menu-item dh-context-menu-item--regular"
+                  >
+                    {t('encounter_reuse.save_favorite_action', 'Guardar como favorito')}
+                  </button>
+                  <button
                     onClick={() => { setShowContextMenu(false); navigate('/', { replace: true }); }}
                     className="dh-context-menu-item dh-context-menu-item--regular"
                   >
@@ -1652,6 +1667,27 @@ const DetailHost: React.FC = () => {
           {/* 6. ACCIONES INFERIORES */}
           <div className="dh-bottom-actions">
             <div className="dh-bottom-actions-block">
+              <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                <Button
+                  variant="outline"
+                  onClick={() => setReuseIntent('repeat')}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  data-testid="detail-host-repeat-btn"
+                >
+                  <Repeat size={16} />
+                  {t('encounter_reuse.repeat_action', 'Repetir encuentro')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setReuseIntent('favorite')}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  data-testid="detail-host-favorite-btn"
+                >
+                  <Bookmark size={16} />
+                  {t('encounter_reuse.save_favorite_short', 'Guardar favorito')}
+                </Button>
+              </div>
+
               {!isCancelado && !isReadOnly && (
                 <Button
                   variant="outline"
@@ -1675,6 +1711,14 @@ const DetailHost: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ReuseEncounterSheet
+        isOpen={reuseIntent !== null}
+        intent={reuseIntent ?? 'repeat'}
+        encuentroId={id!}
+        defaultTitle={encuentro?.titulo}
+        onClose={() => setReuseIntent(null)}
+      />
 
       {/* OrganizerMessageSheet — para link_general */}
       <OrganizerMessageSheet

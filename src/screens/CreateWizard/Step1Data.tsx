@@ -11,10 +11,11 @@ import { getDefaultInvitationTemplate } from '@/lib/invitationThemes';
 import { useWizardStore } from '@/store/wizardStore';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
+import { ReuseWizardNotice } from '@/components/reuse';
 
 const Step1Data: React.FC = () => {
   const { t } = useTranslation();
-  const { titulo, fecha, hora, descripcion, lugar_texto, tema_invitacion, invitation_template, setField, nextStep } = useWizardStore();
+  const { titulo, fecha, hora, descripcion, lugar_texto, tema_invitacion, invitation_template, repeat_token, setField, nextStep } = useWizardStore();
   const [error, setError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [highlightDescripcion, setHighlightDescripcion] = useState(false);
@@ -233,6 +234,7 @@ const Step1Data: React.FC = () => {
           <span>✨</span>
           <span>Solo podés crear encuentros futuros.</span>
         </div>
+        <ReuseWizardNotice active={Boolean(repeat_token)} />
       </div>
 
       <div className="cw-form-body">

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useWizardStore } from '@/store/wizardStore';
+import { ReuseLinkCandidateHint } from '@/components/reuse';
 
 const Step3Location: React.FC = () => {
   const { modalidad, lugar_texto, link_virtual, setField, nextStep } = useWizardStore();
@@ -88,6 +89,10 @@ const Step3Location: React.FC = () => {
             >
               Pegar enlace
             </Button>
+            <ReuseLinkCandidateHint
+              currentValue={link_virtual}
+              onConfirmReuse={(link) => setField('link_virtual', link)}
+            />
           </div>
         )}
       </div>

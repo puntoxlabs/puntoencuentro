@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { internalInvitationsService } from '@/services/internalInvitationsService';
 import type { HostInternalInvitationItem } from '@/types/internalInvitations';
+import { PendingGuestsReview } from '@/components/reuse';
 import './HostInternalInvitationsSection.css';
 
 interface HostInternalInvitationsSectionProps {
@@ -150,6 +151,7 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
         </div>
       ) : (
         <>
+          <PendingGuestsReview encuentroId={encuentroId} onSent={loadInvitaciones} />
           <form onSubmit={handleSend} className="pe-internal-invites-form">
             <div className="pe-internal-invites-field">
               <label className="pe-internal-invites-label" htmlFor="internal-invite-email">

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { validateEncounterDate } from '@/lib/formatDate';
 import { intencionesService } from '@/services/intencionesService';
+import { useRepeatEncounterStore } from '@/store/repeatEncounterStore';
 import '../CreateWizard.css';
 
 interface Step4Props {
@@ -98,6 +99,10 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         encuentroId = newEncuentro.id;
         setField('encuentro_id', encuentroId);
         setCreatedEncuentroId(encuentroId);
+        if (encuentroId) {
+          useRepeatEncounterStore.getState().bindEncuentro(encuentroId, wizardData.repeat_token);
+        }
+        setField('repeat_token', null);
 
         // Persistir mapeo encuentroId → hostId antes de navegar.
         // Esto permite que DetailHost resuelva hostId al refrescar /meet/:id

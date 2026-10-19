@@ -5,7 +5,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { encuentrosService } from '@/services/encuentrosService';
 import type { CoordinationHostDetail } from '@/services/encuentrosService';
-import { Clock, MapPin, Video, Link, Users, Share2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, MapPin, Video, Link, Users, Share2, Plus, ChevronDown, ChevronUp, Repeat, Bookmark } from 'lucide-react';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
+import { ReuseEncounterSheet } from '@/components/reuse';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +44,7 @@ const DetailHostCoordination: React.FC = () => {
   
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reuseIntent, setReuseIntent] = useState<'repeat' | 'favorite' | null>(null);
 
   const loadData = useCallback(async (isPolling = false) => {
     if (!id) return;
@@ -737,6 +739,26 @@ const DetailHostCoordination: React.FC = () => {
 
         {/* Acciones de administración */}
         <div style={{ padding: '0 20px', marginTop: 24, paddingBottom: 100 }}>
+          <div style={{ display: 'flex', gap: 10, width: '100%', marginBottom: 12 }}>
+            <Button
+              variant="outline"
+              onClick={() => setReuseIntent('repeat')}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              data-testid="detail-coord-repeat-btn"
+            >
+              <Repeat size={16} />
+              {t('encounter_reuse.repeat_action', 'Repetir encuentro')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setReuseIntent('favorite')}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              data-testid="detail-coord-favorite-btn"
+            >
+              <Bookmark size={16} />
+              {t('encounter_reuse.save_favorite_short', 'Guardar favorito')}
+            </Button>
+          </div>
           {derivedStatus !== 'closed' && derivedStatus !== 'expired_unconfirmed' && encuentro.estado !== 'cancelado' && (
             <Button
               variant="outline"
@@ -873,6 +895,13 @@ const DetailHostCoordination: React.FC = () => {
           </div>
         </div>
       )}
+      <ReuseEncounterSheet
+        isOpen={reuseIntent !== null}
+        intent={reuseIntent ?? 'repeat'}
+        encuentroId={id!}
+        defaultTitle={encuentro?.titulo}
+        onClose={() => setReuseIntent(null)}
+      />
       <OrganizerMessageSheet
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
