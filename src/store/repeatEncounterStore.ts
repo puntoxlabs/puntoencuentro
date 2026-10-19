@@ -32,6 +32,8 @@ interface RepeatEncounterState extends RepeatPersisted {
   }) => void;
   /** Enlaza los invitados pendientes con el encuentro recién creado. Devuelve true si enlazó. */
   bindEncuentro: (encuentroId: string, wizardToken: string | null | undefined) => boolean;
+  /** Agrega correos (por ejemplo desde Mis contactos) a la revisión pendiente del encuentro actual. */
+  addGuestsForEncuentro: (encuentroId: string, ownerUserId: string, emails: string[]) => void;
   removeGuest: (email: string) => void;
   clearGuests: () => void;
   clearLinkCandidate: () => void;
@@ -78,6 +80,26 @@ export const useRepeatEncounterStore = create<RepeatEncounterState>()(
         if (s.guestEmails.length === 0) return false;
         set({ targetEncuentroId: encuentroId });
         return true;
+      },
+      addGuestsForEncuentro: (encuentroId, ownerUserId, emails) => {
+        if (!encuentroId || !ownerUserId) return;
+        const normalized = emails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+        if (normalized.length === 0) return;
+        const s = get();
+        const isSameTarget =
+          s.ownerUserId === ownerUserId &&
+          s.targetEncuentroId === encuentroId &&
+          s.createdAt &&
+          Date.now() - s.createdAt <= REPEAT_CONTEXT_TTL_MS;
+        const existing = isSameTarget ? s.guestEmails : [];
+        const merged = Array.from(new Set([...existing, ...normalized]));
+        set({
+          ownerUserId,
+          sessionToken: s.sessionToken ?? `contacts-${Date.now()}`,
+          targetEncuentroId: encuentroId,
+          guestEmails: merged,
+          createdAt: isSameTarget && s.createdAt ? s.createdAt : Date.now(),
+        });
       },
       removeGuest: (email) =>
         set((s) => ({ guestEmails: s.guestEmails.filter((e) => e !== email) })),

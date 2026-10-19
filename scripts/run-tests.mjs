@@ -156,6 +156,12 @@ try {
   await server.ssrLoadModule('./scripts/test-crear-coordinacion-p0-fix.ts');
   console.log('✅ Coordination Creation P0 Fix: crear_encuentro_con_opciones_seguro contract, security & repeat flow tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-frequent-contacts-backend.ts');
+  console.log('✅ Frequent Contacts V1: Backend, RLS, history suggestions & isolation tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-frequent-contacts-frontend.tsx');
+  console.log('✅ Frequent Contacts V1: Frontend, selection, confirmation, retry & reuse integration tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

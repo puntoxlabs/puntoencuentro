@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, Clock, CheckCircle2, XCircle, AlertCircle, Trash2, Send } from 'lucide-react';
+import { UserPlus, Clock, CheckCircle2, XCircle, AlertCircle, Trash2, Send, BookUser } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { internalInvitationsService } from '@/services/internalInvitationsService';
+import { normalizeContactEmail, userContactsService } from '@/services/userContactsService';
+import { useContactsStore } from '@/store/contactsStore';
 import type { HostInternalInvitationItem } from '@/types/internalInvitations';
 import { PendingGuestsReview } from '@/components/reuse';
+import { ContactsSheet } from '@/components/contacts';
 import './HostInternalInvitationsSection.css';
 
 interface HostInternalInvitationsSectionProps {
@@ -32,6 +35,15 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
   const [loadingList, setLoadingList] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  const [isContactsOpen, setIsContactsOpen] = useState(false);
+  const [saveContactEmail, setSaveContactEmail] = useState<string | null>(null);
+
+  const contacts = useContactsStore((s) => s.contacts);
+  const savedEmailsSet = useMemo(
+    () => new Set(contacts.map((c) => normalizeContactEmail(c.email))),
+    [contacts]
+  );
+
   const loadInvitaciones = useCallback(async () => {
     if (!isPermanent || !encuentroId) return;
     try {
@@ -40,12 +52,19 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
       if (res.ok) {
         setInvitaciones(res.invitaciones);
       }
+      if (user?.id) {
+        useContactsStore.getState().ensureSession(user.id);
+        const cRes = await userContactsService.listar(encuentroId);
+        if (cRes.ok && cRes.data) {
+          useContactsStore.getState().setData(user.id, cRes.data);
+        }
+      }
     } catch (err) {
       console.error('[HostInternalInvitationsSection] Error cargando invitaciones:', err);
     } finally {
       setLoadingList(false);
     }
-  }, [encuentroId, isPermanent]);
+  }, [encuentroId, isPermanent, user?.id]);
 
   useEffect(() => {
     loadInvitaciones();
@@ -122,10 +141,26 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
   return (
     <div className="dh-invite-card pe-internal-invites-card">
       <div className="pe-internal-invites-header">
-        <h4 className="pe-internal-invites-title">
-          <UserPlus size={18} className="pe-internal-invites-icon" />
-          {t('internal_invitations.section_title')}
-        </h4>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <h4 className="pe-internal-invites-title">
+            <UserPlus size={18} className="pe-internal-invites-icon" />
+            {t('internal_invitations.section_title')}
+          </h4>
+          {isPermanent && (
+            <button
+              type="button"
+              className="pe-contacts-trigger-btn"
+              onClick={() => {
+                setSaveContactEmail(null);
+                setIsContactsOpen(true);
+              }}
+              data-testid="open-contacts-sheet-btn"
+            >
+              <BookUser size={15} />
+              <span>{t('contacts.my_contacts_btn')}</span>
+            </button>
+          )}
+        </div>
         <p className="pe-internal-invites-subtitle">
           {t('internal_invitations.section_subtitle')}
         </p>
@@ -151,7 +186,14 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
         </div>
       ) : (
         <>
-          <PendingGuestsReview encuentroId={encuentroId} onSent={loadInvitaciones} />
+          <PendingGuestsReview
+            encuentroId={encuentroId}
+            onSent={loadInvitaciones}
+            onOpenContacts={() => {
+              setSaveContactEmail(null);
+              setIsContactsOpen(true);
+            }}
+          />
           <form onSubmit={handleSend} className="pe-internal-invites-form">
             <div className="pe-internal-invites-field">
               <label className="pe-internal-invites-label" htmlFor="internal-invite-email">
@@ -226,6 +268,8 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
               <ul className="pe-internal-invites-list">
                 {invitaciones.map((inv) => {
                   const isPending = inv.estado === 'pendiente';
+                  const cleanInvEmail = normalizeContactEmail(inv.destinatario_email);
+                  const isSavedContact = savedEmailsSet.has(cleanInvEmail);
                   return (
                     <li key={inv.id} className="pe-internal-invites-item">
                       <div className="pe-internal-invites-item-info">
@@ -244,6 +288,20 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
                           {inv.estado === 'rechazada' && <XCircle size={12} />}
                           {t(`internal_invitations.status_${inv.estado}`)}
                         </span>
+
+                        {!isSavedContact && inv.estado !== 'rechazada' && (
+                          <button
+                            type="button"
+                            className="pe-fav-link-btn"
+                            onClick={() => {
+                              setSaveContactEmail(cleanInvEmail);
+                              setIsContactsOpen(true);
+                            }}
+                            title={t('contacts.save_from_history_btn')}
+                          >
+                            {t('contacts.save_from_history_btn')}
+                          </button>
+                        )}
 
                         {isPending && (
                           <button
@@ -269,6 +327,17 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
               </ul>
             )}
           </div>
+
+          <ContactsSheet
+            isOpen={isContactsOpen}
+            onClose={() => {
+              setIsContactsOpen(false);
+              setSaveContactEmail(null);
+            }}
+            encuentroId={encuentroId}
+            initialSaveEmail={saveContactEmail}
+            onInvitationsSent={loadInvitaciones}
+          />
         </>
       )}
     </div>

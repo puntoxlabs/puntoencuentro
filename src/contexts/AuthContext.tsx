@@ -3,6 +3,8 @@ import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { participantesService } from '@/services/participantesService';
 import { webPushService } from '@/services/webPushService';
+import { useContactsStore } from '@/store/contactsStore';
+import { useRepeatEncounterStore } from '@/store/repeatEncounterStore';
 
 const RECENT_PARTICIPANT_KEY = 'pending_participant_invitation_token';
 const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
@@ -118,20 +120,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Obtener sesión inicial
     supabase.auth.getSession().then(({ data }) => {
+      const initialUser = data.session?.user ?? null;
       setSession(data.session);
-      setUser(data.session?.user ?? null);
+      setUser(initialUser);
+      useContactsStore.getState().ensureSession(
+        initialUser && !initialUser.is_anonymous ? initialUser.id : null
+      );
       setLoading(false);
     });
 
     // Escuchar cambios de estado
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      const nextUser = newSession?.user ?? null;
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      setUser(nextUser);
+      useContactsStore.getState().ensureSession(
+        nextUser && !nextUser.is_anonymous ? nextUser.id : null
+      );
       setLoading(false);
 
       if (event === 'SIGNED_OUT') {
         // Privacidad en dispositivos compartidos: sin sesión no se puede autenticar la
-        // revocación remota, pero sí cortar la suscripción push local del navegador.
+        // revocación remota, pero sí cortar la suscripción push local del navegador
+        // y limpiar el estado de contactos y repetición.
+        useContactsStore.getState().reset();
+        useRepeatEncounterStore.getState().reset();
         void webPushService.unsubscribeLocalOnly();
       }
 
