@@ -398,6 +398,44 @@ describe('Contactos frecuentes V1 — Backend, RLS & Integración (PGlite)', () 
     assert.equal(rlsRows.rows[0].owner_id, otherOrganizer);
     assert.equal(rlsRows.rows[0].nombre, 'Lucía de Otro');
 
+    // SELECT directo bajo RLS con cuenta anónima devuelve 0 filas
+    await setAuth(anonymousUser, true);
+    await db.exec(`SET ROLE authenticated;`);
+    const anonRlsRows = await db.query<{ id: string }>(
+      `SELECT id FROM public.contactos_usuario;`
+    );
+    await db.exec(`RESET ROLE;`);
+    assert.equal(anonRlsRows.rows.length, 0);
+
+    // Escrituras directas (INSERT / UPDATE / DELETE) desde rol authenticated están denegadas
+    await setAuth(hostUser, false);
+    await db.exec(`SET ROLE authenticated;`);
+    await assert.rejects(
+      async () => {
+        await db.query(
+          `INSERT INTO public.contactos_usuario (owner_id, nombre, email) VALUES ('${hostUser}', 'Directo', 'directo@correo.com');`
+        );
+      },
+      /permission denied/i
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(
+          `UPDATE public.contactos_usuario SET nombre = 'Directo' WHERE id = '${targetContactId}';`
+        );
+      },
+      /permission denied/i
+    );
+    await assert.rejects(
+      async () => {
+        await db.query(
+          `DELETE FROM public.contactos_usuario WHERE id = '${targetContactId}';`
+        );
+      },
+      /permission denied/i
+    );
+    await db.exec(`RESET ROLE;`);
+
     // No puede listar pasando encuentro_id ajeno
     const wrongEnc = await rpc(
       `public.listar_contactos_y_sugerencias_seguro('${otherEncId}')`,
@@ -408,6 +446,9 @@ describe('Contactos frecuentes V1 — Backend, RLS & Integración (PGlite)', () 
   });
 
   test('4. Sugerencias del historial: frecuentes/recientes, exclusión de rechazadas, canceladas, bloqueados y ya agendados', async () => {
+    // Invitación enviada por otro organizador NO debe contaminar las sugerencias de hostUser
+    await rpc(`public.enviar_invitacion_interna_seguro('${otherEncId}', 'ajeno.exclusivo@otrohost.com', NULL)`, otherOrganizer);
+
     // Enviar invitaciones reales en enc1 y enc2
     // a) registrado@puntoencuentro.com invitado en enc1 y enc2 (2 veces -> frecuente)
     await rpc(`public.enviar_invitacion_interna_seguro('${enc1Id}', 'registrado@puntoencuentro.com', NULL)`, hostUser);
@@ -450,10 +491,22 @@ describe('Contactos frecuentes V1 — Backend, RLS & Integración (PGlite)', () 
     assert.deepEqual(
       sugEmails,
       ['registrado@puntoencuentro.com', 'externo.reciente@no-registrado.com'],
-      'Sugerencias deben ordenar por frecuencia y excluir ya agendados, rechazados, cancelados y bloqueados'
+      'Sugerencias deben ordenar por frecuencia y excluir ya agendados, rechazados, cancelados, bloqueados y de otros organizadores'
     );
     assert.equal(res.sugerencias[0].veces_invitado, 2);
     assert.equal(res.sugerencias[1].veces_invitado, 1);
+
+    // No revela si un correo pertenece a una cuenta registrada: claves idénticas para registrado vs no registrado
+    assert.deepEqual(
+      Object.keys(res.sugerencias[0]).sort(),
+      ['email', 'ultima_invitacion_at', 'veces_invitado'],
+      'La sugerencia de correo registrado solo expone email, veces_invitado y ultima_invitacion_at'
+    );
+    assert.deepEqual(
+      Object.keys(res.sugerencias[0]).sort(),
+      Object.keys(res.sugerencias[1]).sort(),
+      'Estructura idéntica entre correo con cuenta registrada y correo sin cuenta'
+    );
 
     // Verificar que ya_invitados_encuentro incluye los pendientes/aceptados de enc1
     assert.ok(res.ya_invitados_encuentro.includes('registrado@puntoencuentro.com'));
