@@ -174,6 +174,9 @@ try {
   await server.ssrLoadModule('./scripts/test-encounter-messages-ui.ts');
   console.log('✅ Encounter Messages Panel V1: Frontend, UI & integration tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-ai-tables-permissions-gate.ts');
+  console.log('✅ AI Internal Tables Minimum Privilege Guard: Supabase 30/10/2026 permissions gate executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
