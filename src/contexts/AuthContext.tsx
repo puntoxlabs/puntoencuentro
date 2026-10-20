@@ -220,6 +220,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 { p_transfer_token: pendingTransferTicket }
               );
 
+              if (verifyErr) {
+                // Si PostgREST o la red devuelve un error técnico, clasificar como recuperable
+                // y preservar ticket y post_auth_redirect para no causar pérdida accidental
+                console.warn('[Auth] Error técnico al verificar confirmación de transferencia:', verifyErr);
+                sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+                setTransferClaimStatus('error_transient');
+                setTransferClaimError('network_error');
+                return false;
+              }
+
               if (verifyData?.ok === true) {
                 if (import.meta.env.DEV) {
                   console.log('[Auth] Transferencia confirmada como ya completada para la cuenta actual:', verifyData);
@@ -231,8 +241,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setTransferClaimError(null);
                 return true;
               } else {
-                // El backend confirmó que el ticket NO fue completado para esta cuenta (pertenece a otro usuario o no es válido)
-                console.warn('[Auth] Transferencia no corresponde a la cuenta actual:', verifyData?.error || verifyErr?.message);
+                // El backend respondió exitosamente confirmando que el ticket NO fue completado para esta cuenta
+                console.warn('[Auth] Transferencia no corresponde a la cuenta actual:', verifyData?.error);
                 sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
                 sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
                 setTransferClaimStatus('error_terminal');

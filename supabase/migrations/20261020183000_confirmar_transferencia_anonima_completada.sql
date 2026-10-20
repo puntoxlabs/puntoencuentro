@@ -5,6 +5,8 @@
 -- en PostgreSQL pero la respuesta HTTP se perdió por corte de red.
 -- =========================================================================
 
+BEGIN;
+
 CREATE OR REPLACE FUNCTION public.confirmar_transferencia_anonima_completada_seguro(
     p_transfer_token TEXT
 )
@@ -64,3 +66,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.confirmar_transferencia_anonima_completada_seguro(TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.confirmar_transferencia_anonima_completada_seguro(TEXT) TO authenticated;
+
+COMMIT;
+
