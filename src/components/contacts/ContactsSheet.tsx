@@ -131,30 +131,38 @@ export const ContactsSheet: React.FC<ContactsSheetProps> = ({
   const [renameListValue, setRenameListValue] = useState('');
   const [confirmDeleteListId, setConfirmDeleteListId] = useState<string | null>(null);
 
+  const prevIsOpenRef = React.useRef(isOpen);
+
   const load = useCallback(async () => {
     if (!isPermanent || !user?.id) return;
     setLoading(true);
     setError(null);
-    store.ensureSession(user.id);
+    const s = useContactsStore.getState();
+    s.ensureSession(user.id);
     const [contactsRes, listsRes] = await Promise.all([
       userContactsService.listar(encuentroId),
       guestListsService.listar(encuentroId),
     ]);
     if (contactsRes.ok && contactsRes.data) {
-      store.setData(user.id, contactsRes.data);
+      s.setData(user.id, contactsRes.data);
     } else if (!contactsRes.ok) {
       setError(contactsErrorMessage(t, contactsRes.error));
     }
     if (listsRes.ok && listsRes.data) {
-      store.setListsData(user.id, listsRes.data);
+      s.setListsData(user.id, listsRes.data);
     } else if (!listsRes.ok && contactsRes.ok) {
       setError(contactsErrorMessage(t, listsRes.error));
     }
     setLoading(false);
-  }, [encuentroId, isPermanent, store, t, user?.id]);
+  }, [encuentroId, isPermanent, t, user?.id]);
 
   useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
     if (!isOpen) return;
+    if (wasOpen) return;
+
     setError(null);
     setFeedback(null);
     setConfirmDeleteId(null);
