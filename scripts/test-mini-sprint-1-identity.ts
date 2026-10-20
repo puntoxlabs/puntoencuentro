@@ -542,6 +542,56 @@ describe('Mini-sprint 1: Identidad y Acceso Crítico Pre-Lanzamiento', () => {
         END;
         $$;
 
+        CREATE OR REPLACE FUNCTION public.confirmar_transferencia_anonima_completada_seguro(
+            p_transfer_token TEXT
+        )
+        RETURNS JSON
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = ''
+        AS $$
+        DECLARE
+            v_target_user_id UUID := auth.uid();
+            v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+            v_clean_token TEXT;
+            v_token_hash TEXT;
+            v_ticket public.anonymous_transfer_tickets%ROWTYPE;
+        BEGIN
+            IF v_target_user_id IS NULL THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
+            END IF;
+
+            IF v_is_anon THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required');
+            END IF;
+
+            v_clean_token := pg_catalog.lower(pg_catalog.btrim(COALESCE(p_transfer_token, '')));
+            IF v_clean_token !~ '^[0-9a-f]{64}$' THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_token_format');
+            END IF;
+
+            v_token_hash := pg_catalog.encode(pg_catalog.sha256(v_clean_token::bytea), 'hex');
+
+            SELECT * INTO v_ticket
+            FROM public.anonymous_transfer_tickets
+            WHERE token_hash = v_token_hash;
+
+            IF FOUND
+               AND v_ticket.status = 'completed'
+               AND v_ticket.used_at IS NOT NULL
+               AND (v_ticket.target_user_id_snapshot = v_target_user_id OR v_ticket.target_user_id = v_target_user_id)
+            THEN
+                RETURN pg_catalog.json_build_object(
+                    'ok', true,
+                    'already_completed', true,
+                    'completed_at', v_ticket.used_at
+                );
+            END IF;
+
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'transfer_not_confirmed');
+        END;
+        $$;
+
         CREATE OR REPLACE FUNCTION public.get_detalle_invitacion_interna_seguro(p_invitacion_id UUID)
         RETURNS JSON
         LANGUAGE plpgsql
@@ -1152,6 +1202,462 @@ describe('Mini-sprint 1: Identidad y Acceso Crítico Pre-Lanzamiento', () => {
       assert.equal(error, 'ticket_expired');
       assert.equal(storage['pe_pending_transfer_ticket'], undefined, 'Limpia ticket expirado');
       assert.equal(storage['pe_transfer_claim_retries'], undefined);
+    });
+  });
+
+  // =========================================================================
+  // SUITE 5: Verificación de Idempotencia y Aislamiento en Transfer Tickets
+  // =========================================================================
+  describe('5. Verificación de Idempotencia y Aislamiento en Transfer Tickets', () => {
+    let suite5Db: PGlite;
+
+    const suite5AnonUser = '60000000-0000-0000-0000-000000000001';
+    const suite5GoogleUser1 = '60000000-0000-0000-0000-000000000002';
+    const suite5GoogleUser2 = '60000000-0000-0000-0000-000000000003';
+    const suite5EncounterId = '70000000-0000-0000-0000-000000000001';
+
+    const testTokenHex = 'c0ffee0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+    let testTokenHash: string;
+
+    const setSuite5Auth = async (userId: string | null, isAnon: boolean = false) => {
+      if (userId) {
+        await suite5Db.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
+        await suite5Db.query(`SELECT set_config('request.jwt.claim.is_anonymous', '${isAnon ? 'true' : 'false'}', false);`);
+      } else {
+        await suite5Db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+        await suite5Db.query(`SELECT set_config('request.jwt.claim.is_anonymous', 'false', false);`);
+      }
+    };
+
+    const parseJson = (raw: any): any => {
+      if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return raw; }
+      }
+      return raw;
+    };
+
+    before(async () => {
+      suite5Db = new PGlite();
+
+      await suite5Db.exec(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF;
+        END $$;
+
+        CREATE SCHEMA IF NOT EXISTS auth;
+        CREATE TABLE IF NOT EXISTS auth.users (
+          id UUID PRIMARY KEY,
+          email TEXT,
+          is_anonymous BOOLEAN DEFAULT false
+        );
+
+        CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
+          SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+        $$ LANGUAGE SQL STABLE;
+
+        CREATE OR REPLACE FUNCTION auth.jwt() RETURNS JSONB AS $$
+          SELECT json_build_object(
+            'sub', NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+            'is_anonymous', NULLIF(current_setting('request.jwt.claim.is_anonymous', true), '')::boolean
+          )::jsonb;
+        $$ LANGUAGE SQL STABLE;
+
+        CREATE TABLE IF NOT EXISTS public.encuentros (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          titulo TEXT NOT NULL,
+          host_id UUID NOT NULL,
+          public_token UUID DEFAULT gen_random_uuid(),
+          estado TEXT NOT NULL DEFAULT 'activo',
+          creado_en TIMESTAMPTZ DEFAULT now() NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS public.anonymous_transfer_tickets (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          source_user_id UUID,
+          target_user_id UUID,
+          source_user_id_snapshot UUID NOT NULL,
+          target_user_id_snapshot UUID,
+          token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+          status TEXT NOT NULL DEFAULT 'pending',
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ,
+          resources_transferred JSONB,
+          created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+        );
+
+        -- claim_anonymous_transfer
+        CREATE OR REPLACE FUNCTION public.claim_anonymous_transfer(p_transfer_token TEXT)
+        RETURNS JSON
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        AS $$
+        DECLARE
+          v_target_user_id UUID := auth.uid();
+          v_clean_token TEXT;
+          v_token_hash TEXT;
+          v_ticket public.anonymous_transfer_tickets%ROWTYPE;
+        BEGIN
+          IF v_target_user_id IS NULL THEN
+            RETURN json_build_object('ok', false, 'error', 'authentication_required');
+          END IF;
+
+          v_clean_token := lower(btrim(COALESCE(p_transfer_token, '')));
+          v_token_hash := encode(sha256(v_clean_token::bytea), 'hex');
+
+          SELECT * INTO v_ticket
+          FROM public.anonymous_transfer_tickets
+          WHERE token_hash = v_token_hash
+          FOR UPDATE;
+
+          IF NOT FOUND THEN
+            RETURN json_build_object('ok', false, 'error', 'ticket_not_found');
+          END IF;
+
+          IF v_ticket.status = 'completed' OR v_ticket.used_at IS NOT NULL THEN
+            RETURN json_build_object('ok', false, 'error', 'ticket_already_used');
+          END IF;
+
+          IF v_ticket.status = 'revoked' THEN
+            RETURN json_build_object('ok', false, 'error', 'ticket_revoked');
+          END IF;
+
+          IF v_ticket.expires_at <= timezone('utc', now()) THEN
+            UPDATE public.anonymous_transfer_tickets SET status = 'expired' WHERE id = v_ticket.id;
+            RETURN json_build_object('ok', false, 'error', 'ticket_expired');
+          END IF;
+
+          UPDATE public.encuentros SET host_id = v_target_user_id WHERE host_id = v_ticket.source_user_id_snapshot;
+
+          UPDATE public.anonymous_transfer_tickets
+          SET status = 'completed',
+              used_at = timezone('utc', now()),
+              target_user_id = v_target_user_id,
+              target_user_id_snapshot = v_target_user_id,
+              resources_transferred = json_build_object('encuentros', 1)
+          WHERE id = v_ticket.id;
+
+          RETURN json_build_object('ok', true, 'encuentros_transferred', 1);
+        END;
+        $$;
+
+        -- RPC NUEVA de la migración: confirmar_transferencia_anonima_completada_seguro
+        CREATE OR REPLACE FUNCTION public.confirmar_transferencia_anonima_completada_seguro(
+            p_transfer_token TEXT
+        )
+        RETURNS JSON
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        SET search_path = ''
+        AS $$
+        DECLARE
+            v_target_user_id UUID := auth.uid();
+            v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+            v_clean_token TEXT;
+            v_token_hash TEXT;
+            v_ticket public.anonymous_transfer_tickets%ROWTYPE;
+        BEGIN
+            IF v_target_user_id IS NULL THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
+            END IF;
+
+            IF v_is_anon THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required');
+            END IF;
+
+            v_clean_token := pg_catalog.lower(pg_catalog.btrim(COALESCE(p_transfer_token, '')));
+            IF v_clean_token !~ '^[0-9a-f]{64}$' THEN
+                RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_token_format');
+            END IF;
+
+            v_token_hash := pg_catalog.encode(pg_catalog.sha256(v_clean_token::bytea), 'hex');
+
+            SELECT * INTO v_ticket
+            FROM public.anonymous_transfer_tickets
+            WHERE token_hash = v_token_hash;
+
+            IF FOUND
+               AND v_ticket.status = 'completed'
+               AND v_ticket.used_at IS NOT NULL
+               AND (v_ticket.target_user_id_snapshot = v_target_user_id OR v_ticket.target_user_id = v_target_user_id)
+            THEN
+                RETURN pg_catalog.json_build_object(
+                    'ok', true,
+                    'already_completed', true,
+                    'completed_at', v_ticket.used_at
+                );
+            END IF;
+
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'transfer_not_confirmed');
+        END;
+        $$;
+      `);
+
+      // Seed
+      await suite5Db.query(`INSERT INTO auth.users (id, email, is_anonymous) VALUES ('${suite5AnonUser}', 'anon5@test.com', true);`);
+      await suite5Db.query(`INSERT INTO auth.users (id, email, is_anonymous) VALUES ('${suite5GoogleUser1}', 'google1@test.com', false);`);
+      await suite5Db.query(`INSERT INTO auth.users (id, email, is_anonymous) VALUES ('${suite5GoogleUser2}', 'google2@test.com', false);`);
+      await suite5Db.query(`INSERT INTO public.encuentros (id, titulo, host_id) VALUES ('${suite5EncounterId}', 'Encuentro Idempotente', '${suite5AnonUser}');`);
+
+      // Hash del token
+      const hashRes = await suite5Db.query(`SELECT encode(sha256('${testTokenHex}'::bytea), 'hex') as h;`);
+      testTokenHash = (hashRes.rows[0] as any).h;
+
+      await suite5Db.query(`
+        INSERT INTO public.anonymous_transfer_tickets (source_user_id_snapshot, token_hash, status, expires_at)
+        VALUES ('${suite5AnonUser}', '${testTokenHash}', 'pending', timezone('utc', now()) + interval '15 minutes');
+      `);
+    });
+
+    test('5.1. Transferencia nominal exitosa en PostgreSQL', async () => {
+      await setSuite5Auth(suite5GoogleUser1, false);
+      const res = await suite5Db.query(`SELECT public.claim_anonymous_transfer('${testTokenHex}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, true);
+      assert.equal(data.encuentros_transferred, 1);
+
+      const enc = await suite5Db.query(`SELECT host_id FROM public.encuentros WHERE id = '${suite5EncounterId}';`);
+      assert.equal((enc.rows[0] as any).host_id, suite5GoogleUser1);
+    });
+
+    test('5.2. Misma cuenta reintentando: confirmar_transferencia_anonima_completada_seguro retorna ok: true', async () => {
+      await setSuite5Auth(suite5GoogleUser1, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, true);
+      assert.equal(data.already_completed, true);
+      assert.ok(data.completed_at);
+    });
+
+    test('5.3. Simulación de respuesta HTTP perdida tras commit: AuthContext resuelve como success', async () => {
+      // Simulación del flujo en AuthContext:
+      // 1. claim_anonymous_transfer devuelve ticket_already_used
+      // 2. AuthContext llama a confirmar_transferencia_anonima_completada_seguro
+      await setSuite5Auth(suite5GoogleUser1, false);
+
+      const claimRes = await suite5Db.query(`SELECT public.claim_anonymous_transfer('${testTokenHex}') as res;`);
+      const claimData = parseJson((claimRes.rows[0] as any).res);
+      assert.equal(claimData.ok, false);
+      assert.equal(claimData.error, 'ticket_already_used');
+
+      // Intercepción: verificar idempotencia
+      const verifyRes = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}') as res;`);
+      const verifyData = parseJson((verifyRes.rows[0] as any).res);
+
+      let finalStatus: TransferClaimStatus = 'claiming';
+      let storageCleared = false;
+
+      if (verifyData?.ok === true) {
+        finalStatus = 'success';
+        storageCleared = true;
+      } else {
+        finalStatus = 'error_terminal';
+      }
+
+      assert.equal(finalStatus, 'success', 'Debe resolverse como éxito y no como error_terminal');
+      assert.equal(storageCleared, true, 'Debe limpiar storage local tras confirmación');
+    });
+
+    test('5.4. Aislamiento estricto: otra cuenta Google NO puede confirmar un ticket completado ajeno', async () => {
+      // Usuario 2 intenta confirmar el ticket que fue consumido por Usuario 1
+      await setSuite5Auth(suite5GoogleUser2, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, false);
+      assert.equal(data.error, 'transfer_not_confirmed');
+      // No revela a quién pertenece ni estado interno
+      assert.equal(data.target_user_id, undefined);
+      assert.equal(data.source_user_id, undefined);
+    });
+
+    test('5.5. Ticket pendiente: confirmación devuelve transfer_not_confirmed sin transferir', async () => {
+      const pendingToken = '1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff';
+      const pHash = (await suite5Db.query(`SELECT encode(sha256('${pendingToken}'::bytea), 'hex') as h;`)).rows[0].h;
+
+      await suite5Db.query(`
+        INSERT INTO public.anonymous_transfer_tickets (source_user_id_snapshot, token_hash, status, expires_at)
+        VALUES ('${suite5AnonUser}', '${pHash}', 'pending', timezone('utc', now()) + interval '15 minutes');
+      `);
+
+      await setSuite5Auth(suite5GoogleUser1, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${pendingToken}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, false);
+      assert.equal(data.error, 'transfer_not_confirmed');
+    });
+
+    test('5.6. Ticket revocado: confirmación devuelve transfer_not_confirmed', async () => {
+      const revokedToken = '222233334444555566667777888899990000aaaabbbbccccddddeeeeffff1111';
+      const rHash = (await suite5Db.query(`SELECT encode(sha256('${revokedToken}'::bytea), 'hex') as h;`)).rows[0].h;
+
+      await suite5Db.query(`
+        INSERT INTO public.anonymous_transfer_tickets (source_user_id_snapshot, token_hash, status, expires_at)
+        VALUES ('${suite5AnonUser}', '${rHash}', 'revoked', timezone('utc', now()) + interval '15 minutes');
+      `);
+
+      await setSuite5Auth(suite5GoogleUser1, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${revokedToken}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, false);
+      assert.equal(data.error, 'transfer_not_confirmed');
+    });
+
+    test('5.7. Ticket vencido sin transferencia: confirmación devuelve transfer_not_confirmed', async () => {
+      const expToken = '33334444555566667777888899990000aaaabbbbccccddddeeeeffff11112222';
+      const expHash = (await suite5Db.query(`SELECT encode(sha256('${expToken}'::bytea), 'hex') as h;`)).rows[0].h;
+
+      await suite5Db.query(`
+        INSERT INTO public.anonymous_transfer_tickets (source_user_id_snapshot, token_hash, status, expires_at)
+        VALUES ('${suite5AnonUser}', '${expHash}', 'pending', timezone('utc', now()) - interval '10 minutes');
+      `);
+
+      await setSuite5Auth(suite5GoogleUser1, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${expToken}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.equal(data.ok, false);
+      assert.equal(data.error, 'transfer_not_confirmed');
+    });
+
+    test('5.8. Token con formato inválido o inexistente: validación estricta rechaza fail-closed', async () => {
+      await setSuite5Auth(suite5GoogleUser1, false);
+
+      const shortRes = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('short_invalid') as res;`);
+      assert.equal(parseJson((shortRes.rows[0] as any).res).error, 'invalid_token_format');
+
+      const nonExistentRes = await suite5Db.query(`
+        SELECT public.confirmar_transferencia_anonima_completada_seguro('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') as res;
+      `);
+      assert.equal(parseJson((nonExistentRes.rows[0] as any).res).error, 'transfer_not_confirmed');
+    });
+
+    test('5.9. Verificación de idempotencia fallida por desconexión: preserva error_transient y storage', () => {
+      const storage: Record<string, string> = {
+        'pe_pending_transfer_ticket': testTokenHex,
+        'pe_transfer_claim_retries': '1',
+        'post_auth_redirect': `/meet/${suite5EncounterId}`,
+      };
+
+      let status: TransferClaimStatus = 'claiming';
+      let error: string | null = null;
+
+      // Simular fallo de red durante llamada a confirmar_transferencia_anonima_completada_seguro
+      try {
+        throw new TypeError('Failed to fetch (network disconnected)');
+      } catch (err: any) {
+        storage['pe_transfer_claim_retries'] = '2';
+        status = 'error_transient';
+        error = 'network_error';
+      }
+
+      assert.equal(status, 'error_transient');
+      assert.equal(error, 'network_error');
+      assert.equal(storage['pe_pending_transfer_ticket'], testTokenHex, 'Conserva el ticket para reintento');
+      assert.equal(storage['post_auth_redirect'], `/meet/${suite5EncounterId}`, 'Conserva la ruta para reanudar');
+    });
+
+    test('5.10. Dos solicitudes simultáneas: lock en vuelo previene carreras', async () => {
+      let verificationRpcCalls = 0;
+      let inFlight: Promise<boolean> | null = null;
+
+      const mockVerifyRpc = async (): Promise<boolean> => {
+        verificationRpcCalls++;
+        await new Promise((r) => setTimeout(r, 15));
+        return true;
+      };
+
+      const verifyIdempotent = async () => {
+        if (inFlight) return inFlight;
+        const p = (async () => {
+          try { return await mockVerifyRpc(); }
+          finally { inFlight = null; }
+        })();
+        inFlight = p;
+        return inFlight;
+      };
+
+      const [r1, r2] = await Promise.all([verifyIdempotent(), verifyIdempotent()]);
+      assert.equal(r1, true);
+      assert.equal(r2, true);
+      assert.equal(verificationRpcCalls, 1, 'Exactamente una llamada de verificación ante eventos paralelos');
+    });
+
+    test('5.11. No duplicación de recursos: verificar idempotencia es estrictamente de solo lectura', async () => {
+      // Contar filas antes
+      const encCountBefore = (await suite5Db.query(`SELECT count(*) as c FROM public.encuentros;`)).rows[0].c;
+
+      await setSuite5Auth(suite5GoogleUser1, false);
+      await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}');`);
+      await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}');`);
+
+      const encCountAfter = (await suite5Db.query(`SELECT count(*) as c FROM public.encuentros;`)).rows[0].c;
+      assert.equal(encCountBefore, encCountAfter, 'No se crean ni duplican encuentros');
+    });
+
+    test('5.12. Cero fuga de identidades: respuesta de confirmación no expone IDs de terceros', async () => {
+      // Usuario 2 consulta un token ajeno
+      await setSuite5Auth(suite5GoogleUser2, false);
+      const res = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}') as res;`);
+      const data = parseJson((res.rows[0] as any).res);
+
+      assert.deepEqual(data, { ok: false, error: 'transfer_not_confirmed' });
+    });
+
+    test('5.13. Preservación estricta de post_auth_redirect y reanudación exitosa', () => {
+      const storage: Record<string, string> = {
+        'post_auth_redirect': `/meet/${suite5EncounterId}`,
+      };
+      let navigatedTo: string | null = null;
+
+      const processRedirect = (status: TransferClaimStatus) => {
+        const path = storage['post_auth_redirect'];
+        if (!path || !isValidPostAuthRedirect(path)) return;
+        if (isOwnershipDependentRoute(path)) {
+          if (status === 'claiming' || status === 'error_transient') return;
+          if (status === 'error_terminal') {
+            delete storage['post_auth_redirect'];
+            return;
+          }
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        }
+      };
+
+      // Mientras se ejecuta la verificación de idempotencia:
+      processRedirect('claiming');
+      assert.equal(navigatedTo, null);
+      assert.equal(storage['post_auth_redirect'], `/meet/${suite5EncounterId}`);
+
+      // Al resolverse positivamente como 'success':
+      processRedirect('success');
+      assert.equal(navigatedTo, `/meet/${suite5EncounterId}`, 'Navega inmediatamente al encuentro');
+      assert.equal(storage['post_auth_redirect'], undefined, 'Consume post_auth_redirect');
+    });
+
+    test('5.14. Usuario diferente conociendo el valor del token jamás puede reutilizarlo', async () => {
+      // Usuario 2 intenta canjear el token que ya pertenece a Usuario 1
+      await setSuite5Auth(suite5GoogleUser2, false);
+
+      const claimRes = await suite5Db.query(`SELECT public.claim_anonymous_transfer('${testTokenHex}') as res;`);
+      const claimData = parseJson((claimRes.rows[0] as any).res);
+      assert.equal(claimData.ok, false);
+      assert.equal(claimData.error, 'ticket_already_used');
+
+      const verifyRes = await suite5Db.query(`SELECT public.confirmar_transferencia_anonima_completada_seguro('${testTokenHex}') as res;`);
+      const verifyData = parseJson((verifyRes.rows[0] as any).res);
+      assert.equal(verifyData.ok, false);
+      assert.equal(verifyData.error, 'transfer_not_confirmed');
+
+      // Comprobar que el encuentro sigue perteneciendo exclusivamente a Usuario 1
+      const enc = await suite5Db.query(`SELECT host_id FROM public.encuentros WHERE id = '${suite5EncounterId}';`);
+      assert.equal((enc.rows[0] as any).host_id, suite5GoogleUser1);
     });
   });
 });

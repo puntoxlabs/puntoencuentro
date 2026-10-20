@@ -211,6 +211,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const errCode = claimData?.error || claimErr?.message || 'unknown_claim_error';
           console.warn('[Auth] claim_anonymous_transfer error:', errCode);
 
+          if (errCode === 'ticket_already_used') {
+            // Caso de respuesta de red perdida: verificar de forma segura si la transferencia
+            // ya había culminado con éxito para este usuario en el intento previo.
+            try {
+              const { data: verifyData, error: verifyErr } = await supabase.rpc(
+                'confirmar_transferencia_anonima_completada_seguro',
+                { p_transfer_token: pendingTransferTicket }
+              );
+
+              if (verifyData?.ok === true) {
+                if (import.meta.env.DEV) {
+                  console.log('[Auth] Transferencia confirmada como ya completada para la cuenta actual:', verifyData);
+                }
+                sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+                sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+                claimSucceededRef.current = true;
+                setTransferClaimStatus('success');
+                setTransferClaimError(null);
+                return true;
+              } else {
+                // El backend confirmó que el ticket NO fue completado para esta cuenta (pertenece a otro usuario o no es válido)
+                console.warn('[Auth] Transferencia no corresponde a la cuenta actual:', verifyData?.error || verifyErr?.message);
+                sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+                sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+                setTransferClaimStatus('error_terminal');
+                setTransferClaimError('ticket_already_used');
+                return false;
+              }
+            } catch (verifyNetErr) {
+              console.error('[Auth] Error de red al verificar confirmación de transferencia:', verifyNetErr);
+              // Si la verificación falla por red, preservar el ticket como error transitorio para reintentar
+              sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+              setTransferClaimStatus('error_transient');
+              setTransferClaimError('network_error');
+              return false;
+            }
+          }
+
           if (TERMINAL_CLAIM_ERRORS.has(errCode)) {
             // Error terminal irreversible: limpiar storage local para no intentar en vano
             sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
