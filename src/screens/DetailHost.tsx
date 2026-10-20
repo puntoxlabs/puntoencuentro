@@ -88,7 +88,7 @@ const DetailHost: React.FC = () => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
 
-  const { user, loading: authLoading, isTransferClaimPending, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, transferClaimStatus, retryTransferClaim, signInWithGoogle } = useAuth();
 
   // Estados para invitado individual
   const [nombre, setNombre] = useState('');
@@ -163,7 +163,7 @@ const DetailHost: React.FC = () => {
   // Se re-ejecuta cuando auth termina (authLoading cambia a false)
   useEffect(() => {
     if (!id) return;
-    if (authLoading || isTransferClaimPending) return; // No cargar hasta que auth y transferencia estén resueltos
+    if (authLoading || transferClaimStatus === 'claiming') return; // No cargar hasta que auth y transferencia estén resueltos
 
     // Prioridad hostId:
     // 1. user?.id (sesión autenticada)
@@ -223,7 +223,7 @@ const DetailHost: React.FC = () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [id, authLoading, isTransferClaimPending]);
+  }, [id, authLoading, transferClaimStatus]);
 
   useEffect(() => {
     return () => {
@@ -384,7 +384,13 @@ const DetailHost: React.FC = () => {
       if (import.meta.env.DEV) console.error('[DetailHost] loadData error:', err?.message, err);
       const code = err?.code || err?.message || '';
       if (code === 'unauthorized') {
-        setError('Este encuentro no pertenece a este dispositivo o sesión.');
+        if (transferClaimStatus === 'error_transient') {
+          setError('transfer_transient');
+        } else if (transferClaimStatus === 'error_terminal') {
+          setError('transfer_terminal');
+        } else {
+          setError('Este encuentro no pertenece a este dispositivo o sesión.');
+        }
       } else if (code === 'not_found') {
         setError('No se pudo encontrar el encuentro.');
       } else {
@@ -618,21 +624,76 @@ const DetailHost: React.FC = () => {
     </ScreenContainer>
   );
 
-  if (error || !encuentro) return (
-    <ScreenContainer>
-      <AppBar title="Error" showBack />
-      <div className="dh-error-container">
-        <span className="dh-error-icon">⚠️</span>
-        <p className="dh-error-text">
-          {error || 'Encuentro no encontrado.'}
-        </p>
-        <Button fullWidth onClick={() => loadData()} variant="outline">
-          Reintentar
-        </Button>
-        <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
-      </div>
-    </ScreenContainer>
-  );
+  if (error || !encuentro) {
+    if (error === 'transfer_transient') {
+      return (
+        <ScreenContainer>
+          <AppBar title="PuntoEncuentro" showBack onBack={() => navigate('/')} />
+          <div className="dh-error-container" style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <span className="dh-error-icon" style={{ fontSize: '2.5rem', marginBottom: 12 }}>⚠️</span>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: '0 0 8px 0', color: 'var(--color-on-surface)' }}>
+              Problema de conexión al vincular tu encuentro
+            </h3>
+            <p className="dh-error-text" style={{ margin: '0 0 20px 0', color: 'var(--color-on-surface-variant)' }}>
+              Tu encuentro no se perdió. La vinculación con tu cuenta de Google aún no concluyó debido a un problema de conexión.
+            </p>
+            <Button
+              fullWidth
+              onClick={async () => {
+                const ok = await retryTransferClaim();
+                if (ok) {
+                  await loadData(user?.id);
+                }
+              }}
+              variant="outline"
+              style={{ marginBottom: 10 }}
+            >
+              Reintentar vinculación
+            </Button>
+            <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>
+              Ir al inicio
+            </Button>
+          </div>
+        </ScreenContainer>
+      );
+    }
+
+    if (error === 'transfer_terminal') {
+      return (
+        <ScreenContainer>
+          <AppBar title="PuntoEncuentro" showBack onBack={() => navigate('/')} />
+          <div className="dh-error-container" style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <span className="dh-error-icon" style={{ fontSize: '2.5rem', marginBottom: 12 }}>⏱️</span>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: '0 0 8px 0', color: 'var(--color-on-surface)' }}>
+              El tiempo para vincular este encuentro expiró
+            </h3>
+            <p className="dh-error-text" style={{ margin: '0 0 20px 0', color: 'var(--color-on-surface-variant)' }}>
+              Por seguridad, los tickets de transferencia tienen una validez de 15 minutos. Si aún tenés la sesión previa en este dispositivo, el encuentro sigue disponible allí.
+            </p>
+            <Button fullWidth onClick={() => navigate('/')} variant="outline">
+              Ir al inicio
+            </Button>
+          </div>
+        </ScreenContainer>
+      );
+    }
+
+    return (
+      <ScreenContainer>
+        <AppBar title="Error" showBack />
+        <div className="dh-error-container">
+          <span className="dh-error-icon">⚠️</span>
+          <p className="dh-error-text">
+            {error || 'Encuentro no encontrado.'}
+          </p>
+          <Button fullWidth onClick={() => loadData()} variant="outline">
+            Reintentar
+          </Button>
+          <Button fullWidth onClick={() => navigate('/')} variant="ghost" style={{ color: 'var(--color-on-surface-variant)', border: 'none' }}>Ir al inicio</Button>
+        </div>
+      </ScreenContainer>
+    );
+  }
 
   // Orden alfabético dentro de cada sección (no muta participantes)
   const sortByName = (a: any, b: any) =>

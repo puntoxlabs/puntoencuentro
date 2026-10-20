@@ -109,28 +109,111 @@ export function isValidPostAuthRedirect(path: unknown): boolean {
   return false;
 }
 
+/**
+ * Determina si una ruta depende de recursos transferidos (titularidad de anfitrión / creador).
+ *
+ * Rutas de propiedad:
+ * - /meet/:id
+ * - /add-guests/:id
+ * - /share/:id
+ * - /cancel-summary/:id
+ * - /coordination/:id (coordinación gestionada por el anfitrión)
+ *
+ * Rutas no dependientes de propiedad transferida (invitaciones y creación libre):
+ * - /invitation/:id
+ * - /invite/:token
+ * - /join/:token
+ * - /coordination/invite/:token
+ * - /coordination/join/:token
+ * - /, /create, /create/coordination, /create/ai
+ */
+export function isOwnershipDependentRoute(path: unknown): boolean {
+  if (typeof path !== 'string' || path.length === 0) return false;
+
+  // /meet/:id
+  const meetMatch = path.match(/^\/meet\/([^/]+)$/);
+  if (meetMatch && UUID_REGEX.test(meetMatch[1])) return true;
+
+  // /add-guests/:id
+  const addGuestsMatch = path.match(/^\/add-guests\/([^/]+)$/);
+  if (addGuestsMatch && UUID_REGEX.test(addGuestsMatch[1])) return true;
+
+  // /share/:id
+  const shareMatch = path.match(/^\/share\/([^/]+)$/);
+  if (shareMatch && UUID_REGEX.test(shareMatch[1])) return true;
+
+  // /cancel-summary/:id
+  const cancelMatch = path.match(/^\/cancel-summary\/([^/]+)$/);
+  if (cancelMatch && UUID_REGEX.test(cancelMatch[1])) return true;
+
+  // /coordination/:id (exclusivo para el ID de coordinación, sin sub-rutas invite/join)
+  const coordMatch = path.match(/^\/coordination\/([^/]+)$/);
+  if (coordMatch && UUID_REGEX.test(coordMatch[1])) return true;
+
+  return false;
+}
+
 export function usePostAuthRedirect() {
-  const { user, loading, isTransferClaimPending } = useAuth();
+  const { user, loading, transferClaimStatus } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Invariante de seguridad: esperar a que auth y cualquier reclamo de transferencia
-    // pendiente concluyan antes de restaurar rutas que dependen de propiedad de recursos.
-    if (loading || isTransferClaimPending) return;
+    // Invariante de seguridad: esperar a que auth termine de inicializarse
+    if (loading) return;
 
     // Requiere usuario permanente para procesar el redirect post-auth de Google
-    if (user && !user.is_anonymous) {
-      const redirectPath = sessionStorage.getItem('post_auth_redirect');
+    if (!user || user.is_anonymous) return;
 
-      if (redirectPath) {
-        sessionStorage.removeItem('post_auth_redirect');
+    const redirectPath = sessionStorage.getItem('post_auth_redirect');
+    if (!redirectPath) return;
 
-        if (isValidPostAuthRedirect(redirectPath)) {
-          navigate(redirectPath, { replace: true });
-        } else {
-          console.warn(`[usePostAuthRedirect] Ruta no permitida descartada: ${redirectPath}`);
-        }
-      }
+    if (!isValidPostAuthRedirect(redirectPath)) {
+      console.warn(`[usePostAuthRedirect] Ruta no permitida descartada: ${redirectPath}`);
+      sessionStorage.removeItem('post_auth_redirect');
+      return;
     }
-  }, [user, loading, isTransferClaimPending, navigate]);
+
+    const isOwnershipRoute = isOwnershipDependentRoute(redirectPath);
+
+    if (isOwnershipRoute) {
+      // 1. Reclamo de transferencia en curso: ESPERAR estrictamente
+      if (transferClaimStatus === 'claiming') {
+        return;
+      }
+
+      // 2. Error transitorio de transferencia (red, 5xx, reintentos agotados pero ticket vigente):
+      // NO avanzar a la ruta de anfitrión (fallaría con 403 o vista degradada).
+      // NO eliminar post_auth_redirect: se preserva para que al reintentar y tener éxito,
+      // la navegación se reanude automáticamente.
+      if (transferClaimStatus === 'error_transient') {
+        if (import.meta.env.DEV) {
+          console.warn('[usePostAuthRedirect] Transferencia en error transitorio. Pausando redirección a ruta de propiedad:', redirectPath);
+        }
+        return;
+      }
+
+      // 3. Error terminal de transferencia (ticket expirado, revocado, ya usado o no encontrado):
+      // Descartar post_auth_redirect para evitar bucles infinitos de navegación, pero NO navegar a la pantalla de anfitrión.
+      if (transferClaimStatus === 'error_terminal') {
+        console.warn('[usePostAuthRedirect] Error terminal en ticket de transferencia. Descartando redirección a ruta de propiedad:', redirectPath);
+        sessionStorage.removeItem('post_auth_redirect');
+        return;
+      }
+
+      // 4. Éxito comprobado ('success') o sin transferencia requerida ('idle'):
+      // Navegación segura hacia el recurso propio.
+      sessionStorage.removeItem('post_auth_redirect');
+      navigate(redirectPath, { replace: true });
+    } else {
+      // Rutas no dependientes de propiedad (/invitation/:id, /invite/:token, /create, etc.):
+      // Si aún está claiming, esperar para unificar la sesión limpiamente.
+      if (transferClaimStatus === 'claiming') {
+        return;
+      }
+
+      // Una vez resuelto (idle, success, error_transient o error_terminal), navegar.
+      sessionStorage.removeItem('post_auth_redirect');
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, loading, transferClaimStatus, navigate]);
 }

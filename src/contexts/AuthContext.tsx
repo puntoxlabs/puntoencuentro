@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { participantesService } from '@/services/participantesService';
@@ -25,6 +25,13 @@ export type GoogleSignInResult =
         | string;
     };
 
+export type TransferClaimStatus =
+  | 'idle'
+  | 'claiming'
+  | 'success'
+  | 'error_transient'
+  | 'error_terminal';
+
 const PENDING_TRANSFER_TICKET_KEY = 'pe_pending_transfer_ticket';
 const TRANSFER_CLAIM_RETRIES_KEY = 'pe_transfer_claim_retries';
 const MAX_CLAIM_RETRIES = 3;
@@ -33,6 +40,7 @@ const TERMINAL_CLAIM_ERRORS = new Set([
   'ticket_expired',
   'ticket_revoked',
   'ticket_already_used',
+  'ticket_not_found',
   'source_no_longer_anonymous',
   'source_user_not_found',
   'invalid_token_format',
@@ -72,7 +80,14 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  /** Compatibilidad: true mientras se procesa activamente el canje del ticket */
   isTransferClaimPending: boolean;
+  /** Estado discriminado del reclamo de transferencia post-OAuth */
+  transferClaimStatus: TransferClaimStatus;
+  /** Código de error del último intento de transferencia si falló */
+  transferClaimError: string | null;
+  /** Permite al usuario reintentar manualmente la vinculación en caso de fallo transitorio */
+  retryTransferClaim: () => Promise<boolean>;
   isAuthenticated: boolean;
   isAnonymousUser: boolean;
   isPermanentUser: boolean;
@@ -104,6 +119,9 @@ export const AuthContext = createContext<AuthContextValue>({
   session: null,
   loading: true,
   isTransferClaimPending: false,
+  transferClaimStatus: 'idle',
+  transferClaimError: null,
+  retryTransferClaim: async () => false,
   isAuthenticated: false,
   isAnonymousUser: false,
   isPermanentUser: false,
@@ -119,9 +137,114 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isTransferClaimPending, setIsTransferClaimPending] = useState(() => {
-    return typeof window !== 'undefined' && Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
+  const [transferClaimStatus, setTransferClaimStatus] = useState<TransferClaimStatus>(() => {
+    return typeof window !== 'undefined' && Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY))
+      ? 'claiming'
+      : 'idle';
   });
+  const [transferClaimError, setTransferClaimError] = useState<string | null>(null);
+
+  // Guardias de concurrencia y reentrancia
+  const claimInFlightRef = useRef<Promise<boolean> | null>(null);
+  const claimSucceededRef = useRef<boolean>(false);
+  const authDebounceTimerRef = useRef<number | null>(null);
+
+  /**
+   * Ejecuta el reclamo del ticket de transferencia pendiente.
+   * Maneja de forma atómica la concurrencia evitando llamadas duplicadas,
+   * actualiza transferClaimStatus de forma explícita y conserva el token
+   * en fallos de red o errores transitorios para permitir reintentos manuales.
+   */
+  const executeTransferClaim = useCallback(async (isManualRetry = false): Promise<boolean> => {
+    // 1. Si ya se canjeó exitosamente en esta sesión:
+    if (claimSucceededRef.current) {
+      setTransferClaimStatus('success');
+      setTransferClaimError(null);
+      return true;
+    }
+
+    // 2. Si ya hay una solicitud en vuelo, unirse a esa promesa para evitar carreras
+    if (claimInFlightRef.current) {
+      return claimInFlightRef.current;
+    }
+
+    const runClaim = async (): Promise<boolean> => {
+      const pendingTransferTicket = typeof window !== 'undefined'
+        ? sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY)
+        : null;
+
+      if (!pendingTransferTicket) {
+        setTransferClaimStatus('idle');
+        setTransferClaimError(null);
+        return false;
+      }
+
+      setTransferClaimStatus('claiming');
+      setTransferClaimError(null);
+
+      const retryCount = parseInt(sessionStorage.getItem(TRANSFER_CLAIM_RETRIES_KEY) || '0', 10);
+      if (!isManualRetry && retryCount >= MAX_CLAIM_RETRIES) {
+        if (import.meta.env.DEV) {
+          console.warn('[Auth] Límite de reintentos automáticos alcanzado para el transfer ticket en esta sesión');
+        }
+        setTransferClaimStatus('error_transient');
+        setTransferClaimError('max_retries_reached');
+        return false;
+      }
+
+      try {
+        const { data: claimData, error: claimErr } = await supabase.rpc('claim_anonymous_transfer', {
+          p_transfer_token: pendingTransferTicket,
+        });
+
+        if (claimData?.ok === true) {
+          if (import.meta.env.DEV) {
+            console.log('[Auth] Recursos transferidos con éxito a la cuenta permanente:', claimData);
+          }
+          sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+          sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+          claimSucceededRef.current = true;
+          setTransferClaimStatus('success');
+          setTransferClaimError(null);
+          return true;
+        } else {
+          const errCode = claimData?.error || claimErr?.message || 'unknown_claim_error';
+          console.warn('[Auth] claim_anonymous_transfer error:', errCode);
+
+          if (TERMINAL_CLAIM_ERRORS.has(errCode)) {
+            // Error terminal irreversible: limpiar storage local para no intentar en vano
+            sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
+            sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+            setTransferClaimStatus('error_terminal');
+            setTransferClaimError(errCode);
+            return false;
+          } else {
+            // Error transitorio/recuperable: incrementar reintentos y conservar secret
+            sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+            setTransferClaimStatus('error_transient');
+            setTransferClaimError(errCode);
+            return false;
+          }
+        }
+      } catch (err: any) {
+        console.error('[Auth] Error claiming anonymous transfer ticket (transient):', err);
+        // En fallo de red/5xx/timeout: conservar secret para reintentar
+        sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+        setTransferClaimStatus('error_transient');
+        setTransferClaimError('network_error');
+        return false;
+      } finally {
+        claimInFlightRef.current = null;
+      }
+    };
+
+    claimInFlightRef.current = runClaim();
+    return claimInFlightRef.current;
+  }, []);
+
+  const retryTransferClaim = useCallback(async (): Promise<boolean> => {
+    return executeTransferClaim(true);
+  }, [executeTransferClaim]);
 
   useEffect(() => {
     // Obtener sesión inicial
@@ -152,7 +275,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // y limpiar el estado de contactos y repetición.
         useContactsStore.getState().reset();
         useRepeatEncounterStore.getState().reset();
-        setIsTransferClaimPending(false);
+        setTransferClaimStatus('idle');
+        setTransferClaimError(null);
+        claimSucceededRef.current = false;
+        if (authDebounceTimerRef.current) {
+          window.clearTimeout(authDebounceTimerRef.current);
+          authDebounceTimerRef.current = null;
+        }
       }
 
       if (
@@ -160,64 +289,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         event === 'INITIAL_SESSION' ||
         event === 'TOKEN_REFRESHED'
       ) {
-        const checkPendingTicket = Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
-        if (nextUser && !nextUser.is_anonymous && checkPendingTicket) {
-          setIsTransferClaimPending(true);
+        const checkPendingTicket = Boolean(
+          typeof window !== 'undefined' && sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY)
+        );
+        if (nextUser && !nextUser.is_anonymous && checkPendingTicket && !claimSucceededRef.current) {
+          setTransferClaimStatus('claiming');
         }
 
-        window.setTimeout(() => {
+        if (authDebounceTimerRef.current) {
+          window.clearTimeout(authDebounceTimerRef.current);
+        }
+
+        // Debounce de 50ms para unificar eventos casi simultáneos (OAuth callback / INITIAL_SESSION / TOKEN_REFRESHED)
+        authDebounceTimerRef.current = window.setTimeout(() => {
           void (async () => {
             const newUser = newSession?.user;
             if (!newUser || newUser.is_anonymous) {
-              setIsTransferClaimPending(false);
+              setTransferClaimStatus('idle');
               return;
             }
 
             // 0. Canjear Transfer Ticket si el usuario unificó cuenta anónima con Google
-            const pendingTransferTicket = sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY);
-            if (pendingTransferTicket) {
-              const retryCount = parseInt(sessionStorage.getItem(TRANSFER_CLAIM_RETRIES_KEY) || '0', 10);
-              if (retryCount < MAX_CLAIM_RETRIES) {
-                try {
-                  const { data: claimData, error: claimErr } = await supabase.rpc('claim_anonymous_transfer', {
-                    p_transfer_token: pendingTransferTicket,
-                  });
-
-                  if (claimData?.ok === true) {
-                    if (import.meta.env.DEV) {
-                      console.log('[Auth] Recursos transferidos con éxito a la cuenta permanente:', claimData);
-                    }
-                    sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
-                    sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
-                  } else {
-                    const errCode = claimData?.error || claimErr?.message;
-                    console.warn('[Auth] claim_anonymous_transfer error:', errCode);
-
-                    if (errCode && TERMINAL_CLAIM_ERRORS.has(errCode)) {
-                      // Error terminal irreversible: limpiar storage local
-                      sessionStorage.removeItem(PENDING_TRANSFER_TICKET_KEY);
-                      sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
-                    } else {
-                      // Error transitorio/recuperable: incrementar reintentos y conservar secret
-                      sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
-                    }
-                  }
-                } catch (err) {
-                  console.error('[Auth] Error claiming anonymous transfer ticket (transient):', err);
-                  // En fallo de red/5xx/timeout: conservar secret para reintentar
-                  sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
-                } finally {
-                  setIsTransferClaimPending(false);
-                }
-              } else {
-                if (import.meta.env.DEV) {
-                  console.warn('[Auth] Máximo de reintentos alcanzado para el transfer ticket en esta sesión');
-                }
-                setIsTransferClaimPending(false);
-              }
-            } else {
-              setIsTransferClaimPending(false);
-            }
+            await executeTransferClaim(false);
 
             // 1. Vincular token de participante pendiente (invitaciones privadas)
             const pendingToken = sessionStorage.getItem(RECENT_PARTICIPANT_KEY);
@@ -242,12 +335,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Aquí solo dejamos la marca; el componente consumidor es responsable de leerla.
             // (No navegamos aquí para no romper flujos de redirección ya existentes.)
           })();
-        }, 0);
+        }, 50);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      if (authDebounceTimerRef.current) {
+        window.clearTimeout(authDebounceTimerRef.current);
+      }
+    };
+  }, [executeTransferClaim]);
 
   // ── Métodos de inventario y transferencia ─────────────────────────────────
 
@@ -321,6 +419,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res?.ok && res.ticket_token) {
         sessionStorage.setItem(PENDING_TRANSFER_TICKET_KEY, res.ticket_token);
         sessionStorage.removeItem(TRANSFER_CLAIM_RETRIES_KEY);
+        setTransferClaimStatus('claiming');
       }
       return res || { ok: false, error: 'unknown_creation_error' };
     } catch (err: any) {
@@ -375,6 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('[Auth] Abortando OAuth: no se pudo asegurar el ticket de transferencia local:', res.error);
           return { ok: false, error: res.error || 'ticket_creation_failed' };
         }
+        setTransferClaimStatus('claiming');
         // IMPORTANTE: NO hacer signOut(); preserva la sesión anónima en localStorage
         // en caso de que el usuario cierre o cancele el consentimiento en Google.
       } else {
@@ -414,7 +514,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isTransferClaimPending,
+      user, session, loading,
+      isTransferClaimPending: transferClaimStatus === 'claiming',
+      transferClaimStatus,
+      transferClaimError,
+      retryTransferClaim,
       isAuthenticated, isAnonymousUser, isPermanentUser,
       signInWithGoogle,
       signInWithGoogleForCoordination,

@@ -63,6 +63,7 @@ import InternalModerationScreen from '@/screens/InternalModeration/index';
 import { ModerationGate } from '@/components/moderation/ModerationGate';
 
 import { CriticalCancellationModal } from '@/components/notifications/CriticalCancellationModal';
+import { TransferClaimBanner } from '@/components/auth/TransferClaimBanner';
 
 const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
@@ -86,6 +87,7 @@ const AppRoutes: React.FC = () => {
   return (
     <>
       <CriticalCancellationModal />
+      <TransferClaimBanner />
       <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/preview/home-d" element={<PreviewHomeD />} />

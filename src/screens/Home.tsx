@@ -371,7 +371,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading: authLoading, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
+  const { user, loading: authLoading, transferClaimStatus, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
   const wizardStore = useWizardStore();
   const { reset: resetWizard } = wizardStore;
@@ -1083,11 +1083,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
   }, [user, authLoading]);
 
-  // Recargar cuando el usuario inicia o cierra sesión
+  // Recargar cuando el usuario inicia o cierra sesión, o concluye la transferencia de recursos
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || transferClaimStatus === 'claiming') return;
     void loadData();
-  }, [authLoading, user?.id, user?.is_anonymous, loadData]);
+  }, [authLoading, transferClaimStatus, user?.id, user?.is_anonymous, loadData]);
 
   const handleRepeat = (enc: any, e: React.MouseEvent) => {
     e.stopPropagation();

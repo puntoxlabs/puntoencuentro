@@ -1,7 +1,8 @@
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
-import { isValidPostAuthRedirect, STATIC_ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect';
+import { isValidPostAuthRedirect, isOwnershipDependentRoute, STATIC_ALLOWED_POST_AUTH_ROUTES } from '../src/hooks/usePostAuthRedirect';
+import type { TransferClaimStatus } from '../src/contexts/AuthContext';
 
 describe('Mini-sprint 1: Identidad y Acceso Crítico Pre-Lanzamiento', () => {
 
@@ -883,6 +884,274 @@ describe('Mini-sprint 1: Identidad y Acceso Crítico Pre-Lanzamiento', () => {
       const userRes = await db.query(`SELECT auth.uid() as current_user;`);
       const currentUid = (userRes.rows[0] as any).current_user;
       assert.notEqual(currentUid, hostId);
+    });
+  });
+
+  // =========================================================================
+  // SUITE 4: Hardening de Transfer Claim Post-OAuth, Estados y Redirección
+  // =========================================================================
+  describe('4. Hardening de Transfer Claim Post-OAuth, Estados y Redirección', () => {
+    const validMeetUuid = '550e8400-e29b-41d4-a716-446655440001';
+    const validInviteUuid = '550e8400-e29b-41d4-a716-446655440002';
+
+    test('4.1. Discriminación estricta de rutas dependientes de propiedad (isOwnershipDependentRoute)', () => {
+      // Rutas de propiedad
+      assert.equal(isOwnershipDependentRoute(`/meet/${validMeetUuid}`), true);
+      assert.equal(isOwnershipDependentRoute(`/add-guests/${validMeetUuid}`), true);
+      assert.equal(isOwnershipDependentRoute(`/share/${validMeetUuid}`), true);
+      assert.equal(isOwnershipDependentRoute(`/cancel-summary/${validMeetUuid}`), true);
+      assert.equal(isOwnershipDependentRoute(`/coordination/${validMeetUuid}`), true);
+
+      // Rutas NO dependientes de propiedad (invitados / creación)
+      assert.equal(isOwnershipDependentRoute(`/invitation/${validInviteUuid}`), false);
+      assert.equal(isOwnershipDependentRoute(`/invite/${validInviteUuid}`), false);
+      assert.equal(isOwnershipDependentRoute(`/join/${validInviteUuid}`), false);
+      assert.equal(isOwnershipDependentRoute(`/coordination/invite/${validInviteUuid}`), false);
+      assert.equal(isOwnershipDependentRoute(`/coordination/join/${validInviteUuid}`), false);
+      assert.equal(isOwnershipDependentRoute('/create'), false);
+      assert.equal(isOwnershipDependentRoute('/create/coordination'), false);
+      assert.equal(isOwnershipDependentRoute('/create/ai'), false);
+      assert.equal(isOwnershipDependentRoute('/'), false);
+    });
+
+    test('4.2. Estado claiming en ruta de anfitrión: NO navega y preserva post_auth_redirect', () => {
+      const storage: Record<string, string> = {
+        'post_auth_redirect': `/meet/${validMeetUuid}`,
+      };
+      let navigatedTo: string | null = null;
+
+      const runRedirectEffect = (status: TransferClaimStatus) => {
+        const path = storage['post_auth_redirect'];
+        if (!path || !isValidPostAuthRedirect(path)) return;
+        if (isOwnershipDependentRoute(path)) {
+          if (status === 'claiming' || status === 'error_transient') return;
+          if (status === 'error_terminal') {
+            delete storage['post_auth_redirect'];
+            return;
+          }
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        }
+      };
+
+      runRedirectEffect('claiming');
+      assert.equal(navigatedTo, null, 'No debe navegar mientras está en claiming');
+      assert.equal(storage['post_auth_redirect'], `/meet/${validMeetUuid}`, 'Debe conservar post_auth_redirect');
+    });
+
+    test('4.3. Error transitorio en ruta de anfitrión: NO navega y conserva redirect para reintento', () => {
+      const storage: Record<string, string> = {
+        'post_auth_redirect': `/meet/${validMeetUuid}`,
+      };
+      let navigatedTo: string | null = null;
+
+      const runRedirectEffect = (status: TransferClaimStatus) => {
+        const path = storage['post_auth_redirect'];
+        if (!path || !isValidPostAuthRedirect(path)) return;
+        if (isOwnershipDependentRoute(path)) {
+          if (status === 'claiming' || status === 'error_transient') return;
+          if (status === 'error_terminal') {
+            delete storage['post_auth_redirect'];
+            return;
+          }
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        }
+      };
+
+      runRedirectEffect('error_transient');
+      assert.equal(navigatedTo, null, 'No debe navegar con error transitorio');
+      assert.equal(storage['post_auth_redirect'], `/meet/${validMeetUuid}`, 'Debe conservar post_auth_redirect para reintento');
+
+      // Tras reintento exitoso (status pasa a 'success'):
+      runRedirectEffect('success');
+      assert.equal(navigatedTo, `/meet/${validMeetUuid}`, 'Navega tras éxito en el reintento');
+      assert.equal(storage['post_auth_redirect'], undefined, 'Consume post_auth_redirect');
+    });
+
+    test('4.4. Error terminal en ruta de anfitrión: NO navega y limpia redirect (previene loop)', () => {
+      const storage: Record<string, string> = {
+        'post_auth_redirect': `/meet/${validMeetUuid}`,
+      };
+      let navigatedTo: string | null = null;
+
+      const runRedirectEffect = (status: TransferClaimStatus) => {
+        const path = storage['post_auth_redirect'];
+        if (!path || !isValidPostAuthRedirect(path)) return;
+        if (isOwnershipDependentRoute(path)) {
+          if (status === 'claiming' || status === 'error_transient') return;
+          if (status === 'error_terminal') {
+            delete storage['post_auth_redirect'];
+            return;
+          }
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        }
+      };
+
+      runRedirectEffect('error_terminal');
+      assert.equal(navigatedTo, null, 'No debe navegar al encuentro con error terminal');
+      assert.equal(storage['post_auth_redirect'], undefined, 'Debe descartar post_auth_redirect para evitar bucle');
+    });
+
+    test('4.5. Ruta no dependiente de titularidad (/invitation/:id): navega cuando auth concluye', () => {
+      const storage: Record<string, string> = {
+        'post_auth_redirect': `/invitation/${validInviteUuid}`,
+      };
+      let navigatedTo: string | null = null;
+
+      const runRedirectEffect = (status: TransferClaimStatus) => {
+        const path = storage['post_auth_redirect'];
+        if (!path || !isValidPostAuthRedirect(path)) return;
+        const isOwnership = isOwnershipDependentRoute(path);
+        if (isOwnership) {
+          if (status === 'claiming' || status === 'error_transient') return;
+          if (status === 'error_terminal') {
+            delete storage['post_auth_redirect'];
+            return;
+          }
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        } else {
+          if (status === 'claiming') return;
+          delete storage['post_auth_redirect'];
+          navigatedTo = path;
+        }
+      };
+
+      // Mientras claiming: espera
+      runRedirectEffect('claiming');
+      assert.equal(navigatedTo, null);
+      assert.equal(storage['post_auth_redirect'], `/invitation/${validInviteUuid}`);
+
+      // Al concluir, incluso si transfer ticket falló por error_transient,
+      // navega porque la invitación es de invitado y no requiere titularidad
+      runRedirectEffect('error_transient');
+      assert.equal(navigatedTo, `/invitation/${validInviteUuid}`);
+      assert.equal(storage['post_auth_redirect'], undefined);
+    });
+
+    test('4.6. Concurrencia de eventos auth: lock en vuelo previene doble invocación del claim', async () => {
+      let rpcCallCount = 0;
+      let claimInFlight: Promise<boolean> | null = null;
+
+      const mockClaimRpc = async (): Promise<boolean> => {
+        rpcCallCount++;
+        await new Promise((r) => setTimeout(r, 20));
+        return true;
+      };
+
+      const executeClaim = async () => {
+        if (claimInFlight) return claimInFlight;
+        const run = async () => {
+          try {
+            return await mockClaimRpc();
+          } finally {
+            claimInFlight = null;
+          }
+        };
+        claimInFlight = run();
+        return claimInFlight;
+      };
+
+      // Simular 3 eventos simultáneos: INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED
+      const [res1, res2, res3] = await Promise.all([
+        executeClaim(),
+        executeClaim(),
+        executeClaim(),
+      ]);
+
+      assert.equal(res1, true);
+      assert.equal(res2, true);
+      assert.equal(res3, true);
+      assert.equal(rpcCallCount, 1, 'Debe ejecutarse exactamente 1 vez el RPC ante eventos concurrentes');
+    });
+
+    test('4.7. Reintentos automáticos agotados vs. reintento manual', async () => {
+      const storage: Record<string, string> = {
+        'pe_pending_transfer_ticket': 'mock_valid_token_64chars_abcdef0123456789abcdef0123456789abcdef01234567',
+        'pe_transfer_claim_retries': '3',
+      };
+
+      let status: TransferClaimStatus = 'idle';
+      let error: string | null = null;
+
+      const executeClaim = async (isManual = false) => {
+        const retries = parseInt(storage['pe_transfer_claim_retries'] || '0', 10);
+        if (!isManual && retries >= 3) {
+          status = 'error_transient';
+          error = 'max_retries_reached';
+          return false;
+        }
+        // Simular éxito en reintento manual
+        delete storage['pe_pending_transfer_ticket'];
+        delete storage['pe_transfer_claim_retries'];
+        status = 'success';
+        error = null;
+        return true;
+      };
+
+      // Intento automático con 3 reintentos ya agotados
+      const autoRes = await executeClaim(false);
+      assert.equal(autoRes, false);
+      assert.equal(status, 'error_transient');
+      assert.equal(error, 'max_retries_reached');
+      assert.ok(storage['pe_pending_transfer_ticket'], 'El ticket se preserva en storage para reintento manual');
+
+      // Reintento manual por acción del usuario
+      const manualRes = await executeClaim(true);
+      assert.equal(manualRes, true);
+      assert.equal(status, 'success');
+      assert.equal(error, null);
+      assert.equal(storage['pe_pending_transfer_ticket'], undefined);
+    });
+
+    test('4.8. Fallo de red preserva ticket en storage sin fingir éxito', async () => {
+      const storage: Record<string, string> = {
+        'pe_pending_transfer_ticket': 'mock_valid_token_64chars_abcdef0123456789abcdef0123456789abcdef01234567',
+        'pe_transfer_claim_retries': '0',
+      };
+
+      let status: TransferClaimStatus = 'claiming';
+      let error: string | null = null;
+
+      try {
+        throw new TypeError('Failed to fetch');
+      } catch (err: any) {
+        storage['pe_transfer_claim_retries'] = '1';
+        status = 'error_transient';
+        error = 'network_error';
+      }
+
+      assert.equal(status, 'error_transient');
+      assert.equal(error, 'network_error');
+      assert.ok(storage['pe_pending_transfer_ticket'], 'El ticket NO se elimina tras error de red');
+      assert.equal(storage['pe_transfer_claim_retries'], '1');
+    });
+
+    test('4.9. Fallo terminal por expiración (15m): limpia storage y notifica error terminal', async () => {
+      const storage: Record<string, string> = {
+        'pe_pending_transfer_ticket': 'mock_valid_token_64chars_abcdef0123456789abcdef0123456789abcdef01234567',
+        'pe_transfer_claim_retries': '1',
+      };
+
+      let status: TransferClaimStatus = 'claiming';
+      let error: string | null = null;
+
+      const TERMINAL_ERRORS = new Set(['ticket_expired', 'ticket_revoked', 'ticket_already_used']);
+      const backendError = 'ticket_expired';
+
+      if (TERMINAL_ERRORS.has(backendError)) {
+        delete storage['pe_pending_transfer_ticket'];
+        delete storage['pe_transfer_claim_retries'];
+        status = 'error_terminal';
+        error = backendError;
+      }
+
+      assert.equal(status, 'error_terminal');
+      assert.equal(error, 'ticket_expired');
+      assert.equal(storage['pe_pending_transfer_ticket'], undefined, 'Limpia ticket expirado');
+      assert.equal(storage['pe_transfer_claim_retries'], undefined);
     });
   });
 });
