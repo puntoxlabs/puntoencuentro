@@ -56,13 +56,8 @@ export function useCreateEncounter() {
 
     if (!result.ok) {
       setGoogleLoading(false);
-      if (result.error !== 'anonymous_account_linking_pending') {
-        setError('No pudimos iniciar sesión con Google. Intentá nuevamente.');
-      } else {
-        // En teoría no deberíamos llegar aquí porque el visitante no tiene sesión,
-        // pero por seguridad:
-        sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
-      }
+      sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
+      setError('No pudimos iniciar sesión con Google. Intentá nuevamente.');
     }
     // Si ok = true, la redirección de OAuth ocurre o ya estaba logueado.
   };

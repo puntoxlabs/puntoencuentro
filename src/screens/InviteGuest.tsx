@@ -668,9 +668,18 @@ const InviteGuest: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={async () => {
-              const result = await signInWithGoogle();
-              if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
-                alert('Hubo un problema al iniciar sesión.');
+              try {
+                if (token) {
+                  sessionStorage.setItem('post_auth_redirect', `/invite/${token}`);
+                }
+                const result = await signInWithGoogle();
+                if (!result.ok) {
+                  sessionStorage.removeItem('post_auth_redirect');
+                  alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
+                }
+              } catch {
+                sessionStorage.removeItem('post_auth_redirect');
+                alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
               }
             }}
             fullWidth

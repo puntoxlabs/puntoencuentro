@@ -357,10 +357,21 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
 
   const handleLoginWithGoogle = async () => {
     setLoginLoading(true);
-    const result = await signInWithGoogleForDiscovery();
-    if (!result.ok) {
+    try {
+      if (encuentro?.id) {
+        sessionStorage.setItem('post_auth_redirect', `/meet/${encuentro.id}`);
+      }
+      const result = await signInWithGoogleForDiscovery();
+      if (!result.ok) {
+        sessionStorage.removeItem('post_auth_redirect');
+        setLoginLoading(false);
+        alert('No se pudo iniciar sesión con Google. Por favor reintentá.');
+        setIsLoginRequired(false);
+      }
+    } catch {
+      sessionStorage.removeItem('post_auth_redirect');
       setLoginLoading(false);
-      alert('No se pudo iniciar sesión. Por favor reintentá.');
+      alert('No se pudo iniciar sesión con Google. Por favor reintentá.');
       setIsLoginRequired(false);
     }
   };

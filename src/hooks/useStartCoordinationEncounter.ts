@@ -9,8 +9,11 @@ export function isPermanentUser(user: unknown): boolean {
 }
 
 export function getFriendlyAuthError(error?: string): string {
-  if (error === 'anonymous_account_linking_pending') {
-    return 'No pudimos iniciar sesión con Google desde esta sesión. Cerrá esta ventana e intentá nuevamente, o elegí fecha definida.';
+  if (error === 'inventory_check_failed') {
+    return 'No pudimos verificar los datos de tu sesión. Intentá nuevamente.';
+  }
+  if (error === 'ticket_creation_failed') {
+    return 'No pudimos preparar la vinculación de tu sesión. Intentá nuevamente.';
   }
   return 'No pudimos iniciar sesión con Google. Intentá nuevamente.';
 }

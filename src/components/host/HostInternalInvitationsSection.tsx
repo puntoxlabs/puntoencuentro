@@ -216,9 +216,18 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
             variant="primary"
             size="sm"
             onClick={async () => {
-              const res = await signInWithGoogle();
-              if (!res.ok && res.error !== 'anonymous_account_linking_pending') {
-                alert('No se pudo iniciar sesión.');
+              try {
+                if (encuentroId) {
+                  sessionStorage.setItem('post_auth_redirect', `/meet/${encuentroId}`);
+                }
+                const res = await signInWithGoogle();
+                if (!res.ok) {
+                  sessionStorage.removeItem('post_auth_redirect');
+                  alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
+                }
+              } catch {
+                sessionStorage.removeItem('post_auth_redirect');
+                alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
               }
             }}
           >

@@ -174,13 +174,11 @@ export const CustomDesignsSheet: React.FC<CustomDesignsSheetProps> = ({ isOpen, 
             </p>
             <button
               onClick={async () => {
+                sessionStorage.setItem('post_auth_redirect', window.location.pathname);
                 const result = await signInWithGoogle();
                 if (!result.ok) {
-                  if (result.error === 'anonymous_account_linking_pending') {
-                    alert('Próximamente podrás vincular tu cuenta. Por ahora, tus diseños están guardados de forma segura en este dispositivo.');
-                  } else {
-                    alert('Hubo un problema al iniciar sesión. Por favor, intentá nuevamente.');
-                  }
+                  sessionStorage.removeItem('post_auth_redirect');
+                  alert('Hubo un problema al iniciar sesión. Por favor, intentá nuevamente.');
                 }
               }}
               style={{

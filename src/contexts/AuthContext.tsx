@@ -21,6 +21,7 @@ export type GoogleSignInResult =
         | 'oauth_start_failed'
         | 'anonymous_has_critical_resources'
         | 'ticket_creation_failed'
+        | 'inventory_check_failed'
         | string;
     };
 
@@ -71,6 +72,7 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isTransferClaimPending: boolean;
   isAuthenticated: boolean;
   isAnonymousUser: boolean;
   isPermanentUser: boolean;
@@ -101,6 +103,7 @@ export const AuthContext = createContext<AuthContextValue>({
   user: null,
   session: null,
   loading: true,
+  isTransferClaimPending: false,
   isAuthenticated: false,
   isAnonymousUser: false,
   isPermanentUser: false,
@@ -116,6 +119,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isTransferClaimPending, setIsTransferClaimPending] = useState(() => {
+    return typeof window !== 'undefined' && Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
+  });
 
   useEffect(() => {
     // Obtener sesión inicial
@@ -146,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // y limpiar el estado de contactos y repetición.
         useContactsStore.getState().reset();
         useRepeatEncounterStore.getState().reset();
+        setIsTransferClaimPending(false);
       }
 
       if (
@@ -153,10 +160,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         event === 'INITIAL_SESSION' ||
         event === 'TOKEN_REFRESHED'
       ) {
+        const checkPendingTicket = Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
+        if (nextUser && !nextUser.is_anonymous && checkPendingTicket) {
+          setIsTransferClaimPending(true);
+        }
+
         window.setTimeout(() => {
           void (async () => {
             const newUser = newSession?.user;
-            if (!newUser || newUser.is_anonymous) return;
+            if (!newUser || newUser.is_anonymous) {
+              setIsTransferClaimPending(false);
+              return;
+            }
 
             // 0. Canjear Transfer Ticket si el usuario unificó cuenta anónima con Google
             const pendingTransferTicket = sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY);
@@ -191,10 +206,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   console.error('[Auth] Error claiming anonymous transfer ticket (transient):', err);
                   // En fallo de red/5xx/timeout: conservar secret para reintentar
                   sessionStorage.setItem(TRANSFER_CLAIM_RETRIES_KEY, String(retryCount + 1));
+                } finally {
+                  setIsTransferClaimPending(false);
                 }
-              } else if (import.meta.env.DEV) {
-                console.warn('[Auth] Máximo de reintentos alcanzado para el transfer ticket en esta sesión');
+              } else {
+                if (import.meta.env.DEV) {
+                  console.warn('[Auth] Máximo de reintentos alcanzado para el transfer ticket en esta sesión');
+                }
+                setIsTransferClaimPending(false);
               }
+            } else {
+              setIsTransferClaimPending(false);
             }
 
             // 1. Vincular token de participante pendiente (invitaciones privadas)
@@ -227,50 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Métodos de login ──────────────────────────────────────────────────────
-
-  const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
-    if (user?.is_anonymous) {
-      if (import.meta.env.DEV) console.log('[Auth] Bloqueo: no se permite login sobre sesión anónima via signInWithGoogle');
-      return { ok: false, error: 'anonymous_account_linking_pending' };
-    }
-    if (user && !user.is_anonymous) {
-      return { ok: true, alreadyLoggedIn: true };
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-
-    if (error) {
-      return { ok: false, error: 'oauth_start_failed' };
-    }
-
-    return { ok: true };
-  };
-
-  const signInWithGoogleForCoordination = async (): Promise<GoogleSignInResult> => {
-    if (user?.is_anonymous) {
-      await supabase.auth.signOut();
-    }
-    if (user && !user.is_anonymous) {
-      return { ok: true, alreadyLoggedIn: true };
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-
-    if (error) {
-      return { ok: false, error: 'oauth_start_failed' };
-    }
-
-    return { ok: true };
-  };
+  // ── Métodos de inventario y transferencia ─────────────────────────────────
 
   /**
    * Verifica server-side si el usuario anónimo tiene recursos transferibles.
@@ -282,6 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.rpc('get_anonymous_upgrade_state');
       if (error || !data) return null;
       const d = data as any;
+      if (d?.ok === false) return null;
       return {
         isAnonymous: Boolean(d.is_anonymous),
         hasOwnedEncounters: Boolean(d.has_owned_encounters),
@@ -348,26 +328,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // ── Métodos de login unificados ───────────────────────────────────────────
+
   /**
-   * Flujo de login para Discovery (solicitar sumarse a un encuentro abierto).
+   * Flujo unificado y seguro de inicio de sesión con Google.
    *
-   * Estrategia de seguridad e identidad:
-   *   - Ya permanente: no hace nada (retorna alreadyLoggedIn).
-   *   - Anónimo CON recursos transferibles: emite Transfer Ticket y procede a OAuth SIN signOut
-   *     destructivo (si el usuario cancela en Google, conserva su sesión anónima en localStorage).
-   *     Si falla la creación o no se dispone del secret local: ABORTA OAuth.
-   *   - Anónimo SIN recursos transferibles: signOut limpio seguro + OAuth directo.
+   * Reglas:
+   * - Usuario permanente: conservar sesión (ok: true, alreadyLoggedIn: true).
+   * - Usuario sin sesión: OAuth directo con Google.
+   * - Usuario anónimo CON recursos transferibles: emite Transfer Ticket y procede a OAuth
+   *   SIN signOut destructivo (preserva sesión en caso de cancelación en Google).
+   * - Usuario anónimo SIN recursos: signOut limpio seguro + OAuth directo.
+   * - Si falla la consulta del inventario de recursos: ABORTAR cambio de identidad sin cerrar sesión anónima.
+   * - Si falla la emisión del ticket: ABORTAR OAuth y mostrar error recuperable.
+   * - Si el usuario cancela Google: preserva su sesión y recursos intactos.
+   * - Si falla el canje post-auth: conserva el ticket recuperable en storage para evitar pérdida silenciosa.
    */
-  const signInWithGoogleForDiscovery = async (): Promise<GoogleSignInResult> => {
+  const unifiedSignInWithGoogle = async (): Promise<GoogleSignInResult> => {
+    // 1. Usuario permanente: conservar sesión
     if (user && !user.is_anonymous) {
       return { ok: true, alreadyLoggedIn: true };
     }
 
+    // 2. Usuario anónimo: evaluar recursos
     if (user?.is_anonymous) {
-      const upgradeState = await checkAnonymousUpgradeState();
+      let upgradeState: AnonymousUpgradeState | null = null;
+      try {
+        upgradeState = await checkAnonymousUpgradeState();
+      } catch (err) {
+        console.error('[Auth] Error consultando inventario de recursos anónimos:', err);
+        upgradeState = null;
+      }
 
-      if (upgradeState?.hasTransferableResources) {
-        if (import.meta.env.DEV) console.log('[Auth] Anónimo con recursos transferibles — verificando ticket');
+      // Si falla la consulta del inventario: ABORTAR de inmediato sin cerrar sesión anónima
+      if (!upgradeState) {
+        console.error('[Auth] Abortando autenticación Google: falla al consultar inventario de recursos');
+        return { ok: false, error: 'inventory_check_failed' };
+      }
+
+      if (upgradeState.hasTransferableResources) {
+        if (import.meta.env.DEV) console.log('[Auth] Anónimo con recursos — emitiendo y asegurando Transfer Ticket');
         const res = await createTransferTicket();
         const hasSecret = Boolean(sessionStorage.getItem(PENDING_TRANSFER_TICKET_KEY));
 
@@ -383,7 +383,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Iniciar OAuth directo a Google
+    // 3. Iniciar OAuth directo a Google
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -398,6 +398,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { ok: true };
   };
 
+  const signInWithGoogle = unifiedSignInWithGoogle;
+  const signInWithGoogleForCoordination = unifiedSignInWithGoogle;
+  const signInWithGoogleForDiscovery = unifiedSignInWithGoogle;
+
   const signOut = async () => {
     // Antes de cerrar sesión (necesitamos el JWT para revocar en backend). Nunca lanza.
     await webPushService.cleanupOnSignOut();
@@ -410,7 +414,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading,
+      user, session, loading, isTransferClaimPending,
       isAuthenticated, isAnonymousUser, isPermanentUser,
       signInWithGoogle,
       signInWithGoogleForCoordination,

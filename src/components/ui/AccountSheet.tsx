@@ -67,13 +67,11 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
       sessionStorage.setItem('post_auth_redirect', window.location.pathname);
       const result = await signInWithGoogle();
       if (!result.ok) {
-        if (result.error === 'anonymous_account_linking_pending') {
-          setError('Todavía no es posible vincular automáticamente estos encuentros con Google. Para no perderlos, no cierres esta sesión ni borres los datos del navegador.');
-        } else {
-          setError(t('account.google_error', 'No se pudo iniciar sesión. Intentá nuevamente.'));
-        }
+        sessionStorage.removeItem('post_auth_redirect');
+        setError(t('account.google_error', 'No se pudo iniciar sesión. Intentá nuevamente.'));
       }
     } catch (err) {
+      sessionStorage.removeItem('post_auth_redirect');
       console.error('Sign in error:', err);
       setError(t('account.google_error', 'No se pudo iniciar sesión. Intentá nuevamente.'));
     } finally {

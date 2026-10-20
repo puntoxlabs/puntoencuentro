@@ -25,12 +25,14 @@ export const InternalInvitationGuest: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, isTransferClaimPending, signInWithGoogle } = useAuth();
   const isPermanent = Boolean(user && !user.is_anonymous);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<InternalInvitationDetail | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [mensajeRespuesta, setMensajeRespuesta] = useState('');
   const [responding, setResponding] = useState(false);
@@ -39,8 +41,30 @@ export const InternalInvitationGuest: React.FC = () => {
     text: string;
   } | null>(null);
 
+  const getFriendlyInvitationError = (err?: string): string => {
+    switch (err) {
+      case 'unauthorized':
+        return 'Esta invitación fue enviada a otra cuenta o no tenés permiso para verla.';
+      case 'invitation_not_found':
+      case 'not_found':
+        return 'No se encontró la invitación o el enlace es inválido.';
+      case 'expirada':
+      case 'expired':
+        return 'Esta invitación ha expirado.';
+      case 'cancelled':
+      case 'cancelada':
+        return 'Esta invitación fue cancelada por el organizador.';
+      case 'already_responded':
+        return 'Esta invitación ya fue respondida previamente.';
+      case 'conflict':
+        return 'Ya tenés un rol asignado en este encuentro.';
+      default:
+        return err || 'No fue posible cargar los detalles de esta invitación.';
+    }
+  };
+
   const loadDetail = useCallback(async () => {
-    if (!id || authLoading) return;
+    if (!id || authLoading || isTransferClaimPending) return;
     if (!isPermanent) {
       setLoading(false);
       return;
@@ -53,14 +77,14 @@ export const InternalInvitationGuest: React.FC = () => {
       if (res.ok && res.data) {
         setDetail(res.data);
       } else {
-        setError(res.error || 'No se encontró la invitación o no tenés permiso para verla.');
+        setError(getFriendlyInvitationError(res.error));
       }
     } catch (err: any) {
-      setError(err?.message || 'Error al cargar la invitación.');
+      setError(getFriendlyInvitationError(err?.message));
     } finally {
       setLoading(false);
     }
-  }, [id, authLoading, isPermanent]);
+  }, [id, authLoading, isTransferClaimPending, isPermanent]);
 
   useEffect(() => {
     loadDetail();
@@ -99,20 +123,20 @@ export const InternalInvitationGuest: React.FC = () => {
       } else {
         setResponseFeedback({
           type: 'error',
-          text: res.message || res.error || 'No se pudo registrar la respuesta.',
+          text: getFriendlyInvitationError(res.message || res.error),
         });
       }
     } catch (err: any) {
       setResponseFeedback({
         type: 'error',
-        text: err?.message || 'Error inesperado al responder.',
+        text: getFriendlyInvitationError(err?.message),
       });
     } finally {
       setResponding(false);
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || isTransferClaimPending || loading) {
     return (
       <ScreenContainer>
         <AppBar title={t('internal_invitations.guest_screen_title')} />
@@ -140,15 +164,35 @@ export const InternalInvitationGuest: React.FC = () => {
             <Button
               variant="primary"
               fullWidth
+              disabled={googleLoading}
               onClick={async () => {
-                const res = await signInWithGoogle();
-                if (!res.ok && res.error !== 'anonymous_account_linking_pending') {
-                  alert('Hubo un problema al iniciar sesión.');
+                if (googleLoading) return;
+                setGoogleLoading(true);
+                setAuthError(null);
+                try {
+                  if (id) {
+                    sessionStorage.setItem('post_auth_redirect', `/invitation/${id}`);
+                  }
+                  const res = await signInWithGoogle();
+                  if (!res.ok) {
+                    sessionStorage.removeItem('post_auth_redirect');
+                    setAuthError('No se pudo iniciar sesión con Google. Intentá nuevamente.');
+                  }
+                } catch {
+                  sessionStorage.removeItem('post_auth_redirect');
+                  setAuthError('No se pudo iniciar sesión con Google. Intentá nuevamente.');
+                } finally {
+                  setGoogleLoading(false);
                 }
               }}
             >
               {t('account.continue_google')}
             </Button>
+            {authError && (
+              <p className="pe-inv-guest-auth-error" style={{ color: 'var(--color-danger, #ef4444)', marginTop: 8, fontSize: 13, textAlign: 'center' }}>
+                {authError}
+              </p>
+            )}
             <Button variant="ghost" fullWidth onClick={() => navigate('/')}>
               Volver al inicio
             </Button>

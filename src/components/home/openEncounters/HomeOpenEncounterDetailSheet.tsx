@@ -415,13 +415,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
         /* storage fallback */
       }
 
-      if (result.error === 'anonymous_has_critical_resources') {
-        setErrorMsg(
-          'Tu cuenta tiene encuentros activos. Por favor contactá soporte para hacer el cambio sin perder datos.'
-        );
-      } else {
-        setErrorMsg('No pudimos iniciar el login. Intentá nuevamente.');
-      }
+      setErrorMsg('No pudimos iniciar sesión con Google. Intentá nuevamente.');
       setIsLoginRequired(false);
     }
     // Si ok: el redirect OAuth ocurrirá — no hacemos nada más (la página cambia)

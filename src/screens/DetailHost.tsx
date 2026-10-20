@@ -88,7 +88,7 @@ const DetailHost: React.FC = () => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
 
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, isTransferClaimPending, signInWithGoogle } = useAuth();
 
   // Estados para invitado individual
   const [nombre, setNombre] = useState('');
@@ -163,7 +163,7 @@ const DetailHost: React.FC = () => {
   // Se re-ejecuta cuando auth termina (authLoading cambia a false)
   useEffect(() => {
     if (!id) return;
-    if (authLoading) return; // No cargar hasta que auth esté resuelto
+    if (authLoading || isTransferClaimPending) return; // No cargar hasta que auth y transferencia estén resueltos
 
     // Prioridad hostId:
     // 1. user?.id (sesión autenticada)
@@ -223,7 +223,7 @@ const DetailHost: React.FC = () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [id, authLoading]);
+  }, [id, authLoading, isTransferClaimPending]);
 
   useEffect(() => {
     return () => {
@@ -1456,9 +1456,18 @@ const DetailHost: React.FC = () => {
                     <Button
                       variant="primary" size="sm"
                       onClick={async () => {
-                        const result = await signInWithGoogle();
-                        if (!result.ok && result.error !== 'anonymous_account_linking_pending') {
-                          alert('Hubo un problema al iniciar sesión.');
+                        try {
+                          if (id) {
+                            sessionStorage.setItem('post_auth_redirect', `/meet/${id}`);
+                          }
+                          const result = await signInWithGoogle();
+                          if (!result.ok) {
+                            sessionStorage.removeItem('post_auth_redirect');
+                            alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
+                          }
+                        } catch {
+                          sessionStorage.removeItem('post_auth_redirect');
+                          alert('No se pudo iniciar sesión con Google. Intentá nuevamente.');
                         }
                       }}
                       style={{ padding: '0 18px', height: 36 }}
