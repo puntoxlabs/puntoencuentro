@@ -162,6 +162,12 @@ try {
   await server.ssrLoadModule('./scripts/test-frequent-contacts-frontend.tsx');
   console.log('✅ Frequent Contacts V1: Frontend, selection, confirmation, retry & reuse integration tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-guest-lists-backend.ts');
+  console.log('✅ Reusable Guest Lists V1: Backend, RLS, limit bounds & implicit suggestions tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-guest-lists-frontend.tsx');
+  console.log('✅ Reusable Guest Lists V1: Frontend, selection, combination & review tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

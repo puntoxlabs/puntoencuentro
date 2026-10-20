@@ -737,7 +737,7 @@ describe('Fase 3A: Fundación PWA + Web Push (manifest, SW, RPCs, cliente, logou
 
         // Si este archivo es el que contiene el singleton webPushService, verificar la VAPID inlined
         if (content.includes('getVapidPublicKey')) {
-          const match = content.match(/getVapidPublicKey:\(\)=>{try{return["'`]([A-Za-z0-9_-]{80,100})["'`]}/);
+          const match = content.match(/getVapidPublicKey:\(\)=>{try{return["'`]([A-Za-z0-9_-]{80,100})["'`]/);
           if (match) {
             totalVapidKeysFound += 1;
             const key = match[1];

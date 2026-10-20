@@ -140,12 +140,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
 
       if (event === 'SIGNED_OUT') {
+        void webPushService.unsubscribeLocalOnly();
         // Privacidad en dispositivos compartidos: sin sesión no se puede autenticar la
         // revocación remota, pero sí cortar la suscripción push local del navegador
         // y limpiar el estado de contactos y repetición.
         useContactsStore.getState().reset();
         useRepeatEncounterStore.getState().reset();
-        void webPushService.unsubscribeLocalOnly();
       }
 
       if (

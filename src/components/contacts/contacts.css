@@ -200,3 +200,93 @@
 .pe-contacts-trigger-btn:hover {
   background: #dbeafe;
 }
+
+.pe-contacts-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.pe-contacts-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pe-contacts-tab--active {
+  background: #ffffff;
+  color: var(--color-primary, #2563eb);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.pe-contacts-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pe-contacts-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.pe-contacts-chip-remove {
+  border: none;
+  background: transparent;
+  color: #1e40af;
+  padding: 1px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-contacts-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+}
+
+.pe-contacts-picker-chip:hover {
+  border-color: var(--color-primary, #2563eb);
+  color: var(--color-primary, #2563eb);
+  background: #f8fafc;
+}
+
+.pe-contacts-inline-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+

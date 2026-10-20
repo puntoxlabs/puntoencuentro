@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UserPlus, Clock, CheckCircle2, XCircle, AlertCircle, Trash2, Send, BookUser } from 'lucide-react';
+import { UserPlus, Clock, CheckCircle2, XCircle, AlertCircle, Trash2, Send, BookUser, Users, ListPlus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { internalInvitationsService } from '@/services/internalInvitationsService';
-import { normalizeContactEmail, userContactsService } from '@/services/userContactsService';
+import {
+  guestListsService,
+  normalizeContactEmail,
+  normalizeGuestEmailList,
+  userContactsService,
+} from '@/services/userContactsService';
 import { useContactsStore } from '@/store/contactsStore';
 import type { HostInternalInvitationItem } from '@/types/internalInvitations';
 import { PendingGuestsReview } from '@/components/reuse';
@@ -36,12 +41,24 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const [isContactsOpen, setIsContactsOpen] = useState(false);
+  const [contactsInitialTab, setContactsInitialTab] = useState<'contacts' | 'lists'>('contacts');
   const [saveContactEmail, setSaveContactEmail] = useState<string | null>(null);
+  const [draftListEmails, setDraftListEmails] = useState<string[] | null>(null);
 
   const contacts = useContactsStore((s) => s.contacts);
   const savedEmailsSet = useMemo(
     () => new Set(contacts.map((c) => normalizeContactEmail(c.email))),
     [contacts]
+  );
+
+  const savableEncounterEmails = useMemo(
+    () =>
+      normalizeGuestEmailList(
+        invitaciones
+          .filter((inv) => inv.estado === 'pendiente' || inv.estado === 'aceptada')
+          .map((inv) => inv.destinatario_email)
+      ),
+    [invitaciones]
   );
 
   const loadInvitaciones = useCallback(async () => {
@@ -54,9 +71,15 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
       }
       if (user?.id) {
         useContactsStore.getState().ensureSession(user.id);
-        const cRes = await userContactsService.listar(encuentroId);
+        const [cRes, lRes] = await Promise.all([
+          userContactsService.listar(encuentroId),
+          guestListsService.listar(encuentroId),
+        ]);
         if (cRes.ok && cRes.data) {
           useContactsStore.getState().setData(user.id, cRes.data);
+        }
+        if (lRes.ok && lRes.data) {
+          useContactsStore.getState().setListsData(user.id, lRes.data);
         }
       }
     } catch (err) {
@@ -147,18 +170,36 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
             {t('internal_invitations.section_title')}
           </h4>
           {isPermanent && (
-            <button
-              type="button"
-              className="pe-contacts-trigger-btn"
-              onClick={() => {
-                setSaveContactEmail(null);
-                setIsContactsOpen(true);
-              }}
-              data-testid="open-contacts-sheet-btn"
-            >
-              <BookUser size={15} />
-              <span>{t('contacts.my_contacts_btn')}</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="pe-contacts-trigger-btn"
+                onClick={() => {
+                  setSaveContactEmail(null);
+                  setDraftListEmails(null);
+                  setContactsInitialTab('contacts');
+                  setIsContactsOpen(true);
+                }}
+                data-testid="open-contacts-sheet-btn"
+              >
+                <BookUser size={15} />
+                <span>{t('contacts.my_contacts_btn')}</span>
+              </button>
+              <button
+                type="button"
+                className="pe-contacts-trigger-btn"
+                onClick={() => {
+                  setSaveContactEmail(null);
+                  setDraftListEmails(null);
+                  setContactsInitialTab('lists');
+                  setIsContactsOpen(true);
+                }}
+                data-testid="open-guest-lists-sheet-btn"
+              >
+                <Users size={15} />
+                <span>{t('contacts.lists.add_from_list_btn')}</span>
+              </button>
+            </div>
           )}
         </div>
         <p className="pe-internal-invites-subtitle">
@@ -191,6 +232,20 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
             onSent={loadInvitaciones}
             onOpenContacts={() => {
               setSaveContactEmail(null);
+              setDraftListEmails(null);
+              setContactsInitialTab('contacts');
+              setIsContactsOpen(true);
+            }}
+            onOpenLists={() => {
+              setSaveContactEmail(null);
+              setDraftListEmails(null);
+              setContactsInitialTab('lists');
+              setIsContactsOpen(true);
+            }}
+            onSaveAsList={(emails) => {
+              setSaveContactEmail(null);
+              setDraftListEmails(emails);
+              setContactsInitialTab('lists');
               setIsContactsOpen(true);
             }}
           />
@@ -253,10 +308,28 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
 
           {/* Lista de invitaciones enviadas */}
           <div className="pe-internal-invites-list-section">
-            <h5 className="pe-internal-invites-list-title">
-              {t('internal_invitations.sent_list_title')}
-              {invitaciones.length > 0 && ` (${invitaciones.length})`}
-            </h5>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <h5 className="pe-internal-invites-list-title" style={{ margin: 0 }}>
+                {t('internal_invitations.sent_list_title')}
+                {invitaciones.length > 0 && ` (${invitaciones.length})`}
+              </h5>
+              {savableEncounterEmails.length >= 2 && (
+                <button
+                  type="button"
+                  className="pe-fav-link-btn"
+                  onClick={() => {
+                    setSaveContactEmail(null);
+                    setDraftListEmails(savableEncounterEmails);
+                    setContactsInitialTab('lists');
+                    setIsContactsOpen(true);
+                  }}
+                  data-testid="save-encounter-guests-as-list-btn"
+                >
+                  <ListPlus size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  {t('contacts.lists.save_encounter_guests_btn')}
+                </button>
+              )}
+            </div>
 
             {loadingList ? (
               <div className="pe-internal-invites-loading">Cargando...</div>
@@ -333,9 +406,12 @@ export const HostInternalInvitationsSection: React.FC<HostInternalInvitationsSec
             onClose={() => {
               setIsContactsOpen(false);
               setSaveContactEmail(null);
+              setDraftListEmails(null);
             }}
             encuentroId={encuentroId}
+            initialTab={contactsInitialTab}
             initialSaveEmail={saveContactEmail}
+            initialDraftListEmails={draftListEmails}
             onInvitationsSent={loadInvitaciones}
           />
         </>

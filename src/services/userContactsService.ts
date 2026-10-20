@@ -4,11 +4,17 @@ import type {
   ContactsErrorCode,
   ContactsServiceResult,
   ContactSuggestion,
+  GuestList,
+  GuestListsPayload,
+  GuestListSuggestion,
   UserContact,
 } from '@/types/userContacts';
 
 export const MAX_CONTACT_NAME_LENGTH = 80;
 export const MAX_CONTACTS_PER_USER = 200;
+export const MAX_GUEST_LIST_NAME_LENGTH = 80;
+export const MAX_GUEST_LISTS_PER_USER = 30;
+export const MAX_RECIPIENTS_PER_GUEST_LIST = 50;
 
 function parseRpc(data: unknown): any {
   return typeof data === 'string' ? JSON.parse(data) : data;
@@ -16,6 +22,89 @@ function parseRpc(data: unknown): any {
 
 export function normalizeContactEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
+}
+
+export function isValidContactEmail(email: string | null | undefined): boolean {
+  const clean = normalizeContactEmail(email);
+  if (clean.length < 3 || clean.length > 254 || clean.includes(' ')) return false;
+  const atPos = clean.indexOf('@');
+  if (atPos < 1) return false;
+  const domain = clean.slice(atPos + 1);
+  if (domain.includes('@') || domain.endsWith('.')) return false;
+  const dotPos = domain.indexOf('.');
+  return dotPos >= 1 && dotPos < domain.length - 1;
+}
+
+export function normalizeGuestEmailList(
+  emails: (string | null | undefined)[]
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of emails) {
+    const clean = normalizeContactEmail(raw);
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    result.push(clean);
+  }
+  return result;
+}
+
+export function parseEmailInputBatch(raw: string): {
+  valid: string[];
+  invalid: string[];
+} {
+  const tokens = raw
+    .split(/[\s,;]+/)
+    .map((t) => normalizeContactEmail(t))
+    .filter(Boolean);
+  const validSet = new Set<string>();
+  const invalidSet = new Set<string>();
+  for (const token of tokens) {
+    if (isValidContactEmail(token)) {
+      validSet.add(token);
+    } else {
+      invalidSet.add(token);
+    }
+  }
+  return {
+    valid: Array.from(validSet),
+    invalid: Array.from(invalidSet),
+  };
+}
+
+export function sortGuestLists(lists: GuestList[]): GuestList[] {
+  return [...lists].sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+  );
+}
+
+export function filterGuestListsByQuery(
+  lists: GuestList[],
+  query: string
+): GuestList[] {
+  const q = query.trim().toLowerCase();
+  const sorted = sortGuestLists(lists);
+  if (!q) return sorted;
+  return sorted.filter(
+    (l) =>
+      l.nombre.toLowerCase().includes(q) ||
+      l.destinatarios_emails.some((e) => e.toLowerCase().includes(q))
+  );
+}
+
+export function combineGuestSelections(
+  ...sources: (string[] | GuestList | null | undefined)[]
+): string[] {
+  const flat: string[] = [];
+  for (const src of sources) {
+    if (!src) continue;
+    if (Array.isArray(src)) {
+      flat.push(...src);
+    } else if (Array.isArray(src.destinatarios_emails)) {
+      flat.push(...src.destinatarios_emails);
+    }
+  }
+  return normalizeGuestEmailList(flat);
 }
 
 /**
@@ -201,6 +290,154 @@ export const userContactsService = {
     });
     if (error) {
       console.error('[userContactsService] eliminar:', error);
+      return { ok: false, error: 'unknown_error' };
+    }
+    const r = parseRpc(data);
+    return r?.ok
+      ? { ok: true }
+      : { ok: false, error: (r?.error ?? 'unknown_error') as ContactsErrorCode };
+  },
+};
+
+function normalizeGuestListRow(raw: any): GuestList {
+  const emails = Array.isArray(raw?.destinatarios_emails)
+    ? normalizeGuestEmailList(
+        raw.destinatarios_emails.map((e: unknown) =>
+          typeof e === 'string' ? e : ''
+        )
+      )
+    : [];
+  return {
+    id: String(raw?.id ?? ''),
+    nombre: String(raw?.nombre ?? '').trim(),
+    destinatarios_emails: emails,
+    destinatarios_count:
+      typeof raw?.destinatarios_count === 'number'
+        ? raw.destinatarios_count
+        : emails.length,
+    created_at: typeof raw?.created_at === 'string' ? raw.created_at : undefined,
+    updated_at: typeof raw?.updated_at === 'string' ? raw.updated_at : undefined,
+  };
+}
+
+function normalizeGuestListSuggestionRow(raw: any): GuestListSuggestion {
+  const emails = Array.isArray(raw?.emails)
+    ? normalizeGuestEmailList(
+        raw.emails.map((e: unknown) => (typeof e === 'string' ? e : ''))
+      )
+    : [];
+  return {
+    emails,
+    destinatarios_count:
+      typeof raw?.destinatarios_count === 'number'
+        ? raw.destinatarios_count
+        : emails.length,
+    veces_usado: typeof raw?.veces_usado === 'number' ? raw.veces_usado : 1,
+    ultima_invitacion_at: String(raw?.ultima_invitacion_at ?? ''),
+    nombre_sugerido: String(raw?.nombre_sugerido ?? '').trim(),
+  };
+}
+
+/**
+ * Servicio de listas privadas reutilizables de invitados.
+ * - Propiedad validada mediante `auth.uid()` en PostgreSQL.
+ * - Correos normalizados e independientes del registro de contactos.
+ * - Guardar, editar o seleccionar una lista jamás envía invitaciones automáticamente.
+ */
+export const guestListsService = {
+  async listar(
+    encuentroId?: string
+  ): Promise<ContactsServiceResult<GuestListsPayload>> {
+    const { data, error } = await supabase.rpc('listar_listas_invitados_seguro', {
+      p_encuentro_id: encuentroId ?? null,
+    });
+    if (error) {
+      console.error('[guestListsService] listar:', error);
+      return { ok: false, error: 'unknown_error' };
+    }
+    const r = parseRpc(data);
+    if (!r?.ok) {
+      return { ok: false, error: (r?.error ?? 'unknown_error') as ContactsErrorCode };
+    }
+    const listas = Array.isArray(r.listas)
+      ? r.listas
+          .map(normalizeGuestListRow)
+          .filter((l: GuestList) => l.id && l.nombre && l.destinatarios_emails.length > 0)
+      : [];
+    const sugerencias_listas = Array.isArray(r.sugerencias_listas)
+      ? r.sugerencias_listas
+          .map(normalizeGuestListSuggestionRow)
+          .filter((s: GuestListSuggestion) => s.emails.length >= 2)
+      : [];
+    const yaInvitados = Array.isArray(r.ya_invitados_encuentro)
+      ? r.ya_invitados_encuentro
+          .map((e: unknown) => (typeof e === 'string' ? normalizeContactEmail(e) : ''))
+          .filter(Boolean)
+      : [];
+
+    return {
+      ok: true,
+      data: {
+        listas: sortGuestLists(listas),
+        sugerencias_listas,
+        ya_invitados_encuentro: Array.from(new Set(yaInvitados)),
+      },
+    };
+  },
+
+  async guardar(params: {
+    nombre: string;
+    emails: string[];
+    listaId?: string;
+  }): Promise<ContactsServiceResult<{ lista: GuestList }>> {
+    const cleanEmails = normalizeGuestEmailList(params.emails);
+    const { data, error } = await supabase.rpc('guardar_lista_invitados_seguro', {
+      p_nombre: params.nombre.trim(),
+      p_emails: cleanEmails,
+      p_lista_id: params.listaId ?? null,
+    });
+    if (error) {
+      console.error('[guestListsService] guardar:', error);
+      return { ok: false, error: 'unknown_error' };
+    }
+    const r = parseRpc(data);
+    if (!r?.ok || !r?.lista) {
+      return { ok: false, error: (r?.error ?? 'unknown_error') as ContactsErrorCode };
+    }
+    return {
+      ok: true,
+      data: { lista: normalizeGuestListRow(r.lista) },
+    };
+  },
+
+  async renombrar(
+    listaId: string,
+    nombre: string
+  ): Promise<ContactsServiceResult<{ lista: GuestList }>> {
+    const { data, error } = await supabase.rpc('renombrar_lista_invitados_seguro', {
+      p_lista_id: listaId,
+      p_nombre: nombre.trim(),
+    });
+    if (error) {
+      console.error('[guestListsService] renombrar:', error);
+      return { ok: false, error: 'unknown_error' };
+    }
+    const r = parseRpc(data);
+    if (!r?.ok || !r?.lista) {
+      return { ok: false, error: (r?.error ?? 'unknown_error') as ContactsErrorCode };
+    }
+    return {
+      ok: true,
+      data: { lista: normalizeGuestListRow(r.lista) },
+    };
+  },
+
+  async eliminar(listaId: string): Promise<ContactsServiceResult> {
+    const { data, error } = await supabase.rpc('eliminar_lista_invitados_seguro', {
+      p_lista_id: listaId,
+    });
+    if (error) {
+      console.error('[guestListsService] eliminar:', error);
       return { ok: false, error: 'unknown_error' };
     }
     const r = parseRpc(data);
