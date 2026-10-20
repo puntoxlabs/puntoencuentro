@@ -601,5 +601,33 @@
       "suggestion_recent_badge": "Encuentro reciente",
       "suggestion_from_encounter": "De: {{title}}"
     }
+  },
+  "encounter_messages": {
+    "title": "Información y mensajes",
+    "subtitle": "Aclaraciones y consultas prácticas del encuentro",
+    "highlighted_title": "Mensajes destacados",
+    "highlighted_badge": "Destacado",
+    "host_badge": "Organizador",
+    "reply_btn": "Responder",
+    "edit_btn": "Editar",
+    "delete_btn": "Eliminar",
+    "pin_btn": "Destacar",
+    "unpin_btn": "Desmarcar",
+    "save_btn": "Guardar",
+    "cancel_btn": "Cancelar",
+    "send_btn": "Publicar",
+    "replying_to": "Respondiendo a {{name}}",
+    "edited_indicator": "(editado)",
+    "deleted_message": "Este mensaje fue eliminado",
+    "empty_state": "No hay mensajes en este encuentro aún. Podés compartir información práctica o consultas para los participantes.",
+    "writing_window_closed": "El período para enviar mensajes ha finalizado. El historial permanece en modo lectura.",
+    "guest_pending_prompt": "Confirmá tu asistencia para participar en los mensajes de la organización.",
+    "rate_limit_error": "Alcanzaste el límite de 10 mensajes cada 5 minutos. Aguardá unos instantes.",
+    "max_highlights_error": "Ya hay 3 mensajes destacados. Desmarcá uno antes de destacar otro.",
+    "delete_confirm": "¿Seguro que querés eliminar este mensaje?",
+    "edit_expired_error": "Solo podés editar mensajes durante los primeros 15 minutos.",
+    "cannot_edit_highlighted": "Este mensaje fue destacado por el organizador y no puede ser modificado.",
+    "placeholder": "Escribí una aclaración o consulta (máx. 500 caracteres)...",
+    "load_more": "Cargar mensajes anteriores"
   }
 }

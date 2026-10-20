@@ -11,6 +11,7 @@ import { getEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import type { PublicContentReportReason } from '@/types/trust';
 import './HomeOpenEncounterDetailSheet.css';
 
@@ -843,6 +844,16 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   {t('open_encounters.withdraw_action', { defaultValue: 'No voy a poder asistir' })}
                 </button>
               </div>
+              {/* Panel de mensajes para participante confirmado */}
+              {encounter?.id && (
+                <div style={{ marginTop: '1rem' }}>
+                  <EncounterMessagesPanel
+                    encuentroId={encounter.id}
+                    isHost={false}
+                    isConfirmed={true}
+                  />
+                </div>
+              )}
             </div>
 
           ) : requestState.hasRequest ? (

@@ -599,5 +599,33 @@
       "rate_limit_exceeded": "Too many attempts in a short time. Pending invitations were kept so you can retry shortly.",
       "unknown_error": "We could not complete this action. Please try again."
     }
+  },
+  "encounter_messages": {
+    "title": "Information & messages",
+    "subtitle": "Practical clarifications and questions for the encounter",
+    "highlighted_title": "Pinned messages",
+    "highlighted_badge": "Pinned",
+    "host_badge": "Host",
+    "reply_btn": "Reply",
+    "edit_btn": "Edit",
+    "delete_btn": "Delete",
+    "pin_btn": "Pin",
+    "unpin_btn": "Unpin",
+    "save_btn": "Save",
+    "cancel_btn": "Cancel",
+    "send_btn": "Post",
+    "replying_to": "Replying to {{name}}",
+    "edited_indicator": "(edited)",
+    "deleted_message": "This message was deleted",
+    "empty_state": "No messages in this encounter yet. You can share practical notes or questions.",
+    "writing_window_closed": "The messaging period has ended. History remains in read-only mode.",
+    "guest_pending_prompt": "Confirm your attendance to join the encounter messaging.",
+    "rate_limit_error": "You reached the limit of 10 messages per 5 minutes. Please wait a moment.",
+    "max_highlights_error": "There are already 3 pinned messages. Unpin one before pinning another.",
+    "delete_confirm": "Are you sure you want to delete this message?",
+    "edit_expired_error": "You can only edit messages within the first 15 minutes.",
+    "cannot_edit_highlighted": "This message was pinned by the host and cannot be modified.",
+    "placeholder": "Write a note or question (max 500 characters)...",
+    "load_more": "Load earlier messages"
   }
 }

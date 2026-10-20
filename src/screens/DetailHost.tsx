@@ -41,6 +41,7 @@ import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { ReuseEncounterSheet } from '@/components/reuse';
 import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
@@ -1663,6 +1664,11 @@ const DetailHost: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Panel de Información y Mensajes */}
+          {id && encuentro?.fecha && encuentro?.hora && (
+            <EncounterMessagesPanel encuentroId={id} isHost={true} />
+          )}
 
           {/* 6. ACCIONES INFERIORES */}
           <div className="dh-bottom-actions">

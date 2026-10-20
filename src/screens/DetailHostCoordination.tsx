@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OrganizerMessageSheet } from '@/components/ui/OrganizerMessageSheet';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { ReuseEncounterSheet } from '@/components/reuse';
 
 const DetailHostCoordination: React.FC = () => {
@@ -736,6 +737,13 @@ const DetailHostCoordination: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Panel de Información y Mensajes (habilitado tras elegir fecha) */}
+        {derivedStatus === 'closed' && id && (
+          <div style={{ padding: '0 20px' }}>
+            <EncounterMessagesPanel encuentroId={id} isHost={true} />
+          </div>
+        )}
 
         {/* Acciones de administración */}
         <div style={{ padding: '0 20px', marginTop: 24, paddingBottom: 100 }}>

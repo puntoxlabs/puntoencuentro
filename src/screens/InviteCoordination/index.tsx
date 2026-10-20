@@ -15,6 +15,7 @@ import { getThemeStyle } from '@/lib/themes';
 import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -475,6 +476,13 @@ export default function InviteCoordination() {
                 </div>
               </>
             )}
+
+            {/* Panel de Información y Mensajes (habilitado tras confirmar fecha) */}
+            <EncounterMessagesPanel
+              encuentroId={encuentro.id}
+              tokenInvitacion={token}
+              isConfirmed={data.participante?.estado === 'confirmado'}
+            />
 
             <div className="coordination-guest-form-section" style={{ marginTop: 16 }}>
               <label className="coordination-guest-label">{t('coordination.options_title_closed', 'Tu disponibilidad enviada')}</label>

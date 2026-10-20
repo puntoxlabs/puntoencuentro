@@ -47,6 +47,7 @@ import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import './Guest.css';
 
 
@@ -679,6 +680,17 @@ const InviteGuest: React.FC = () => {
         </div>
       )}
 
+      {/* Panel de Información y Mensajes */}
+      {encuentro?.id && token && (
+        <div style={{ margin: '0 20px 24px' }}>
+          <EncounterMessagesPanel
+            encuentroId={encuentro.id}
+            tokenInvitacion={token}
+            isConfirmed={participante?.estado === 'confirmado'}
+          />
+        </div>
+      )}
+
       {/* ── F. Acciones Inferiores ────────────────────────────── */}
       <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
@@ -937,6 +949,17 @@ const InviteGuest: React.FC = () => {
           </p>
         )}
       </div>
+
+      {/* Aviso informativo de mensajes para invitado pendiente */}
+      {encuentro?.id && token && (
+        <div style={{ margin: '0 20px 24px' }}>
+          <EncounterMessagesPanel
+            encuentroId={encuentro.id}
+            tokenInvitacion={token}
+            isConfirmed={false}
+          />
+        </div>
+      )}
 
       {!isFinalizado && (
         <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
