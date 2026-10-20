@@ -168,6 +168,12 @@ try {
   await server.ssrLoadModule('./scripts/test-guest-lists-frontend.tsx');
   console.log('✅ Reusable Guest Lists V1: Frontend, selection, combination & review tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-encounter-messages-panel-backend.ts');
+  console.log('✅ Encounter Messages Panel V1: Backend, RLS, concurrency & hardening tests executed successfully via Vite SSR loader.');
+
+  await server.ssrLoadModule('./scripts/test-encounter-messages-ui.ts');
+  console.log('✅ Encounter Messages Panel V1: Frontend, UI & integration tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

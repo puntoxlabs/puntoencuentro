@@ -170,6 +170,7 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
         tema TEXT DEFAULT 'blue',
         estado TEXT NOT NULL DEFAULT 'activo',
         date_mode TEXT NOT NULL DEFAULT 'fixed',
+        coordination_status TEXT,
         public_token UUID DEFAULT gen_random_uuid(),
         creado_en TIMESTAMPTZ DEFAULT now()
       );
@@ -203,10 +204,12 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
       );
     `);
 
-    // 2. Load the actual migration
-    const migrationPath = path.resolve(process.cwd(), 'supabase/migrations/20261020100000_encounter_messages_panel_v1.sql');
-    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
-    await db.exec(migrationSql);
+    // 2. Load the actual migrations in order
+    const migration1Path = path.resolve(process.cwd(), 'supabase/migrations/20261020100000_encounter_messages_panel_v1.sql');
+    await db.exec(fs.readFileSync(migration1Path, 'utf8'));
+
+    const migration2Path = path.resolve(process.cwd(), 'supabase/migrations/20261020120000_fix_encounter_messages_panel_hardening.sql');
+    await db.exec(fs.readFileSync(migration2Path, 'utf8'));
 
     // 3. Seed users
     await db.exec(`
@@ -236,14 +239,15 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
 
     // Encuentro 2: Coordinación abierta (sin fecha/hora definitiva)
     const enc2Res = await db.query<{ id: string }>(`
-      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, estado, date_mode)
+      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, estado, date_mode, coordination_status)
       VALUES (
         '${hostPermanent}',
         'Encuentro Coordinación Abierta',
         NULL,
         NULL,
         'activo',
-        'coordination'
+        'coordination',
+        'open'
       )
       RETURNING id;
     `);
@@ -251,14 +255,15 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
 
     // Encuentro 3: Coordinación cerrada con fecha elegida (hoy a las 21:00)
     const enc3Res = await db.query<{ id: string }>(`
-      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, estado, date_mode)
+      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, estado, date_mode, coordination_status)
       VALUES (
         '${hostPermanent}',
         'Encuentro Coordinación Cerrada',
         (now() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date,
         '21:00:00'::time,
         'activo',
-        'coordination'
+        'coordination',
+        'closed'
       )
       RETURNING id;
     `);
@@ -853,14 +858,19 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
     `);
     assert.strictEqual(countAfterHighlight.rows[0].count, countBeforeHighlightVal + 1, 'Un mensaje destacado DEBE generar notificación en Inbox');
 
-    // Verificar que el payload no filtre direcciones ni contenido privado
-    const notif = await db.query<{ body: string; payload: any }>(`
-      SELECT body, payload FROM public.inbox_notifications
+    // Verificar que el payload no filtre direcciones ni contenido privado y el deep link sea accesible para participantes
+    const notif = await db.query<{ body: string; payload: any; deep_link: string }>(`
+      SELECT body, payload, deep_link FROM public.inbox_notifications
       WHERE recipient_user_id = '${participantRegistered}'
       ORDER BY created_at DESC LIMIT 1;
     `);
     assert.ok(!notif.rows[0].body.includes('http'), 'El cuerpo de la notificación no debe filtrar enlaces');
     assert.strictEqual(notif.rows[0].payload.encuentro_id, encounterActiveId);
+    assert.strictEqual(
+      notif.rows[0].deep_link,
+      `/?tab=encuentros&open_detail=${encounterActiveId}`,
+      'El deep link debe apuntar a la vista autorizada de participantes open_detail, no a /meet/:id'
+    );
   });
 
   // 23. Compatibilidad con invitaciones y notificaciones críticas existentes
@@ -944,5 +954,174 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
     );
 
     await db.exec(`RESET ROLE;`);
+  });
+
+  // 26. Límite estricto de tres destacados bajo concurrencia real partiendo de CERO destacados
+  test('26. Límite estricto de tres destacados bajo concurrencia real partiendo de CERO destacados', async () => {
+    // Resetear a 0 destacados
+    await db.query(`UPDATE public.mensajes_encuentro SET destacado = false, destacado_en = NULL, destacado_por = NULL WHERE encuentro_id = '${encounterActiveId}';`);
+
+    // Insertar 4 mensajes directamente para aislar la prueba de cuotas de rate limiting
+    const insRes = await db.query<{ id: string }>(`
+      INSERT INTO public.mensajes_encuentro (encuentro_id, autor_user_id, autor_nombre, es_organizador, contenido)
+      VALUES
+        ('${encounterActiveId}', '${hostPermanent}', 'Organizador', true, 'Concurrencia Cero 1'),
+        ('${encounterActiveId}', '${hostPermanent}', 'Organizador', true, 'Concurrencia Cero 2'),
+        ('${encounterActiveId}', '${hostPermanent}', 'Organizador', true, 'Concurrencia Cero 3'),
+        ('${encounterActiveId}', '${hostPermanent}', 'Organizador', true, 'Concurrencia Cero 4')
+      RETURNING id;
+    `);
+    const [m1, m2, m3, m4] = insRes.rows.map(r => r.id);
+
+    // Disparar las 4 solicitudes concurrentes partiendo de cero destacados
+    const results = await Promise.all([
+      rpc(`public.destacar_mensaje_encuentro_seguro('${m1}', true)`, hostPermanent),
+      rpc(`public.destacar_mensaje_encuentro_seguro('${m2}', true)`, hostPermanent),
+      rpc(`public.destacar_mensaje_encuentro_seguro('${m3}', true)`, hostPermanent),
+      rpc(`public.destacar_mensaje_encuentro_seguro('${m4}', true)`, hostPermanent),
+    ]);
+
+    const successes = results.filter((r) => r.ok === true);
+    const failures = results.filter((r) => r.ok === false && r.error === 'max_highlights_reached');
+
+    assert.strictEqual(successes.length, 3, 'Exactamente 3 solicitudes deben ganar la carrera y destacarse');
+    assert.strictEqual(failures.length, 1, 'Exactamente 1 solicitud debe ser rechazada con max_highlights_reached');
+
+    // Verificar en base de datos real que existen exactamente 3 destacados
+    const checkDb = await db.query<{ count: number }>(`
+      SELECT count(*)::int as count FROM public.mensajes_encuentro
+      WHERE encuentro_id = '${encounterActiveId}' AND destacado = true AND eliminado_en IS NULL;
+    `);
+    assert.strictEqual(checkDb.rows[0].count, 3, 'La base de datos debe contener exactamente 3 destacados');
+  });
+
+  // 27. Exclusión estricta de notificaciones Inbox a participantes con bloqueo bilateral activo con el organizador
+  test('27. Exclusión estricta de notificaciones Inbox a participantes con bloqueo bilateral con el host', async () => {
+    // Agregar a blockedUser como participante confirmado en encounterActiveId
+    const partBlockedRes = await db.query<{ id: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado, tipo_invitacion, user_id)
+      VALUES ('${encounterActiveId}', 'Usuario Bloqueado', 'confirmado', 'individual', '${blockedUser}')
+      RETURNING id;
+    `);
+    const partBlockedId = partBlockedRes.rows[0].id;
+
+    // Insertar bloqueo bilateral
+    await db.query(`
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${hostPermanent}', '${blockedUser}')
+      ON CONFLICT DO NOTHING;
+    `);
+
+    // Resetear destacados previos para tener cupo
+    await db.query(`UPDATE public.mensajes_encuentro SET destacado = false WHERE encuentro_id = '${encounterActiveId}';`);
+
+    const notifsBeforeBlocked = await db.query<{ count: number }>(`
+      SELECT count(*)::int as count FROM public.inbox_notifications WHERE recipient_user_id = '${blockedUser}';
+    `);
+    const notifsBeforeNormal = await db.query<{ count: number }>(`
+      SELECT count(*)::int as count FROM public.inbox_notifications WHERE recipient_user_id = '${participantRegistered}';
+    `);
+
+    // Insertar mensaje a destacar
+    const msgRes = await db.query<{ id: string }>(`
+      INSERT INTO public.mensajes_encuentro (encuentro_id, autor_user_id, autor_nombre, es_organizador, contenido)
+      VALUES ('${encounterActiveId}', '${hostPermanent}', 'Organizador', true, 'Aviso para todos no bloqueados')
+      RETURNING id;
+    `);
+    const pubId = msgRes.rows[0].id;
+
+    const hlRes = await rpc(`public.destacar_mensaje_encuentro_seguro('${pubId}', true)`, hostPermanent);
+    assert.strictEqual(hlRes.ok, true);
+
+    const notifsAfterBlocked = await db.query<{ count: number }>(`
+      SELECT count(*)::int as count FROM public.inbox_notifications WHERE recipient_user_id = '${blockedUser}';
+    `);
+    const notifsAfterNormal = await db.query<{ count: number }>(`
+      SELECT count(*)::int as count FROM public.inbox_notifications WHERE recipient_user_id = '${participantRegistered}';
+    `);
+
+    // El participante normal SÍ recibe notificación
+    assert.strictEqual(notifsAfterNormal.rows[0].count, notifsBeforeNormal.rows[0].count + 1);
+    // El participante con bloqueo bilateral NO recibe ninguna notificación
+    assert.strictEqual(
+      notifsAfterBlocked.rows[0].count,
+      notifsBeforeBlocked.rows[0].count,
+      'El participante con bloqueo bilateral NO debe recibir notificación de mensaje destacado'
+    );
+
+    // Cleanup
+    await db.query(`DELETE FROM public.bloqueos_usuario WHERE blocker_id = '${hostPermanent}' AND blocked_id = '${blockedUser}';`);
+    await db.query(`DELETE FROM public.participantes WHERE id = '${partBlockedId}';`);
+  });
+
+  // 28. Bloqueo de destacado en encuentro cancelado o fuera de ventana, preservando desmarcado como moderación
+  test('28. Bloqueo de destacado en encuentro cancelado o expirado, preservando desmarcado como moderación', async () => {
+    // 1. Mensaje en encuentro cancelado
+    const msgCancRes = await db.query<{ id: string }>(`
+      INSERT INTO public.mensajes_encuentro (encuentro_id, autor_user_id, autor_nombre, es_organizador, contenido, destacado)
+      VALUES ('${encounterCancelledId}', '${hostPermanent}', 'Organizador', true, 'Mensaje en cancelado', true)
+      RETURNING id;
+    `);
+    const msgCancId = msgCancRes.rows[0].id;
+
+    // Intentar destacar nuevo mensaje en cancelado debe fallar
+    const hlCanc = await rpc(`public.destacar_mensaje_encuentro_seguro('${msgCancId}', true)`, hostPermanent);
+    assert.strictEqual(hlCanc.ok, false);
+    assert.strictEqual(hlCanc.error, 'meeting_cancelled');
+
+    // Desmarcar destacado existente en cancelado DEBE permitirse como moderación
+    const unhlCanc = await rpc(`public.destacar_mensaje_encuentro_seguro('${msgCancId}', false)`, hostPermanent);
+    assert.strictEqual(unhlCanc.ok, true);
+    assert.strictEqual(unhlCanc.destacado, false);
+
+    // 2. Mensaje en encuentro expirado (> 24 hs)
+    const msgPastRes = await db.query<{ id: string }>(`
+      INSERT INTO public.mensajes_encuentro (encuentro_id, autor_user_id, autor_nombre, es_organizador, contenido, destacado)
+      VALUES ('${encounterPastWritingWindowId}', '${hostPermanent}', 'Organizador', true, 'Mensaje en expirado', true)
+      RETURNING id;
+    `);
+    const msgPastId = msgPastRes.rows[0].id;
+
+    // Intentar destacar en expirado debe fallar
+    const hlPast = await rpc(`public.destacar_mensaje_encuentro_seguro('${msgPastId}', true)`, hostPermanent);
+    assert.strictEqual(hlPast.ok, false);
+    assert.strictEqual(hlPast.error, 'writing_window_closed');
+
+    // Desmarcar destacado en expirado DEBE permitirse como moderación
+    const unhlPast = await rpc(`public.destacar_mensaje_encuentro_seguro('${msgPastId}', false)`, hostPermanent);
+    assert.strictEqual(unhlPast.ok, true);
+    assert.strictEqual(unhlPast.destacado, false);
+  });
+
+  // 29. Coordinación exige coordination_status = 'closed' además de fecha y hora definitivas
+  test('29. Coordinación exige coordination_status = "closed" además de fecha y hora definitivas', async () => {
+    // Encuentro en modo coordinación con fecha y hora pero coordination_status 'open'
+    const encCoordOpenWithDate = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, estado, date_mode, coordination_status)
+      VALUES (
+        '${hostPermanent}',
+        'Coordinación con fecha pero no cerrada',
+        (now() AT TIME ZONE 'America/Argentina/Buenos_Aires' + interval '2 days')::date,
+        '18:00:00'::time,
+        'activo',
+        'coordination',
+        'open'
+      )
+      RETURNING id;
+    `);
+    const encCoordOpenId = encCoordOpenWithDate.rows[0].id;
+
+    // Intento de lectura debe ser rechazado con coordination_not_closed
+    const readOpen = await rpc(`public.get_mensajes_encuentro_seguro('${encCoordOpenId}')`, hostPermanent);
+    assert.strictEqual(readOpen.ok, false);
+    assert.strictEqual(readOpen.error, 'coordination_not_closed');
+
+    // Cerrar formalmente la coordinación
+    await db.query(`UPDATE public.encuentros SET coordination_status = 'closed' WHERE id = '${encCoordOpenId}';`);
+
+    // Ahora la lectura y escritura deben permitirse
+    const readClosed = await rpc(`public.get_mensajes_encuentro_seguro('${encCoordOpenId}')`, hostPermanent);
+    assert.strictEqual(readClosed.ok, true);
+    assert.strictEqual(readClosed.can_write, true);
   });
 });
