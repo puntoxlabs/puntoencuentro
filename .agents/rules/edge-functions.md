@@ -1,8 +1,7 @@
 ---
 trigger: glob
-globs:
-  - "supabase/functions/**"
-description: Directivas para Edge Functions en Deno: autenticación, entitlements, providers y mínimo privilegio.
+globs: "**/supabase/functions/**"
+description: "Directivas para Edge Functions en Deno: autenticación, entitlements, providers y mínimo privilegio."
 ---
 
 # Supabase Edge Functions (Deno Runtime)

@@ -1,8 +1,6 @@
 ---
 trigger: glob
-globs:
-  - "supabase/migrations/**"
-  - "supabase/**/*.sql"
+globs: "**/supabase/migrations/**, **/supabase/**/*.sql"
 description: Directivas para migraciones SQL, RPCs, RLS y esquemas de base de datos Supabase.
 ---
 

@@ -1,9 +1,6 @@
 ---
 trigger: glob
-globs:
-  - "src/**/*.ts"
-  - "src/**/*.tsx"
-  - "src/**/*.css"
+globs: "**/src/**/*.ts, **/src/**/*.tsx, **/src/**/*.css"
 description: Reglas para componentes React, servicios, Zustand stores y UI de PuntoEncuentro.
 ---
 
