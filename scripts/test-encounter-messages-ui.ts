@@ -2,21 +2,26 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '..');
 
 describe('Panel de Información y Mensajes — Pruebas Frontend & UI', () => {
   const panelTsx = fs.readFileSync(
-    path.resolve(process.cwd(), 'src/components/messages/EncounterMessagesPanel.tsx'),
+    path.resolve(rootDir, 'src/components/messages/EncounterMessagesPanel.tsx'),
     'utf8'
   );
   const panelCss = fs.readFileSync(
-    path.resolve(process.cwd(), 'src/components/messages/EncounterMessagesPanel.css'),
+    path.resolve(rootDir, 'src/components/messages/EncounterMessagesPanel.css'),
     'utf8'
   );
   const esJson = JSON.parse(
-    fs.readFileSync(path.resolve(process.cwd(), 'src/i18n/locales/es.json'), 'utf8')
+    fs.readFileSync(path.resolve(rootDir, 'src/i18n/locales/es.json'), 'utf8')
   );
   const enJson = JSON.parse(
-    fs.readFileSync(path.resolve(process.cwd(), 'src/i18n/locales/en.json'), 'utf8')
+    fs.readFileSync(path.resolve(rootDir, 'src/i18n/locales/en.json'), 'utf8')
   );
 
   test('1. Traducciones completas en español e inglés', () => {
@@ -48,6 +53,10 @@ describe('Panel de Información y Mensajes — Pruebas Frontend & UI', () => {
       'edit_expired_error',
       'cannot_edit_highlighted',
       'placeholder',
+      'history_retention_expired',
+      'history_purged',
+      'meeting_cancelled',
+      'unauthorized_access',
     ];
 
     for (const key of expectedKeys) {
@@ -91,12 +100,12 @@ describe('Panel de Información y Mensajes — Pruebas Frontend & UI', () => {
   });
 
   test('7. Integración en pantallas del proyecto', () => {
-    const detailHostTsx = fs.readFileSync(path.resolve(process.cwd(), 'src/screens/DetailHost.tsx'), 'utf8');
-    const inviteGuestTsx = fs.readFileSync(path.resolve(process.cwd(), 'src/screens/InviteGuest.tsx'), 'utf8');
-    const coordHostTsx = fs.readFileSync(path.resolve(process.cwd(), 'src/screens/DetailHostCoordination.tsx'), 'utf8');
-    const coordGuestTsx = fs.readFileSync(path.resolve(process.cwd(), 'src/screens/InviteCoordination/index.tsx'), 'utf8');
+    const detailHostTsx = fs.readFileSync(path.resolve(rootDir, 'src/screens/DetailHost.tsx'), 'utf8');
+    const inviteGuestTsx = fs.readFileSync(path.resolve(rootDir, 'src/screens/InviteGuest.tsx'), 'utf8');
+    const coordHostTsx = fs.readFileSync(path.resolve(rootDir, 'src/screens/DetailHostCoordination.tsx'), 'utf8');
+    const coordGuestTsx = fs.readFileSync(path.resolve(rootDir, 'src/screens/InviteCoordination/index.tsx'), 'utf8');
     const openEncounterSheetTsx = fs.readFileSync(
-      path.resolve(process.cwd(), 'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'),
+      path.resolve(rootDir, 'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'),
       'utf8'
     );
 
@@ -105,5 +114,13 @@ describe('Panel de Información y Mensajes — Pruebas Frontend & UI', () => {
     assert.ok(coordHostTsx.includes('<EncounterMessagesPanel'), 'DetailHostCoordination debe integrar EncounterMessagesPanel');
     assert.ok(coordGuestTsx.includes('<EncounterMessagesPanel'), 'InviteCoordination debe integrar EncounterMessagesPanel');
     assert.ok(openEncounterSheetTsx.includes('<EncounterMessagesPanel'), 'HomeOpenEncounterDetailSheet debe integrar EncounterMessagesPanel');
+  });
+
+  test('8. Estados diferenciados de retención y ciclo de vida (vencido, purgado, cancelado, no autorizado)', () => {
+    assert.ok(panelTsx.includes('history_retention_expired'), 'Debe distinguir error de retención expirada');
+    assert.ok(panelTsx.includes('history_purged'), 'Debe distinguir error de historial purgado');
+    assert.ok(panelTsx.includes('meeting_cancelled'), 'Debe distinguir error de encuentro cancelado');
+    assert.ok(panelTsx.includes('unauthorized'), 'Debe distinguir error de acceso no autorizado');
+    assert.ok(panelTsx.includes('pe-msg-banner--info'), 'Debe usar banner informativo para historial expirado/purgado');
   });
 });

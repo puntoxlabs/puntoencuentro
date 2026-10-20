@@ -37,6 +37,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
   const [writingWindowClosed, setWritingWindowClosed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [specialState, setSpecialState] = useState<"retention_expired" | "purged" | "cancelled" | "unauthorized" | null>(null);
 
   // Formulario de envío
   const [nuevoMensaje, setNuevoMensaje] = useState('');
@@ -67,13 +68,29 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         setDestacados(res.destacados || []);
         setCanWrite(res.can_write);
         setWritingWindowClosed(res.writing_window_closed);
+        setSpecialState(null);
         setErrorMsg(null);
       } else {
-        if (res.error === 'meeting_cancelled') {
-          setErrorMsg(null);
+        if (res.error === 'history_retention_expired') {
+          setSpecialState('retention_expired');
           setCanWrite(false);
-        } else if (res.error === 'participant_not_confirmed') {
-          // Handled via isConfirmed prop
+          setErrorMsg(null);
+        } else if (res.error === 'history_purged') {
+          setSpecialState('purged');
+          setCanWrite(false);
+          setErrorMsg(null);
+        } else if (res.error === 'meeting_cancelled') {
+          setSpecialState('cancelled');
+          setCanWrite(false);
+          setErrorMsg(null);
+        } else if (
+          res.error === 'participant_not_confirmed' ||
+          res.error === 'blocked_user' ||
+          res.error === 'unauthorized'
+        ) {
+          setSpecialState('unauthorized');
+          setCanWrite(false);
+          setErrorMsg(null);
         } else {
           setErrorMsg(res.error || 'Error cargando mensajes');
         }
@@ -253,6 +270,68 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         <div className="pe-msg-banner pe-msg-banner--info" role="status">
           <Clock size={18} />
           <span>{t('encounter_messages.guest_pending_prompt', 'Confirmá tu asistencia para participar en los mensajes de la organización.')}</span>
+        </div>
+      </section>
+    );
+  }
+
+
+  if (specialState === 'retention_expired' || specialState === 'purged') {
+    return (
+      <section className="pe-msg-panel dh-fade-in" aria-label={t('encounter_messages.title', 'Información y mensajes')}>
+        <header className="pe-msg-header">
+          <div className="pe-msg-title-wrap">
+            <div className="pe-msg-icon-badge">
+              <MessageSquare size={18} />
+            </div>
+            <h2 className="pe-msg-title">{t('encounter_messages.title', 'Información y mensajes')}</h2>
+          </div>
+        </header>
+        <div className="pe-msg-banner pe-msg-banner--info" role="status">
+          <Clock size={18} />
+          <span>
+            {specialState === 'purged'
+              ? t('encounter_messages.history_purged', 'El historial de mensajes de este encuentro ha sido purgado definitivamente.')
+              : t('encounter_messages.history_retention_expired', 'El historial de mensajes ya no está disponible por haber alcanzado el límite de retención y privacidad.')}
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  if (specialState === 'cancelled') {
+    return (
+      <section className="pe-msg-panel dh-fade-in" aria-label={t('encounter_messages.title', 'Información y mensajes')}>
+        <header className="pe-msg-header">
+          <div className="pe-msg-title-wrap">
+            <div className="pe-msg-icon-badge">
+              <MessageSquare size={18} />
+            </div>
+            <h2 className="pe-msg-title">{t('encounter_messages.title', 'Información y mensajes')}</h2>
+          </div>
+        </header>
+        <div className="pe-msg-banner pe-msg-banner--warning" role="status">
+          <AlertCircle size={18} />
+          <span>{t('encounter_messages.meeting_cancelled', 'El encuentro fue cancelado. Los mensajes y la logística ya no están disponibles.')}</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (specialState === 'unauthorized') {
+    return (
+      <section className="pe-msg-panel dh-fade-in" aria-label={t('encounter_messages.title', 'Información y mensajes')}>
+        <header className="pe-msg-header">
+          <div className="pe-msg-title-wrap">
+            <div className="pe-msg-icon-badge">
+              <MessageSquare size={18} />
+            </div>
+            <h2 className="pe-msg-title">{t('encounter_messages.title', 'Información y mensajes')}</h2>
+          </div>
+        </header>
+        <div className="pe-msg-banner pe-msg-banner--warning" role="status">
+          <AlertCircle size={18} />
+          <span>{t('encounter_messages.unauthorized_access', 'No tenés acceso a los mensajes de este encuentro.')}</span>
         </div>
       </section>
     );

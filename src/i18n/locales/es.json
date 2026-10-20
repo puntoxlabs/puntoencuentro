@@ -628,6 +628,10 @@
     "edit_expired_error": "Solo podés editar mensajes durante los primeros 15 minutos.",
     "cannot_edit_highlighted": "Este mensaje fue destacado por el organizador y no puede ser modificado.",
     "placeholder": "Escribí una aclaración o consulta (máx. 500 caracteres)...",
-    "load_more": "Cargar mensajes anteriores"
+    "load_more": "Cargar mensajes anteriores",
+    "history_retention_expired": "El historial de mensajes ya no está disponible por haber alcanzado el límite de retención y privacidad.",
+    "history_purged": "El historial de mensajes de este encuentro ha sido purgado definitivamente.",
+    "meeting_cancelled": "El encuentro fue cancelado. Los mensajes y la logística ya no están disponibles.",
+    "unauthorized_access": "No tenés acceso a los mensajes de este encuentro."
   }
 }

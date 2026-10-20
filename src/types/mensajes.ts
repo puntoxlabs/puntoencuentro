@@ -25,6 +25,8 @@ export interface GetMensajesResponse {
   total_count: number;
   has_more: boolean;
   error?: string;
+  retention_type?: string;
+  purged_at?: string;
 }
 
 export interface PublicarMensajeResponse {

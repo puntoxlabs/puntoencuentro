@@ -626,6 +626,10 @@
     "edit_expired_error": "You can only edit messages within the first 15 minutes.",
     "cannot_edit_highlighted": "This message was pinned by the host and cannot be modified.",
     "placeholder": "Write a note or question (max 500 characters)...",
-    "load_more": "Load earlier messages"
+    "load_more": "Load earlier messages",
+    "history_retention_expired": "The message history is no longer available due to the privacy and retention policy.",
+    "history_purged": "The message history for this encounter has been permanently purged.",
+    "meeting_cancelled": "The encounter was cancelled. Messages and logistics are no longer available.",
+    "unauthorized_access": "You do not have access to messages for this encounter."
   }
 }
