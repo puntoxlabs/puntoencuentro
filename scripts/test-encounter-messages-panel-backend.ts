@@ -881,4 +881,68 @@ describe('Panel de Información y Mensajes del Encuentro V1 — Backend & RLS (P
     assert.strictEqual(res.ok, false);
     assert.strictEqual(res.error, 'unauthorized');
   });
+
+  // 25. Preflight de seguridad: RLS cerrada y helpers internos protegidos contra ejecución directa
+  test('25. Preflight de seguridad: RLS cerrada y helpers internos protegidos contra invocación directa', async () => {
+    await db.exec(`SET ROLE authenticated;`);
+    await setAuth(participantRegistered, false);
+
+    // Intentar invocar directamente consumir_rate_limit_participante como authenticated debe fallar por permisos
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.consumir_rate_limit_participante('${participantRegistered}', 'publicar_mensaje_encuentro', '');`);
+      },
+      /permission denied/i,
+      'consumir_rate_limit_participante debe negar EXECUTE a authenticated'
+    );
+
+    // Intentar invocar directamente resolver_actor_encuentro como authenticated debe fallar por permisos
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.resolver_actor_encuentro('${encounterActiveId}');`);
+      },
+      /permission denied/i,
+      'resolver_actor_encuentro debe negar EXECUTE a authenticated'
+    );
+
+    // Intentar SELECT directo sobre mensajes_encuentro como authenticated debe fallar por permisos
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.mensajes_encuentro;`);
+      },
+      /permission denied/i,
+      'mensajes_encuentro debe negar SELECT a authenticated'
+    );
+
+    // Intentar SELECT directo sobre participante_rate_limit_buckets como authenticated debe fallar por permisos
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT * FROM public.participante_rate_limit_buckets;`);
+      },
+      /permission denied/i,
+      'participante_rate_limit_buckets debe negar SELECT a authenticated'
+    );
+
+    // Probar ahora como rol anon
+    await db.exec(`SET ROLE anon;`);
+    await setAuth(null, true);
+
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.consumir_rate_limit_participante('${participantRegistered}', 'publicar_mensaje_encuentro', '');`);
+      },
+      /permission denied/i,
+      'consumir_rate_limit_participante debe negar EXECUTE a anon'
+    );
+
+    await assert.rejects(
+      async () => {
+        await db.query(`SELECT public.resolver_actor_encuentro('${encounterActiveId}');`);
+      },
+      /permission denied/i,
+      'resolver_actor_encuentro debe negar EXECUTE a anon'
+    );
+
+    await db.exec(`RESET ROLE;`);
+  });
 });

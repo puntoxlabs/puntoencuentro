@@ -166,7 +166,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.consumir_rate_limit_participante(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.consumir_rate_limit_participante(UUID, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.consumir_rate_limit_participante(UUID, TEXT, TEXT) TO postgres, service_role;
 
 -- ==============================================================================
 -- 5. HELPER INTERNO: resolver_actor_encuentro
@@ -358,7 +358,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.resolver_actor_encuentro(UUID, UUID) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.resolver_actor_encuentro(UUID, UUID) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.resolver_actor_encuentro(UUID, UUID) TO postgres, service_role;
 
 -- ==============================================================================
 -- 6. RPC: get_mensajes_encuentro_seguro
