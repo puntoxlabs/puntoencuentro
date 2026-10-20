@@ -267,6 +267,7 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
 
   // Helper para crear un encuentro de prueba
   const createEncounter = async (opts: {
+    id?: string;
     titulo: string;
     fecha?: string | null;
     hora?: string | null;
@@ -275,11 +276,13 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
     messages_purged_at?: string | null;
     creado_en?: string;
   }) => {
-    const res = await db.query<{ id: string }>(`
+    const encId = opts.id || crypto.randomUUID();
+    await db.query(`
       INSERT INTO public.encuentros (
-        host_id, titulo, fecha, hora, estado, cancelled_at, messages_purged_at, creado_en
+        id, host_id, titulo, fecha, hora, estado, cancelled_at, messages_purged_at, creado_en
       )
       VALUES (
+        '${encId}',
         '${hostUser}',
         '${opts.titulo}',
         ${opts.fecha ? `'${opts.fecha}'::date` : 'NULL'},
@@ -288,10 +291,8 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
         ${opts.cancelled_at ? `'${opts.cancelled_at}'::timestamptz` : 'NULL'},
         ${opts.messages_purged_at ? `'${opts.messages_purged_at}'::timestamptz` : 'NULL'},
         ${opts.creado_en ? `'${opts.creado_en}'::timestamptz` : 'now()'}
-      )
-      RETURNING id;
+      );
     `);
-    const encId = res.rows[0].id;
 
     // Agregar participante confirmado
     await db.query(`
@@ -1082,8 +1083,13 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
 
   // 28. Límites reales de lote (>10.000 mensajes sintéticos): circuito seguro, atomicidad y sin residuos
   test('28. Límites reales de lote: corrida con >10.000 mensajes activa circuit breaker sin dejar encuentros parciales', async () => {
+    // Limpiar cualquier residuo vencido previo para aislar el escenario masivo
+    await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(100, false)`);
+
     // Encuentro A: vence retención (>90d), contiene 10.005 mensajes sintéticos
+    // Asignamos un UUID lexicográficamente menor para garantizar que encMasivo sea evaluado primero
     const encMasivo = await createEncounter({
+      id: '11111111-aaaa-4000-8000-000000000001',
       titulo: 'Encuentro Masivo >10k',
       fecha: '2025-01-01',
       hora: '18:00:00',
@@ -1105,7 +1111,9 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
     `);
 
     // Encuentro B: también vencido (>90d), con 3 mensajes
+    // UUID lexicográficamente mayor para garantizar que encSiguiente sea evaluado después de encMasivo
     const encSiguiente = await createEncounter({
+      id: '99999999-bbbb-4000-8000-000000000002',
       titulo: 'Encuentro Posterior al Masivo',
       fecha: '2025-01-01',
       hora: '18:00:00',

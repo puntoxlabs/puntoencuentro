@@ -108,6 +108,8 @@ BEGIN
         
         BEGIN
             v_autor_nombre := COALESCE(
+                NULLIF((auth.jwt()->'user_metadata'->>'full_name'), ''),
+                NULLIF((auth.jwt()->'user_metadata'->>'name'), ''),
                 NULLIF(pg_catalog.current_setting('request.jwt.claim.user_metadata', true)::jsonb->>'full_name', ''),
                 NULLIF(pg_catalog.current_setting('request.jwt.claim.user_metadata', true)::jsonb->>'name', ''),
                 'Organizador'
@@ -116,7 +118,7 @@ BEGIN
             v_autor_nombre := 'Organizador';
         END;
 
-        IF pg_catalog.current_setting('request.jwt.claim.is_anonymous', true) = 'true' THEN
+        IF COALESCE((auth.jwt()->>'is_anonymous')::boolean, false) OR pg_catalog.current_setting('request.jwt.claim.is_anonymous', true) = 'true' THEN
             v_actor_type := 'host_anon';
         ELSE
             v_actor_type := 'host_permanent';
