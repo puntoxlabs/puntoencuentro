@@ -3,19 +3,23 @@
 -- Propósito: Sprint 3 — Retención y purga segura de mensajes del encuentro V1
 --
 -- Contenido:
---   1. Columna persistente messages_purged_at e índices de soporte para retención.
+--   1. Columnas persistentes messages_purged_at y contenido_preservado_moderacion,
+--      más índices de soporte para retención.
 --   2. Actualización de resolver_actor_encuentro:
 --      - Privacy-first: validación de identidad y autorización ANTES de revelar estados de ciclo de vida.
 --      - Corte exacto de retención: 90 días post-inicio (realizados) y 30 días post-cancelación (organizador).
 --      - Cálculos temporales canónicos en TIMESTAMPTZ con zona America/Argentina/Buenos_Aires.
 --      - Marca persistente messages_purged_at que impide reactivar historiales purgados ante reprogramación.
 --      - Protección estricta ante anomalías: cancelled_at IS NULL no usa creado_en y excluye de purga automática.
---   3. Endurecimiento de eliminar_mensaje_encuentro_seguro con scrubbing inmediato de contenido sensible
---      y sanitización retroactiva de mensajes previamente borrados sin denuncias pendientes.
+--   3. Endurecimiento de eliminar_mensaje_encuentro_seguro:
+--      - Scrubbing habitual inmediato a neutral '[Mensaje eliminado]' cuando no hay investigaciones abiertas.
+--      - Preservación restringida de evidencia en contenido_preservado_moderacion si existe denuncia pendiente.
+--      - Saneamiento retroactivo seguro para datos preexistentes.
 --   4. Función interna de mantenimiento public.purgar_mensajes_encuentro_vencidos_seguro:
 --      - Modo dry-run, batches acotados, FOR UPDATE SKIP LOCKED, circuit breaker.
 --      - Excepción estricta de conservación: NUNCA destruir evidencia mientras existan denuncias formalmente abiertas.
 --      - Umbral de 60 días como alerta administrativa (reportes_stale_pendientes), sin destruir evidencia.
+--      - Saneamiento automático de evidencia residual una vez concluidas formalmente las investigaciones.
 --   5. Función desacoplada public.purgar_rate_limits_participantes_seguro (> 48h).
 --
 -- NOTA DE ACTIVACIÓN:
@@ -25,10 +29,13 @@
 BEGIN;
 
 -- ==============================================================================
--- 1. TABLA: public.encuentros — MARCA PERSISTENTE DE PURGA E ÍNDICES
+-- 1. TABLAS Y COLUMNAS: MARCAS PERSISTENTES DE PURGA, EVIDENCIA E ÍNDICES
 -- ==============================================================================
 ALTER TABLE public.encuentros
     ADD COLUMN IF NOT EXISTS messages_purged_at TIMESTAMPTZ DEFAULT NULL;
+
+ALTER TABLE public.mensajes_encuentro
+    ADD COLUMN IF NOT EXISTS contenido_preservado_moderacion TEXT DEFAULT NULL;
 
 -- Índices parciales para consultas de retención eficientes sin full-table scan
 CREATE INDEX IF NOT EXISTS idx_encuentros_retencion_realizados
@@ -280,8 +287,9 @@ GRANT EXECUTE ON FUNCTION public.resolver_actor_encuentro(UUID, UUID) TO anon, a
 
 
 -- ==============================================================================
--- 3. ENDURECIMIENTO: eliminar_mensaje_encuentro_seguro (SCRUBBING INMEDIATO Y RETROACTIVO)
--- Reemplaza inmediatamente el contenido por un marcador neutral manteniendo el tombstone.
+-- 3. ENDURECIMIENTO: eliminar_mensaje_encuentro_seguro (SCRUBBING + PROTECCIÓN DE EVIDENCIA)
+-- Reemplaza el contenido visible por '[Mensaje eliminado]'. Si hay investigación abierta,
+-- preserva la evidencia de forma restringida en contenido_preservado_moderacion.
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.eliminar_mensaje_encuentro_seguro(
     p_mensaje_id UUID,
@@ -300,8 +308,9 @@ DECLARE
     v_part_id UUID;
     v_can_write BOOLEAN;
     v_tipo_eliminacion TEXT := NULL;
+    v_tiene_investigacion_pendiente BOOLEAN := false;
 BEGIN
-    SELECT id, encuentro_id, autor_user_id, autor_participante_id, es_organizador, eliminado_en
+    SELECT id, encuentro_id, autor_user_id, autor_participante_id, es_organizador, eliminado_en, contenido
     INTO v_mensaje
     FROM public.mensajes_encuentro
     WHERE id = p_mensaje_id;
@@ -337,20 +346,48 @@ BEGIN
         RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'unauthorized_delete');
     END IF;
 
-    -- Scrubbing inmediato: sobreescribe el texto sensible original por el marcador neutral
-    UPDATE public.mensajes_encuentro
-    SET contenido = '[Mensaje eliminado]',
-        eliminado_en = pg_catalog.now(),
-        eliminado_por_tipo = v_tipo_eliminacion,
-        destacado = false,
-        destacado_en = NULL,
-        destacado_por = NULL
-    WHERE id = p_mensaje_id;
+    -- Verificar si existe una investigación formalmente abierta en este encuentro
+    SELECT EXISTS (
+        SELECT 1 FROM public.reportes_encuentro
+        WHERE encuentro_id = v_mensaje.encuentro_id
+          AND estado = 'pending'
+        UNION ALL
+        SELECT 1 FROM public.public_content_reports
+        WHERE encuentro_id = v_mensaje.encuentro_id
+          AND status = 'pending'
+    ) INTO v_tiene_investigacion_pendiente;
+
+    IF v_tiene_investigacion_pendiente THEN
+        -- Preservación restringida de evidencia mientras la investigación siga formalmente abierta:
+        -- El contenido público se redacta inmediatamente a '[Mensaje eliminado]' (oculto en UI),
+        -- pero se almacena internamente en contenido_preservado_moderacion para acceso exclusivo de moderación.
+        UPDATE public.mensajes_encuentro
+        SET contenido = '[Mensaje eliminado]',
+            contenido_preservado_moderacion = v_mensaje.contenido,
+            eliminado_en = pg_catalog.now(),
+            eliminado_por_tipo = v_tipo_eliminacion,
+            destacado = false,
+            destacado_en = NULL,
+            destacado_por = NULL
+        WHERE id = p_mensaje_id;
+    ELSE
+        -- Política habitual: scrubbing destructivo inmediato de contenido sensible
+        UPDATE public.mensajes_encuentro
+        SET contenido = '[Mensaje eliminado]',
+            contenido_preservado_moderacion = NULL,
+            eliminado_en = pg_catalog.now(),
+            eliminado_por_tipo = v_tipo_eliminacion,
+            destacado = false,
+            destacado_en = NULL,
+            destacado_por = NULL
+        WHERE id = p_mensaje_id;
+    END IF;
 
     RETURN pg_catalog.jsonb_build_object(
         'ok', true,
         'mensaje_id', p_mensaje_id,
-        'tipo', v_tipo_eliminacion
+        'tipo', v_tipo_eliminacion,
+        'evidencia_preservada', v_tiene_investigacion_pendiente
     );
 END;
 $$;
@@ -359,9 +396,10 @@ REVOKE ALL ON FUNCTION public.eliminar_mensaje_encuentro_seguro(UUID, UUID) FROM
 GRANT EXECUTE ON FUNCTION public.eliminar_mensaje_encuentro_seguro(UUID, UUID) TO anon, authenticated, service_role;
 
 -- Scrubbing retroactivo para datos preexistentes:
--- Limpia contenido sensible de mensajes eliminados previamente sin denuncias pendientes.
+-- 1. Scrubbing habitual para mensajes eliminados previamente sin denuncias pendientes:
 UPDATE public.mensajes_encuentro m
-SET contenido = '[Mensaje eliminado]'
+SET contenido = '[Mensaje eliminado]',
+    contenido_preservado_moderacion = NULL
 WHERE m.eliminado_en IS NOT NULL
   AND m.contenido <> '[Mensaje eliminado]'
   AND NOT EXISTS (
@@ -372,6 +410,25 @@ WHERE m.eliminado_en IS NOT NULL
     SELECT 1 FROM public.public_content_reports pr
     WHERE pr.encuentro_id = m.encuentro_id
       AND pr.status = 'pending'
+  );
+
+-- 2. Preservación restringida de evidencia para mensajes eliminados previamente en encuentros con denuncias pendientes:
+UPDATE public.mensajes_encuentro m
+SET contenido_preservado_moderacion = m.contenido,
+    contenido = '[Mensaje eliminado]'
+WHERE m.eliminado_en IS NOT NULL
+  AND m.contenido <> '[Mensaje eliminado]'
+  AND (
+    EXISTS (
+      SELECT 1 FROM public.reportes_encuentro r
+      WHERE r.encuentro_id = m.encuentro_id
+        AND r.estado = 'pending'
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.public_content_reports pr
+      WHERE pr.encuentro_id = m.encuentro_id
+        AND pr.status = 'pending'
+    )
   );
 
 
@@ -405,7 +462,24 @@ DECLARE
     v_tiene_stale BOOLEAN;
     v_deleted_count INT;
 BEGIN
-    -- 1. Detección y conteo de anomalías: encuentros cancelados sin cancelled_at
+    -- 1. Saneamiento de evidencia residual cuando las denuncias han sido formalmente cerradas o resueltas:
+    -- Evita retención indefinida e innecesaria de contenido una vez concluida la investigación.
+    IF NOT p_dry_run THEN
+        UPDATE public.mensajes_encuentro m
+        SET contenido_preservado_moderacion = NULL
+        WHERE m.contenido_preservado_moderacion IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM public.reportes_encuentro r
+            WHERE r.encuentro_id = m.encuentro_id
+              AND r.estado = 'pending'
+            UNION ALL
+            SELECT 1 FROM public.public_content_reports pr
+            WHERE pr.encuentro_id = m.encuentro_id
+              AND pr.status = 'pending'
+          );
+    END IF;
+
+    -- 2. Detección y conteo de anomalías: encuentros cancelados sin cancelled_at
     -- Por regla 2.A: EXCLUIRLOS de la purga automática y reportar en métricas
     SELECT pg_catalog.count(*)
     INTO v_anomalias_cancelled_at_null
@@ -414,7 +488,7 @@ BEGIN
       AND cancelled_at IS NULL
       AND messages_purged_at IS NULL;
 
-    -- 2. Recorrer candidatos vencidos con lock pesimista SKIP LOCKED
+    -- 3. Recorrer candidatos vencidos con lock pesimista SKIP LOCKED
     FOR v_enc IN
         SELECT id, estado, fecha, hora, cancelled_at
         FROM public.encuentros
@@ -439,7 +513,7 @@ BEGIN
         LIMIT v_max_encuentros
         FOR UPDATE SKIP LOCKED
     LOOP
-        -- 3. Excepción de conservación por moderación formalmente abierta:
+        -- 4. Excepción de conservación por moderación formalmente abierta:
         -- Si existe reporte pendiente en public.reportes_encuentro o public.public_content_reports,
         -- NUNCA destruir evidencia automáticamente mientras la investigación continúe formalmente abierta.
         SELECT EXISTS (

@@ -900,20 +900,126 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
 
   // 23. Scrubbing retroactivo ejecutado en la migración
   test('23. Scrubbing retroactivo de migración: redacta mensajes viejos eliminados sin denuncias pendientes', async () => {
-    // Verificar que el mensaje preexistente sin denuncia fue scrubbeado a '[Mensaje eliminado]'
-    const msg1 = await db.query<{ contenido: string; eliminado_en: string }>(`
-      SELECT contenido, eliminado_en FROM public.mensajes_encuentro 
+    // Mensaje preexistente sin denuncia fue scrubbeado a '[Mensaje eliminado]' y contenido_preservado_moderacion es NULL
+    const msg1 = await db.query<{ contenido: string; contenido_preservado_moderacion: string | null; eliminado_en: string }>(`
+      SELECT contenido, contenido_preservado_moderacion, eliminado_en FROM public.mensajes_encuentro 
       WHERE id = '11111111-0000-0000-0000-000000000001';
     `);
     assert.strictEqual(msg1.rows[0].contenido, '[Mensaje eliminado]');
+    assert.strictEqual(msg1.rows[0].contenido_preservado_moderacion, null);
     assert.ok(msg1.rows[0].eliminado_en);
 
-    // Verificar que el mensaje preexistente con denuncia pendiente abierta NO fue scrubbeado (evidencia intacta)
-    const msg2 = await db.query<{ contenido: string; eliminado_en: string }>(`
-      SELECT contenido, eliminado_en FROM public.mensajes_encuentro 
+    // Mensaje preexistente con denuncia abierta: redactado públicamente pero evidencia preservada en contenido_preservado_moderacion
+    const msg2 = await db.query<{ contenido: string; contenido_preservado_moderacion: string | null; eliminado_en: string }>(`
+      SELECT contenido, contenido_preservado_moderacion, eliminado_en FROM public.mensajes_encuentro 
       WHERE id = '22222222-0000-0000-0000-000000000002';
     `);
-    assert.strictEqual(msg2.rows[0].contenido, 'Evidencia sensible con investigacion abierta');
+    assert.strictEqual(msg2.rows[0].contenido, '[Mensaje eliminado]');
+    assert.strictEqual(msg2.rows[0].contenido_preservado_moderacion, 'Evidencia sensible con investigacion abierta');
     assert.ok(msg2.rows[0].eliminado_en);
+  });
+
+  // 24. Eliminación manual durante investigación activa: preserva evidencia restringida y oculta en UI
+  test('24. Eliminación manual bajo investigación activa: preserva evidencia en contenido_preservado_moderacion', async () => {
+    const encInvestigado = await createEncounter({
+      titulo: 'Encuentro con Reporte Activo y Borrado Manual',
+      fecha: '2028-09-01',
+      hora: '18:00:00',
+    });
+
+    const msgEvidencia = await insertMessage(encInvestigado, hostUser, 'Insulto grave objeto de reporte formal');
+
+    // Registrar denuncia abierta
+    await db.query(`
+      INSERT INTO public.reportes_encuentro (encuentro_id, estado, created_at)
+      VALUES ('${encInvestigado}', 'pending', now());
+    `);
+
+    // El autor intenta borrar el mensaje para ocultar la evidencia
+    const delRes = await rpc(`public.eliminar_mensaje_encuentro_seguro('${msgEvidencia}')`, hostUser);
+    assert.strictEqual(delRes.ok, true);
+    assert.strictEqual(delRes.evidencia_preservada, true);
+
+    // En la base de datos: contenido público es '[Mensaje eliminado]', pero contenido_preservado_moderacion contiene el texto original
+    const dbMsg = await db.query<{ contenido: string; contenido_preservado_moderacion: string }>(`
+      SELECT contenido, contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msgEvidencia}';
+    `);
+    assert.strictEqual(dbMsg.rows[0].contenido, '[Mensaje eliminado]');
+    assert.strictEqual(dbMsg.rows[0].contenido_preservado_moderacion, 'Insulto grave objeto de reporte formal');
+
+    // En la interfaz de usuarios, la RPC devuelve contenido vacío ('') y eliminado: true
+    const clientRes = await rpc(`public.get_mensajes_encuentro_seguro('${encInvestigado}')`, hostUser);
+    assert.strictEqual(clientRes.ok, true);
+    assert.strictEqual(clientRes.mensajes[0].eliminado, true);
+    assert.strictEqual(clientRes.mensajes[0].contenido, '');
+    assert.strictEqual(clientRes.mensajes[0].contenido_preservado_moderacion, undefined);
+  });
+
+  // 25. Saneamiento automático de evidencia residual al concluir formalmente las investigaciones
+  test('25. Saneamiento de evidencia residual: conclusión de reporte limpia contenido_preservado_moderacion', async () => {
+    const encResuelto = await createEncounter({
+      titulo: 'Encuentro Cuya Denuncia Se Concluye',
+      fecha: '2028-09-01',
+      hora: '18:00:00',
+    });
+
+    const msg = await insertMessage(encResuelto, hostUser, 'Texto sensible temporalmente preservado');
+
+    await db.query(`
+      INSERT INTO public.public_content_reports (encuentro_id, status, created_at)
+      VALUES ('${encResuelto}', 'pending', now());
+    `);
+
+    // Borrado manual mientras estaba pendiente: evidencia preservada
+    await rpc(`public.eliminar_mensaje_encuentro_seguro('${msg}')`, hostUser);
+
+    // El reporte se concluye formalmente
+    await db.query(`
+      UPDATE public.public_content_reports
+      SET status = 'resolved', reviewed_at = now()
+      WHERE encuentro_id = '${encResuelto}';
+    `);
+
+    // Al correr la función interna de mantenimiento (live), se sanea la evidencia residual
+    const purgeMaint = await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(50, false)`);
+    assert.strictEqual(purgeMaint.ok, true);
+
+    const postCheck = await db.query<{ contenido_preservado_moderacion: string | null }>(`
+      SELECT contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
+    `);
+    assert.strictEqual(postCheck.rows[0].contenido_preservado_moderacion, null);
+  });
+
+  // 26. Gran volumen de mensajes con respuestas hijas anidadas: eliminación atómica completa
+  test('26. Gran volumen con respuestas hijas: eliminación atómica de 30 mensajes sin error FK o vestigios', async () => {
+    const encVolumen = await createEncounter({
+      titulo: 'Encuentro Gran Volumen para Purga',
+      fecha: '2025-06-01',
+      hora: '18:00:00',
+    });
+
+    // Insertar 10 hilos raíz, cada uno con 2 respuestas hijas (30 mensajes en total)
+    for (let r = 0; r < 10; r++) {
+      const rootId = await insertMessage(encVolumen, hostUser, `Mensaje raíz ${r}`);
+      await insertMessage(encVolumen, participantUser, `Respuesta 1 a ${r}`, rootId);
+      await insertMessage(encVolumen, hostUser, `Respuesta 2 a ${r}`, rootId);
+    }
+
+    // Verificar que los 30 mensajes existen
+    const preCount = await db.query<{ count: string }>(`
+      SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encVolumen}';
+    `);
+    assert.strictEqual(parseInt(preCount.rows[0].count, 10), 30);
+
+    // Ejecutar purga física
+    const purgeVol = await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(50, false)`);
+    assert.strictEqual(purgeVol.ok, true);
+    assert.strictEqual(purgeVol.mensajes_eliminados >= 30, true);
+
+    // Verificar que los 30 mensajes fueron eliminados por completo sin errores de FK ni residuos
+    const postCount = await db.query<{ count: string }>(`
+      SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encVolumen}';
+    `);
+    assert.strictEqual(parseInt(postCount.rows[0].count, 10), 0);
   });
 });
