@@ -522,9 +522,10 @@ BEGIN
           AND NOT EXISTS (
               SELECT 1
               FROM public.bloqueos_usuario b
-              JOIN auth.users u ON u.id = b.blocked_id
-              WHERE b.blocker_id = v_user_id
-                AND pg_catalog.lower(u.email) = s.destinatario_email
+              JOIN auth.users u
+                ON (u.id = b.blocked_id AND b.blocker_id = v_user_id)
+                OR (u.id = b.blocker_id AND b.blocked_id = v_user_id)
+              WHERE pg_catalog.lower(u.email) = s.destinatario_email
           )
     ),
     per_encounter AS (

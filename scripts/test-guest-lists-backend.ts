@@ -23,6 +23,7 @@ describe('Listas reutilizables de invitados V1 — Backend, RLS & Integración (
   const anonymousUser = '44444444-4444-4444-4444-444444444444';
   const blockedUser = '55555555-5555-5555-5555-555555555555';
   const rejectedGuest = '66666666-6666-6666-6666-666666666666';
+  const reverseBlockedUser = '77777777-7777-7777-7777-777777777777';
 
   let enc1Id: string;
   let enc2Id: string;
@@ -226,7 +227,8 @@ describe('Listas reutilizables de invitados V1 — Backend, RLS & Integración (
         ('${otherOrganizer}', 'otro@puntoencuentro.com', false, '{"full_name": "Otro Organizador"}'),
         ('${anonymousUser}', NULL, true, '{}'),
         ('${blockedUser}', 'bloqueado@puntoencuentro.com', false, '{"full_name": "Usuario Bloqueado"}'),
-        ('${rejectedGuest}', 'rechazo@puntoencuentro.com', false, '{"full_name": "Invitado Rechaza"}');
+        ('${rejectedGuest}', 'rechazo@puntoencuentro.com', false, '{"full_name": "Invitado Rechaza"}'),
+        ('${reverseBlockedUser}', 'me.bloqueo@puntoencuentro.com', false, '{"full_name": "Usuario Que Bloquea Al Host"}');
     `);
 
     const f1 = new Date(Date.now() + 7 * 86400 * 1000).toISOString().slice(0, 10);
@@ -405,7 +407,40 @@ describe('Listas reutilizables de invitados V1 — Backend, RLS & Integración (
     assert.equal(listados.listas[0].nombre, 'Compañeros de Trabajo');
     assert.equal(listados.listas[1].nombre, 'Fútbol Jueves Noche');
 
-    // g) INDEPENDENCIA DEL REGISTRO DE CONTACTOS:
+    // g) Validaciones de edición y renombrado seguro:
+    // Intento de renombrar a nombre ya existente del mismo usuario -> list_name_taken
+    const renConflict = await rpc(
+      `public.renombrar_lista_invitados_seguro('${create2.lista.id}', 'Fútbol Jueves Noche')`,
+      hostUser
+    );
+    assert.equal(renConflict.ok, false);
+    assert.equal(renConflict.error, 'list_name_taken');
+
+    // Renombrado con ID inexistente -> list_not_found
+    const renMissing = await rpc(
+      `public.renombrar_lista_invitados_seguro('00000000-0000-0000-0000-000000000099', 'Cualquiera')`,
+      hostUser
+    );
+    assert.equal(renMissing.ok, false);
+    assert.equal(renMissing.error, 'list_not_found');
+
+    // Edición con ID inexistente -> list_not_found
+    const editMissing = await rpc(
+      `public.guardar_lista_invitados_seguro('Inexistente', ARRAY['test@test.com'], '00000000-0000-0000-0000-000000000099')`,
+      hostUser
+    );
+    assert.equal(editMissing.ok, false);
+    assert.equal(editMissing.error, 'list_not_found');
+
+    // Renombrado válido
+    const renOk = await rpc(
+      `public.renombrar_lista_invitados_seguro('${create2.lista.id}', 'Compañeros de Oficina')`,
+      hostUser
+    );
+    assert.equal(renOk.ok, true);
+    assert.equal(renOk.lista.nombre, 'Compañeros de Oficina');
+
+    // h) INDEPENDENCIA DEL REGISTRO DE CONTACTOS:
     // Agendar lucas.gomez@correo.com como contacto, luego editarlo/eliminarlo de contactos
     // no debe modificar ni borrar los correos guardados en la lista.
     const cLucas = await rpc(
@@ -578,11 +613,19 @@ describe('Listas reutilizables de invitados V1 — Backend, RLS & Integración (
       rejectedGuest
     );
 
-    // Invitación bloqueada
+    // Invitación con bloqueo unilateral por parte del host
     await rpc(`public.enviar_invitacion_interna_seguro('${enc1Id}', 'bloqueado@puntoencuentro.com', NULL)`, hostUser);
     await db.exec(`
       INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
       VALUES ('${hostUser}', '${blockedUser}')
+      ON CONFLICT DO NOTHING;
+    `);
+
+    // Invitación con bloqueo bilateral inverso (el destinatario bloqueó al host)
+    await rpc(`public.enviar_invitacion_interna_seguro('${enc1Id}', 'me.bloqueo@puntoencuentro.com', NULL)`, hostUser);
+    await db.exec(`
+      INSERT INTO public.bloqueos_usuario (blocker_id, blocked_id)
+      VALUES ('${reverseBlockedUser}', '${hostUser}')
       ON CONFLICT DO NOTHING;
     `);
 
@@ -628,6 +671,7 @@ describe('Listas reutilizables de invitados V1 — Backend, RLS & Integración (
     for (const sug of res.sugerencias_listas) {
       assert.ok(!sug.emails.includes('rechazo@puntoencuentro.com'));
       assert.ok(!sug.emails.includes('bloqueado@puntoencuentro.com'));
+      assert.ok(!sug.emails.includes('me.bloqueo@puntoencuentro.com'), 'Exclusión bilateral: quien bloqueó al host no se sugiere');
       assert.ok(!sug.emails.includes('solo.cancelado@asado.com'));
       assert.ok(!sug.emails.includes('amigo.ajeno1@mail.com'));
     }
