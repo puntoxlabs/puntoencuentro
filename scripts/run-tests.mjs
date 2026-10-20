@@ -183,6 +183,9 @@ try {
   await server.ssrLoadModule('./scripts/test-mini-sprint-1-identity.ts');
   console.log('✅ Mini-sprint 1: Identidad y acceso crítico pre-lanzamiento tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-resilience-and-polling.tsx');
+  console.log('✅ Frontend Resilience & Polling Optimization tests (19 casos) executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

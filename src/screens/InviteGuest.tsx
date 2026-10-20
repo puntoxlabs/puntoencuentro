@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
@@ -11,6 +11,7 @@ import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { useTranslation } from 'react-i18next';
 import { openExternalVideoLink } from '@/lib/openLink';
 import { useHomeStore } from '@/store/homeStore';
+import { useResilientPolling } from '@/hooks/useResilientPolling';
 
 import { formatCount } from '@/lib/formatCount';
 import { useAuth } from '@/contexts/AuthContext';
@@ -73,7 +74,6 @@ const InviteGuest: React.FC = () => {
   const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
   const [visibleEnabled, setVisibleEnabled] = useState(false);
   const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
-  const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [approvedRequestId, setApprovedRequestId] = useState<string | null>(null);
   const [mySolicitudId, setMySolicitudId] = useState<string | null>(null);
@@ -144,30 +144,64 @@ const InviteGuest: React.FC = () => {
     if (token) { loadData(); } else { setError('Token no proporcionado en la URL.'); setLoading(false); }
   }, [token]);
 
-  // Polling de respuestas visibles — sólo cuando el invitado ya respondió
-  useEffect(() => {
-    if (step !== 'done' || !token) return;
+  // Polling resiliente de respuestas visibles: 10s (activo) y máx 30s (inactivo visible)
+  const fetchRespuestas = useCallback(async () => {
+    if (!token) return;
+    const currentToken = token;
+    try {
+      // Usa el token de la URL que ya es token_invitacion personal
+      const result = await participantesService.getRespuestasVisiblesInvitado(token);
+      if (token !== currentToken) return;
+      setVisibleEnabled(result.visible);
+      setRespuestasVisibles(result.participantes);
+    } catch { /* no fatal */ }
+  }, [token]);
 
-    const fetchRespuestas = async () => {
-      if (document.visibilityState !== 'visible') return;
-      try {
-        // Usa el token de la URL que ya es token_invitacion personal
-        const result = await participantesService.getRespuestasVisiblesInvitado(token);
-        setVisibleEnabled(result.visible);
-        setRespuestasVisibles(result.participantes);
-      } catch { /* no fatal */ }
-    };
+  useResilientPolling({
+    fn: fetchRespuestas,
+    intervalMs: 10000,
+    idleIntervalMs: 30000,
+    enabled: step === 'done' && !!token,
+    idleTimeoutMs: 180000,
+    backoffOnError: true,
+    immediate: true,
+  });
 
-    fetchRespuestas(); // primera consulta inmediata
-    if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
-    pollRespuestasRef.current = setInterval(fetchRespuestas, 10000);
+  // Polling resiliente de verificación de estado: 8.5s (activo) y máx 30s (inactivo visible)
+  const checkEncounterStatus = useCallback(async () => {
+    if (!token) return;
+    const currentToken = token;
+    try {
+      if (import.meta.env.DEV) console.log('[INVITE POLLING] Checking encounter status...');
+      const data = await participantesService.getParticipanteByToken(token);
+      if (token !== currentToken) return;
+      if (!data) {
+        if (import.meta.env.DEV) console.log('[INVITE POLLING] Encounter deleted or unavailable');
+        setError('No disponible');
+        setEncuentro(null);
+        return;
+      }
+      const enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
+      if (enc && enc.estado !== encuentro?.estado) {
+        if (import.meta.env.DEV) console.log('[INVITE POLLING] Status updated to:', enc.estado);
+        setEncuentro(enc);
+      }
+    } catch (err) {
+      console.error('[INVITE POLLING] Error running polling check', err);
+    }
+  }, [token, encuentro?.estado]);
 
-    return () => {
-      if (pollRespuestasRef.current) clearInterval(pollRespuestasRef.current);
-    };
-  }, [step, token]);
+  useResilientPolling({
+    fn: checkEncounterStatus,
+    intervalMs: 8500,
+    idleIntervalMs: 30000,
+    enabled: !!encuentro?.id && !!token,
+    idleTimeoutMs: 180000,
+    backoffOnError: true,
+    immediate: false,
+  });
 
-  // Realtime subscription and polling for cancellation / deletion revalidation
+  // Realtime subscription for cancellation / deletion revalidation
   useEffect(() => {
     if (!encuentro?.id) return;
 
@@ -194,34 +228,11 @@ const InviteGuest: React.FC = () => {
       )
       .subscribe();
 
-    // Fallback Polling every 8.5 seconds
-    const pollInterval = setInterval(async () => {
-      try {
-        if (import.meta.env.DEV) console.log('[INVITE POLLING] Checking encounter status...');
-        if (!token) return;
-        const data = await participantesService.getParticipanteByToken(token);
-        if (!data) {
-          if (import.meta.env.DEV) console.log('[INVITE POLLING] Encounter deleted or unavailable');
-          setError('No disponible');
-          setEncuentro(null);
-          return;
-        }
-        const enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
-        if (enc && enc.estado !== encuentro?.estado) {
-          if (import.meta.env.DEV) console.log('[INVITE POLLING] Status updated to:', enc.estado);
-          setEncuentro(enc);
-        }
-      } catch (err) {
-        console.error('[INVITE POLLING] Error running polling check', err);
-      }
-    }, 8500);
-
     return () => {
       if (import.meta.env.DEV) console.log('[INVITE REALTIME] Unsubscribing, id:', encuentro.id);
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
     };
-  }, [encuentro?.id, encuentro?.estado]);
+  }, [encuentro?.id]);
 
   // Scroll indicator listening to window scroll
   useEffect(() => {

@@ -52,16 +52,23 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
   // Referencias para evitar duplicados en polling
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFetchingRef = useRef(false);
+  const lastActivityRef = useRef(Date.now());
+  const isIdleRef = useRef(false);
 
   const fetchMensajes = useCallback(async (showLoadingSpinner = false) => {
     if (!encuentroId || isFetchingRef.current) return;
     if (document.visibilityState !== 'visible') return;
+    const targetEncuentroId = encuentroId;
+    const targetToken = tokenInvitacion;
 
     try {
       isFetchingRef.current = true;
       if (showLoadingSpinner) setLoading(true);
 
       const res = await mensajesService.getMensajes(encuentroId, tokenInvitacion);
+
+      // Guard against stale response if encounterId or token changed
+      if (encuentroId !== targetEncuentroId || tokenInvitacion !== targetToken) return;
 
       if (res.ok) {
         setMensajes(res.mensajes || []);
@@ -103,30 +110,95 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     }
   }, [encuentroId, tokenInvitacion]);
 
-  // Carga inicial y configuración de Smart Polling (cada 20s)
+  // Carga inicial y configuración de Smart Polling: 20s (activo) y máx 45s (inactivo visible)
   useEffect(() => {
     if (!isConfirmed) {
       setLoading(false);
       return;
     }
 
+    lastActivityRef.current = Date.now();
+    isIdleRef.current = false;
+
     fetchMensajes(true);
 
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    pollTimerRef.current = setInterval(() => {
-      fetchMensajes(false);
-    }, 20000);
+    const startPolling = (cadence = 20000) => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (document.visibilityState !== 'visible') return;
+
+      pollTimerRef.current = setInterval(() => {
+        if (document.visibilityState !== 'visible') {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          return;
+        }
+
+        const timeSinceActivity = Date.now() - lastActivityRef.current;
+        const isIdleNow = timeSinceActivity > 180000;
+
+        // Si cambió el estado de actividad, alternar entre 20s (activo) y 45s (inactivo)
+        if (isIdleNow !== isIdleRef.current) {
+          isIdleRef.current = isIdleNow;
+          startPolling(isIdleNow ? 45000 : 20000);
+        }
+
+        fetchMensajes(false);
+      }, cadence);
+    };
+
+    if (document.visibilityState === 'visible') {
+      startPolling(20000);
+    }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        isIdleRef.current = false;
+        lastActivityRef.current = Date.now();
         fetchMensajes(false);
+        startPolling(20000);
+      } else {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
       }
     };
+
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        isIdleRef.current = false;
+        lastActivityRef.current = Date.now();
+        fetchMensajes(false);
+        startPolling(20000);
+      }
+    };
+
+    let lastInteraction = 0;
+    const handleInteraction = () => {
+      const now = Date.now();
+      if (now - lastInteraction < 2000) return;
+      lastInteraction = now;
+      lastActivityRef.current = now;
+
+      if (isIdleRef.current) {
+        isIdleRef.current = false;
+        if (document.visibilityState === 'visible') {
+          fetchMensajes(false);
+          startPolling(20000);
+        }
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    const interactionEvents = ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const;
+    interactionEvents.forEach((evt) => {
+      window.addEventListener(evt, handleInteraction, { passive: true });
+    });
 
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      interactionEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleInteraction);
+      });
     };
   }, [fetchMensajes, isConfirmed]);
 

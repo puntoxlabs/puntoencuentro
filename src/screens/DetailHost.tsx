@@ -45,6 +45,7 @@ import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesP
 import { ReuseEncounterSheet } from '@/components/reuse';
 import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
+import { useResilientPolling } from '@/hooks/useResilientPolling';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -113,9 +114,6 @@ const DetailHost: React.FC = () => {
   // No genera un nuevo UUID al refrescar: getHostId() lee desde localStorage.
   const hostIdRef = useRef<string | null>(null);
 
-  // Ref para el interval de polling (evita duplicados)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Resuelve y fija hostId cuando auth termina de cargar
   useEffect(() => {
     if (authLoading) return; // Esperar que auth resuelva antes de fijar hostId
@@ -143,8 +141,11 @@ const DetailHost: React.FC = () => {
   const refreshParticipantes = useCallback(async () => {
     const hId = hostIdRef.current;
     if (!id || !hId) return;
+    const targetId = id;
     try {
       const parts = await participantesService.getParticipantesByEncuentro(id, hId);
+      // Guard against stale response if encounter ID changed during network request
+      if (id !== targetId) return;
       setParticipantes(parts || []);
       const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
       if (currentEnc) setDetailData(id, currentEnc, parts || []);
@@ -153,13 +154,25 @@ const DetailHost: React.FC = () => {
     }
   }, [id]);
 
+  // Polling resiliente de participantes: 5s (activo) y máx 30s (inactivo visible)
+  useResilientPolling({
+    fn: refreshParticipantes,
+    intervalMs: 5000,
+    idleIntervalMs: 30000,
+    enabled: !authLoading && transferClaimStatus !== 'claiming' && !!id && !cancelling && !isDeleting,
+    idleTimeoutMs: 180000,
+    backoffOnError: true,
+    maxIntervalMs: 30000,
+    immediate: false,
+  });
+
   useEffect(() => {
     if (encuentro?.descripcion && personalMessage === '') {
       setPersonalMessage(encuentro.descripcion);
     }
   }, [encuentro?.descripcion]);
 
-  // Efecto principal: carga inicial + polling + visibilitychange
+  // Efecto principal: carga inicial + cache
   // Se re-ejecuta cuando auth termina (authLoading cambia a false)
   useEffect(() => {
     if (!id) return;
@@ -194,44 +207,7 @@ const DetailHost: React.FC = () => {
         }
       } catch (e) { console.error('Error reading cancel_reference', e); }
     }
-
-    // Polling de participantes cada 5 s por RPC (no SELECT directo)
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    pollIntervalRef.current = setInterval(async () => {
-      const hId2 = hostIdRef.current;
-      if (!id || !hId2) return;
-      try {
-        const parts = await participantesService.getParticipantesByEncuentro(id, hId2);
-        setParticipantes(parts || []);
-        const currentEnc = useDetailStore.getState().cache[id]?.encuentro;
-        if (currentEnc) setDetailData(id, currentEnc, parts || []);
-      } catch (err) {
-        if (import.meta.env.DEV) console.error('[DetailHost] Error en polling:', err);
-      }
-    }, 5000);
-
-    // Refresh al volver el foco de la ventana
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        if (import.meta.env.DEV) console.log('[DetailHost] visibilitychange: refrescando participantes');
-        refreshParticipantes();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, [id, authLoading, transferClaimStatus]);
-
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
 
   const handleApplyDesign = async (theme: string, template: string | null) => {
     if (!encuentro || themeSaving) return;

@@ -28,6 +28,7 @@ import { AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AccessGate } from '@/components/AccessGate';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const CoordinationFeatureGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
@@ -124,15 +125,17 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AccessGate>
-      <AuthProvider>
-        <NotificationsProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </NotificationsProvider>
-      </AuthProvider>
-    </AccessGate>
+    <ErrorBoundary>
+      <AccessGate>
+        <AuthProvider>
+          <NotificationsProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </NotificationsProvider>
+        </AuthProvider>
+      </AccessGate>
+    </ErrorBoundary>
   );
 };
 
