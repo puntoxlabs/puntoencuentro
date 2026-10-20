@@ -15,12 +15,16 @@
 --      - Scrubbing habitual inmediato a neutral '[Mensaje eliminado]' cuando no hay investigaciones abiertas.
 --      - Preservación restringida de evidencia en contenido_preservado_moderacion si existe denuncia pendiente.
 --      - Saneamiento retroactivo seguro para datos preexistentes.
---   4. Función interna de mantenimiento public.purgar_mensajes_encuentro_vencidos_seguro:
+--   4. Disparador reactivo de saneamiento de evidencia de moderación:
+--      - Limpia contenido_preservado_moderacion tan pronto como TODAS las denuncias de un encuentro
+--        hayan sido formalmente resueltas o concluidas, sin requerir pg_cron ni acción manual.
+--   5. Función interna de mantenimiento public.purgar_mensajes_encuentro_vencidos_seguro:
 --      - Modo dry-run, batches acotados, FOR UPDATE SKIP LOCKED, circuit breaker.
+--      - Conteo exacto por encuentro considerando todas las filas (raíces y respuestas ON DELETE CASCADE).
+--      - Control de presupuesto de lote (evita acumulaciones sobre el tope y mantiene atomicidad completa).
 --      - Excepción estricta de conservación: NUNCA destruir evidencia mientras existan denuncias formalmente abiertas.
 --      - Umbral de 60 días como alerta administrativa (reportes_stale_pendientes), sin destruir evidencia.
---      - Saneamiento automático de evidencia residual una vez concluidas formalmente las investigaciones.
---   5. Función desacoplada public.purgar_rate_limits_participantes_seguro (> 48h).
+--   6. Función desacoplada public.purgar_rate_limits_participantes_seguro (> 48h).
 --
 -- NOTA DE ACTIVACIÓN:
 --   El cron NO se programa ni se habilita en esta migración (requiere autorización y migración posterior).
@@ -433,7 +437,88 @@ WHERE m.eliminado_en IS NOT NULL
 
 
 -- ==============================================================================
--- 4. FUNCIÓN INTERNA DE PURGA: public.purgar_mensajes_encuentro_vencidos_seguro
+-- 4. DISPARADOR REACTIVO DE SANEAMIENTO DE EVIDENCIA DE MODERACIÓN
+-- Cuando todas las denuncias pendientes de un encuentro se resuelven formalmente,
+-- sanea automáticamente contenido_preservado_moderacion sin requerir pg_cron ni acción manual.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.fn_limpiar_evidencia_moderacion_concluida()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_encuentro_id UUID;
+    v_quedan_pendientes BOOLEAN;
+    v_era_pending BOOLEAN := false;
+    v_es_pending BOOLEAN := false;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_encuentro_id := OLD.encuentro_id;
+        v_era_pending := true;
+        v_es_pending := false;
+    ELSE
+        v_encuentro_id := NEW.encuentro_id;
+        IF TG_TABLE_NAME = 'reportes_encuentro' THEN
+            v_era_pending := (OLD.estado = 'pending');
+            v_es_pending := (NEW.estado = 'pending');
+        ELSIF TG_TABLE_NAME = 'public_content_reports' THEN
+            v_era_pending := (OLD.status = 'pending');
+            v_es_pending := (NEW.status = 'pending');
+        END IF;
+    END IF;
+
+    IF v_encuentro_id IS NULL THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    -- Solo actuar cuando una denuncia transitó de 'pending' a resuelto/cerrado (o fue eliminada siendo pending)
+    IF v_era_pending AND NOT v_es_pending THEN
+        -- Comprobar si todavía queda CUALQUIER otra denuncia pendiente para este encuentro en ambas tablas
+        SELECT EXISTS (
+            SELECT 1 FROM public.reportes_encuentro
+            WHERE encuentro_id = v_encuentro_id
+              AND estado = 'pending'
+            UNION ALL
+            SELECT 1 FROM public.public_content_reports
+            WHERE encuentro_id = v_encuentro_id
+              AND status = 'pending'
+        ) INTO v_quedan_pendientes;
+
+        -- Si no queda ninguna denuncia pendiente para este encuentro, sanear de inmediato
+        -- la evidencia residual en mensajes_encuentro
+        IF NOT v_quedan_pendientes THEN
+            UPDATE public.mensajes_encuentro
+            SET contenido_preservado_moderacion = NULL
+            WHERE encuentro_id = v_encuentro_id
+              AND contenido_preservado_moderacion IS NOT NULL;
+        END IF;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fn_limpiar_evidencia_moderacion_concluida() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fn_limpiar_evidencia_moderacion_concluida() TO postgres, service_role;
+
+DROP TRIGGER IF EXISTS trg_reportes_encuentro_cleanup_evidence ON public.reportes_encuentro;
+CREATE TRIGGER trg_reportes_encuentro_cleanup_evidence
+    AFTER UPDATE OF estado OR DELETE ON public.reportes_encuentro
+    FOR EACH ROW
+    WHEN (OLD.estado = 'pending')
+    EXECUTE FUNCTION public.fn_limpiar_evidencia_moderacion_concluida();
+
+DROP TRIGGER IF EXISTS trg_public_content_reports_cleanup_evidence ON public.public_content_reports;
+CREATE TRIGGER trg_public_content_reports_cleanup_evidence
+    AFTER UPDATE OF status OR DELETE ON public.public_content_reports
+    FOR EACH ROW
+    WHEN (OLD.status = 'pending')
+    EXECUTE FUNCTION public.fn_limpiar_evidencia_moderacion_concluida();
+
+
+-- ==============================================================================
+-- 5. FUNCIÓN INTERNA DE PURGA: public.purgar_mensajes_encuentro_vencidos_seguro
 -- Operación idempotente por lotes acotados con FOR UPDATE SKIP LOCKED y circuit breaker.
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.purgar_mensajes_encuentro_vencidos_seguro(
@@ -460,7 +545,7 @@ DECLARE
     v_duracion_ms NUMERIC;
     v_tiene_reporte BOOLEAN;
     v_tiene_stale BOOLEAN;
-    v_deleted_count INT;
+    v_count_encuentro INT;
 BEGIN
     -- 1. Saneamiento de evidencia residual cuando las denuncias han sido formalmente cerradas o resueltas:
     -- Evita retención indefinida e innecesaria de contenido una vez concluida la investigación.
@@ -550,28 +635,35 @@ BEGIN
             CONTINUE;
         END IF;
 
+        -- 5. Contar exactamente cuántos mensajes pertenecen a este encuentro (raíces y respuestas ON DELETE CASCADE)
+        SELECT pg_catalog.count(*)
+        INTO v_count_encuentro
+        FROM public.mensajes_encuentro
+        WHERE encuentro_id = v_enc.id;
+
+        -- Control de presupuesto de lote:
+        -- Si ya hemos eliminado mensajes en esta corrida y sumar este encuentro superaría el límite de 10.000,
+        -- nos detenemos para no exceder el tope y procesar este encuentro completo de forma atómica en la siguiente corrida.
+        IF v_mensajes_eliminados > 0 AND (v_mensajes_eliminados + v_count_encuentro) > v_max_mensajes THEN
+            v_circuit_breaker := true;
+            EXIT;
+        END IF;
+
         IF p_dry_run THEN
             -- Modo simulación: contar sin alterar
-            SELECT pg_catalog.count(*)
-            INTO v_deleted_count
-            FROM public.mensajes_encuentro
-            WHERE encuentro_id = v_enc.id;
-
-            v_mensajes_eliminados := v_mensajes_eliminados + v_deleted_count;
+            v_mensajes_eliminados := v_mensajes_eliminados + v_count_encuentro;
             v_encuentros_procesados := v_encuentros_procesados + 1;
         ELSE
             -- Modo ejecución: eliminar en cascada segura por encuentro completo
             DELETE FROM public.mensajes_encuentro
             WHERE encuentro_id = v_enc.id;
 
-            GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
-            v_mensajes_eliminados := v_mensajes_eliminados + v_deleted_count;
-
             -- Registrar marca persistente de purga
             UPDATE public.encuentros
             SET messages_purged_at = v_now
             WHERE id = v_enc.id;
 
+            v_mensajes_eliminados := v_mensajes_eliminados + v_count_encuentro;
             v_encuentros_procesados := v_encuentros_procesados + 1;
         END IF;
 
@@ -606,7 +698,7 @@ GRANT EXECUTE ON FUNCTION public.purgar_mensajes_encuentro_vencidos_seguro(INT, 
 
 
 -- ==============================================================================
--- 5. FUNCIÓN INTERNA: public.purgar_rate_limits_participantes_seguro
+-- 6. FUNCIÓN INTERNA: public.purgar_rate_limits_participantes_seguro
 -- Subrutina independiente de mantenimiento para limpiar cuotas de más de 48 horas.
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.purgar_rate_limits_participantes_seguro(
@@ -667,7 +759,7 @@ REVOKE ALL ON FUNCTION public.purgar_rate_limits_participantes_seguro(INT, BOOLE
 GRANT EXECUTE ON FUNCTION public.purgar_rate_limits_participantes_seguro(INT, BOOLEAN) TO postgres, service_role;
 
 -- ==============================================================================
--- 6. NOTA DE PROGRAMACIÓN (pg_cron)
+-- 7. NOTA DE PROGRAMACIÓN (pg_cron)
 -- ==============================================================================
 -- El cron NO se programa en esta migración según directiva expresa del Sprint 3.
 -- Se activará posteriormente mediante migración independiente sujeta a aprobación.

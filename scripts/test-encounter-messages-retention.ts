@@ -955,10 +955,10 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
     assert.strictEqual(clientRes.mensajes[0].contenido_preservado_moderacion, undefined);
   });
 
-  // 25. Saneamiento automático de evidencia residual al concluir formalmente las investigaciones
-  test('25. Saneamiento de evidencia residual: conclusión de reporte limpia contenido_preservado_moderacion', async () => {
+  // 25. Saneamiento reactivo inmediato por disparador al concluir formalmente las investigaciones (sin cron)
+  test('25. Saneamiento reactivo por trigger: conclusión de reporte limpia contenido_preservado_moderacion de inmediato sin cron', async () => {
     const encResuelto = await createEncounter({
-      titulo: 'Encuentro Cuya Denuncia Se Concluye',
+      titulo: 'Encuentro Cuya Denuncia Se Concluye por Trigger',
       fecha: '2028-09-01',
       hora: '18:00:00',
     });
@@ -973,20 +973,23 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
     // Borrado manual mientras estaba pendiente: evidencia preservada
     await rpc(`public.eliminar_mensaje_encuentro_seguro('${msg}')`, hostUser);
 
-    // El reporte se concluye formalmente
+    const checkPre = await db.query<{ contenido_preservado_moderacion: string | null }>(`
+      SELECT contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
+    `);
+    assert.strictEqual(checkPre.rows[0].contenido_preservado_moderacion, 'Texto sensible temporalmente preservado');
+
+    // El reporte se concluye formalmente (sin llamar a ninguna función de purga ni ejecutar cron)
     await db.query(`
       UPDATE public.public_content_reports
       SET status = 'resolved', reviewed_at = now()
       WHERE encuentro_id = '${encResuelto}';
     `);
 
-    // Al correr la función interna de mantenimiento (live), se sanea la evidencia residual
-    const purgeMaint = await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(50, false)`);
-    assert.strictEqual(purgeMaint.ok, true);
-
-    const postCheck = await db.query<{ contenido_preservado_moderacion: string | null }>(`
-      SELECT contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
+    // El trigger reactivo debe haber limpiado inmediatamente contenido_preservado_moderacion
+    const postCheck = await db.query<{ contenido: string; contenido_preservado_moderacion: string | null }>(`
+      SELECT contenido, contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
     `);
+    assert.strictEqual(postCheck.rows[0].contenido, '[Mensaje eliminado]');
     assert.strictEqual(postCheck.rows[0].contenido_preservado_moderacion, null);
   });
 
@@ -1021,5 +1024,132 @@ describe('Sprint 3: Retención y Purga Segura de Mensajes V1 — Backend (PGlite
       SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encVolumen}';
     `);
     assert.strictEqual(parseInt(postCount.rows[0].count, 10), 0);
+  });
+
+  // 27. Múltiples denuncias concurrentes: segunda denuncia pendiente previene eliminación prematura
+  test('27. Múltiples denuncias: segunda denuncia abierta previene eliminación prematura hasta su cierre', async () => {
+    const encMulti = await createEncounter({
+      titulo: 'Encuentro con Múltiples Denuncias',
+      fecha: '2028-09-01',
+      hora: '18:00:00',
+    });
+
+    const msg = await insertMessage(encMulti, hostUser, 'Contenido denunciado dos veces');
+
+    // Insertar denuncia 1 en reportes_encuentro
+    const rep1 = await db.query<{ id: string }>(`
+      INSERT INTO public.reportes_encuentro (encuentro_id, estado, created_at)
+      VALUES ('${encMulti}', 'pending', now())
+      RETURNING id;
+    `);
+
+    // Insertar denuncia 2 en public_content_reports
+    const rep2 = await db.query<{ id: string }>(`
+      INSERT INTO public.public_content_reports (encuentro_id, status, created_at)
+      VALUES ('${encMulti}', 'pending', now())
+      RETURNING id;
+    `);
+
+    // Borrado manual: contenido preservado
+    await rpc(`public.eliminar_mensaje_encuentro_seguro('${msg}')`, hostUser);
+
+    // 1. Resolver SOLO la primera denuncia (rep1)
+    await db.query(`
+      UPDATE public.reportes_encuentro
+      SET estado = 'actioned'
+      WHERE id = '${rep1.rows[0].id}';
+    `);
+
+    // Como la denuncia 2 sigue 'pending', la evidencia DEBE seguir preservada
+    const checkMid = await db.query<{ contenido_preservado_moderacion: string | null }>(`
+      SELECT contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
+    `);
+    assert.strictEqual(checkMid.rows[0].contenido_preservado_moderacion, 'Contenido denunciado dos veces');
+
+    // 2. Resolver la segunda y ÚLTIMA denuncia (rep2)
+    await db.query(`
+      UPDATE public.public_content_reports
+      SET status = 'actioned', reviewed_at = now()
+      WHERE id = '${rep2.rows[0].id}';
+    `);
+
+    // Ahora que no quedan denuncias pendientes, el trigger sanea inmediatamente la evidencia
+    const checkFinal = await db.query<{ contenido_preservado_moderacion: string | null }>(`
+      SELECT contenido_preservado_moderacion FROM public.mensajes_encuentro WHERE id = '${msg}';
+    `);
+    assert.strictEqual(checkFinal.rows[0].contenido_preservado_moderacion, null);
+  });
+
+  // 28. Límites reales de lote (>10.000 mensajes sintéticos): circuito seguro, atomicidad y sin residuos
+  test('28. Límites reales de lote: corrida con >10.000 mensajes activa circuit breaker sin dejar encuentros parciales', async () => {
+    // Encuentro A: vence retención (>90d), contiene 10.005 mensajes sintéticos
+    const encMasivo = await createEncounter({
+      titulo: 'Encuentro Masivo >10k',
+      fecha: '2025-01-01',
+      hora: '18:00:00',
+    });
+
+    // Inserción en bloque de 10.005 mensajes
+    await db.query(`
+      INSERT INTO public.mensajes_encuentro (
+        encuentro_id, autor_user_id, autor_nombre, es_organizador, contenido, creado_en
+      )
+      SELECT 
+        '${encMasivo}', 
+        '${hostUser}', 
+        'Organizador', 
+        true, 
+        'Mensaje sintetico ' || i, 
+        now() - interval '95 days'
+      FROM generate_series(1, 10005) AS i;
+    `);
+
+    // Encuentro B: también vencido (>90d), con 3 mensajes
+    const encSiguiente = await createEncounter({
+      titulo: 'Encuentro Posterior al Masivo',
+      fecha: '2025-01-01',
+      hora: '18:00:00',
+    });
+    await insertMessage(encSiguiente, hostUser, 'Mensaje enc B 1');
+    await insertMessage(encSiguiente, hostUser, 'Mensaje enc B 2');
+    await insertMessage(encSiguiente, hostUser, 'Mensaje enc B 3');
+
+    // Ejecutar purga
+    const purgeRes = await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(50, false)`);
+    assert.strictEqual(purgeRes.ok, true);
+    assert.strictEqual(purgeRes.circuit_breaker_triggered, true);
+    assert.strictEqual(purgeRes.mensajes_eliminados >= 10005, true);
+
+    // 1. Encuentro Masivo fue purgado atómicamente por completo (0 mensajes residuales)
+    const countA = await db.query<{ count: string }>(`
+      SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encMasivo}';
+    `);
+    assert.strictEqual(parseInt(countA.rows[0].count, 10), 0);
+
+    const encA_purged = await db.query<{ messages_purged_at: string | null }>(`
+      SELECT messages_purged_at FROM public.encuentros WHERE id = '${encMasivo}';
+    `);
+    assert.ok(encA_purged.rows[0].messages_purged_at);
+
+    // 2. Encuentro B NO fue tocado por haber alcanzado el límite en el primer encuentro
+    // Sus mensajes permanecen 100% íntegros y NO fue marcado falsamente como purgado
+    const countB = await db.query<{ count: string }>(`
+      SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encSiguiente}';
+    `);
+    assert.strictEqual(parseInt(countB.rows[0].count, 10), 3);
+
+    const encB_purged = await db.query<{ messages_purged_at: string | null }>(`
+      SELECT messages_purged_at FROM public.encuentros WHERE id = '${encSiguiente}';
+    `);
+    assert.strictEqual(encB_purged.rows[0].messages_purged_at, null);
+
+    // 3. Una segunda corrida procesa limpiamente el Encuentro B
+    const secondPurge = await rpcServiceRole(`public.purgar_mensajes_encuentro_vencidos_seguro(50, false)`);
+    assert.strictEqual(secondPurge.ok, true);
+
+    const countB_post = await db.query<{ count: string }>(`
+      SELECT count(*) as count FROM public.mensajes_encuentro WHERE encuentro_id = '${encSiguiente}';
+    `);
+    assert.strictEqual(parseInt(countB_post.rows[0].count, 10), 0);
   });
 });
