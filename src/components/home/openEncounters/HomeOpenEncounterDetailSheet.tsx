@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
+import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import type { PublicContentReportReason } from '@/types/trust';
 import './HomeOpenEncounterDetailSheet.css';
 
@@ -707,6 +708,26 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           <p className="pe-detail-sheet__privacy-note">
             📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
           </p>
+        )}
+
+        {/* Agregar al calendario para participante confirmado */}
+        {isApprovedParticipant && authorizedDetail?.estado !== 'cancelado' && (
+          <div style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
+            <AddToCalendarButton
+              encuentro={{
+                id: encounter.id,
+                titulo: encounter.title,
+                fecha: encounter.startsAt ? encounter.startsAt.slice(0, 10) : undefined,
+                hora: encounter.startsAt ? encounter.startsAt.slice(11, 16) : undefined,
+                modalidad: authorizedDetail?.link_virtual ? 'virtual' : 'presencial',
+                lugar_texto: authorizedDetail?.lugar_texto || null,
+                link_virtual: authorizedDetail?.link_virtual || null,
+                descripcion: authorizedDetail?.open_description || encounter.description || null,
+                estado: authorizedDetail?.estado || 'activo',
+              }}
+              variant="outline"
+            />
+          </div>
         )}
 
         {!isDemo && !isHost && (

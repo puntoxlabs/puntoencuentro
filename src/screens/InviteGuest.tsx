@@ -713,8 +713,8 @@ const InviteGuest: React.FC = () => {
         </div>
       )}
 
-      {/* Agregar al calendario */}
-      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+      {/* Agregar al calendario (solo invitados confirmados) */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && participante?.estado === 'confirmado' && (
         <div style={{ margin: '0 20px 16px' }}>
           <AddToCalendarButton
             encuentro={{

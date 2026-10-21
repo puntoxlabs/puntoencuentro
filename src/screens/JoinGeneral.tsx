@@ -648,8 +648,8 @@ const JoinGeneral: React.FC = () => {
         </div>
       )}
 
-      {/* Agregar al calendario */}
-      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+      {/* Agregar al calendario (solo participantes confirmados) */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (participante?.estado === 'confirmado' || justConfirmed) && (
         <div style={{ margin: '0 20px 16px' }}>
           <AddToCalendarButton
             encuentro={{

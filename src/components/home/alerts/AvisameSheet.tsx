@@ -763,6 +763,13 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
                 );
               })
             )}
+
+            {/* Configuración de Horarios Silenciosos en Mis Avisos (solo usuario permanente) */}
+            {isPermanentUser && (
+              <div style={{ marginTop: 24, marginBottom: 8 }}>
+                <QuietHoursSettings />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -40,8 +40,18 @@ export function canAddToCalendar(
     return false;
   }
 
-  // Requiere fecha y hora obligatorias
-  return Boolean(encounter.fecha && encounter.hora);
+  // Requiere fecha y hora obligatorias y válidas
+  if (!encounter.fecha || !encounter.hora) return false;
+
+  const { year, month, day, hour, minute } = parseDateParts(encounter.fecha, encounter.hora);
+  if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
+    return false;
+  }
+  if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

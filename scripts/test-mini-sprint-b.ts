@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   canAddToCalendar,
@@ -105,6 +107,14 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
       }),
       true
     );
+
+    // Fechas o formatos corruptos -> Rechazados de forma segura
+    assert.strictEqual(canAddToCalendar({ fecha: 'invalido', hora: '20:00' }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-13-01', hora: '20:00' }), false); // Mes 13
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-32', hora: '20:00' }), false); // Día 32
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '25:00' }), false); // Hora 25
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:65' }), false); // Minuto 65
+    assert.strictEqual(canAddToCalendar({ fecha: '1990-01-01', hora: '10:00' }), false); // Año < 2000
   });
 
   await t.test('1.2 escapeIcsText y foldIcsLine cumplen con estándar RFC 5545', () => {
@@ -206,6 +216,42 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
     assert.ok(url.includes('text=Clase+de+Yoga'));
     assert.ok(url.includes('dates=20261205T180000Z%2F20261205T190000Z'));
     assert.ok(url.includes('location=Plaza+Las+Heras'));
+  });
+
+  await t.test('1.6 Integración en pantallas: Solo expone calendario a organizadores y participantes confirmados', () => {
+    const rootDir = process.cwd();
+
+    // DetailHost (Organizador)
+    const detailHost = fs.readFileSync(path.join(rootDir, 'src/screens/DetailHost.tsx'), 'utf-8');
+    assert.ok(detailHost.includes('<AddToCalendarButton'), 'DetailHost debe integrar AddToCalendarButton');
+    assert.ok(detailHost.includes('!isCancelado'), 'DetailHost no debe mostrarlo si está cancelado');
+
+    // InviteGuest (Invitado individual)
+    const inviteGuest = fs.readFileSync(path.join(rootDir, 'src/screens/InviteGuest.tsx'), 'utf-8');
+    assert.ok(inviteGuest.includes("<AddToCalendarButton"), 'InviteGuest debe integrar AddToCalendarButton');
+    assert.ok(
+      inviteGuest.includes("participante?.estado === 'confirmado'"),
+      'InviteGuest debe restringir AddToCalendarButton exclusivamente a confirmados'
+    );
+
+    // JoinGeneral (Enlace general público)
+    const joinGeneral = fs.readFileSync(path.join(rootDir, 'src/screens/JoinGeneral.tsx'), 'utf-8');
+    assert.ok(joinGeneral.includes("<AddToCalendarButton"), 'JoinGeneral debe integrar AddToCalendarButton');
+    assert.ok(
+      joinGeneral.includes("participante?.estado === 'confirmado'") || joinGeneral.includes('justConfirmed'),
+      'JoinGeneral debe restringir AddToCalendarButton a confirmados'
+    );
+
+    // HomeOpenEncounterDetailSheet (Encuentros abiertos de comunidad)
+    const openSheet = fs.readFileSync(
+      path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'),
+      'utf-8'
+    );
+    assert.ok(openSheet.includes('<AddToCalendarButton'), 'HomeOpenEncounterDetailSheet debe integrar AddToCalendarButton');
+    assert.ok(
+      openSheet.includes('isApprovedParticipant'),
+      'HomeOpenEncounterDetailSheet debe restringir AddToCalendarButton a participantes aprobados'
+    );
   });
 });
 
@@ -378,6 +424,29 @@ test('Mini-sprint B: Preferencias de Avisame y Horarios Silenciosos', async (t) 
     );
     assert.strictEqual(resolvedAuth.startTime, '21:00');
     assert.strictEqual(resolvedAuth.endTime, '09:00');
+  });
+
+  await t.test('2.7 Gestión de Avisame y Web Push: Horarios Silenciosos visibles y navegación neutral /?notifications=1', () => {
+    const rootDir = process.cwd();
+
+    // AvisameSheet debe incluir QuietHoursSettings tanto en Crear aviso como en Mis avisos para gestión visible
+    const avisameSheet = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/AvisameSheet.tsx'), 'utf-8');
+    const createTabIdx = avisameSheet.indexOf("{activeTab === 'create' && (");
+    const listTabIdx = avisameSheet.indexOf("{activeTab === 'list' && (");
+
+    const createTabSection = avisameSheet.slice(createTabIdx, listTabIdx);
+    const listTabSection = avisameSheet.slice(listTabIdx);
+
+    assert.ok(createTabSection.includes('<QuietHoursSettings />'), 'QuietHoursSettings debe estar en Crear aviso');
+    assert.ok(listTabSection.includes('<QuietHoursSettings />'), 'QuietHoursSettings debe estar en Mis avisos');
+    assert.ok(!listTabSection.includes('<DevicePushSettings />'), 'DevicePushSettings NO debe estar en Mis avisos');
+
+    // Service Worker: navegación estrictamente neutral a /?notifications=1
+    const swContent = fs.readFileSync(path.join(rootDir, 'public/sw.js'), 'utf-8');
+    assert.ok(
+      swContent.includes('/?notifications=1'),
+      'Service Worker debe mantener navegación neutral a /?notifications=1'
+    );
   });
 });
 
