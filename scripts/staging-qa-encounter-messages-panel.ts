@@ -154,7 +154,7 @@ async function runEncounterMessagesStagingQA() {
     // SETUP: Encuentros de prueba
     // ----------------------------------------------------
     const futureDate = new Date(Date.now() + 5 * 86400 * 1000).toISOString().slice(0, 10);
-    const pastDate = '2026-01-10';
+    const pastDate = new Date(Date.now() - 3 * 86400 * 1000).toISOString().slice(0, 10);
 
     // Encuentro principal con host registrado
     const { data: encMain, error: encMainErr } = await admin
@@ -355,6 +355,16 @@ async function runEncounterMessagesStagingQA() {
       encuentro_id: encPast.id,
       user_id: participantRegId,
       nombre_invitado: 'Participante En Pasado',
+      estado: 'confirmado',
+      tipo_invitacion: 'individual',
+      token_invitacion: crypto.randomUUID(),
+    });
+
+    // Participante confirmado en encCancelled para verificar que no expone logística tras cancelación
+    await admin.from('participantes').insert({
+      encuentro_id: encCancelled.id,
+      user_id: participantRegId,
+      nombre_invitado: 'Participante En Cancelado',
       estado: 'confirmado',
       tipo_invitacion: 'individual',
       token_invitacion: crypto.randomUUID(),

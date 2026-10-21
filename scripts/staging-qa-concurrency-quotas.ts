@@ -8,10 +8,10 @@
  *   A solicita 2, B solicita 2, C solicita 1 (en paralelo)
  *   -> las 3 quedan pending, available_slots sigue en 2 (pending NO reserva)
  *   Host aprueba A y B en paralelo
- *   -> exactamente una PASS y otra quota_exceeded, confirmed_seats = 5, available_slots = 0
+ *   -> exactamente una PASS y otra capacity_exceeded, confirmed_seats = 5, available_slots = 0
  *   Completo:
- *   -> nueva solicitud => encounter_full; las pendientes se conservan;
- *      aprobar C (1) con 0 libres => quota_exceeded
+ *   -> nueva solicitud => quota_exceeded; las pendientes se conservan;
+ *      aprobar C (1) con 0 libres => capacity_exceeded
  *   Liberación:
  *   -> Host elimina al titular de 2 => available_slots = 2, pendientes siguen presentes,
  *      nueva solicitud vuelve a aceptarse, y puede aprobarse la pendiente de 2.
@@ -181,8 +181,8 @@ async function run() {
     const losers = results.filter((r) => r.res?.ok !== true);
     assert.equal(winners.length, 1, `Exactamente UNA aprobación: ${JSON.stringify(results)}`);
     assert.equal(losers.length, 1);
-    assert.equal(losers[0].res?.error, 'quota_exceeded', `La otra debe ser quota_exceeded: ${JSON.stringify(losers[0].res)}`);
-    console.log(`   PASS: ganó ${winners[0].label}, ${losers[0].label} => quota_exceeded`);
+    assert.equal(losers[0].res?.error, 'capacity_exceeded', `La otra debe ser capacity_exceeded: ${JSON.stringify(losers[0].res)}`);
+    console.log(`   PASS: ganó ${winners[0].label}, ${losers[0].label} => capacity_exceeded`);
 
     const s2 = await hostSnapshot();
     assert.equal(Number(s2.confirmed_seats), 5, 'confirmed_seats = 5');
@@ -200,7 +200,7 @@ async function run() {
     const rFull = await request(cD, 'Solicitante D', 1);
     assert.ifError(rFull.error);
     assert.equal(rFull.data?.ok, false);
-    assert.equal(rFull.data?.error, 'encounter_full', `Nueva solicitud debe fallar: ${JSON.stringify(rFull.data)}`);
+    assert.equal(rFull.data?.error, 'quota_exceeded', `Nueva solicitud debe fallar: ${JSON.stringify(rFull.data)}`);
 
     const { data: stillPending } = await admin
       .from('solicitudes_encuentro_abierto')
@@ -210,8 +210,8 @@ async function run() {
 
     const apCFull = await hostClient.rpc('aprobar_solicitud_encuentro_abierto', { p_request_id: reqC });
     assert.ifError(apCFull.error);
-    assert.equal(apCFull.data?.error, 'quota_exceeded', 'No se aprueba pendiente si no entra');
-    console.log('   PASS: nueva => encounter_full; pendientes intactas; aprobar sin cupo => quota_exceeded');
+    assert.equal(apCFull.data?.error, 'capacity_exceeded', 'No se aprueba pendiente si no entra');
+    console.log('   PASS: nueva => quota_exceeded; pendientes intactas; aprobar sin cupo => capacity_exceeded');
 
     console.log('7. Se libera cupo: Host elimina al ganador (2 lugares)...');
     const winnerPartId = winners[0].res.participante_id as string;
