@@ -774,35 +774,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.strictEqual(formatted2, '07/10/2026 07:45');
     });
 
-    test('D. En entorno productivo (appEnv === "production"), ?homeVariant=v2 es ignorado y renderiza Home V1', () => {
-      const html = renderToString(
-        React.createElement(
-          MemoryRouter,
-          { initialEntries: ['/?homeVariant=v2'] },
-          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
-        )
-      );
-      // Debe ignorar V2 y renderizar V1 original
-      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título');
-      assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener el copy original de V1');
-      assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe activar el copy V2 en producción');
-      assert.ok(html.includes('Lanzamiento'), 'Debe mantener badges de Lanzamiento en producción');
-    });
-
-    test('E. En entorno no productivo (appEnv === "staging" o local), ?homeVariant=v2 activa V2', () => {
-      const html = renderToString(
-        React.createElement(
-          MemoryRouter,
-          { initialEntries: ['/?homeVariant=v2'] },
-          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
-        )
-      );
-      // Debe activar V2 en staging
-      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe activar copy V2 en staging');
-      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 staging');
-    });
-
-    test('F. En entorno productivo sin parámetro, renderiza Home V1 normal por defecto', () => {
+    test('D. En entorno productivo (appEnv === "production"), Home V2 es la experiencia activa por defecto', () => {
       const html = renderToString(
         React.createElement(
           MemoryRouter,
@@ -810,9 +782,38 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
         )
       );
-      assert.ok(html.includes('¿Qué querés hacer?'), 'Debe incluir título');
-      assert.ok(html.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener copy V1');
-      assert.ok(!html.includes('Decinos qué querés hacer. Organizalo con los tuyos'), 'NO debe tener copy V2');
+      // Debe renderizar Home V2 en producción
+      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe activar copy V2 en producción');
+      assert.ok(html.includes('home-v2-variant'), 'Debe aplicar clase home-v2-variant en producción');
+      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 producción');
+    });
+
+    test('E. En entorno no productivo (appEnv === "staging" o local), Home V2 es la experiencia activa por defecto', () => {
+      const html = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+        )
+      );
+      // Debe activar V2 en staging
+      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe activar copy V2 en staging');
+      assert.ok(html.includes('home-v2-variant'), 'Debe aplicar clase home-v2-variant en staging');
+      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 staging');
+    });
+
+    test('F. Override técnico: ?homeVariant=v1 permite retornar a Home V1 tanto en staging como en producción', () => {
+      const htmlProdV1 = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/?homeVariant=v1'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
+        )
+      );
+      assert.ok(htmlProdV1.includes('¿Qué querés hacer?'), 'Debe incluir título V1');
+      assert.ok(htmlProdV1.includes('Contanos tu idea y te ayudamos a coordinar'), 'Debe mantener copy V1');
+      assert.ok(!htmlProdV1.includes('home-v2-variant'), 'NO debe tener clase home-v2-variant con override v1');
+      assert.ok(htmlProdV1.includes('Lanzamiento'), 'Debe mantener badges de Lanzamiento en V1');
     });
 
     test('G. Home V2 aplica clase home-v2-variant para aislamiento visual y V1 no la aplica', () => {
@@ -1681,7 +1682,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(!htmlStagingV1Prop.includes('home-v2-variant'), 'En Staging con prop homeVariant="v1" debe desactivar V2');
 
-      // 4. En producción sin parámetros: SIEMPRE V1 (producción 100% protegida)
+      // 4. En producción sin parámetros: activa Home V2 por defecto
       const htmlProdDefault = renderToString(
         React.createElement(
           AuthContext.Provider,
@@ -1693,21 +1694,22 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
           )
         )
       );
-      assert.ok(!htmlProdDefault.includes('home-v2-variant'), 'En Producción sin parámetro, Home debe permanecer en V1');
+      assert.ok(htmlProdDefault.includes('home-v2-variant'), 'En Producción sin parámetro, Home debe ser V2 por defecto');
+      assert.ok(htmlProdDefault.includes('Mis ganas'), 'En Producción default debe mostrar solapa Mis ganas');
 
-      // 5. En producción incluso con query param ?homeVariant=v2: NUNCA activa V2 sin autorización explícita
-      const htmlProdV2Query = renderToString(
+      // 5. En producción con override técnico ?homeVariant=v1: desactiva V2
+      const htmlProdV1Query = renderToString(
         React.createElement(
           AuthContext.Provider,
           { value: loggedAuthValue },
           React.createElement(
             MemoryRouter,
-            { initialEntries: ['/?homeVariant=v2'] },
+            { initialEntries: ['/?homeVariant=v1'] },
             React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'production' }))
           )
         )
       );
-      assert.ok(!htmlProdV2Query.includes('home-v2-variant'), 'En Producción con query ?homeVariant=v2 debe permanecer en V1 blindado');
+      assert.ok(!htmlProdV1Query.includes('home-v2-variant'), 'En Producción con query ?homeVariant=v1 debe permitir override técnico a V1');
     });
 
     test('S. Layout resiliente Mobile V2: Header sticky, precedencia de capas sobre Hero y fondo sólido', () => {

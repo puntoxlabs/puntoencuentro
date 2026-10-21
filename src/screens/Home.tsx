@@ -370,7 +370,7 @@ export interface HomeProps {
   isDesktop?: boolean;
 }
 
-const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: propAppEnv, isDesktop: propIsDesktop }) => {
+const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVariant: propHomeVariant, appEnv: _propAppEnv, isDesktop: propIsDesktop }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -413,16 +413,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const isDesktop = typeof propIsDesktop === 'boolean' ? propIsDesktop : isDesktopState;
 
-  // Variante V2 de revisión de la Home (restringida a entornos no productivos vía __APP_ENV__)
-  const currentEnv = propAppEnv || (typeof __APP_ENV__ !== 'undefined' ? __APP_ENV__ : 'development');
-  const isProductionEnv = currentEnv === 'production';
+  // Variante V2 definitiva de la Home por defecto en todos los entornos (Staging y Producción)
   const queryHomeVariant = new URLSearchParams(
     location?.search || (typeof window !== 'undefined' ? window.location.search : '')
   ).get('homeVariant');
 
-  const isV2Variant = !isProductionEnv && (
-    propHomeVariant !== 'v1' && queryHomeVariant !== 'v1'
-  );
+  const isV2Variant = propHomeVariant !== 'v1' && queryHomeVariant !== 'v1';
 
   // Variante de diseño visual de la Home (GSAP definitiva por defecto)
   const [visualVariant] = useState<HomeVisualVariant>(() => {

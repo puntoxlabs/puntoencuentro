@@ -205,4 +205,14 @@ describe('Mini-sprint Prelanzamiento: Menú de navegación y accesos rápidos', 
     assert.strictEqual(es.nav_menu.help, 'Cómo funciona / Ayuda');
     assert.strictEqual(es.nav_menu.feedback, 'Enviar una opinión');
   });
+
+  test('9. Validación de Home V2 activa por defecto en Producción y Staging con Menú, Mi Espacio y Me Sumo', () => {
+    const homePath = path.join(rootDir, 'src/screens/Home.tsx');
+    const homeContent = fs.readFileSync(homePath, 'utf8');
+
+    // Confirma que isV2Variant NO depende de isProductionEnv
+    assert.ok(!homeContent.includes('!isProductionEnv'), 'isV2Variant no debe depender de !isProductionEnv');
+    assert.ok(!homeContent.includes('const isProductionEnv'), 'Home.tsx no debe definir un guard restrictivo isProductionEnv para V2');
+    assert.match(homeContent, /const isV2Variant = propHomeVariant !== 'v1' && queryHomeVariant !== 'v1';/, 'Home V2 debe ser la variante activa por defecto');
+  });
 });
