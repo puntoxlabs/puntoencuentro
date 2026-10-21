@@ -46,6 +46,7 @@ import { ReuseEncounterSheet } from '@/components/reuse';
 import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { useResilientPolling } from '@/hooks/useResilientPolling';
+import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -1177,6 +1178,13 @@ const DetailHost: React.FC = () => {
           </div>
         )}
 
+        {/* Agregar al calendario para participante */}
+        {!isCancelado && (
+          <div style={{ marginTop: 12, marginBottom: 8 }}>
+            <AddToCalendarButton encuentro={encuentro} variant="outline" />
+          </div>
+        )}
+
         <div className="dh-participant-bottom-actions">
           <Button
             variant="ghost"
@@ -1547,6 +1555,13 @@ const DetailHost: React.FC = () => {
               >
                 Unirme a la videollamada
               </button>
+            </div>
+          )}
+
+          {/* ACCIÓN AGREGAR AL CALENDARIO */}
+          {!isCancelado && (
+            <div style={{ marginTop: 12, marginBottom: 16 }}>
+              <AddToCalendarButton encuentro={encuentro} variant="outline" />
             </div>
           )}
 

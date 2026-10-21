@@ -23,6 +23,7 @@ import type {
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { formatFriendlyDate } from '@/lib/formatDate';
 import { DevicePushSettings } from './DevicePushSettings';
+import { QuietHoursSettings } from './QuietHoursSettings';
 import { webPushService } from '@/services/webPushService';
 import { isPushPromptDismissed } from './antiNagging';
 import { AvisamePushPromptModal } from './AvisamePushPromptModal';
@@ -587,9 +588,12 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
               </div>
             )}
 
-            {/* Configuración de Web Push en este dispositivo (solo usuario permanente) */}
+            {/* Configuración de Web Push y Horarios Silenciosos (solo usuario permanente) */}
             {isPermanentUser && (
-              <DevicePushSettings />
+              <>
+                <DevicePushSettings />
+                <QuietHoursSettings />
+              </>
             )}
 
             {/* Botón Guardar */}

@@ -41,6 +41,7 @@ import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
+import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import './Guest.css';
 
 const JoinGeneral: React.FC = () => {
@@ -644,6 +645,19 @@ const JoinGeneral: React.FC = () => {
           >
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
+        </div>
+      )}
+
+      {/* Agregar al calendario */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+        <div style={{ margin: '0 20px 16px' }}>
+          <AddToCalendarButton
+            encuentro={{
+              ...encuentro,
+              link_virtual: allowedMeetingLink || undefined,
+            }}
+            variant="outline"
+          />
         </div>
       )}
 

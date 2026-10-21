@@ -360,7 +360,15 @@
     "status_expired": "Expired",
     "action_pause": "Pause",
     "action_reactivate": "Reactivate",
-    "action_cancel": "Cancel"
+    "action_cancel": "Cancel",
+    "quiet_hours_title": "Quiet hours",
+    "quiet_hours_desc": "Pause new encounter notices and alerts while you rest.",
+    "quiet_hours_enable": "Enable quiet hours",
+    "quiet_hours_from": "Silence from",
+    "quiet_hours_to": "Until",
+    "quiet_hours_critical_notice": "Cancellations and urgent changes are never blocked.",
+    "quiet_hours_saved": "Preferences saved.",
+    "quiet_hours_login_hint": "Sign in to sync your quiet hours across all your devices."
   },
   "create_or_open": {
     "title_v2": "Create or open an encounter",
@@ -643,5 +651,15 @@
     "prompt": "Want to organize something similar?",
     "action": "Create my encounter",
     "subtitle": "Organize your own private meet in minutes, free and hassle-free."
+  },
+  "calendar": {
+    "add_to_calendar": "Add to calendar",
+    "download_ics": "Download event (.ics)",
+    "google_calendar": "Google Calendar",
+    "apple_calendar": "Apple Calendar",
+    "outlook": "Outlook",
+    "event_downloaded": "Event downloaded",
+    "generic_description": "Encounter organized on PuntoEncuentro.",
+    "virtual_meeting": "Video call"
   }
 }

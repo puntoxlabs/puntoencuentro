@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { notificationService } from '../services/notificationService';
+import { shouldSuppressForQuietHours } from '../lib/quietHours';
+import { userPreferencesService } from '../services/userPreferencesService';
 import type { InboxNotificationItem } from '../types/notifications';
 
 export interface IncomingMatchEvent {
@@ -275,7 +277,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
               rawPayload?.data?.encounterId ||
               rawPayload?.data?.encounter_id;
 
-            if (isMatch && encounterId) {
+            const quietPref = userPreferencesService.getLocalQuietHours(user.id);
+            const suppressLiveAlert = shouldSuppressForQuietHours(
+              { notificationType: newRow.notification_type, payload: rawPayload },
+              quietPref
+            );
+
+            if (isMatch && encounterId && !suppressLiveAlert) {
               matchListenersRef.current.forEach((listener) => {
                 try {
                   listener({

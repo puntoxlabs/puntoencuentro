@@ -50,6 +50,7 @@ import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
+import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import './Guest.css';
 
 
@@ -708,6 +709,19 @@ const InviteGuest: React.FC = () => {
             encuentroId={encuentro.id}
             tokenInvitacion={token}
             isConfirmed={participante?.estado === 'confirmado'}
+          />
+        </div>
+      )}
+
+      {/* Agregar al calendario */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+        <div style={{ margin: '0 20px 16px' }}>
+          <AddToCalendarButton
+            encuentro={{
+              ...encuentro,
+              link_virtual: allowedMeetingLink || undefined,
+            }}
+            variant="outline"
           />
         </div>
       )}

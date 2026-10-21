@@ -361,7 +361,15 @@
     "status_expired": "Vencida",
     "action_pause": "Pausar",
     "action_reactivate": "Reactivar",
-    "action_cancel": "Cancelar"
+    "action_cancel": "Cancelar",
+    "quiet_hours_title": "Horarios silenciosos",
+    "quiet_hours_desc": "Pausá los avisos de nuevos encuentros y alertas mientras descansás.",
+    "quiet_hours_enable": "Activar horarios silenciosos",
+    "quiet_hours_from": "Silenciar desde",
+    "quiet_hours_to": "Hasta",
+    "quiet_hours_critical_notice": "Las cancelaciones y cambios urgentes nunca se bloquean.",
+    "quiet_hours_saved": "Preferencias guardadas.",
+    "quiet_hours_login_hint": "Iniciá sesión para sincronizar tus horarios silenciosos en todos tus dispositivos."
   },
   "create_or_open": {
     "title_v2": "Crear o abrir un encuentro",
@@ -645,5 +653,15 @@
     "prompt": "¿Querés organizar algo parecido?",
     "action": "Crear mi encuentro",
     "subtitle": "Organizá tu propio encuentro privado en minutos, gratis y sin vueltas."
+  },
+  "calendar": {
+    "add_to_calendar": "Agregar al calendario",
+    "download_ics": "Descargar evento (.ics)",
+    "google_calendar": "Google Calendar",
+    "apple_calendar": "Apple Calendar",
+    "outlook": "Outlook",
+    "event_downloaded": "Evento descargado",
+    "generic_description": "Encuentro organizado en PuntoEncuentro.",
+    "virtual_meeting": "Videollamada"
   }
 }

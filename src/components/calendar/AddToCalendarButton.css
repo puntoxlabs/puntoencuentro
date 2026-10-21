@@ -1,0 +1,141 @@
+.pe-add-calendar-container {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+}
+
+.pe-add-calendar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border-radius: var(--radius-md, 12px);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.pe-add-calendar-btn--md {
+  height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.pe-add-calendar-btn--sm {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.pe-add-calendar-btn--outline {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e2e8f0);
+  color: var(--color-on-surface, #1e293b);
+}
+
+.pe-add-calendar-btn--outline:hover {
+  background: var(--color-surface-variant, #f8fafc);
+  border-color: var(--color-primary, #4f46e5);
+  color: var(--color-primary, #4f46e5);
+}
+
+.pe-add-calendar-btn--secondary {
+  background: var(--color-secondary-container, #f1f5f9);
+  border: 1px solid transparent;
+  color: var(--color-on-secondary-container, #334155);
+}
+
+.pe-add-calendar-btn--secondary:hover {
+  background: var(--color-surface-variant, #e2e8f0);
+}
+
+.pe-add-calendar-btn--primary {
+  background: var(--color-primary, #4f46e5);
+  border: 1px solid transparent;
+  color: #ffffff;
+}
+
+.pe-add-calendar-btn--primary:hover {
+  opacity: 0.92;
+}
+
+.pe-add-calendar-btn--ghost {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #4f46e5);
+  padding: 0 8px;
+}
+
+.pe-add-calendar-btn--ghost:hover {
+  background: var(--color-primary-container, #eef2ff);
+}
+
+.pe-add-calendar-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, #e2e8f0);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: pe-calendar-popover-in 0.15s ease-out;
+}
+
+@keyframes pe-calendar-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pe-add-calendar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--color-on-surface, #1e293b);
+  transition: background 0.15s ease;
+}
+
+.pe-add-calendar-menu-item:hover {
+  background: var(--color-surface-variant, #f8fafc);
+  color: var(--color-primary, #4f46e5);
+}
+
+.pe-add-calendar-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pe-add-calendar-menu-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.pe-add-calendar-menu-sub {
+  font-size: 11px;
+  color: var(--color-on-surface-variant, #64748b);
+  line-height: 1.2;
+}
