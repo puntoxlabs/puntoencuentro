@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CalendarPlus, Download, ExternalLink } from 'lucide-react';
+import { CalendarPlus, Download, ExternalLink, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   canAddToCalendar,
@@ -7,6 +7,8 @@ import {
   buildGoogleCalendarUrl,
   downloadIcsFile,
   type CalendarEncounterData,
+  type CalendarReminderOption,
+  DEFAULT_REMINDER_OPTION,
 } from '@/lib/calendarExport';
 import './AddToCalendarButton.css';
 
@@ -27,6 +29,7 @@ export const AddToCalendarButton: React.FC<AddToCalendarButtonProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [reminder, setReminder] = useState<CalendarReminderOption>(DEFAULT_REMINDER_OPTION);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Cerrar al hacer click fuera
@@ -49,7 +52,7 @@ export const AddToCalendarButton: React.FC<AddToCalendarButtonProps> = ({
 
   const handleDownloadIcs = () => {
     try {
-      const ics = generateIcsContent(validEncounter);
+      const ics = generateIcsContent(validEncounter, reminder);
       const safeTitle = (validEncounter.titulo || 'encuentro')
         .toLowerCase()
         .replace(/[^a-z0-9_-]/g, '_')
@@ -95,6 +98,26 @@ export const AddToCalendarButton: React.FC<AddToCalendarButtonProps> = ({
 
       {isOpen && (
         <div className="pe-add-calendar-menu" role="menu">
+          <div className="pe-add-calendar-reminder-section">
+            <label htmlFor="pe-calendar-reminder-select" className="pe-add-calendar-reminder-label">
+              <Bell size={12} aria-hidden="true" />
+              <span>{t('calendar.reminder_label', 'Aviso previo (.ics)')}</span>
+            </label>
+            <select
+              id="pe-calendar-reminder-select"
+              className="pe-add-calendar-reminder-select"
+              value={reminder}
+              onChange={(e) => setReminder(e.target.value as CalendarReminderOption)}
+              aria-label={t('calendar.reminder_label', 'Aviso previo (.ics)')}
+            >
+              <option value="30m">{t('calendar.reminder_30m', '30 minutos antes (predeterminado)')}</option>
+              <option value="10m">{t('calendar.reminder_10m', '10 minutos antes')}</option>
+              <option value="1h">{t('calendar.reminder_1h', '1 hora antes')}</option>
+              <option value="1d">{t('calendar.reminder_1d', '1 día antes')}</option>
+              <option value="none">{t('calendar.reminder_none', 'Sin recordatorio')}</option>
+            </select>
+          </div>
+
           <button
             type="button"
             className="pe-add-calendar-menu-item"
@@ -124,7 +147,7 @@ export const AddToCalendarButton: React.FC<AddToCalendarButtonProps> = ({
                 {t('calendar.google_calendar', 'Google Calendar')}
               </span>
               <span className="pe-add-calendar-menu-sub">
-                Abrir en la web
+                {t('calendar.google_calendar_sub', 'Abrir en la web')}
               </span>
             </div>
           </button>

@@ -25,6 +25,17 @@ export const DEFAULT_DURATION_MINUTES = 120; // 2 horas por defecto
 export const MIN_DURATION_MINUTES = 1;
 export const MAX_DURATION_MINUTES = 1440; // 24 horas
 
+export type CalendarReminderOption = '1d' | '1h' | '30m' | '10m' | 'none';
+
+export const REMINDER_TRIGGERS: Record<Exclude<CalendarReminderOption, 'none'>, string> = {
+  '1d': '-P1D',
+  '1h': '-PT1H',
+  '30m': '-PT30M',
+  '10m': '-PT10M',
+};
+
+export const DEFAULT_REMINDER_OPTION: CalendarReminderOption = '30m';
+
 const ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
 
@@ -194,8 +205,12 @@ function calculateEndDateTime(year: number, month: number, day: number, hour: nu
 
 /**
  * Convierte un encuentro en contenido válido de archivo .ics (iCalendar RFC 5545).
+ * Permite configurar opcionalmente una alarma iCalendar (VALARM) previa al encuentro.
  */
-export function generateIcsContent(encounter: CalendarEncounterData): string {
+export function generateIcsContent(
+  encounter: CalendarEncounterData,
+  reminder: CalendarReminderOption = DEFAULT_REMINDER_OPTION
+): string {
   if (!canAddToCalendar(encounter)) {
     throw new Error('El encuentro no tiene fecha definitiva o se encuentra cancelado.');
   }
@@ -227,6 +242,18 @@ export function generateIcsContent(encounter: CalendarEncounterData): string {
     locationText = encounter.lugar_texto.trim();
   }
 
+  // Componente de alarma VALARM según RFC 5545 (DISPLAY exige ACTION, TRIGGER y DESCRIPTION)
+  const alarmLines: string[] =
+    reminder !== 'none' && REMINDER_TRIGGERS[reminder]
+      ? [
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          `DESCRIPTION:${escapeIcsText(encounter.titulo || 'Encuentro')}`,
+          `TRIGGER:${REMINDER_TRIGGERS[reminder]}`,
+          'END:VALARM',
+        ]
+      : [];
+
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -254,6 +281,7 @@ export function generateIcsContent(encounter: CalendarEncounterData): string {
     ...(locationText ? [`LOCATION:${escapeIcsText(locationText)}`] : []),
     'STATUS:CONFIRMED',
     'TRANSP:OPAQUE',
+    ...alarmLines,
     'END:VEVENT',
     'END:VCALENDAR',
   ];

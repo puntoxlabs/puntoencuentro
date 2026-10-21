@@ -657,10 +657,17 @@
     "add_to_calendar": "Add to calendar",
     "download_ics": "Download event (.ics)",
     "google_calendar": "Google Calendar",
+    "google_calendar_sub": "Open on web",
     "apple_calendar": "Apple Calendar",
     "outlook": "Outlook",
     "event_downloaded": "Event downloaded",
     "generic_description": "Encounter organized on PuntoEncuentro.",
-    "virtual_meeting": "Video call"
+    "virtual_meeting": "Video call",
+    "reminder_label": "Prior reminder (.ics):",
+    "reminder_30m": "30 minutes before (default)",
+    "reminder_10m": "10 minutes before",
+    "reminder_1h": "1 hour before",
+    "reminder_1d": "1 day before",
+    "reminder_none": "No reminder"
   }
 }

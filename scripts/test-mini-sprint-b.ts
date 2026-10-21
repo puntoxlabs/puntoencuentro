@@ -11,6 +11,9 @@ import {
   buildGoogleCalendarUrl,
   TIMEZONE_ARGENTINA,
   DEFAULT_DURATION_MINUTES,
+  REMINDER_TRIGGERS,
+  DEFAULT_REMINDER_OPTION,
+  type CalendarReminderOption,
 } from '../src/lib/calendarExport';
 
 import {
@@ -331,6 +334,57 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
       'HomeOpenEncounterDetailSheet debe restringir AddToCalendarButton a participantes aprobados'
     );
   });
+
+  await t.test('1.7 Recordatorios iCalendar (VALARM): Bloque válido para cada opción y ausencia con "Sin recordatorio"', () => {
+    const encounter = {
+      id: 'enc-alarm-test-1',
+      titulo: 'Reunión de Diseño',
+      fecha: '2026-11-20',
+      hora: '18:00',
+      durationMinutes: 60,
+      estado: 'activo',
+    };
+
+    // 1. Predeterminado (30 minutos antes)
+    const icsDefault = generateIcsContent(encounter);
+    assert.ok(icsDefault.includes('BEGIN:VALARM\r\n'), 'Debe incluir bloque VALARM');
+    assert.ok(icsDefault.includes('ACTION:DISPLAY\r\n'), 'VALARM debe tener ACTION:DISPLAY');
+    assert.ok(icsDefault.includes('DESCRIPTION:Reunión de Diseño\r\n'), 'VALARM debe tener DESCRIPTION');
+    assert.ok(icsDefault.includes('TRIGGER:-PT30M\r\n'), 'Default debe ser TRIGGER:-PT30M');
+    assert.ok(icsDefault.includes('END:VALARM\r\n'), 'Debe cerrar bloque VALARM');
+
+    // 2. Opción explícita: 10 minutos antes
+    const ics10m = generateIcsContent(encounter, '10m');
+    assert.ok(ics10m.includes('TRIGGER:-PT10M\r\n'), '10m debe generar TRIGGER:-PT10M');
+
+    // 3. Opción explícita: 1 hora antes
+    const ics1h = generateIcsContent(encounter, '1h');
+    assert.ok(ics1h.includes('TRIGGER:-PT1H\r\n'), '1h debe generar TRIGGER:-PT1H');
+
+    // 4. Opción explícita: 1 día antes
+    const ics1d = generateIcsContent(encounter, '1d');
+    assert.ok(ics1d.includes('TRIGGER:-P1D\r\n'), '1d debe generar TRIGGER:-P1D');
+
+    // 5. Opción: Sin recordatorio ('none')
+    const icsNone = generateIcsContent(encounter, 'none');
+    assert.ok(!icsNone.includes('BEGIN:VALARM'), '"none" NUNCA debe incluir bloque VALARM');
+    assert.ok(!icsNone.includes('TRIGGER:'), '"none" no debe incluir TRIGGER');
+
+    // 6. Selector en componente AddToCalendarButton
+    const rootDir = process.cwd();
+    const btnSource = fs.readFileSync(path.join(rootDir, 'src/components/calendar/AddToCalendarButton.tsx'), 'utf-8');
+    assert.ok(btnSource.includes('pe-calendar-reminder-select'), 'AddToCalendarButton debe renderizar el selector de recordatorio');
+    assert.ok(btnSource.includes('value="30m"'), 'Debe ofrecer opción 30m');
+    assert.ok(btnSource.includes('value="10m"'), 'Debe ofrecer opción 10m');
+    assert.ok(btnSource.includes('value="1h"'), 'Debe ofrecer opción 1h');
+    assert.ok(btnSource.includes('value="1d"'), 'Debe ofrecer opción 1d');
+    assert.ok(btnSource.includes('value="none"'), 'Debe ofrecer opción none');
+
+    // 7. Google Calendar continúa funcionando sin prometer recordatorio en la URL
+    const gcalUrl = buildGoogleCalendarUrl(encounter);
+    assert.ok(gcalUrl.startsWith('https://calendar.google.com/calendar/render?'));
+    assert.ok(!gcalUrl.includes('reminder='), 'URL de Google Calendar no debe intentar inyectar parámetros de recordatorio no garantizados');
+  });
 });
 
 test('Mini-sprint B: Preferencias de Avisame y Horarios Silenciosos', async (t) => {
@@ -586,11 +640,18 @@ test('Mini-sprint B: Consistencia de i18n (ES, EN, PT-BR)', async (t) => {
       'add_to_calendar',
       'download_ics',
       'google_calendar',
+      'google_calendar_sub',
       'apple_calendar',
       'outlook',
       'event_downloaded',
       'generic_description',
       'virtual_meeting',
+      'reminder_label',
+      'reminder_30m',
+      'reminder_10m',
+      'reminder_1h',
+      'reminder_1d',
+      'reminder_none',
     ];
 
     for (const key of requiredCalendarKeys) {

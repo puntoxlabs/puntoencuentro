@@ -659,10 +659,17 @@
     "add_to_calendar": "Agregar al calendario",
     "download_ics": "Descargar evento (.ics)",
     "google_calendar": "Google Calendar",
+    "google_calendar_sub": "Abrir en la web",
     "apple_calendar": "Apple Calendar",
     "outlook": "Outlook",
     "event_downloaded": "Evento descargado",
     "generic_description": "Encuentro organizado en PuntoEncuentro.",
-    "virtual_meeting": "Videollamada"
+    "virtual_meeting": "Videollamada",
+    "reminder_label": "Aviso previo (.ics):",
+    "reminder_30m": "30 minutos antes (predeterminado)",
+    "reminder_10m": "10 minutos antes",
+    "reminder_1h": "1 hora antes",
+    "reminder_1d": "1 día antes",
+    "reminder_none": "Sin recordatorio"
   }
 }
