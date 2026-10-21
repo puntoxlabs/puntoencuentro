@@ -8,15 +8,35 @@ import {
   hasRecoverableManualDraft,
   hasRecoverableCoordinationDraft,
   hasRecoverableAiDraft,
+  saveAiDraftSnapshot,
+  getAiDraftSnapshot,
+  clearAiDraftSnapshot,
 } from '../src/lib/draftRecovery';
 import { useWizardStore } from '../src/store/wizardStore';
 import { useCoordinationWizardStore } from '../src/store/coordinationWizardStore';
 import { useAiWizardStore } from '../src/store/aiWizardStore';
-import { draftToWizardState } from '../src/lib/encounterDraft';
+import { draftToWizardState, hasMeaningfulDraftData } from '../src/lib/encounterDraft';
 
 import esTranslations from '../src/i18n/locales/es.json';
 import enTranslations from '../src/i18n/locales/en.json';
 import ptTranslations from '../src/i18n/locales/pt-BR.json';
+
+// In-memory storage mock for Node testing of local/session storage
+if (typeof (globalThis as any).localStorage === 'undefined') {
+  const localMap = new Map<string, string>();
+  const sessionMap = new Map<string, string>();
+  const createStorageMock = (map: Map<string, string>) => ({
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => { map.set(key, String(value)); },
+    removeItem: (key: string) => { map.delete(key); },
+    clear: () => { map.clear(); },
+    get length() { return map.size; },
+    key: (i: number) => Array.from(map.keys())[i] ?? null,
+  });
+
+  (globalThis as any).localStorage = createStorageMock(localMap);
+  (globalThis as any).sessionStorage = createStorageMock(sessionMap);
+}
 
 test('Mini-sprint A: Recuperación segura de borradores', async (t) => {
   await t.test('1.1 hasRecoverableManualDraft detecta borradores pendientes y descarta ya publicados', () => {
@@ -164,6 +184,126 @@ test('Mini-sprint A: Recuperación segura de borradores', async (t) => {
     const coordDraft = useCoordinationWizardStore.getState().draft;
     assert.strictEqual((coordDraft as any).access_token, undefined);
     assert.strictEqual((coordDraft as any).secret_key, undefined);
+  });
+
+  await t.test('1.8 Snapshot de borrador de IA: persistencia en localStorage sin mensajes ni credenciales', () => {
+    clearAiDraftSnapshot();
+    assert.strictEqual(getAiDraftSnapshot(), null);
+
+    const testDraft = {
+      title: 'Cena de graduación',
+      date: '2026-12-10',
+      time: '21:00',
+      description: 'Festejo con el equipo',
+      modality: 'presencial' as const,
+      locationText: 'Puerto Madero',
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: 180,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'celebration' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'summary' as const,
+    };
+
+    saveAiDraftSnapshot(testDraft, { modality: 'presencial', dateMode: 'fixed' });
+
+    const snapshot = getAiDraftSnapshot();
+    assert.ok(snapshot !== null);
+    assert.strictEqual(snapshot.draft?.title, 'Cena de graduación');
+    assert.strictEqual(snapshot.draft?.date, '2026-12-10');
+    assert.strictEqual(snapshot.config?.modality, 'presencial');
+
+    // Comprobar raw en localStorage para certificar que NO hay sessionId, messages ni credenciales
+    const raw = localStorage.getItem('pe_ai_draft_snapshot');
+    assert.ok(raw !== null);
+    assert.ok(!raw.includes('sessionId'));
+    assert.ok(!raw.includes('messages'));
+    assert.ok(!raw.includes('token'));
+    assert.ok(!raw.includes('auth'));
+
+    clearAiDraftSnapshot();
+    assert.strictEqual(getAiDraftSnapshot(), null);
+  });
+
+  await t.test('1.9 Restauración de borrador de IA tras cierre de pestaña mediante restoreFromSnapshot', () => {
+    const aiStore = useAiWizardStore.getState();
+    aiStore.reset();
+
+    const sampleDraft = {
+      title: 'Picnic en el Rosedal',
+      date: '2026-11-28',
+      time: '15:00',
+      description: 'Traer mate y lonas',
+      modality: 'presencial' as const,
+      locationText: 'El Rosedal de Palermo',
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: 120,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'classic' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'hidden' as const,
+    };
+
+    saveAiDraftSnapshot(sampleDraft, { modality: 'presencial', dateMode: 'fixed' });
+
+    // Simular que el store de sesión está limpio/vacío (pestaña cerrada y reabierta)
+    // El draft del store en memoria no tiene datos significativos, pero hay un borrador recuperable por snapshot:
+    assert.strictEqual(hasMeaningfulDraftData(useAiWizardStore.getState().draft), false);
+    assert.strictEqual(hasRecoverableAiDraft(useAiWizardStore.getState().draft), true);
+
+    // Restaurar desde snapshot
+    useAiWizardStore.getState().restoreFromSnapshot();
+
+    const activeState = useAiWizardStore.getState();
+    assert.ok(activeState.draft !== null);
+    assert.strictEqual(activeState.draft?.title, 'Picnic en el Rosedal');
+    assert.strictEqual(activeState.draft?.locationText, 'El Rosedal de Palermo');
+    assert.strictEqual(activeState.sessionId !== null, true);
+    assert.strictEqual(activeState.messages.length, 1);
+    assert.strictEqual(activeState.messages[0].role, 'assistant');
+
+    // Descartar
+    aiStore.reset();
+    clearAiDraftSnapshot();
+    assert.strictEqual(hasRecoverableAiDraft(useAiWizardStore.getState().draft), false);
+    assert.strictEqual(getAiDraftSnapshot(), null);
+  });
+
+  await t.test('1.10 Persistencia y recuperación del paso en CoordinationWizardStore', () => {
+    const coordStore = useCoordinationWizardStore.getState();
+    coordStore.resetDraft();
+
+    assert.strictEqual(coordStore.step, 1);
+
+    // Avanzar de paso
+    coordStore.setStep(3);
+    assert.strictEqual(useCoordinationWizardStore.getState().step, 3);
+
+    // Soporta función transformadora
+    coordStore.setStep((prev) => prev - 1);
+    assert.strictEqual(useCoordinationWizardStore.getState().step, 2);
+
+    // Límites controlados (1 a 4)
+    coordStore.setStep(10);
+    assert.strictEqual(useCoordinationWizardStore.getState().step, 4);
+
+    coordStore.setStep(-5);
+    assert.strictEqual(useCoordinationWizardStore.getState().step, 1);
+
+    // ResetDraft limpia borrador y regresa al paso 1
+    coordStore.setStep(3);
+    coordStore.resetDraft();
+    assert.strictEqual(useCoordinationWizardStore.getState().step, 1);
   });
 });
 

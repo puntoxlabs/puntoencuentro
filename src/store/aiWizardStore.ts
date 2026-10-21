@@ -28,6 +28,11 @@ import {
   type InvitationTheme,
 } from '@/lib/invitationThemes';
 import { formatHumanSchedule } from '@/lib/formatDate';
+import {
+  saveAiDraftSnapshot,
+  getAiDraftSnapshot,
+  clearAiDraftSnapshot,
+} from '@/lib/draftRecovery';
 import { aiService, type AiInterpretationResponse } from '@/services/aiService';
 import { isInternalWizardAction, type DraftOperation } from '@/lib/wizardActions';
 export { isInternalWizardAction, type DraftOperation };
@@ -89,6 +94,7 @@ interface AiWizardState {
   startNewAiCreation: () => void;
   applyDraftOperation: (op: DraftOperation) => void;
   reset: () => void;
+  restoreFromSnapshot: (snapshot?: { draft: EncounterDraft; config: InvitationConfig }) => void;
 }
 
 function generateUuid(): string {
@@ -1027,6 +1033,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             window.sessionStorage.removeItem('pe-ai-wizard-session');
           }
         } catch {}
+        clearAiDraftSnapshot();
         set({
           sessionId: newSessionId,
           draft: createEmptyEncounterDraft(),
@@ -3021,6 +3028,7 @@ export const useAiWizardStore = create<AiWizardState>()(
             window.sessionStorage.removeItem('pe-ai-wizard-session');
           }
         } catch {}
+        clearAiDraftSnapshot();
         const newSessionId = generateUuid();
         set({
           sessionId: newSessionId,
@@ -3056,6 +3064,26 @@ export const useAiWizardStore = create<AiWizardState>()(
           pendingInitialTransferId: null,
         });
       },
+
+      restoreFromSnapshot: (snapshotOverride?: { draft: EncounterDraft; config: InvitationConfig }) => {
+        const snapshot = snapshotOverride || getAiDraftSnapshot();
+        if (!snapshot) return;
+
+        const title = snapshot.draft.title?.trim() || 'tu encuentro';
+        const resumeMsg: ChatMessage = {
+          id: generateUuid(),
+          role: 'assistant',
+          text: `¡Hola! Recuperamos los datos de "${title}". Podés continuar completando el formulario o pedirme cambios.`,
+          timestamp: Date.now(),
+        };
+
+        set({
+          draft: snapshot.draft,
+          config: snapshot.config,
+          messages: [resumeMsg],
+          isComplete: hasMeaningfulDraftData(snapshot.draft, snapshot.config),
+        });
+      },
     }),
     {
       name: 'pe-ai-wizard-session',
@@ -3081,4 +3109,10 @@ export const useAiWizardStore = create<AiWizardState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined' || typeof localStorage !== 'undefined') {
+  useAiWizardStore.subscribe((state) => {
+    saveAiDraftSnapshot(state.draft, state.config);
+  });
+}
 

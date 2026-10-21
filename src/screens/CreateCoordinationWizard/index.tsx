@@ -26,7 +26,8 @@ const CreateCoordinationWizard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
+  const currentStep = useCoordinationWizardStore((state) => state.step || 1);
+  const setCurrentStep = useCoordinationWizardStore((state) => state.setStep);
   const draft = useCoordinationWizardStore((state) => state.draft);
   const resetDraft = useCoordinationWizardStore((state) => state.resetDraft);
   const [showRecoverySheet, setShowRecoverySheet] = useState(false);
@@ -40,8 +41,9 @@ const CreateCoordinationWizard: React.FC = () => {
     if (checkedRecoveryRef.current) return;
     checkedRecoveryRef.current = true;
 
-    // Si viene sembrado desde Crear con IA o repetición (handoff), no mostrar recuperación
+    // Si viene sembrado desde Crear con IA o repetición (handoff), no mostrar recuperación y asegurar paso 1
     if ((location.state as { seeded?: boolean } | null)?.seeded) {
+      setCurrentStep(1);
       return;
     }
 

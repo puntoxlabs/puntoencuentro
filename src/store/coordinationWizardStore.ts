@@ -35,7 +35,9 @@ export interface CoordinationDraft {
 
 interface CoordinationWizardStore {
   draft: CoordinationDraft;
+  step: number;
   updateDraft: (updates: Partial<CoordinationDraft>) => void;
+  setStep: (step: number | ((prev: number) => number)) => void;
   resetDraft: () => void;
   setOptions: (options: CoordinationDateOption[]) => void;
 }
@@ -64,11 +66,16 @@ export const useCoordinationWizardStore = create<CoordinationWizardStore>()(
   persist(
     (set) => ({
       draft: { ...initialDraft },
+      step: 1,
       updateDraft: (updates) =>
         set((state) => ({ draft: { ...state.draft, ...updates } })),
+      setStep: (stepOrFn) =>
+        set((state) => ({
+          step: Math.max(1, Math.min(4, typeof stepOrFn === 'function' ? stepOrFn(state.step || 1) : stepOrFn)),
+        })),
       setOptions: (options) =>
         set((state) => ({ draft: { ...state.draft, options } })),
-      resetDraft: () => set({ draft: { ...initialDraft } }),
+      resetDraft: () => set({ draft: { ...initialDraft }, step: 1 }),
     }),
     {
       name: 'pe-coordination-wizard-storage',

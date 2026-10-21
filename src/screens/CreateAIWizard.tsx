@@ -36,7 +36,11 @@ import { useSpeechDictation, isTouchDevice, getSpeechRecognitionLocale } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { getFriendlyAuthError } from '@/hooks/useStartCoordinationEncounter';
 import { DraftRecoverySheet } from '@/components/ui/DraftRecoverySheet';
-import { hasRecoverableAiDraft } from '@/lib/draftRecovery';
+import {
+  hasRecoverableAiDraft,
+  getAiDraftSnapshot,
+  clearAiDraftSnapshot,
+} from '@/lib/draftRecovery';
 import './CreateWizard.css';
 
 export interface CreateAIWizardProps {
@@ -140,6 +144,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     markFallbackManual,
     applyDraftOperation,
     reset,
+    restoreFromSnapshot,
   } = activeState;
 
   useEffect(() => {
@@ -1778,10 +1783,16 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
       />
       <DraftRecoverySheet
         open={showRecoverySheet}
-        draftTitle={draft.title}
-        onContinue={() => setShowRecoverySheet(false)}
+        draftTitle={draft.title || getAiDraftSnapshot()?.draft?.title}
+        onContinue={() => {
+          if (!draft.title && getAiDraftSnapshot()) {
+            restoreFromSnapshot();
+          }
+          setShowRecoverySheet(false);
+        }}
         onDiscard={() => {
           reset();
+          clearAiDraftSnapshot();
           setShowRecoverySheet(false);
         }}
       />
