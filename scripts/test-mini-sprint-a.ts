@@ -11,6 +11,7 @@ import {
   saveAiDraftSnapshot,
   getAiDraftSnapshot,
   clearAiDraftSnapshot,
+  AI_DRAFT_SNAPSHOT_KEY,
 } from '../src/lib/draftRecovery';
 import { useWizardStore } from '../src/store/wizardStore';
 import { useCoordinationWizardStore } from '../src/store/coordinationWizardStore';
@@ -210,13 +211,21 @@ test('Mini-sprint A: Recuperación segura de borradores', async (t) => {
       responseVisibility: 'summary' as const,
     };
 
-    saveAiDraftSnapshot(testDraft, { modality: 'presencial', dateMode: 'fixed' });
+    const testConfig = {
+      invitationType: 'link_general' as const,
+      invitationTheme: 'celebration' as const,
+      invitationTemplate: null,
+      responseVisibility: 'summary' as const,
+    };
+
+    saveAiDraftSnapshot(testDraft, testConfig);
 
     const snapshot = getAiDraftSnapshot();
     assert.ok(snapshot !== null);
     assert.strictEqual(snapshot.draft?.title, 'Cena de graduación');
     assert.strictEqual(snapshot.draft?.date, '2026-12-10');
-    assert.strictEqual(snapshot.config?.modality, 'presencial');
+    assert.strictEqual(snapshot.draft?.modality, 'presencial');
+    assert.strictEqual(snapshot.config?.invitationTheme, 'celebration');
 
     // Comprobar raw en localStorage para certificar que NO hay sessionId, messages ni credenciales
     const raw = localStorage.getItem('pe_ai_draft_snapshot');
@@ -304,6 +313,287 @@ test('Mini-sprint A: Recuperación segura de borradores', async (t) => {
     coordStore.setStep(3);
     coordStore.resetDraft();
     assert.strictEqual(useCoordinationWizardStore.getState().step, 1);
+  });
+
+  await t.test('1.11 Validación rigurosa de snapshot: rechaza expirados (>7d), corruptos, fechas futuras inválidas y estructuras incompatibles', () => {
+    const validDraft = {
+      title: 'Cena de Fin de Año',
+      date: '2026-12-15',
+      time: '21:00',
+      description: null,
+      modality: 'presencial' as const,
+      locationText: 'Palermo',
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: null,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'classic' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'hidden' as const,
+    };
+    const validConfig = {
+      invitationType: 'link_general' as const,
+      invitationTheme: 'classic' as const,
+      invitationTemplate: null,
+      responseVisibility: 'hidden' as const,
+    };
+
+    // Caso A: JSON malformado o corrupto
+    localStorage.setItem(AI_DRAFT_SNAPSHOT_KEY, '{corrupt_json');
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null, 'Debe autolimpiar snapshot corrupto');
+
+    // Caso B: Estructura no objeto o array
+    localStorage.setItem(AI_DRAFT_SNAPSHOT_KEY, JSON.stringify(['not', 'an', 'object']));
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null);
+
+    // Caso C: savedAt ausente o no numérico
+    localStorage.setItem(
+      AI_DRAFT_SNAPSHOT_KEY,
+      JSON.stringify({ draft: validDraft, config: validConfig, savedAt: 'not-a-number' })
+    );
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null);
+
+    // Caso D: Timestamp expirado (> 7 días)
+    const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
+    localStorage.setItem(
+      AI_DRAFT_SNAPSHOT_KEY,
+      JSON.stringify({ draft: validDraft, config: validConfig, savedAt: eightDaysAgo })
+    );
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null, 'Debe autolimpiar snapshot expirado');
+
+    // Caso E: Timestamp irrazonablemente antiguo (< año 2025)
+    localStorage.setItem(
+      AI_DRAFT_SNAPSHOT_KEY,
+      JSON.stringify({ draft: validDraft, config: validConfig, savedAt: 1000 })
+    );
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null);
+
+    // Caso F: Timestamp futuro inválido (> 60 segundos hacia el futuro)
+    const futureTimestamp = Date.now() + 10 * 60 * 1000; // 10 minutos en el futuro
+    localStorage.setItem(
+      AI_DRAFT_SNAPSHOT_KEY,
+      JSON.stringify({ draft: validDraft, config: validConfig, savedAt: futureTimestamp })
+    );
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null, 'Debe autolimpiar timestamp futuro inválido');
+
+    // Caso G: draft o config ausentes o sin datos significativos
+    localStorage.setItem(
+      AI_DRAFT_SNAPSHOT_KEY,
+      JSON.stringify({ draft: null, config: validConfig, savedAt: Date.now() })
+    );
+    assert.strictEqual(getAiDraftSnapshot(), null);
+    assert.strictEqual(localStorage.getItem(AI_DRAFT_SNAPSHOT_KEY), null);
+  });
+
+  await t.test('1.12 Recuperación de borrador parcial de IA: isComplete = false y reconstrucción determinística de lastQuestion', () => {
+    useAiWizardStore.getState().reset();
+    clearAiDraftSnapshot();
+
+    // Borrador incompleto: solo título ("After office"), falta fecha, hora, modalidad y lugar
+    const partialDraft = {
+      title: 'After office del equipo',
+      date: null,
+      time: null,
+      description: null,
+      modality: null,
+      locationText: null,
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: null,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'classic' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'hidden' as const,
+    };
+
+    saveAiDraftSnapshot(partialDraft, {
+      invitationType: 'link_general',
+      invitationTheme: 'classic',
+      invitationTemplate: null,
+      responseVisibility: 'hidden',
+    });
+
+    // Simular restauración
+    useAiWizardStore.getState().restoreFromSnapshot();
+
+    const state = useAiWizardStore.getState();
+
+    // REGLA CRÍTICA: Borrador parcial NUNCA debe marcarse isComplete = true ni mostrar "Listo para crear"
+    assert.strictEqual(state.isComplete, false, 'Un borrador incompleto debe tener isComplete = false');
+    assert.ok(state.lastQuestion !== null, 'Debe reconstruir determinísticamente lastQuestion');
+    assert.strictEqual(state.lastQuestion.field, 'date', 'La siguiente pregunta obligatoria tras el título debe ser date');
+    assert.ok(state.lastQuestion.question.length > 0);
+
+    // Mensaje del asistente debe reflejar la pregunta y NO afirmar que todo está listo
+    assert.strictEqual(state.messages.length, 1);
+    assert.ok(
+      state.messages[0].text.includes(state.lastQuestion.question),
+      'El mensaje inicial de recuperación debe orientar al usuario con la pregunta pendiente'
+    );
+    assert.ok(
+      !state.messages[0].text.includes('Todo está listo para crear'),
+      'NO debe indicar listo para crear'
+    );
+  });
+
+  await t.test('1.13 Recuperación de borrador completo de IA: isComplete = true y lastQuestion = null', () => {
+    useAiWizardStore.getState().reset();
+    clearAiDraftSnapshot();
+
+    // Borrador completo y válido en el futuro
+    const completeDraft = {
+      title: 'Asado en el quincho',
+      date: '2026-12-20',
+      time: '13:00',
+      description: 'Traer lo que quieran tomar',
+      modality: 'presencial' as const,
+      locationText: 'Av. Libertador 2500',
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: 180,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'friends' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'summary' as const,
+    };
+
+    saveAiDraftSnapshot(completeDraft, {
+      invitationType: 'link_general',
+      invitationTheme: 'friends',
+      invitationTemplate: null,
+      responseVisibility: 'summary',
+    });
+
+    useAiWizardStore.getState().restoreFromSnapshot();
+
+    const state = useAiWizardStore.getState();
+    assert.strictEqual(state.isComplete, true, 'Un borrador completo debe marcar isComplete = true');
+    assert.strictEqual(state.lastQuestion, null, 'Un borrador completo no debe tener preguntas obligatorias pendientes');
+    assert.ok(
+      state.messages[0].text.includes('Todo está listo para crear el encuentro'),
+      'El asistente debe informar que está listo para crear'
+    );
+  });
+
+  await t.test('1.14 Recuperación de borrador en modo coordinación: respeta dateMode, opciones y evalúa completitud', () => {
+    useAiWizardStore.getState().reset();
+    clearAiDraftSnapshot();
+
+    // Coordinación incompleta: 2 opciones pero falta modalidad y lugar
+    const coordDraft = {
+      title: 'Cena de egresados',
+      date: null,
+      time: null,
+      description: null,
+      modality: null,
+      locationText: null,
+      virtualLink: null,
+      dateMode: 'coordination' as const,
+      dateOptions: [
+        { date: '2026-11-20', time: '20:00' },
+        { date: '2026-11-21', time: '20:00' },
+      ],
+      options: [],
+      responseDeadline: null,
+      durationMinutes: null,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'celebration' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'summary' as const,
+    };
+
+    saveAiDraftSnapshot(coordDraft, {
+      invitationType: 'link_general',
+      invitationTheme: 'celebration',
+      invitationTemplate: null,
+      responseVisibility: 'summary',
+    });
+
+    useAiWizardStore.getState().restoreFromSnapshot();
+
+    const state = useAiWizardStore.getState();
+    assert.strictEqual(state.coordinationDetected, true);
+    assert.strictEqual(state.draft.dateMode, 'coordination');
+    assert.strictEqual(state.isComplete, false, 'Coordinación sin modalidad/lugar debe ser incompleta');
+    assert.strictEqual(state.lastQuestion?.field, 'modality', 'Debe preguntar modalidad');
+  });
+
+  await t.test('1.15 Limpieza segura de snapshot al resetear o iniciar nuevo borrador', () => {
+    const draft = {
+      title: 'Torneo de Pádel',
+      date: '2026-12-01',
+      time: '18:00',
+      description: null,
+      modality: 'presencial' as const,
+      locationText: 'Club Pádel Central',
+      virtualLink: null,
+      dateMode: 'fixed' as const,
+      options: [],
+      responseDeadline: null,
+      durationMinutes: null,
+      creationSource: 'ai' as const,
+      customTemplateId: null,
+      invitationTemplate: null,
+      invitationTheme: 'sports' as const,
+      invitationType: 'link_general' as const,
+      responseVisibility: 'hidden' as const,
+    };
+
+    saveAiDraftSnapshot(draft, {
+      invitationType: 'link_general',
+      invitationTheme: 'sports',
+      invitationTemplate: null,
+      responseVisibility: 'hidden',
+    });
+
+    assert.ok(getAiDraftSnapshot() !== null);
+
+    // useAiWizardStore.getState().reset() (ejecutado al publicar o descartar)
+    useAiWizardStore.getState().reset();
+    assert.strictEqual(getAiDraftSnapshot(), null, 'reset() debe limpiar el snapshot');
+
+    // Guardar de nuevo y probar startNewAiCreation
+    saveAiDraftSnapshot(draft, {
+      invitationType: 'link_general',
+      invitationTheme: 'sports',
+      invitationTemplate: null,
+      responseVisibility: 'hidden',
+    });
+    assert.ok(getAiDraftSnapshot() !== null);
+
+    useAiWizardStore.getState().startNewAiCreation();
+    assert.strictEqual(getAiDraftSnapshot(), null, 'startNewAiCreation() debe limpiar el snapshot anterior');
+
+    // Descarte explícito
+    saveAiDraftSnapshot(draft, {
+      invitationType: 'link_general',
+      invitationTheme: 'sports',
+      invitationTemplate: null,
+      responseVisibility: 'hidden',
+    });
+    assert.ok(getAiDraftSnapshot() !== null);
+    clearAiDraftSnapshot();
+    assert.strictEqual(getAiDraftSnapshot(), null, 'clearAiDraftSnapshot() debe limpiar el snapshot');
   });
 });
 

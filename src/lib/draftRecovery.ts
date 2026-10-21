@@ -57,6 +57,48 @@ function getLocalStorage(): Storage | null {
 }
 
 /**
+ * Sanitiza el borrador para el snapshot persistido.
+ * Extrae únicamente campos de negocio validados, omitiendo identificadores de sesión,
+ * mensajes conversacionales, tokens de autenticación o metadatos internos no serializables.
+ */
+export function sanitizeDraftForSnapshot(draft: Partial<EncounterDraft>): EncounterDraft {
+  return {
+    title: typeof draft.title === 'string' && draft.title.trim() ? draft.title.trim() : null,
+    description: typeof draft.description === 'string' && draft.description.trim() ? draft.description.trim() : null,
+    dateMode: draft.dateMode === 'coordination' ? 'coordination' : 'fixed',
+    date: typeof draft.date === 'string' ? draft.date : null,
+    time: typeof draft.time === 'string' ? draft.time : null,
+    dateOptions: Array.isArray(draft.dateOptions)
+      ? draft.dateOptions
+          .filter((opt) => opt && typeof opt.date === 'string' && typeof opt.time === 'string')
+          .map((opt) => ({ date: opt.date, time: opt.time }))
+      : null,
+    responseDeadline: typeof draft.responseDeadline === 'string' ? draft.responseDeadline : null,
+    durationMinutes: typeof draft.durationMinutes === 'number' && Number.isFinite(draft.durationMinutes) ? draft.durationMinutes : null,
+    modality: draft.modality === 'presencial' || draft.modality === 'virtual' ? draft.modality : null,
+    locationText: typeof draft.locationText === 'string' && draft.locationText.trim() ? draft.locationText.trim() : null,
+    virtualLink: typeof draft.virtualLink === 'string' && draft.virtualLink.trim() ? draft.virtualLink.trim() : null,
+    coordinationCandidate: Boolean(draft.coordinationCandidate),
+    coordinationPendingConfirm: Boolean(draft.coordinationPendingConfirm),
+  };
+}
+
+/**
+ * Sanitiza la configuración de invitación para el snapshot.
+ */
+export function sanitizeConfigForSnapshot(config?: Partial<InvitationConfig> | null): InvitationConfig {
+  return {
+    invitationType: config?.invitationType === 'individual' ? 'individual' : 'link_general',
+    invitationTheme: (config?.invitationTheme as any) || 'classic',
+    invitationTemplate: typeof config?.invitationTemplate === 'string' ? config.invitationTemplate : null,
+    responseVisibility:
+      config?.responseVisibility === 'detail' || config?.responseVisibility === 'summary'
+        ? config.responseVisibility
+        : 'hidden',
+  };
+}
+
+/**
  * Guarda un snapshot mínimo y validado del borrador de IA en localStorage.
  * No persiste sesiones, tokens, credenciales, mensajes ni contadores anti-abuso.
  */
@@ -73,9 +115,17 @@ export function saveAiDraftSnapshot(
   }
 
   try {
+    const cleanDraft = sanitizeDraftForSnapshot(draft);
+    const cleanConfig = sanitizeConfigForSnapshot(config);
+
+    if (!hasMeaningfulDraftData(cleanDraft, cleanConfig)) {
+      clearAiDraftSnapshot();
+      return;
+    }
+
     const snapshot: AiDraftSnapshot = {
-      draft,
-      config,
+      draft: cleanDraft,
+      config: cleanConfig,
       savedAt: Date.now(),
     };
     storage.setItem(AI_DRAFT_SNAPSHOT_KEY, JSON.stringify(snapshot));
@@ -85,7 +135,8 @@ export function saveAiDraftSnapshot(
 }
 
 /**
- * Recupera el snapshot del borrador de IA desde localStorage si existe y no expiró.
+ * Recupera el snapshot del borrador de IA desde localStorage si existe y es válido.
+ * Valida minuciosamente integridad, TTL, ausencia de fechas futuras inválidas y estructura.
  */
 export function getAiDraftSnapshot(): AiDraftSnapshot | null {
   const storage = getLocalStorage();
@@ -95,23 +146,65 @@ export function getAiDraftSnapshot(): AiDraftSnapshot | null {
     const raw = storage.getItem(AI_DRAFT_SNAPSHOT_KEY);
     if (!raw) return null;
 
-    const parsed: AiDraftSnapshot = JSON.parse(raw);
-    if (!parsed || !parsed.draft || !parsed.config) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
       clearAiDraftSnapshot();
       return null;
     }
 
-    if (parsed.savedAt && Date.now() - parsed.savedAt > AI_DRAFT_SNAPSHOT_MAX_AGE_MS) {
+    // 1. Estructura raíz
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       clearAiDraftSnapshot();
       return null;
     }
 
-    if (!hasMeaningfulDraftData(parsed.draft, parsed.config)) {
+    // 2. Validar que savedAt exista y sea un número finito
+    if (typeof parsed.savedAt !== 'number' || !Number.isFinite(parsed.savedAt)) {
       clearAiDraftSnapshot();
       return null;
     }
 
-    return parsed;
+    const now = Date.now();
+
+    // 3. TTL: expirado (> 7 días) o irrazonablemente antiguo (< 2025-01-01)
+    if (now - parsed.savedAt > AI_DRAFT_SNAPSHOT_MAX_AGE_MS || parsed.savedAt < 1735689600000) {
+      clearAiDraftSnapshot();
+      return null;
+    }
+
+    // 4. Fechas futuras inválidas con tolerancia de clock skew (60 segundos)
+    if (parsed.savedAt > now + 60_000) {
+      clearAiDraftSnapshot();
+      return null;
+    }
+
+    // 5. Validar presencia y formato de draft y config
+    if (!parsed.draft || typeof parsed.draft !== 'object' || Array.isArray(parsed.draft)) {
+      clearAiDraftSnapshot();
+      return null;
+    }
+
+    if (!parsed.config || typeof parsed.config !== 'object' || Array.isArray(parsed.config)) {
+      clearAiDraftSnapshot();
+      return null;
+    }
+
+    // 6. Sanitizar y verificar datos significativos
+    const cleanDraft = sanitizeDraftForSnapshot(parsed.draft);
+    const cleanConfig = sanitizeConfigForSnapshot(parsed.config);
+
+    if (!hasMeaningfulDraftData(cleanDraft, cleanConfig)) {
+      clearAiDraftSnapshot();
+      return null;
+    }
+
+    return {
+      draft: cleanDraft,
+      config: cleanConfig,
+      savedAt: parsed.savedAt,
+    };
   } catch (err) {
     console.warn('[draftRecovery] Error al leer snapshot de IA:', err);
     clearAiDraftSnapshot();

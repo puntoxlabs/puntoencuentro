@@ -3069,11 +3069,29 @@ export const useAiWizardStore = create<AiWizardState>()(
         const snapshot = snapshotOverride || getAiDraftSnapshot();
         if (!snapshot) return;
 
+        const isCoordination =
+          snapshot.draft.dateMode === 'coordination' || Boolean(snapshot.draft.coordinationCandidate);
+        const isCoordPending = Boolean(snapshot.draft.coordinationPendingConfirm);
+
+        // Evaluación canónica del estado de completitud y siguiente pregunta determinística
+        const evaluation = evaluateDraft(
+          snapshot.draft,
+          isCoordination,
+          undefined,
+          isCoordPending
+        );
+
         const title = snapshot.draft.title?.trim() || 'tu encuentro';
+        const resumeText = evaluation.isComplete
+          ? `¡Hola! Recuperamos los datos de "${title}". Todo está listo para crear el encuentro o podés pedirme cambios.`
+          : evaluation.nextQuestion?.question
+          ? `¡Hola! Recuperamos el borrador de "${title}". ${evaluation.nextQuestion.question}`
+          : `¡Hola! Recuperamos los datos de "${title}". Podés continuar completando el formulario o pedirme cambios.`;
+
         const resumeMsg: ChatMessage = {
           id: generateUuid(),
           role: 'assistant',
-          text: `¡Hola! Recuperamos los datos de "${title}". Podés continuar completando el formulario o pedirme cambios.`,
+          text: resumeText,
           timestamp: Date.now(),
         };
 
@@ -3081,7 +3099,10 @@ export const useAiWizardStore = create<AiWizardState>()(
           draft: snapshot.draft,
           config: snapshot.config,
           messages: [resumeMsg],
-          isComplete: hasMeaningfulDraftData(snapshot.draft, snapshot.config),
+          isComplete: evaluation.isComplete,
+          lastQuestion: evaluation.isComplete ? null : evaluation.nextQuestion,
+          coordinationDetected: isCoordination,
+          coordinationPendingConfirm: isCoordPending,
         });
       },
     }),
