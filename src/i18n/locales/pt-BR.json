@@ -356,12 +356,13 @@
     "action_reactivate": "Reativar",
     "action_cancel": "Cancelar",
     "quiet_hours_title": "Horários silenciosos",
-    "quiet_hours_desc": "Pause notificações de novos encontros e alertas enquanto descansa.",
+    "quiet_hours_desc": "Pausa os avisos dentro do aplicativo enquanto você descansa. Notificações do dispositivo podem continuar chegando.",
     "quiet_hours_enable": "Ativar horários silenciosos",
     "quiet_hours_from": "Silenciar de",
     "quiet_hours_to": "Até",
     "quiet_hours_critical_notice": "Cancelamentos e alterações urgentes nunca são bloqueados.",
-    "quiet_hours_saved": "Preferências salvas.",
+    "quiet_hours_saved": "Preferências salvas e sincronizadas.",
+    "quiet_hours_saved_local_only": "Salvo neste dispositivo. Não foi possível sincronizar com sua conta.",
     "quiet_hours_login_hint": "Inicie sessão para sincronizar seus horários silenciosos em todos os seus dispositivos."
   },
   "calendar": {

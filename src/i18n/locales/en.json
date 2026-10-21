@@ -362,12 +362,13 @@
     "action_reactivate": "Reactivate",
     "action_cancel": "Cancel",
     "quiet_hours_title": "Quiet hours",
-    "quiet_hours_desc": "Pause new encounter notices and alerts while you rest.",
+    "quiet_hours_desc": "Pause in-app notices and alerts while you rest. Device notifications may still arrive.",
     "quiet_hours_enable": "Enable quiet hours",
     "quiet_hours_from": "Silence from",
     "quiet_hours_to": "Until",
     "quiet_hours_critical_notice": "Cancellations and urgent changes are never blocked.",
-    "quiet_hours_saved": "Preferences saved.",
+    "quiet_hours_saved": "Preferences saved and synced.",
+    "quiet_hours_saved_local_only": "Saved on this device. Could not sync with your account.",
     "quiet_hours_login_hint": "Sign in to sync your quiet hours across all your devices."
   },
   "create_or_open": {

@@ -61,6 +61,14 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
+  // Hidratar preferencias de usuario desde user_metadata al establecerse sesión permanente
+  // sin requerir que el usuario abra Avisame previamente
+  useEffect(() => {
+    if (isPermanentUser && user?.id) {
+      userPreferencesService.resolveInitialQuietHours(user.user_metadata, user.id);
+    }
+  }, [isPermanentUser, user?.id, user?.user_metadata]);
+
   // 1. Obtener conteo de no leídas
   const fetchUnreadCount = useCallback(async () => {
     if (!isPermanentUser || !user?.id) {
@@ -277,7 +285,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
               rawPayload?.data?.encounterId ||
               rawPayload?.data?.encounter_id;
 
-            const quietPref = userPreferencesService.getLocalQuietHours(user.id);
+            const quietPref = userPreferencesService.resolveInitialQuietHours(user.user_metadata, user.id);
             const suppressLiveAlert = shouldSuppressForQuietHours(
               { notificationType: newRow.notification_type, payload: rawPayload },
               quietPref

@@ -22,6 +22,36 @@ export interface CalendarEncounterData {
 
 export const TIMEZONE_ARGENTINA = 'America/Argentina/Buenos_Aires';
 export const DEFAULT_DURATION_MINUTES = 120; // 2 horas por defecto
+export const MIN_DURATION_MINUTES = 1;
+export const MAX_DURATION_MINUTES = 1440; // 24 horas
+
+const ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
+
+/**
+ * Valida que una fecha sea astronómicamente real en el calendario gregoriano (evita 31 de feb, etc).
+ */
+export function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (year < 2020 || year > 2100) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
+/**
+ * Valida que la duración en minutos sea un número positivo y razonable (hasta 24 horas).
+ */
+export function isValidDuration(duration?: number | null): boolean {
+  if (duration === undefined || duration === null) return true;
+  if (typeof duration !== 'number' || isNaN(duration) || !isFinite(duration)) return false;
+  return duration >= MIN_DURATION_MINUTES && duration <= MAX_DURATION_MINUTES;
+}
 
 /**
  * Determina si un encuentro tiene fecha y hora definitivas para ser exportado al calendario.
@@ -47,7 +77,13 @@ export function canAddToCalendar(
   if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
     return false;
   }
-  if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+  if (!isValidCalendarDate(year, month, day)) {
+    return false;
+  }
+
+  // Validar duración positiva y razonable si se informa explícitamente
+  const dur = encounter.durationMinutes ?? encounter.duracion_minutos;
+  if (dur !== undefined && dur !== null && !isValidDuration(dur)) {
     return false;
   }
 
@@ -67,32 +103,63 @@ export function escapeIcsText(text: string): string {
 }
 
 /**
- * Pliega líneas que superen los 75 octetos según RFC 5545 (Sección 3.1).
+ * Pliega líneas según RFC 5545 (Sección 3.1):
+ * Máximo 75 octetos UTF-8 por línea, sin dividir caracteres multibyte (acentos, emojis).
  */
 export function foldIcsLine(line: string): string {
-  if (line.length <= 75) return line;
-  const parts: string[] = [];
-  let remaining = line;
-  while (remaining.length > 75) {
-    parts.push(remaining.slice(0, 75));
-    remaining = ' ' + remaining.slice(75);
+  const encoder = new TextEncoder();
+  const totalBytes = encoder.encode(line).length;
+  if (totalBytes <= 75) return line;
+
+  const lines: string[] = [];
+  let currentLine = '';
+  let currentBytes = 0;
+  let isFirstLine = true;
+
+  // Iterar por puntos de código Unicode completos (sin cortar surrogate pairs ni bytes)
+  for (const char of line) {
+    const charBytes = encoder.encode(char).length;
+    const maxAllowed = isFirstLine ? 75 : 75;
+
+    if (!isFirstLine && currentLine === '') {
+      currentLine = ' ';
+      currentBytes = 1;
+    }
+
+    if (currentBytes + charBytes > maxAllowed) {
+      lines.push(currentLine);
+      currentLine = ' ' + char;
+      currentBytes = 1 + charBytes;
+      isFirstLine = false;
+    } else {
+      currentLine += char;
+      currentBytes += charBytes;
+    }
   }
-  parts.push(remaining);
-  return parts.join('\r\n');
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.join('\r\n');
 }
 
 /**
- * Parsea fecha (YYYY-MM-DD) y hora (HH:MM) a componentes numéricos.
+ * Parsea fecha (YYYY-MM-DD) y hora (HH:MM) a componentes numéricos validados estrictamente.
  */
 function parseDateParts(fecha: string, hora: string) {
-  const [yearStr, monthStr, dayStr] = fecha.split('-');
-  const [hourStr, minStr] = hora.split(':');
+  const dateMatch = (fecha || '').trim().match(ISO_DATE_REGEX);
+  const timeMatch = (hora || '').trim().match(TIME_REGEX);
 
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-  const day = parseInt(dayStr, 10);
-  const hour = parseInt(hourStr || '0', 10);
-  const minute = parseInt(minStr || '0', 10);
+  if (!dateMatch || !timeMatch) {
+    return { year: NaN, month: NaN, day: NaN, hour: NaN, minute: NaN };
+  }
+
+  const year = parseInt(dateMatch[1], 10);
+  const month = parseInt(dateMatch[2], 10);
+  const day = parseInt(dateMatch[3], 10);
+  const hour = parseInt(timeMatch[1], 10);
+  const minute = parseInt(timeMatch[2], 10);
 
   return { year, month, day, hour, minute };
 }

@@ -22,6 +22,7 @@ export const QuietHoursSettings: React.FC<QuietHoursSettingsProps> = ({ onPrefer
   );
   const [saving, setSaving] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<'synced' | 'local_only' | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -60,9 +61,10 @@ export const QuietHoursSettings: React.FC<QuietHoursSettingsProps> = ({ onPrefer
         Boolean(isPermanentUser)
       );
       if (res.ok) {
+        setSyncFeedback(res.synced ? 'synced' : 'local_only');
         setShowSavedFeedback(true);
         onPreferenceChange?.(res.data);
-        setTimeout(() => setShowSavedFeedback(false), 2000);
+        setTimeout(() => setShowSavedFeedback(false), 3000);
       }
     } finally {
       setSaving(false);
@@ -81,7 +83,7 @@ export const QuietHoursSettings: React.FC<QuietHoursSettingsProps> = ({ onPrefer
             <p className="pe-quiet-hours__subtitle">
               {t(
                 'avisame.quiet_hours_desc',
-                'Pausá los avisos de nuevos encuentros y alertas mientras descansás.'
+                'Silenciá los avisos dentro de la app mientras descansás. Las notificaciones del dispositivo pueden seguir llegando.'
               )}
             </p>
           </div>
@@ -146,7 +148,14 @@ export const QuietHoursSettings: React.FC<QuietHoursSettingsProps> = ({ onPrefer
           {showSavedFeedback && (
             <p className="pe-quiet-hours__saved">
               <Check size={12} aria-hidden="true" />
-              <span>{t('avisame.quiet_hours_saved', 'Preferencias guardadas.')}</span>
+              <span>
+                {syncFeedback === 'local_only' && isPermanentUser
+                  ? t(
+                      'avisame.quiet_hours_saved_local_only',
+                      'Guardado en este dispositivo. No se pudo sincronizar con tu cuenta.'
+                    )
+                  : t('avisame.quiet_hours_saved', 'Preferencias guardadas y sincronizadas.')}
+              </span>
             </p>
           )}
 

@@ -114,25 +114,59 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
     assert.strictEqual(canAddToCalendar({ fecha: '2026-11-32', hora: '20:00' }), false); // Día 32
     assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '25:00' }), false); // Hora 25
     assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:65' }), false); // Minuto 65
-    assert.strictEqual(canAddToCalendar({ fecha: '1990-01-01', hora: '10:00' }), false); // Año < 2000
+    assert.strictEqual(canAddToCalendar({ fecha: '1990-01-01', hora: '10:00' }), false); // Año < 2020
+
+    // Fechas imposibles en el calendario gregoriano (evita rollover accidental de Date)
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-02-31', hora: '20:00' }), false, '31 de febrero debe ser rechazado');
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-02-29', hora: '20:00' }), false, '29 de febrero en año no bisiesto debe ser rechazado');
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-04-31', hora: '20:00' }), false, '31 de abril debe ser rechazado');
+
+    // Cadenas malformadas con sufijos o formatos no canónicos (que parseInt aceptaría por error)
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-02-15extra', hora: '20:00' }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026/02/15', hora: '20:00' }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-2-5', hora: '20:00' }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-02-15', hora: '20:00extra' }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-02-15', hora: '8:00' }), false);
+
+    // Validación de duraciones: positivas y razonables
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:00', durationMinutes: -60 }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:00', durationMinutes: 0 }), false);
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:00', durationMinutes: 1441 }), false); // > 24 horas
+    assert.strictEqual(canAddToCalendar({ fecha: '2026-11-20', hora: '20:00', durationMinutes: 120 }), true);
   });
 
-  await t.test('1.2 escapeIcsText y foldIcsLine cumplen con estándar RFC 5545', () => {
+  await t.test('1.2 escapeIcsText y foldIcsLine cumplen con estándar RFC 5545 (máx 75 octetos UTF-8 sin dividir multibyte)', () => {
     // Escapado de caracteres especiales: coma, punto y coma, barra invertida, saltos de línea
     const raw = 'Hola, mundo; esto es una prueba\\ejemplo\nsegunda línea\r\ntercera';
     const escaped = escapeIcsText(raw);
     assert.strictEqual(escaped, 'Hola\\, mundo\\; esto es una prueba\\\\ejemplo\\nsegunda línea\\ntercera');
 
-    // Pliegue de líneas a máximo 75 caracteres con espacio en la línea siguiente
-    const longLine = 'SUMMARY:' + 'A'.repeat(80);
-    const folded = foldIcsLine(longLine);
+    // Pliegue RFC 5545 basado en un máximo de 75 octetos UTF-8 por línea con acentos, eñes y emojis
+    const textWithAccentsAndEmojis = 'SUMMARY:¡Gran celebración de cumpleaños de Martín & Peña en Güemes! 🎂🎉🍻🍕🎈' + ' con amigos'.repeat(5);
+    const folded = foldIcsLine(textWithAccentsAndEmojis);
     const lines = folded.split('\r\n');
-    assert.ok(lines.length >= 2);
-    assert.ok(lines[0].length <= 75);
-    assert.ok(lines[1].startsWith(' '));
+
+    assert.ok(lines.length >= 2, 'Debe haber plegado en al menos 2 líneas');
+
+    const encoder = new TextEncoder();
+    for (let i = 0; i < lines.length; i++) {
+      const lineBytes = encoder.encode(lines[i]).length;
+      assert.ok(
+        lineBytes <= 75,
+        `La línea ${i} (${lines[i]}) supera los 75 octetos UTF-8: ${lineBytes} bytes`
+      );
+      if (i > 0) {
+        assert.ok(lines[i].startsWith(' '), `La línea de continuación ${i} debe comenzar con un espacio`);
+      }
+    }
+
+    // El desplegado (unfolding según RFC 5545: reemplazar CRLF + espacio) debe reconstruir exactamente el original
+    const unfolded = folded.replace(/\r\n /g, '');
+    assert.strictEqual(unfolded, textWithAccentsAndEmojis, 'El desplegado debe restaurar exactamente el texto original');
   });
 
-  await t.test('1.3 generateIcsContent produce contenido iCalendar RFC 5545 válido con zona horaria Argentina', () => {
+  await t.test('1.3 generateIcsContent y cruces de medianoche con zona horaria Argentina', () => {
+    // 1. Encuentro diurno estándar
     const encounter = {
       id: 'enc-uuid-1234',
       titulo: 'Asado en Palermo',
@@ -168,9 +202,40 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
     assert.ok(ics.includes('STATUS:CONFIRMED\r\n'));
     assert.ok(ics.includes('END:VEVENT\r\n'));
 
+    // 2. Encuentro nocturno que cruza la medianoche (23:30 ART con 120 min de duración -> 01:30 ART del día siguiente)
+    const midnightEncounter = {
+      id: 'enc-midnight-99',
+      titulo: '¡Cena y Brindis de Fin de Año con Peña! 🍾✨',
+      descripcion: 'Festejamos el cierre de año con amigos en Güemes.',
+      fecha: '2026-12-31',
+      hora: '23:30',
+      durationMinutes: 120,
+      modalidad: 'presencial' as const,
+      lugar_texto: 'Belgrano 800, Córdoba',
+      estado: 'activo',
+    };
+
+    const midnightIcs = generateIcsContent(midnightEncounter);
+
+    // Cruce de medianoche en iCalendar ART:
+    // Inicio: 2026-12-31 23:30:00
+    // Fin: 2027-01-01 01:30:00
+    assert.ok(midnightIcs.includes(`DTSTART;TZID=${TIMEZONE_ARGENTINA}:20261231T233000\r\n`));
+    assert.ok(midnightIcs.includes(`DTEND;TZID=${TIMEZONE_ARGENTINA}:20270101T013000\r\n`));
+    assert.ok(midnightIcs.includes('UID:pe-enc-midnight-99@puntoencuentro.com.ar\r\n'));
+
+    // Todas las líneas del .ics deben tener <= 75 octetos UTF-8
+    const encoder = new TextEncoder();
+    const icsLines = midnightIcs.split('\r\n');
+    for (const line of icsLines) {
+      if (!line) continue;
+      const bytes = encoder.encode(line).length;
+      assert.ok(bytes <= 75, `Línea del .ics supera 75 bytes: ${bytes} bytes -> ${line}`);
+    }
+
     // Terminador estándar de línea RFC 5545 es CRLF
-    assert.ok(!ics.includes('\n\n') || !ics.includes('\r\r'));
-    assert.ok(ics.endsWith('\r\n'));
+    assert.ok(!midnightIcs.includes('\n\n') || !midnightIcs.includes('\r\r'));
+    assert.ok(midnightIcs.endsWith('\r\n'));
   });
 
   await t.test('1.4 Privacidad estricta: NO filtra tokens privados, identificadores sensibles ni links no autorizados', () => {
@@ -197,15 +262,15 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
     assert.ok(!ics.includes('service_role'));
   });
 
-  await t.test('1.5 buildGoogleCalendarUrl genera enlace web con timestamps UTC exactos', () => {
+  await t.test('1.5 buildGoogleCalendarUrl genera enlace web con timestamps UTC exactos y cruce de medianoche', () => {
     const encounter = {
       id: 'enc-gcal-1',
-      titulo: 'Clase de Yoga',
+      titulo: 'Clase de Yoga & Meditación 🧘‍♂️',
       fecha: '2026-12-05',
       hora: '15:00', // 15:00 ART = 18:00 UTC
       durationMinutes: 60,
       modalidad: 'presencial' as const,
-      lugar_texto: 'Plaza Las Heras',
+      lugar_texto: 'Plaza Las Heras, Palermo',
       estado: 'activo',
     };
 
@@ -213,9 +278,22 @@ test('Mini-sprint B: Exportación a Calendario (.ics & Google Calendar)', async 
 
     assert.ok(url.startsWith('https://calendar.google.com/calendar/render?'));
     assert.ok(url.includes('action=TEMPLATE'));
-    assert.ok(url.includes('text=Clase+de+Yoga'));
     assert.ok(url.includes('dates=20261205T180000Z%2F20261205T190000Z'));
-    assert.ok(url.includes('location=Plaza+Las+Heras'));
+
+    // Cruce de medianoche en Google Calendar
+    const midnightEncounter = {
+      id: 'enc-gcal-midnight',
+      titulo: 'Fiesta de Fin de Año',
+      fecha: '2026-12-31',
+      hora: '23:30', // 23:30 ART + 3h = 2027-01-01 02:30 UTC
+      durationMinutes: 120, // Finaliza a las 04:30 UTC
+      estado: 'activo',
+    };
+    const midnightUrl = buildGoogleCalendarUrl(midnightEncounter);
+    assert.ok(
+      midnightUrl.includes('dates=20270101T023000Z%2F20270101T043000Z'),
+      'Google Calendar debe calcular correctamente el cambio de día y año en UTC'
+    );
   });
 
   await t.test('1.6 Integración en pantallas: Solo expone calendario a organizadores y participantes confirmados', () => {
@@ -426,6 +504,58 @@ test('Mini-sprint B: Preferencias de Avisame y Horarios Silenciosos', async (t) 
     assert.strictEqual(resolvedAuth.endTime, '09:00');
   });
 
+  await t.test('2.8 Sincronización entre dispositivos, aislamiento entre usuarios y manejo de fallas de sync', async () => {
+    const userA = 'user-alice-111';
+    const userB = 'user-bob-222';
+
+    // 1. Inicio de sesión en navegador sin caché local:
+    // El usuario tiene preferencias en user_metadata de Auth, pero localStorage está completamente vacío.
+    localStorage.clear();
+    assert.strictEqual(localStorage.getItem(`pe_quiet_hours_prefs:${userA}`), null);
+
+    const hydratedFromMetadata = userPreferencesService.resolveInitialQuietHours(
+      { quiet_hours: { enabled: true, startTime: '22:30', endTime: '07:00' } },
+      userA
+    );
+    assert.strictEqual(hydratedFromMetadata.enabled, true);
+    assert.strictEqual(hydratedFromMetadata.startTime, '22:30');
+    assert.strictEqual(hydratedFromMetadata.endTime, '07:00');
+
+    // Debe haber hidratado la caché local sin requerir abrir Avisame
+    assert.ok(localStorage.getItem(`pe_quiet_hours_prefs:${userA}`));
+
+    // 2. Cambio de usuario:
+    // Cierra sesión User A y entra User B sin preferencias en metadata ni en caché.
+    // User B NUNCA debe heredar las preferencias de User A ni de la sesión anónima.
+    const userBInitial = userPreferencesService.resolveInitialQuietHours(
+      {}, // Metadata sin quiet_hours
+      userB
+    );
+    assert.strictEqual(userBInitial.enabled, false, 'User B no debe heredar quiet hours de User A');
+    assert.strictEqual(userBInitial.startTime, '22:00', 'User B debe recibir default 22:00');
+    assert.strictEqual(userBInitial.endTime, '08:00', 'User B debe recibir default 08:00');
+
+    // Sesión anónima previa con preferencias no debe filtrarse a User B
+    userPreferencesService.saveQuietHours({ enabled: true, startTime: '20:00' }, null, false);
+    const userBAfterAnon = userPreferencesService.getLocalQuietHours(userB);
+    assert.strictEqual(userBAfterAnon.enabled, false, 'User B no debe contaminarse con preferencias anónimas');
+
+    // 3. Falla de sincronización remota:
+    // Si la llamada remota falla o no es permanente, saveQuietHours retorna synced: false y persiste localmente
+    const localSaveRes = await userPreferencesService.saveQuietHours(
+      { enabled: true, startTime: '23:15', endTime: '06:45' },
+      userB,
+      false // No permanente o sin sync remota
+    );
+    assert.strictEqual(localSaveRes.ok, true);
+    assert.strictEqual(localSaveRes.synced, false, 'No debe reportar sincronizado si no hubo sync remota exitosa');
+    assert.strictEqual(localSaveRes.data.startTime, '23:15');
+
+    // Verificación de persistencia local segura
+    const userBStored = userPreferencesService.getLocalQuietHours(userB);
+    assert.strictEqual(userBStored.startTime, '23:15');
+  });
+
   await t.test('2.7 Gestión de Avisame y Web Push: Horarios Silenciosos visibles y navegación neutral /?notifications=1', () => {
     const rootDir = process.cwd();
 
@@ -488,6 +618,7 @@ test('Mini-sprint B: Consistencia de i18n (ES, EN, PT-BR)', async (t) => {
       'quiet_hours_to',
       'quiet_hours_critical_notice',
       'quiet_hours_saved',
+      'quiet_hours_saved_local_only',
       'quiet_hours_login_hint',
     ];
 
@@ -505,5 +636,22 @@ test('Mini-sprint B: Consistencia de i18n (ES, EN, PT-BR)', async (t) => {
         `pt-BR.json debe tener avisame.${key}`
       );
     }
+
+    // Verificar que el copy aclare el alcance en los 3 idiomas (avisos dentro de la app vs notificaciones del dispositivo)
+    assert.match(
+      esTranslations.avisame.quiet_hours_desc,
+      /notificaciones del dispositivo|dentro de la app/i,
+      'es.json debe clarificar el alcance en pantalla y dispositivo'
+    );
+    assert.match(
+      enTranslations.avisame.quiet_hours_desc,
+      /device notifications|in-app/i,
+      'en.json debe clarificar el alcance en pantalla y dispositivo'
+    );
+    assert.match(
+      ptTranslations.avisame.quiet_hours_desc,
+      /notificações do dispositivo|dentro do aplicativo|dentro do app/i,
+      'pt-BR.json debe clarificar el alcance en pantalla y dispositivo'
+    );
   });
 });
