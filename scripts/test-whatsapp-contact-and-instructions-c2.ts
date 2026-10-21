@@ -20,6 +20,13 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
   let guestTokenConfirmed: string;
   let guestTokenPending: string;
   let guestTokenRejected: string;
+  let guestTokenCancelled: string;
+
+  let virtualEncounterId: string;
+  let guestTokenVirtualConf: string;
+  let guestTokenVirtualPend: string;
+  let guestTokenVirtualRech: string;
+  let guestTokenVirtualCanc: string;
 
   before(async () => {
     db = new PGlite();
@@ -107,13 +114,20 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
       );
     `);
 
-    // 2. Aplicar la migración de Mini-sprint C2
-    const migrationPath = path.resolve(
+    // 2. Aplicar la migración de Mini-sprint C2 y el microfix de privacidad
+    const migrationPathC2 = path.resolve(
       process.cwd(),
       'supabase/migrations/20261021180000_voluntary_whatsapp_contact_and_instructions_c2.sql'
     );
-    const sqlContent = fs.readFileSync(migrationPath, 'utf8');
-    await db.exec(sqlContent);
+    const sqlContentC2 = fs.readFileSync(migrationPathC2, 'utf8');
+    await db.exec(sqlContentC2);
+
+    const migrationPathFix = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20261021190000_fix_c2_privacy_pending_guest_logistics.sql'
+    );
+    const sqlContentFix = fs.readFileSync(migrationPathFix, 'utf8');
+    await db.exec(sqlContentFix);
 
     // 3. Insertar datos de prueba
     // Encuentro activo estándar
@@ -196,6 +210,51 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
       RETURNING token_invitacion;
     `, [encounterId]);
     guestTokenRejected = pRech.rows[0].token_invitacion;
+
+    const pCanc = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado)
+      VALUES ($1, 'Invitado Token Canc', 'cancelado')
+      RETURNING token_invitacion;
+    `, [encounterId]);
+    guestTokenCancelled = pCanc.rows[0].token_invitacion;
+
+    // F) Encuentro virtual activo con participantes
+    const resVirt = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, descripcion, fecha, hora, modalidad, lugar_texto, link_virtual, estado
+      ) VALUES (
+        $1, 'Webinar de Diseño', 'Taller online', '2026-11-25', '18:00', 'virtual', NULL, 'https://meet.jit.si/puntoencuentro-test', 'activo'
+      ) RETURNING id;
+    `, [hostUser]);
+    virtualEncounterId = resVirt.rows[0].id;
+
+    const pvConf = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado)
+      VALUES ($1, 'Invitado Virtual Conf', 'confirmado')
+      RETURNING token_invitacion;
+    `, [virtualEncounterId]);
+    guestTokenVirtualConf = pvConf.rows[0].token_invitacion;
+
+    const pvPend = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado)
+      VALUES ($1, 'Invitado Virtual Pend', 'pendiente')
+      RETURNING token_invitacion;
+    `, [virtualEncounterId]);
+    guestTokenVirtualPend = pvPend.rows[0].token_invitacion;
+
+    const pvRech = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado)
+      VALUES ($1, 'Invitado Virtual Rech', 'rechazado')
+      RETURNING token_invitacion;
+    `, [virtualEncounterId]);
+    guestTokenVirtualRech = pvRech.rows[0].token_invitacion;
+
+    const pvCanc = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (encuentro_id, nombre_invitado, estado)
+      VALUES ($1, 'Invitado Virtual Canc', 'cancelado')
+      RETURNING token_invitacion;
+    `, [virtualEncounterId]);
+    guestTokenVirtualCanc = pvCanc.rows[0].token_invitacion;
   });
 
   const setAuthContext = async (uid: string | null, isAnon = false) => {
@@ -486,37 +545,120 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
     assert.strictEqual(resAfterRetire.rows[0].res.wa_link, null);
   });
 
-  test('9. get_participante_seguro oculta logística privada en cancelaciones o rechazos', async () => {
+  test('9. get_participante_seguro: privacidad estricta de logística privada (pendiente, confirmado, rechazado, cancelado y revocación)', async () => {
     await setAuthContext(null);
 
-    // Participante confirmado ve el lugar
+    // --- ENCUENTRO PRESENCIAL ---
+    // A) Participante pendiente NO ve la dirección exacta, pero sí datos públicos para decidir
+    const resPend = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenPending]
+    );
+    assert.ok(resPend.rows[0].res !== null);
+    assert.strictEqual(resPend.rows[0].res.estado, 'pendiente');
+    assert.strictEqual(resPend.rows[0].res.encuentros.lugar_texto, null, 'Pendiente no debe ver dirección exacta');
+    assert.strictEqual(resPend.rows[0].res.encuentros.link_virtual, null);
+    // Preservar datos públicos indispensables para decidir
+    assert.strictEqual(resPend.rows[0].res.encuentros.titulo, 'Cumpleaños de Martín');
+    assert.strictEqual(resPend.rows[0].res.encuentros.descripcion, 'Festejo en casa');
+    assert.strictEqual(resPend.rows[0].res.encuentros.fecha, '2026-11-15');
+    assert.strictEqual(resPend.rows[0].res.encuentros.hora, '19:00:00');
+    assert.strictEqual(resPend.rows[0].res.encuentros.modalidad, 'presencial');
+    assert.strictEqual(resPend.rows[0].res.encuentros.estado, 'activo');
+
+    // B) Participante confirmado SÍ ve la dirección exacta
     const resConf = await db.query<{ res: any }>(
       `SELECT public.get_participante_seguro($1) AS res;`,
       [guestTokenConfirmed]
     );
     assert.ok(resConf.rows[0].res !== null);
+    assert.strictEqual(resConf.rows[0].res.estado, 'confirmado');
     assert.strictEqual(resConf.rows[0].res.encuentros.lugar_texto, 'Av. Colón 1234, 4to B');
+    assert.strictEqual(resConf.rows[0].res.encuentros.link_virtual, null);
 
-    // Participante rechazado NO ve el lugar (null)
+    // C) Participante rechazado NO ve la dirección exacta (null)
     const resRech = await db.query<{ res: any }>(
       `SELECT public.get_participante_seguro($1) AS res;`,
       [guestTokenRejected]
     );
     assert.ok(resRech.rows[0].res !== null);
+    assert.strictEqual(resRech.rows[0].res.estado, 'rechazado');
     assert.strictEqual(resRech.rows[0].res.encuentros.lugar_texto, null);
+    assert.strictEqual(resRech.rows[0].res.encuentros.link_virtual, null);
 
-    // Si cancelamos el encuentro, el participante confirmado deja de ver el lugar
+    // D) Participante cancelado / retirado NO ve la dirección exacta (null)
+    const resCanc = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenCancelled]
+    );
+    assert.ok(resCanc.rows[0].res !== null);
+    assert.strictEqual(resCanc.rows[0].res.estado, 'cancelado');
+    assert.strictEqual(resCanc.rows[0].res.encuentros.lugar_texto, null);
+    assert.strictEqual(resCanc.rows[0].res.encuentros.link_virtual, null);
+
+    // --- ENCUENTRO VIRTUAL ---
+    // E) Participante virtual pendiente NO ve link_virtual, pero ve datos públicos
+    const resVirtPend = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenVirtualPend]
+    );
+    assert.ok(resVirtPend.rows[0].res !== null);
+    assert.strictEqual(resVirtPend.rows[0].res.estado, 'pendiente');
+    assert.strictEqual(resVirtPend.rows[0].res.encuentros.link_virtual, null, 'Pendiente virtual no debe ver enlace');
+    assert.strictEqual(resVirtPend.rows[0].res.encuentros.lugar_texto, null);
+    assert.strictEqual(resVirtPend.rows[0].res.encuentros.titulo, 'Webinar de Diseño');
+    assert.strictEqual(resVirtPend.rows[0].res.encuentros.modalidad, 'virtual');
+
+    // F) Participante virtual confirmado SÍ ve link_virtual
+    const resVirtConf = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenVirtualConf]
+    );
+    assert.ok(resVirtConf.rows[0].res !== null);
+    assert.strictEqual(resVirtConf.rows[0].res.estado, 'confirmado');
+    assert.strictEqual(resVirtConf.rows[0].res.encuentros.link_virtual, 'https://meet.jit.si/puntoencuentro-test');
+
+    // G) Participante virtual rechazado NO ve link_virtual
+    const resVirtRech = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenVirtualRech]
+    );
+    assert.ok(resVirtRech.rows[0].res !== null);
+    assert.strictEqual(resVirtRech.rows[0].res.encuentros.link_virtual, null);
+
+    // H) Participante virtual cancelado NO ve link_virtual
+    const resVirtCanc = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenVirtualCanc]
+    );
+    assert.ok(resVirtCanc.rows[0].res !== null);
+    assert.strictEqual(resVirtCanc.rows[0].res.encuentros.link_virtual, null);
+
+    // --- REVOCACIÓN POR CANCELACIÓN DEL ENCUENTRO ---
+    // I) Si se cancela el encuentro presencial, el confirmado pierde el acceso a lugar_texto
     await db.exec(`SET ROLE postgres;`);
     await db.query(`UPDATE public.encuentros SET estado = 'cancelado' WHERE id = $1;`, [encounterId]);
     await setAuthContext(null);
 
-    const resCancelled = await db.query<{ res: any }>(
+    const resCancelledPres = await db.query<{ res: any }>(
       `SELECT public.get_participante_seguro($1) AS res;`,
       [guestTokenConfirmed]
     );
-    assert.ok(resCancelled.rows[0].res !== null);
-    assert.strictEqual(resCancelled.rows[0].res.encuentros.lugar_texto, null);
-    assert.strictEqual(resCancelled.rows[0].res.encuentros.link_virtual, null);
+    assert.ok(resCancelledPres.rows[0].res !== null);
+    assert.strictEqual(resCancelledPres.rows[0].res.encuentros.lugar_texto, null, 'Revocación por cancelación presencial');
+    assert.strictEqual(resCancelledPres.rows[0].res.encuentros.link_virtual, null);
+
+    // J) Si se cancela el encuentro virtual, el confirmado pierde el acceso a link_virtual
+    await db.exec(`SET ROLE postgres;`);
+    await db.query(`UPDATE public.encuentros SET estado = 'cancelado' WHERE id = $1;`, [virtualEncounterId]);
+    await setAuthContext(null);
+
+    const resCancelledVirt = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [guestTokenVirtualConf]
+    );
+    assert.ok(resCancelledVirt.rows[0].res !== null);
+    assert.strictEqual(resCancelledVirt.rows[0].res.encuentros.link_virtual, null, 'Revocación por cancelación virtual');
   });
 
   test('10. Consistencia de i18n completa en ES, EN, PT y PT-BR', () => {
