@@ -57,6 +57,8 @@ export interface HomeOpenEncountersProps {
   onClearHighlight?: () => void;
   /** Disparador de refresco en caliente para Discovery (ej. tras nuevo match en tiempo real) */
   refreshTrigger?: number;
+  /** Disparador controlado externo para abrir Avisame (Fase 2B / Navegación) */
+  externalAvisameTrigger?: { tab: 'create' | 'list'; timestamp: number } | null;
 }
 
 /**
@@ -96,6 +98,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   highlightEncounterIds,
   onClearHighlight,
   refreshTrigger,
+  externalAvisameTrigger,
 }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -130,6 +133,19 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [isAvisameOpen, setIsAvisameOpen] = useState(false);
   const [avisameTab, setAvisameTab] = useState<'create' | 'list'>('create');
   const [avisameDraft, setAvisameDraft] = useState<Partial<CrearAlertaParams> | null>(null);
+
+  // Disparador controlado externo para abrir Avisame desde navegación
+  useEffect(() => {
+    if (externalAvisameTrigger && externalAvisameTrigger.timestamp > 0) {
+      if (!isPermanentUser) {
+        setLoginSheetAction('create_alert');
+        setIsLoginSheetOpen(true);
+      } else {
+        setAvisameTab(externalAvisameTrigger.tab);
+        setIsAvisameOpen(true);
+      }
+    }
+  }, [externalAvisameTrigger, isPermanentUser]);
 
   // Filtro simple: Solo con lugares disponibles (por defecto false/OFF)
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);

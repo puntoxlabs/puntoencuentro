@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Plus, User, MoreVertical, Bell, Sparkles, Bookmark, BookUser } from 'lucide-react';
+import { Calendar, Plus, User, Bell, Sparkles, Bookmark, BookUser, Menu } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
+import { QuickNavMenu } from '@/components/navigation/QuickNavMenu';
 import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { NotificationsSheet } from '@/components/notifications';
@@ -453,7 +454,84 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [error, setError] = useState<string | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [infoInitialSection, setInfoInitialSection] = useState<number | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const [externalAvisameTrigger, setExternalAvisameTrigger] = useState<{ tab: 'create' | 'list'; timestamp: number } | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const personalActivityRef = useRef<HTMLDivElement | null>(null);
+
+  // Manejadores de navegación para el Menú de Accesos Rápidos
+  const handleSelectPersonalTab = useCallback((tab: 'encuentros' | 'intenciones' | 'solicitudes') => {
+    setUserSectionTab(tab);
+    setIsNavMenuOpen(false);
+
+    setTimeout(() => {
+      const el = personalActivityRef.current || document.getElementById('home-personal-activity-section');
+      if (el) {
+        const header = document.querySelector('.home-header');
+        const headerHeight = header ? header.getBoundingClientRect().height : 70;
+        const targetY = el.getBoundingClientRect().top + window.scrollY - headerHeight - 12;
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({
+          top: Math.max(0, targetY),
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+      }
+    }, 60);
+  }, []);
+
+  const handleSelectDiscovery = useCallback(() => {
+    setIsNavMenuOpen(false);
+
+    setTimeout(() => {
+      const el = document.getElementById('home-discovery-section');
+      if (el) {
+        const header = document.querySelector('.home-header');
+        const headerHeight = header ? header.getBoundingClientRect().height : 70;
+        const targetY = el.getBoundingClientRect().top + window.scrollY - headerHeight - 12;
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({
+          top: Math.max(0, targetY),
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+      }
+    }, 60);
+  }, []);
+
+  const handleSelectFavorites = useCallback(() => {
+    setIsNavMenuOpen(false);
+    if (!isPermanentUser) {
+      setIsAccountOpen(true);
+      return;
+    }
+    setIsFavoritesOpen(true);
+  }, [isPermanentUser]);
+
+  const handleSelectMisListas = useCallback(() => {
+    setIsNavMenuOpen(false);
+    if (!isPermanentUser) {
+      setIsAccountOpen(true);
+      return;
+    }
+    setIsGuestListsOpen(true);
+  }, [isPermanentUser]);
+
+  const handleSelectMisAvisos = useCallback(() => {
+    setIsNavMenuOpen(false);
+    setExternalAvisameTrigger({ tab: 'list', timestamp: Date.now() });
+  }, []);
+
+  const handleSelectHelp = useCallback(() => {
+    setIsNavMenuOpen(false);
+    setInfoInitialSection(1);
+    setIsInfoOpen(true);
+  }, []);
+
+  const handleSelectFeedback = useCallback(() => {
+    setIsNavMenuOpen(false);
+    setIsFeedbackOpen(true);
+  }, []);
 
   useEffect(() => {
     appUsageTelemetry.trackHomeVisit();
@@ -869,17 +947,19 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   //   • teclado/input activo en mobile (interfiere con la escritura)
   //
   // En desktop el input enfocado no oculta el FAB salvo interferencia real (layout fijo).
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+
   const isAnySheetOpen =
     isAccountOpen ||
     isInfoOpen ||
+    isFeedbackOpen ||
     isSecondaryFilterOpen ||
     isModeChoiceOpen ||
     isOverwriteSheetOpen ||
     isLoginRequiredForAiOpen ||
     isAiLimitReachedOpen ||
+    (isNavMenuOpen && isMobileViewport) ||
     Boolean(coordinationWarningProps.open);
-
-  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
 
   const showFab =
     !loading &&
@@ -1558,7 +1638,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [isGuestListsOpen, setIsGuestListsOpen] = useState(false);
 
   const personalActivitySection = (
-    <div className="home-encounters-section">
+    <div
+      ref={personalActivityRef}
+      id="home-personal-activity-section"
+      className="home-encounters-section"
+    >
       <div className="pe-encounters-inner">
         {(isV2Variant || isPermanentUser) && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: isV2Variant ? 0 : 8, flexWrap: 'wrap' }}>
@@ -1741,14 +1825,36 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             )}
           </button>
 
-          {/* Botón de información */}
+          {/* Menú de navegación y accesos rápidos */}
           <button
-            onClick={() => setIsInfoOpen(true)}
-            className="home-header-icon-btn"
-            title="Información"
+            ref={menuTriggerRef}
+            onClick={() => setIsNavMenuOpen((prev) => !prev)}
+            className="home-header-icon-btn home-header-menu-btn"
+            aria-label={t('nav_menu.button_label', { defaultValue: 'Menú principal' })}
+            title={t('nav_menu.button_label', { defaultValue: 'Menú principal' })}
+            aria-expanded={isNavMenuOpen}
+            aria-haspopup="dialog"
+            aria-controls="home-quick-nav-menu"
           >
-            <MoreVertical size={20} />
+            <Menu size={22} />
           </button>
+
+          <QuickNavMenu
+            isOpen={isNavMenuOpen}
+            onClose={() => setIsNavMenuOpen(false)}
+            triggerRef={menuTriggerRef}
+            isPermanentUser={isPermanentUser}
+            totalPendingRequests={totalHostPendingRequests}
+            onSelectEncuentros={() => handleSelectPersonalTab('encuentros')}
+            onSelectGanas={() => handleSelectPersonalTab('intenciones')}
+            onSelectSolicitudes={() => handleSelectPersonalTab('solicitudes')}
+            onSelectFavoritos={handleSelectFavorites}
+            onSelectMisListas={handleSelectMisListas}
+            onSelectMeSumo={handleSelectDiscovery}
+            onSelectMisAvisos={handleSelectMisAvisos}
+            onSelectHelp={handleSelectHelp}
+            onSelectFeedback={handleSelectFeedback}
+          />
         </div>
       </header>
 
@@ -1923,6 +2029,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             highlightEncounterIds={matchedHighlightIds}
             onClearHighlight={handleClearHighlight}
             refreshTrigger={discoveryRefreshTrigger}
+            externalAvisameTrigger={externalAvisameTrigger}
             onFocusIntentInput={() => {
               const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
               if (textarea) {
@@ -2141,7 +2248,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       <InfoSheet
         isOpen={isInfoOpen}
-        onClose={() => setIsInfoOpen(false)}
+        initialSection={infoInitialSection}
+        onClose={() => {
+          setIsInfoOpen(false);
+          setInfoInitialSection(null);
+        }}
         onOpenFeedback={() => setIsFeedbackOpen(true)}
         onOpenLogin={() => setIsAccountOpen(true)}
       />

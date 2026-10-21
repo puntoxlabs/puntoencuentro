@@ -198,6 +198,9 @@ try {
   await server.ssrLoadModule('./scripts/test-whatsapp-contact-and-instructions-c2.ts');
   console.log('✅ Mini-sprint C2: Contacto voluntario de WhatsApp e Instrucciones definitivas tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-quick-nav-menu.ts');
+  console.log('✅ Mini-sprint Prelanzamiento: Menú de navegación y accesos rápidos tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

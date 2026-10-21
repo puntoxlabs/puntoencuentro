@@ -456,5 +456,25 @@
     "whatsapp_modal_save": "Salvar e compartilhar",
     "whatsapp_modal_cancel": "Cancelar",
     "whatsapp_invalid_phone": "Insira um número internacional válido (entre 8 e 15 dígitos com código do país)."
+  },
+  "nav_menu": {
+    "button_label": "Menu principal",
+    "title": "Navegação",
+    "close": "Fechar menu",
+    "group_activity": "Minha atividade",
+    "group_explore": "Explorar",
+    "group_info": "Informação",
+    "my_encounters": "Meus encontros",
+    "my_intentions": "Quero fazer",
+    "my_requests": "Meus pedidos",
+    "favorites": "Favoritos",
+    "my_lists": "Minhas listas",
+    "explore_open": "Do que posso participar?",
+    "my_alerts": "Meus avisos",
+    "help": "Como funciona / Ajuda",
+    "feedback": "Enviar opinião",
+    "requires_account": "Requer conta",
+    "pending_badge": "{{count}} pendente",
+    "pending_badge_plural": "{{count}} pendentes"
   }
 }

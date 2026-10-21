@@ -714,5 +714,25 @@
     "login_cta": "Iniciar sesión para enviar opinión",
     "login_prompt": "Por favor iniciá sesión desde el menú principal para poder opinar.",
     "generic_error": "No se pudo enviar tu opinión. Por favor intentá nuevamente."
+  },
+  "nav_menu": {
+    "button_label": "Menú principal",
+    "title": "Navegación",
+    "close": "Cerrar menú",
+    "group_activity": "Mi actividad",
+    "group_explore": "Explorar",
+    "group_info": "Información",
+    "my_encounters": "Mis encuentros",
+    "my_intentions": "Mis ganas",
+    "my_requests": "Mis solicitudes",
+    "favorites": "Favoritos",
+    "my_lists": "Mis listas",
+    "explore_open": "Me sumo",
+    "my_alerts": "Mis avisos",
+    "help": "Cómo funciona / Ayuda",
+    "feedback": "Enviar una opinión",
+    "requires_account": "Requiere cuenta",
+    "pending_badge": "{{count}} pendiente",
+    "pending_badge_plural": "{{count}} pendientes"
   }
 }

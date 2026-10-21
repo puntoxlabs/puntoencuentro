@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Info, Shield, MessageSquare, Tag, ChevronRight } from 'lucide-react';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import './BottomSheet.css';
 
-interface InfoSheetProps {
+export interface InfoSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenFeedback?: () => void;
   onOpenLogin?: () => void;
+  initialSection?: number | null;
 }
 
 export const InfoSheet: React.FC<InfoSheetProps> = ({
@@ -15,9 +16,16 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({
   onClose,
   onOpenFeedback,
   onOpenLogin,
+  initialSection = null,
 }) => {
-  const [activeSection, setActiveSection] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState<number | null>(initialSection);
   const [isInternalFeedbackOpen, setIsInternalFeedbackOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection(initialSection ?? null);
+    }
+  }, [isOpen, initialSection]);
 
   if (!isOpen && !isInternalFeedbackOpen) return null;
 

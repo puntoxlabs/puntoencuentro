@@ -712,5 +712,25 @@
     "login_cta": "Sign in to send feedback",
     "login_prompt": "Please sign in from the main menu to send feedback.",
     "generic_error": "Could not submit your feedback. Please try again."
+  },
+  "nav_menu": {
+    "button_label": "Main menu",
+    "title": "Navigation",
+    "close": "Close menu",
+    "group_activity": "My activity",
+    "group_explore": "Explore",
+    "group_info": "Information",
+    "my_encounters": "My meetups",
+    "my_intentions": "I feel like…",
+    "my_requests": "My requests",
+    "favorites": "Favorites",
+    "my_lists": "My lists",
+    "explore_open": "What can I join?",
+    "my_alerts": "My alerts",
+    "help": "How it works / Help",
+    "feedback": "Send feedback",
+    "requires_account": "Account required",
+    "pending_badge": "{{count}} pending",
+    "pending_badge_plural": "{{count}} pending"
   }
 }

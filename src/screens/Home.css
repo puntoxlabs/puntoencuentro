@@ -531,6 +531,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+}
+
+#home-personal-activity-section,
+#home-discovery-section {
+  scroll-margin-top: calc(75px + env(safe-area-inset-top, 0px));
 }
 
 .home-header-icon-btn {
