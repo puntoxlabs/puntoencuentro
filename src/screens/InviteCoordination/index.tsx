@@ -17,6 +17,7 @@ import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -53,6 +54,10 @@ export default function InviteCoordination() {
 
   useEffect(() => {
     if (!token) return;
+    appUsageTelemetry.trackInvitationOpened({
+      invitationType: 'coordination_individual',
+      cacheKey: token,
+    });
     let mounted = true;
 
     encuentrosService.getCoordinacionParticipante(token)

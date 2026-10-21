@@ -8,6 +8,7 @@ import type { CoordinationHostDetail } from '@/services/encuentrosService';
 import { Clock, MapPin, Video, Link, Users, Share2, Plus, ChevronDown, ChevronUp, Repeat, Bookmark } from 'lucide-react';
 import { formatFriendlyDate, formatFriendlyDeadline } from '@/lib/formatDate';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { useTranslation } from 'react-i18next';
 import { formatCoordinationDuration } from '@/lib/formatDuration';
 import { useAuth } from '@/contexts/AuthContext';
@@ -136,8 +137,18 @@ const DetailHostCoordination: React.FC = () => {
     try {
       if (isMobileShareEnvironment()) {
         await navigator.share(shareData);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'coordination',
+          shareChannel: 'system_share',
+        });
       } else {
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'coordination',
+          shareChannel: 'clipboard_copy',
+        });
         alert('¡Link copiado al portapapeles!');
       }
     } catch (err) {
@@ -179,9 +190,19 @@ const DetailHostCoordination: React.FC = () => {
     try {
       if (isMobileShareEnvironment()) {
         await navigator.share(shareData);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'system_share',
+        });
       } else {
         const fullText = confirmUrl ? `${shareText}` : shareText;
         await navigator.clipboard.writeText(fullText);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'clipboard_copy',
+        });
         alert('¡Texto copiado al portapapeles!');
       }
     } catch (err) {

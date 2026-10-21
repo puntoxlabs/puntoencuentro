@@ -671,5 +671,28 @@
     "reminder_1h": "1 hora antes",
     "reminder_1d": "1 día antes",
     "reminder_none": "Sin recordatorio"
+  },
+  "feedback": {
+    "title": "Ayudanos a mejorar",
+    "cta_secondary": "Ayudanos a mejorar · Enviar una opinión",
+    "cat_issue": "Problema",
+    "cat_suggestion": "Mejora",
+    "cat_general": "Opinión",
+    "category_label": "Tipo de opinión",
+    "placeholder_issue": "¿Qué problema experimentaste y qué estabas intentando hacer?",
+    "placeholder_suggestion": "¿Qué mejora o funcionalidad te gustaría ver en PuntoEncuentro?",
+    "placeholder_general": "Contanos qué te parece la app o compartí cualquier comentario...",
+    "textarea_label": "Escribí tu comentario",
+    "submit_btn": "Enviar opinión",
+    "submitting": "Enviando...",
+    "success_title": "¡Muchas gracias por tu opinión!",
+    "success_desc": "Tus comentarios nos ayudan a que PuntoEncuentro sea más simple y confiable para todos.",
+    "close_btn": "Listo",
+    "rate_limited": "Has enviado varios comentarios recientemente. Por favor esperá un momento antes de enviar otro.",
+    "auth_required_msg": "Es necesario iniciar sesión para enviar comentarios y evitar spam.",
+    "auth_note": "Para proteger la comunidad contra envíos masivos o spam no deseado, requerimos que inicies sesión antes de enviar tu opinión.",
+    "login_cta": "Iniciar sesión para enviar opinión",
+    "login_prompt": "Por favor iniciá sesión desde el menú principal para poder opinar.",
+    "generic_error": "No se pudo enviar tu opinión. Por favor intentá nuevamente."
   }
 }

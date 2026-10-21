@@ -669,5 +669,28 @@
     "reminder_1h": "1 hour before",
     "reminder_1d": "1 day before",
     "reminder_none": "No reminder"
+  },
+  "feedback": {
+    "title": "Help us improve",
+    "cta_secondary": "Help us improve · Send feedback",
+    "cat_issue": "Issue",
+    "cat_suggestion": "Suggestion",
+    "cat_general": "General",
+    "category_label": "Feedback type",
+    "placeholder_issue": "What issue did you experience and what were you trying to do?",
+    "placeholder_suggestion": "What improvement or feature would you like to see in PuntoEncuentro?",
+    "placeholder_general": "Tell us what you think about the app or share any feedback...",
+    "textarea_label": "Write your feedback",
+    "submit_btn": "Send feedback",
+    "submitting": "Sending...",
+    "success_title": "Thank you for your feedback!",
+    "success_desc": "Your thoughts help us make PuntoEncuentro simpler and more reliable for everyone.",
+    "close_btn": "Done",
+    "rate_limited": "You have submitted multiple comments recently. Please wait a moment before sending another.",
+    "auth_required_msg": "Signing in is required to submit feedback and prevent spam.",
+    "auth_note": "To protect the community against automated spam, we require you to sign in before submitting feedback.",
+    "login_cta": "Sign in to send feedback",
+    "login_prompt": "Please sign in from the main menu to send feedback.",
+    "generic_error": "Could not submit your feedback. Please try again."
   }
 }

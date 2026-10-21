@@ -23,6 +23,43 @@ export interface QADashboardMetrics {
   clarification_events: number;
   avg_latency_ms: number;
   p90_latency_ms: number;
+
+  // Nuevas métricas agregadas (Mini-sprint C1)
+  home_visits?: number;
+  invitations_shared?: number;
+  invitations_opened?: number;
+  sessions_manual?: number;
+  sessions_ai?: number;
+  sessions_coordination?: number;
+  rsvps_confirmed?: number;
+  rsvps_declined?: number;
+  rsvps_total?: number;
+  rsvp_confirmation_rate?: number;
+  open_requests_created?: number;
+  open_requests_approved?: number;
+  open_requests_rejected?: number;
+  open_request_approval_rate?: number;
+  avisame_created?: number;
+  technical_errors?: number;
+  retention_policy_days?: number;
+}
+
+export interface QAUserFeedbackItem {
+  id: string;
+  category: 'issue' | 'suggestion' | 'general';
+  comment: string;
+  page_route: string | null;
+  status: 'unread' | 'reviewed' | 'archived';
+  created_at: string;
+  is_authenticated: boolean;
+}
+
+export interface QAUserFeedbackResponse {
+  ok: boolean;
+  feedback: QAUserFeedbackItem[];
+  total_count: number;
+  limit: number;
+  offset: number;
 }
 
 export interface QASession {
@@ -231,4 +268,40 @@ export const getQAPushDeliveryStatus = async (
   });
   if (error) throw error;
   return data as QAPushDeliveryStatusResponse;
+};
+
+/**
+ * Consulta la lista paginada de feedback de usuarios (exclusivo para QA/Admin).
+ */
+export const getQAUserFeedback = async (
+  days: number = 30,
+  category: 'issue' | 'suggestion' | 'general' | null = null,
+  status: 'unread' | 'reviewed' | 'archived' | null = null,
+  limit: number = 50,
+  offset: number = 0
+): Promise<QAUserFeedbackResponse> => {
+  const { data, error } = await supabase.rpc('get_qa_user_feedback', {
+    p_days: days,
+    p_category: category,
+    p_status: status,
+    p_limit: limit,
+    p_offset: offset,
+  });
+  if (error) throw error;
+  return data as QAUserFeedbackResponse;
+};
+
+/**
+ * Actualiza el estado de un feedback de usuario (unread, reviewed, archived).
+ */
+export const updateQAFeedbackStatus = async (
+  feedbackId: string,
+  status: 'unread' | 'reviewed' | 'archived'
+): Promise<{ ok: boolean; id: string; status: string }> => {
+  const { data, error } = await supabase.rpc('update_qa_user_feedback_status', {
+    p_feedback_id: feedbackId,
+    p_status: status,
+  });
+  if (error) throw error;
+  return data as { ok: boolean; id: string; status: string };
 };

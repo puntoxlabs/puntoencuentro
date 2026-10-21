@@ -39,6 +39,7 @@ import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
 import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
@@ -762,10 +763,20 @@ const DetailHost: React.FC = () => {
       if (isMobileShareEnvironment() && navigator.share) {
         await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
         setShareFeedback(true);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'system_share',
+        });
       } else {
         await navigator.clipboard.writeText(shareText);
         setCopiedShare(true); setTimeout(() => setCopiedShare(false), 3000);
         setShareFeedback(true);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'clipboard_copy',
+        });
       }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
@@ -838,6 +849,11 @@ const DetailHost: React.FC = () => {
       try {
         await navigator.share({ title: encuentro.titulo || 'Invitación', text: shareText });
         markAsShared(partId); // marcar solo si el share completó sin error
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'system_share',
+        });
       } catch (err: any) {
         // AbortError = usuario canceló el diálogo de share → no marcar
         if (err?.name !== 'AbortError') console.error('Error sharing', err);
@@ -847,6 +863,11 @@ const DetailHost: React.FC = () => {
         await navigator.clipboard.writeText(shareText);
         markAsShared(partId); // marcar solo si la copia fue exitosa
         setCopiedId(partId); setTimeout(() => setCopiedId(null), 2000);
+        appUsageTelemetry.trackInvitationShared({
+          encounterId: encuentro?.id,
+          encounterMode: 'fixed',
+          shareChannel: 'clipboard_copy',
+        });
       } catch (err) { console.error('Failed to copy', err); alert('Error al copiar el enlace.'); }
     }
   };

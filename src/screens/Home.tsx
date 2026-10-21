@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Calendar, Plus, User, MoreVertical, Bell, Sparkles, Bookmark, BookUser } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { NotificationsSheet } from '@/components/notifications';
 import { FavoritesManagerSheet } from '@/components/reuse';
@@ -451,6 +453,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [error, setError] = useState<string | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
+  useEffect(() => {
+    appUsageTelemetry.trackHomeVisit();
+  }, []);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
   const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones' | 'solicitudes'>(() => {
@@ -2097,6 +2104,26 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px', overflow: 'hidden' }}>
                 {renderContent()}
               </div>
+
+              {/* Acceso secundario: Ayudanos a mejorar / Enviar opinión */}
+              <div className="home-secondary-feedback-row" style={{ textAlign: 'center', padding: '24px 16px 36px 16px' }}>
+                <button
+                  type="button"
+                  className="home-secondary-feedback-btn"
+                  onClick={() => setIsFeedbackOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-outline, #6b7280)',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '8px 12px',
+                  }}
+                >
+                  {t('feedback.cta_secondary', 'Ayudanos a mejorar · Enviar una opinión')}
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -2112,7 +2139,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         onClose={() => setIsOverwriteSheetOpen(false)}
       />
       <AccountSheet isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
-      <InfoSheet isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+      <InfoSheet
+        isOpen={isInfoOpen}
+        onClose={() => setIsInfoOpen(false)}
+        onOpenFeedback={() => setIsFeedbackOpen(true)}
+        onOpenLogin={() => setIsAccountOpen(true)}
+      />
+      <FeedbackSheet
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        onOpenLogin={() => setIsAccountOpen(true)}
+      />
       <CreationAccountChoiceSheet {...choiceSheetProps} />
       <EncounterModeChoiceSheet
         open={isModeChoiceOpen}

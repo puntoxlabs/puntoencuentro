@@ -14,6 +14,7 @@ import { openExternalVideoLink } from '@/lib/openLink';
 import { getThemeStyle } from '@/lib/themes';
 import { normalizeInvitationTheme, getThemeEyebrow } from '@/lib/invitationThemes';
 import { formatCount } from '@/lib/formatCount';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
@@ -71,7 +72,15 @@ const JoinGeneral: React.FC = () => {
   const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { if (public_token) loadData(); }, [public_token]);
+  useEffect(() => {
+    if (public_token) {
+      loadData();
+      appUsageTelemetry.trackInvitationOpened({
+        invitationType: 'general',
+        cacheKey: public_token,
+      });
+    }
+  }, [public_token]);
 
   // Polling de respuestas visibles
   // SEGURIDAD: usa ownInviteToken (token personal del participante), nunca public_token.

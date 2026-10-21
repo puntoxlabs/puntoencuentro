@@ -17,6 +17,7 @@ import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import '../CoordinationGuest.css';
 
 type CoordinationPublicSuccess = Extract<CoordinationPublicReadResult, { ok: true }>;
@@ -44,6 +45,10 @@ export default function JoinCoordination() {
 
   useEffect(() => {
     if (!token) return;
+    appUsageTelemetry.trackInvitationOpened({
+      invitationType: 'coordination_general',
+      cacheKey: token,
+    });
     let mounted = true;
 
     const checkTokenAndLoad = async () => {

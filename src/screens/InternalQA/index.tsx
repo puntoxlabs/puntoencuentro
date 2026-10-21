@@ -12,6 +12,7 @@ import type {
 } from '../../services/qaAdminService';
 import { QAWebPushDiagnostic } from './QAWebPushDiagnostic';
 import { QAModeratorsSection } from './QAModeratorsSection';
+import { QAUserFeedbackSection } from './QAUserFeedbackSection';
 import './InternalQA.css';
 
 interface QAOverviewServiceOverride {
@@ -204,14 +205,44 @@ const InternalQAOverview: React.FC<InternalQAOverviewProps> = ({
         {/* Contenido principal cuando no hay error ni loading */}
         {!loading && !error && metrics && (
           <>
-            {/* Tarjetas Principales */}
-            <section aria-label="Métricas principales">
-              <h2 className="qa-section-title">Métricas de Creación</h2>
+            {/* Adquisición y Canales (Eventos Observados) */}
+            <section aria-label="Adquisición y canales">
+              <h2 className="qa-section-title">Adquisición y Canales (Eventos Observados)</h2>
+              <div className="qa-metrics-grid">
+                <div className="qa-metric-card qa-metric-card--accent">
+                  <span className="qa-metric-label">Visitas a la Home</span>
+                  <span className="qa-metric-value">{metrics.home_visits ?? 0}</span>
+                  <span className="qa-metric-subtext">Sesiones únicas en {metrics.period_days} días</span>
+                </div>
+
+                <div className="qa-metric-card">
+                  <span className="qa-metric-label">Enlaces compartidos</span>
+                  <span className="qa-metric-value">{metrics.invitations_shared ?? 0}</span>
+                  <span className="qa-metric-subtext">Acción verificada de la app</span>
+                </div>
+
+                <div className="qa-metric-card">
+                  <span className="qa-metric-label">Invitaciones abiertas</span>
+                  <span className="qa-metric-value">{metrics.invitations_opened ?? 0}</span>
+                  <span className="qa-metric-subtext">Aperturas de enlace registradas</span>
+                </div>
+
+                <div className="qa-metric-card">
+                  <span className="qa-metric-label">Avisos creados</span>
+                  <span className="qa-metric-value">{metrics.avisame_created ?? 0}</span>
+                  <span className="qa-metric-subtext">Suscripciones Avisame</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Tarjetas Principales de Creación */}
+            <section aria-label="Métricas principales de creación">
+              <h2 className="qa-section-title">Embudo de Creación & Conversión</h2>
               <div className="qa-metrics-grid">
                 <div className="qa-metric-card qa-metric-card--accent">
                   <span className="qa-metric-label">Sesiones iniciadas</span>
                   <span className="qa-metric-value">{metrics.total_sessions}</span>
-                  <span className="qa-metric-subtext">Total en {metrics.period_days} días</span>
+                  <span className="qa-metric-subtext">Manual, IA y Coordinación</span>
                 </div>
 
                 <div className="qa-metric-card">
@@ -223,13 +254,13 @@ const InternalQAOverview: React.FC<InternalQAOverviewProps> = ({
                 <div className="qa-metric-card">
                   <span className="qa-metric-label">Tasa de finalización</span>
                   <span className="qa-metric-value">{`${metrics.conversion_rate}%`}</span>
-                  <span className="qa-metric-subtext">Conversión sobre total</span>
+                  <span className="qa-metric-subtext">Creados / Iniciados</span>
                 </div>
 
                 <div className="qa-metric-card qa-metric-card--warning">
                   <span className="qa-metric-label">Probables abandonos</span>
                   <span className="qa-metric-value">{metrics.abandoned_sessions}</span>
-                  <span className="qa-metric-subtext">&gt; 30 min inactivo</span>
+                  <span className="qa-metric-subtext">Heurística: &gt; 30 min inactivo</span>
                 </div>
               </div>
             </section>
@@ -263,11 +294,49 @@ const InternalQAOverview: React.FC<InternalQAOverviewProps> = ({
               </div>
             </section>
 
+            {/* Interacción y Comunidad (RSVP & Abiertos) */}
+            <section aria-label="Interacción de invitados y comunidad">
+              <div className="qa-secondary-grid">
+                <div className="qa-secondary-card">
+                  <span className="qa-secondary-card-title">Respuestas a Invitaciones (RSVP)</span>
+                  <span className="qa-secondary-card-val">
+                    {`✅ ${metrics.rsvps_confirmed ?? 0} Sí · ❌ ${metrics.rsvps_declined ?? 0} No`}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)' }}>
+                    {`Confirmación observada: ${metrics.rsvp_confirmation_rate ?? 0}%`}
+                  </span>
+                </div>
+
+                <div className="qa-secondary-card">
+                  <span className="qa-secondary-card-title">Encuentros Abiertos</span>
+                  <span className="qa-secondary-card-val">
+                    {`📬 ${metrics.open_requests_created ?? 0} sol. · 👍 ${metrics.open_requests_approved ?? 0} aprob.`}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)' }}>
+                    {`Aprobación: ${metrics.open_request_approval_rate ?? 0}%`}
+                  </span>
+                </div>
+
+                <div className="qa-secondary-card">
+                  <span className="qa-secondary-card-title">Fricción & Errores</span>
+                  <span className="qa-secondary-card-val">
+                    {`⚠️ ${metrics.technical_errors ?? 0} Errores técnicos`}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)' }}>
+                    {`Abandonos probables: ${metrics.abandoned_sessions} (heurística >30min)`}
+                  </span>
+                </div>
+              </div>
+            </section>
+
             {/* Diagnóstico y Prueba Web Push (Fase Staging / QA) */}
             <QAWebPushDiagnostic />
 
             {/* Gestión de Moderadores (Trust & Safety) */}
             <QAModeratorsSection />
+
+            {/* Feedback de Usuarios (Mini-sprint C1) */}
+            <QAUserFeedbackSection periodDays={periodDays} />
 
             {/* Sesiones a revisar */}
             <section aria-label="Sesiones recientes a revisar">

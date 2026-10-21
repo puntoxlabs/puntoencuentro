@@ -192,6 +192,9 @@ try {
   await server.ssrLoadModule('./scripts/test-mini-sprint-b.ts');
   console.log('✅ Mini-sprint B: Calendario y Avisame (Exportación .ics, Horarios Silenciosos y Preferencias) tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-metrics-and-feedback-c1.ts');
+  console.log('✅ Mini-sprint C1: Métricas y Feedback de prelanzamiento tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

@@ -15,6 +15,7 @@ import { useResilientPolling } from '@/hooks/useResilientPolling';
 
 import { formatCount } from '@/lib/formatCount';
 import { useAuth } from '@/contexts/AuthContext';
+import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { getThemeStyle } from '@/lib/themes';
 import { normalizeInvitationTheme, getThemeEyebrow } from '@/lib/invitationThemes';
 import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2, Flag } from 'lucide-react';
@@ -143,7 +144,16 @@ const InviteGuest: React.FC = () => {
 
   useEffect(() => {
     if (import.meta.env.DEV) console.log('[INVITE] token inicial:', token);
-    if (token) { loadData(); } else { setError('Token no proporcionado en la URL.'); setLoading(false); }
+    if (token) {
+      loadData();
+      appUsageTelemetry.trackInvitationOpened({
+        invitationType: 'individual',
+        cacheKey: token,
+      });
+    } else {
+      setError('Token no proporcionado en la URL.');
+      setLoading(false);
+    }
   }, [token]);
 
   // Polling resiliente de respuestas visibles: 10s (activo) y máx 30s (inactivo visible)

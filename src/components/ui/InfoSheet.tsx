@@ -1,21 +1,33 @@
 import React, { useState } from 'react';
 import { X, Info, Shield, MessageSquare, Tag, ChevronRight } from 'lucide-react';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import './BottomSheet.css';
 
 interface InfoSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenFeedback?: () => void;
+  onOpenLogin?: () => void;
 }
 
-const FEEDBACK_FORM_URL = "https://forms.gle/XXXXXXXXXXXX";
-
-export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
+export const InfoSheet: React.FC<InfoSheetProps> = ({
+  isOpen,
+  onClose,
+  onOpenFeedback,
+  onOpenLogin,
+}) => {
   const [activeSection, setActiveSection] = useState<number | null>(null);
+  const [isInternalFeedbackOpen, setIsInternalFeedbackOpen] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isInternalFeedbackOpen) return null;
 
   const handleFeedback = () => {
-    window.open(FEEDBACK_FORM_URL, '_blank');
+    if (onOpenFeedback) {
+      onClose();
+      onOpenFeedback();
+    } else {
+      setIsInternalFeedbackOpen(true);
+    }
   };
 
   const renderContent = () => {
@@ -154,7 +166,7 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
               <button onClick={handleFeedback} className="pe-sheet-nav-btn">
                 <div className="pe-sheet-nav-content">
                   <span className="pe-sheet-nav-icon"><MessageSquare size={20} /></span>
-                  <span className="pe-sheet-nav-text">Dejar sugerencia o reporte</span>
+                  <span className="pe-sheet-nav-text">Enviar una opinión / Feedback</span>
                 </div>
                 <ChevronRight size={18} className="pe-sheet-nav-arrow" />
               </button>
@@ -173,11 +185,22 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <div onClick={onClose} className="pe-sheet-overlay" />
-      <div className="pe-sheet-container">
-        <div className="pe-sheet-handle" />
-        {renderContent()}
-      </div>
+      {isOpen && (
+        <>
+          <div onClick={onClose} className="pe-sheet-overlay" />
+          <div className="pe-sheet-container">
+            <div className="pe-sheet-handle" />
+            {renderContent()}
+          </div>
+        </>
+      )}
+
+      {/* Sheet de feedback integrado */}
+      <FeedbackSheet
+        isOpen={isInternalFeedbackOpen}
+        onClose={() => setIsInternalFeedbackOpen(false)}
+        onOpenLogin={onOpenLogin}
+      />
     </>
   );
 };
