@@ -16,6 +16,7 @@ import { getThemeStyle } from '@/lib/themes';
 import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
+import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import '../CoordinationGuest.css';
 
 type CoordinationPublicSuccess = Extract<CoordinationPublicReadResult, { ok: true }>;
@@ -602,6 +603,10 @@ export default function JoinCoordination() {
             )}
           </div>
         </div>
+
+        {data?.encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+          <GuestToHostCard style={{ margin: '20px 0' }} />
+        )}
       </div>
 
       {!isReadOnly && (

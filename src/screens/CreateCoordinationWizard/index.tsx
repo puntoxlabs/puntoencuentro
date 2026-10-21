@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { DATE_COORDINATION_ENABLED } from '@/config/features';
@@ -7,6 +7,8 @@ import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { useCoordinationWizardStore } from '@/store/coordinationWizardStore';
 import { getFriendlyAuthError } from '@/hooks/useStartCoordinationEncounter';
+import { DraftRecoverySheet } from '@/components/ui/DraftRecoverySheet';
+import { hasRecoverableCoordinationDraft } from '@/lib/draftRecovery';
 
 import Step1Data from './Step1Data';
 import Step2Options from './Step2Options';
@@ -25,20 +27,28 @@ const CreateCoordinationWizard: React.FC = () => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  const draft = useCoordinationWizardStore((state) => state.draft);
   const resetDraft = useCoordinationWizardStore((state) => state.resetDraft);
+  const [showRecoverySheet, setShowRecoverySheet] = useState(false);
+  const checkedRecoveryRef = useRef(false);
 
   const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const { signInWithGoogleForCoordination } = useAuth();
 
   useEffect(() => {
-    // Si viene sembrado desde Crear con IA (handoff), no reiniciar el borrador
+    if (checkedRecoveryRef.current) return;
+    checkedRecoveryRef.current = true;
+
+    // Si viene sembrado desde Crear con IA o repetición (handoff), no mostrar recuperación
     if ((location.state as { seeded?: boolean } | null)?.seeded) {
       return;
     }
-    // Siempre reiniciar el borrador al entrar a la ruta base para crear un nuevo encuentro
-    resetDraft();
-  }, [resetDraft, location.state]);
+
+    if (hasRecoverableCoordinationDraft(draft)) {
+      setShowRecoverySheet(true);
+    }
+  }, [draft, location.state]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -132,7 +142,6 @@ const CreateCoordinationWizard: React.FC = () => {
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
     } else {
-      resetDraft();
       navigate(-1);
     }
   };
@@ -177,6 +186,16 @@ const CreateCoordinationWizard: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {renderStep()}
       </div>
+
+      <DraftRecoverySheet
+        open={showRecoverySheet}
+        draftTitle={draft.title}
+        onContinue={() => setShowRecoverySheet(false)}
+        onDiscard={() => {
+          resetDraft();
+          setShowRecoverySheet(false);
+        }}
+      />
     </ScreenContainer>
   );
 };

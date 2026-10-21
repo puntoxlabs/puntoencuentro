@@ -49,6 +49,7 @@ import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { kidsBirthdayTemplates } from '@/lib/kidsBirthdayTemplates';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
+import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import './Guest.css';
 
 
@@ -709,6 +710,11 @@ const InviteGuest: React.FC = () => {
             isConfirmed={participante?.estado === 'confirmado'}
           />
         </div>
+      )}
+
+      {/* Invitación contextual para crear encuentro propio (Guest → Host) */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+        <GuestToHostCard />
       )}
 
       {/* ── F. Acciones Inferiores ────────────────────────────── */}

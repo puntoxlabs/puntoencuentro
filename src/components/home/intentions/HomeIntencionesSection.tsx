@@ -23,7 +23,7 @@ function useSafeNavigate() {
   try {
     return useNavigate();
   } catch {
-    return (to: string) => {
+    return (to: string, _options?: any) => {
       if (typeof window !== 'undefined') window.location.href = to;
     };
   }
@@ -215,7 +215,7 @@ export const HomeIntencionesSection: React.FC<HomeIntencionesSectionProps> = ({
 
   const handleOrganizar = (intencion: Intencion) => {
     preloadWizardFromIntencion(intencion);
-    navigate('/create');
+    navigate('/create', { state: { seeded: true, fromIntention: true } });
   };
 
   const handlePausar = async (id: string) => {

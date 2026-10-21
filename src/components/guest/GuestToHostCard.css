@@ -1,0 +1,61 @@
+/* GuestToHostCard.css */
+.guest-to-host-card {
+  margin: 16px 20px 24px;
+  padding: 18px 20px;
+  background: var(--pe-surface-accent, #f8fafc);
+  border: 1px solid var(--pe-border, #e2e8f0);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.guest-to-host-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.guest-to-host-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--pe-primary-alpha, rgba(24, 76, 212, 0.1));
+  color: var(--pe-primary, #184CD4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.guest-to-host-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guest-to-host-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-on-surface, #0f172a);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.guest-to-host-subtitle {
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #64748b);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.guest-to-host-btn {
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+}

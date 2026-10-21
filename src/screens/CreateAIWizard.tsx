@@ -35,6 +35,8 @@ import { formatHumanSchedule } from '@/lib/formatDate';
 import { useSpeechDictation, isTouchDevice, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFriendlyAuthError } from '@/hooks/useStartCoordinationEncounter';
+import { DraftRecoverySheet } from '@/components/ui/DraftRecoverySheet';
+import { hasRecoverableAiDraft } from '@/lib/draftRecovery';
 import './CreateWizard.css';
 
 export interface CreateAIWizardProps {
@@ -55,6 +57,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   speechLangOverride,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [showRecoverySheet, setShowRecoverySheet] = useState(false);
+  const checkedRecoveryRef = useRef(false);
   const { signInWithGoogleForCoordination } = useAuth();
   const [inputText, setInputText] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -136,6 +141,19 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     applyDraftOperation,
     reset,
   } = activeState;
+
+  useEffect(() => {
+    if (checkedRecoveryRef.current) return;
+    checkedRecoveryRef.current = true;
+
+    if ((location.state as { seeded?: boolean } | null)?.seeded) {
+      return;
+    }
+
+    if (hasRecoverableAiDraft(draft, config)) {
+      setShowRecoverySheet(true);
+    }
+  }, [draft, config, location.state]);
 
   const [isTouch, setIsTouch] = useState<boolean>(() => {
     if (isTouchOverride !== undefined) return isTouchOverride;
@@ -307,7 +325,6 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
   const prevMessagesCountRef = useRef(messages.length);
   const prevInterpretingRef = useRef(isInterpreting);
 
-  const location = useLocation();
   const initialPromptConsumedRef = useRef(false);
 
   useEffect(() => {
@@ -547,7 +564,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
     });
 
     markFallbackManual();
-    navigate('/create');
+    navigate('/create', { state: { seeded: true, fromAi: true } });
   };
 
   const dispatchWizardAction = (action: WizardAction) => {
@@ -1758,6 +1775,15 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         onSaveLocation={handleSaveLocation}
         onSaveTheme={handleSaveTheme}
         onSaveDescription={handleSaveDescription}
+      />
+      <DraftRecoverySheet
+        open={showRecoverySheet}
+        draftTitle={draft.title}
+        onContinue={() => setShowRecoverySheet(false)}
+        onDiscard={() => {
+          reset();
+          setShowRecoverySheet(false);
+        }}
       />
     </ScreenContainer>
   );

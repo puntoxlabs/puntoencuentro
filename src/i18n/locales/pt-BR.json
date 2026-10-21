@@ -307,5 +307,17 @@
   "intentions_band": {
     "title": "Estou a fim de…",
     "desc": "Diga o que gostaria de fazer, mesmo que ainda não seja um encontro."
+  },
+  "draft_recovery": {
+    "title": "Você tem um rascunho pendente",
+    "desc": "Você pode continuar de onde parou ou descartá-lo para começar do zero.",
+    "continue_btn": "Continuar rascunho",
+    "discard_btn": "Descartar e começar de novo",
+    "untitled": "Encontro sem título"
+  },
+  "guest_convert": {
+    "prompt": "Quer organizar algo parecido?",
+    "action": "Criar meu encontro",
+    "subtitle": "Organize seu próprio encontro privado em minutos, grátis e sem complicações."
   }
 }

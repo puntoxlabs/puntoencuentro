@@ -167,6 +167,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         return;
       }
 
+      useWizardStore.getState().reset();
       if (tipo === 'individual') {
         navigate(`/add-guests/${encuentroId}`, { replace: true });
       } else {
@@ -261,6 +262,7 @@ const Step4InviteType: React.FC<Step4Props> = () => {
     // Limpiar sourceIntentionId explícitamente para evitar contaminar futuras creaciones
     setField('sourceIntentionId', null);
     setLinkingError(null);
+    useWizardStore.getState().reset();
 
     if (tipo === 'individual') {
       navigate(`/add-guests/${targetEncuentroId}`, { replace: true });

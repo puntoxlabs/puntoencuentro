@@ -16,6 +16,7 @@ import { CoordinationThemeHero } from '@/components/ui/CoordinationThemeHero';
 import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
+import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -578,6 +579,10 @@ export default function InviteCoordination() {
               </div>
             )}
           </div>
+        )}
+
+        {data?.encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+          <GuestToHostCard style={{ margin: '20px 0' }} />
         )}
 
         {!isReadOnly && (

@@ -373,8 +373,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const location = useLocation();
   const { user, loading: authLoading, transferClaimStatus, signInWithGoogleForDiscovery, isPermanentUser } = useAuth();
   const { getValidCache, scrollPosition, setEncuentros, setScrollPosition, filterStatus, filterType, filterCoordinationState, sortBy, setFilterType, setFilterCoordinationState } = useHomeStore();
-  const wizardStore = useWizardStore();
-  const { reset: resetWizard } = wizardStore;
   const detailCache = useDetailStore(s => s.cache);
   const validCache = getValidCache();
   const storeState = useHomeStore.getState();
@@ -948,7 +946,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const handleCreateClick = () => {
     sessionStorage.removeItem('cancel_reference');
-    resetWizard();
     if (DATE_COORDINATION_ENABLED) {
       setIsModeChoiceOpen(true);
     } else {
@@ -2121,7 +2118,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         open={isModeChoiceOpen}
         onSelectAI={() => {
           setIsModeChoiceOpen(false);
-          useAiWizardStore.getState().reset();
           navigate('/create/ai');
         }}
         onSelectFixed={() => {

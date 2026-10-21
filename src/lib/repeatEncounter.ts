@@ -141,7 +141,7 @@ export function applyReusablePayload(
   set('creation_source', 'manual');
   set('repeat_token', token);
   set('step', 1);
-  return { route: '/create', navState: { autoFocusTitle: false, fromReuse: true }, token };
+  return { route: '/create', navState: { autoFocusTitle: false, fromReuse: true, seeded: true }, token };
 }
 
 export interface PendingInvitationsResult {

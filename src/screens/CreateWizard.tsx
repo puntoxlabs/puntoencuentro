@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { ScrollHint } from '@/components/ui/ScrollHint';
@@ -7,6 +7,8 @@ import { useWizardStore } from '@/store/wizardStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCreateEncounter } from '@/hooks/useCreateEncounter';
 import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
+import { DraftRecoverySheet } from '@/components/ui/DraftRecoverySheet';
+import { hasRecoverableManualDraft } from '@/lib/draftRecovery';
 
 import Step1Data from '@/screens/CreateWizard/Step1Data';
 import Step2Modality from '@/screens/CreateWizard/Step2Modality';
@@ -20,9 +22,27 @@ const TOTAL_STEPS = 4;
 const stepTitles = ['Nuevo encuentro', 'Modalidad', 'Lugar', 'Invitación'];
 
 const CreateWizard: React.FC = () => {
-  const { step, prevStep, encuentro_id } = useWizardStore();
+  const wizardStore = useWizardStore();
+  const { step, prevStep, encuentro_id, titulo, reset } = wizardStore;
   const navigate = useNavigate();
+  const location = useLocation();
   const [showScrollHint, setShowScrollHint] = React.useState(false);
+  const [showRecoverySheet, setShowRecoverySheet] = React.useState(false);
+  const checkedRecoveryRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (checkedRecoveryRef.current) return;
+    checkedRecoveryRef.current = true;
+
+    const locationState = location.state as { seeded?: boolean } | null;
+    if (locationState?.seeded) {
+      return;
+    }
+
+    if (hasRecoverableManualDraft(wizardStore)) {
+      setShowRecoverySheet(true);
+    }
+  }, [location.state, wizardStore]);
 
   const { user, loading: authLoading } = useAuth();
   const { choiceSheetProps } = useCreateEncounter();
@@ -112,6 +132,15 @@ const CreateWizard: React.FC = () => {
 
       {renderStep()}
       <ScrollHint visible={showScrollHint} />
+      <DraftRecoverySheet
+        open={showRecoverySheet}
+        draftTitle={titulo}
+        onContinue={() => setShowRecoverySheet(false)}
+        onDiscard={() => {
+          reset();
+          setShowRecoverySheet(false);
+        }}
+      />
     </ScreenContainer>
   );
 };

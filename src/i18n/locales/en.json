@@ -631,5 +631,17 @@
     "history_purged": "The message history for this encounter has been permanently purged.",
     "meeting_cancelled": "The encounter was cancelled. Messages and logistics are no longer available.",
     "unauthorized_access": "You do not have access to messages for this encounter."
+  },
+  "draft_recovery": {
+    "title": "You have a pending draft",
+    "desc": "You can continue where you left off or discard it to start fresh.",
+    "continue_btn": "Continue draft",
+    "discard_btn": "Discard and start fresh",
+    "untitled": "Untitled encounter"
+  },
+  "guest_convert": {
+    "prompt": "Want to organize something similar?",
+    "action": "Create my encounter",
+    "subtitle": "Organize your own private meet in minutes, free and hassle-free."
   }
 }

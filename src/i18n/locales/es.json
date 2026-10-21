@@ -633,5 +633,17 @@
     "history_purged": "El historial de mensajes de este encuentro ha sido purgado definitivamente.",
     "meeting_cancelled": "El encuentro fue cancelado. Los mensajes y la logística ya no están disponibles.",
     "unauthorized_access": "No tenés acceso a los mensajes de este encuentro."
+  },
+  "draft_recovery": {
+    "title": "Tenés un borrador pendiente",
+    "desc": "Podés continuar con los datos que estabas completando o descartarlos para empezar de cero.",
+    "continue_btn": "Continuar borrador",
+    "discard_btn": "Descartar y empezar de nuevo",
+    "untitled": "Encuentro sin título"
+  },
+  "guest_convert": {
+    "prompt": "¿Querés organizar algo parecido?",
+    "action": "Crear mi encuentro",
+    "subtitle": "Organizá tu propio encuentro privado en minutos, gratis y sin vueltas."
   }
 }

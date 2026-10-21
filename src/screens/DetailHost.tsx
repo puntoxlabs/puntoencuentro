@@ -536,7 +536,7 @@ const DetailHost: React.FC = () => {
       setField('tema', encuentro.tema || 'blue');
 
       setShowCancelModal(false);
-      navigate('/create', { state: { autoFocusTitle: true } });
+      navigate('/create', { state: { autoFocusTitle: true, seeded: true, fromCancel: true } });
     } catch (err: any) {
       console.error('[DetailHost] Error en cancelar y crear:', err);
       if (err?.message === 'cancellation_reason_required') {

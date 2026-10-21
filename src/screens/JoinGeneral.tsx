@@ -40,6 +40,7 @@ import { getSportsTemplateConfig } from '@/lib/sportsTemplates';
 import { getEntertainmentTemplateConfig } from '@/lib/entertainmentTemplates';
 import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
+import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import './Guest.css';
 
 const JoinGeneral: React.FC = () => {
@@ -644,6 +645,11 @@ const JoinGeneral: React.FC = () => {
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
         </div>
+      )}
+
+      {/* Invitación contextual para crear encuentro propio (Guest → Host) */}
+      {encuentro?.estado?.toLowerCase() !== 'cancelado' && (
+        <GuestToHostCard />
       )}
 
       {/* ── F. Acciones Inferiores ────────────────────────────── */}
