@@ -400,7 +400,8 @@
     "close_btn": "Pronto",
     "rate_limited": "Você enviou vários comentários recentemente. Por favor, aguarde um momento antes de enviar outro.",
     "auth_required_msg": "É necessário iniciar sessão para enviar comentários e evitar spam.",
-    "auth_note": "Para proteger a comunidade contra spam automatizado, exigimos que você inicie sessão antes de enviar sua opinião.",
+    "permanent_account_msg": "Para proteger a comunidade contra spam, é necessária uma conta permanente do Google para enviar opiniões.",
+    "auth_note": "Para proteger a comunidade contra spam automatizado, exigimos que você inicie sessão com uma conta permanente do Google antes de enviar sua opinião.",
     "login_cta": "Iniciar sessão para enviar opinião",
     "login_prompt": "Por favor, inicie sessão no menu principal para enviar sua opinião.",
     "generic_error": "Não foi possível enviar sua opinião. Por favor, tente novamente."

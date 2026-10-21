@@ -690,7 +690,8 @@
     "close_btn": "Listo",
     "rate_limited": "Has enviado varios comentarios recientemente. Por favor esperá un momento antes de enviar otro.",
     "auth_required_msg": "Es necesario iniciar sesión para enviar comentarios y evitar spam.",
-    "auth_note": "Para proteger la comunidad contra envíos masivos o spam no deseado, requerimos que inicies sesión antes de enviar tu opinión.",
+    "permanent_account_msg": "Para proteger la comunidad contra el spam, se requiere una cuenta permanente de Google para enviar opiniones.",
+    "auth_note": "Para proteger la comunidad contra envíos masivos o spam no deseado, requerimos que inicies sesión con una cuenta permanente de Google antes de enviar tu opinión.",
     "login_cta": "Iniciar sesión para enviar opinión",
     "login_prompt": "Por favor iniciá sesión desde el menú principal para poder opinar.",
     "generic_error": "No se pudo enviar tu opinión. Por favor intentá nuevamente."

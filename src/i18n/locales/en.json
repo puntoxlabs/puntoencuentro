@@ -688,7 +688,8 @@
     "close_btn": "Done",
     "rate_limited": "You have submitted multiple comments recently. Please wait a moment before sending another.",
     "auth_required_msg": "Signing in is required to submit feedback and prevent spam.",
-    "auth_note": "To protect the community against automated spam, we require you to sign in before submitting feedback.",
+    "permanent_account_msg": "To protect the community from spam, a permanent Google account is required to send feedback.",
+    "auth_note": "To protect the community against automated spam, we require you to sign in with a permanent Google account before submitting feedback.",
     "login_cta": "Sign in to send feedback",
     "login_prompt": "Please sign in from the main menu to send feedback.",
     "generic_error": "Could not submit your feedback. Please try again."

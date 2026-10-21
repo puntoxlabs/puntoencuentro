@@ -21,6 +21,7 @@ export const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
 }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const isPermanent = Boolean(user && !user.is_anonymous);
 
   const [category, setCategory] = useState<FeedbackCategory>(initialCategory);
   const [comment, setComment] = useState('');
@@ -56,8 +57,8 @@ export const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
       if (!result.ok) {
         if (result.error === 'rate_limit_exceeded') {
           setErrorMessage(t('feedback.rate_limited', 'Has enviado varios comentarios recientemente. Por favor esperá un momento antes de enviar otro.'));
-        } else if (result.error === 'authentication_required') {
-          setErrorMessage(t('feedback.auth_required_msg', 'Es necesario iniciar sesión para enviar comentarios y evitar spam.'));
+        } else if (result.error === 'permanent_account_required' || result.error === 'authentication_required') {
+          setErrorMessage(t('feedback.permanent_account_msg', 'Para proteger la comunidad contra el spam, se requiere una cuenta permanente de Google para enviar opiniones.'));
         } else {
           setErrorMessage(t('feedback.generic_error', 'No se pudo enviar tu opinión. Por favor intentá nuevamente.'));
         }
@@ -129,11 +130,11 @@ export const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
               {t('feedback.close_btn', 'Listo')}
             </button>
           </div>
-        ) : !user ? (
-          /* Ajuste 1: Restricción inicial estricta a usuarios autenticados para blindaje contra spam */
+        ) : !isPermanent ? (
+          /* Ajuste 3: Exclusión de anónimos y restricción estricta a cuentas permanentes */
           <div className="pe-feedback-auth-required">
             <div className="pe-feedback-alert pe-feedback-alert--info">
-              {t('feedback.auth_note', 'Para proteger la comunidad contra envíos masivos o spam no deseado, requerimos que inicies sesión antes de enviar tu opinión.')}
+              {t('feedback.auth_note', 'Para proteger la comunidad contra envíos masivos o spam no deseado, requerimos que inicies sesión con una cuenta permanente de Google antes de enviar tu opinión.')}
             </div>
             {onOpenLogin ? (
               <button

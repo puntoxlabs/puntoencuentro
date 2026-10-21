@@ -12,7 +12,54 @@ export interface SubmitFeedbackParams {
 export interface SubmitFeedbackResult {
   ok: boolean;
   id?: string;
-  error?: 'authentication_required' | 'rate_limit_exceeded' | 'invalid_submission' | 'invalid_comment_length' | string;
+  error?:
+    | 'authentication_required'
+    | 'permanent_account_required'
+    | 'rate_limit_exceeded'
+    | 'invalid_submission'
+    | 'invalid_comment_length'
+    | string;
+}
+
+/**
+ * Normaliza rutas permitidas sustituyendo tokens, hashes e IDs privados por identificadores canónicos literales.
+ * Rutas no reconocidas o dinámicas desconocidas se reducen a null para evitar filtración de PII.
+ */
+export function normalizeRouteForFeedback(rawRoute?: string): string | null {
+  if (!rawRoute) return null;
+
+  // Descartar query string, fragmento y protocolo
+  let clean = rawRoute.trim();
+  if (clean.includes('?')) clean = clean.split('?')[0];
+  if (clean.includes('#')) clean = clean.split('#')[0];
+  if (clean.includes('://')) {
+    try {
+      clean = new URL(clean).pathname;
+    } catch {
+      return null;
+    }
+  }
+
+  if (clean === '' || clean === '/') return '/';
+  if (clean === '/create') return '/create';
+  if (clean === '/create/ai') return '/create/ai';
+  if (clean === '/create/coordination') return '/create/coordination';
+  if (/^\/meet\/[^/]+$/.test(clean)) return '/meet/:id';
+  if (/^\/coordination\/invite\/[^/]+$/.test(clean)) return '/coordination/invite/:token';
+  if (/^\/coordination\/join\/[^/]+$/.test(clean)) return '/coordination/join/:token';
+  if (/^\/coordination\/[^/]+$/.test(clean)) return '/coordination/:id';
+  if (/^\/invite\/[^/]+$/.test(clean)) return '/invite/:token';
+  if (/^\/join\/[^/]+$/.test(clean)) return '/join/:token';
+  if (/^\/add-guests\/[^/]+$/.test(clean)) return '/add-guests/:id';
+  if (/^\/share\/[^/]+$/.test(clean)) return '/share/:id';
+  if (/^\/invitation\/[^/]+$/.test(clean)) return '/invitation/:id';
+  if (/^\/cancel-summary\/[^/]+$/.test(clean)) return '/cancel-summary/:id';
+  if (/^\/internal\/qa\/sessions\/[^/]+$/.test(clean)) return '/internal/qa/sessions/:sessionId';
+  if (clean === '/internal/qa/sessions') return '/internal/qa/sessions';
+  if (clean === '/internal/qa') return '/internal/qa';
+  if (clean === '/internal/moderation') return '/internal/moderation';
+
+  return null;
 }
 
 export const feedbackService = {
@@ -22,11 +69,8 @@ export const feedbackService = {
       return { ok: false, error: 'invalid_comment_length' };
     }
 
-    // Sanitizar ruta descartando query parameters y hashes
-    let cleanRoute = params.pageRoute || window.location.pathname;
-    if (cleanRoute.includes('?')) cleanRoute = cleanRoute.split('?')[0];
-    if (cleanRoute.includes('#')) cleanRoute = cleanRoute.split('#')[0];
-    if (cleanRoute.length > 60) cleanRoute = cleanRoute.substring(0, 60);
+    const currentPath = params.pageRoute || (typeof window !== 'undefined' ? window.location.pathname : '');
+    const cleanRoute = normalizeRouteForFeedback(currentPath);
 
     const { data, error } = await supabase.rpc('enviar_feedback_usuario', {
       p_category: params.category,
@@ -37,6 +81,9 @@ export const feedbackService = {
 
     if (error) {
       const msg = error.message.toLowerCase();
+      if (msg.includes('permanent_account_required')) {
+        return { ok: false, error: 'permanent_account_required' };
+      }
       if (msg.includes('authentication_required')) {
         return { ok: false, error: 'authentication_required' };
       }
