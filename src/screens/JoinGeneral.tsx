@@ -43,6 +43,7 @@ import { getLearningTemplateConfig } from '@/lib/learningTemplates';
 import { getWellnessTemplateConfig } from '@/lib/wellnessTemplates';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import './Guest.css';
 
 const JoinGeneral: React.FC = () => {
@@ -449,14 +450,9 @@ const JoinGeneral: React.FC = () => {
               <span className="guest-meta-icon">
                 {encuentro.modalidad === 'presencial' ? <MapPin size={20} /> : <Video size={20} />}
               </span>
-              <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+              <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
             </div>
           </div>
-          {encuentro.modalidad === 'virtual' && encuentro.link_virtual && (
-            <div className="guest-video-link-display" style={{ marginTop: 16 }}>
-              {encuentro.link_virtual}
-            </div>
-          )}
         </div>
 
         <p className="guest-cancel-notice">
@@ -528,7 +524,7 @@ const JoinGeneral: React.FC = () => {
               ? <MapPin size={18} className="guest-meta-icon" />
               : <Video size={18} className="guest-meta-icon" />
             }
-            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+            <span>{encuentro.modalidad === 'presencial' ? (participante?.estado === 'confirmado' ? (encuentro.lugar_texto || 'Presencial') : 'Presencial') : 'Virtual'}</span>
           </div>
         </div>
       </div>
@@ -654,6 +650,17 @@ const JoinGeneral: React.FC = () => {
           >
             {t('account.continue_google', 'Continuar con Google')}
           </Button>
+        </div>
+      )}
+
+      {/* Panel de Información y Mensajes */}
+      {encuentro?.id && (participante?.token_invitacion || ownInviteToken) && (
+        <div style={{ margin: '0 20px 24px' }}>
+          <EncounterMessagesPanel
+            encuentroId={encuentro.id}
+            tokenInvitacion={participante?.token_invitacion || ownInviteToken}
+            isConfirmed={participante?.estado === 'confirmado'}
+          />
         </div>
       )}
 

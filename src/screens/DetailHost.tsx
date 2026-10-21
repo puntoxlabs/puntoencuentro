@@ -1150,7 +1150,7 @@ const DetailHost: React.FC = () => {
             </div>
             <div className="dh-meta-row">
               {isVirtual ? <Video size={18} /> : <MapPin size={18} />}
-              <span>{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
+              <span>{isVirtual ? 'Virtual' : (pEstado === 'confirmado' && !isCancelado ? (encuentro.lugar_texto || 'Presencial') : 'Presencial')}</span>
             </div>
             {encuentro.descripcion && (
               <div className="dh-participant-view-desc">
@@ -1185,7 +1185,7 @@ const DetailHost: React.FC = () => {
         )}
 
         {/* Acciones para participantes */}
-        {!isCancelado && !isFinalizado && isVirtual && encuentro.link_virtual && (
+        {!isCancelado && !isFinalizado && isVirtual && pEstado === 'confirmado' && encuentro.link_virtual && (
           <div className="dh-participant-video-actions">
              <Button fullWidth className="dh-participant-video-btn" onClick={() => openExternalVideoLink(encuentro.link_virtual)}>
                Abrir videollamada
@@ -1196,6 +1196,17 @@ const DetailHost: React.FC = () => {
              >
                {copiedLink ? 'Copiado' : 'Copiar link de la reunión'}
              </button>
+          </div>
+        )}
+
+        {/* Panel de Información y Mensajes */}
+        {id && (
+          <div style={{ marginTop: 16 }}>
+            <EncounterMessagesPanel
+              encuentroId={id}
+              isHost={false}
+              isConfirmed={pEstado === 'confirmado'}
+            />
           </div>
         )}
 

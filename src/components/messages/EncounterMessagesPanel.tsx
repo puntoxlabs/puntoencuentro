@@ -11,8 +11,13 @@ import {
   X,
   AlertCircle,
   Clock,
+  MessageCircle,
+  Phone,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
 import { mensajesService } from '@/services/mensajesService';
+import { whatsappContactService, type WhatsappContactResult } from '@/services/whatsappContactService';
 import type { MensajeEncuentro } from '@/types/mensajes';
 import './EncounterMessagesPanel.css';
 
@@ -49,6 +54,13 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
   const [editingContent, setEditingContent] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Contacto voluntario de WhatsApp (Mini-sprint C2)
+  const [whatsappContact, setWhatsappContact] = useState<WhatsappContactResult | null>(null);
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+
   // Referencias para evitar duplicados en polling
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFetchingRef = useRef(false);
@@ -65,10 +77,19 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       isFetchingRef.current = true;
       if (showLoadingSpinner) setLoading(true);
 
-      const res = await mensajesService.getMensajes(encuentroId, tokenInvitacion);
+      const [res, waRes] = await Promise.all([
+        mensajesService.getMensajes(encuentroId, tokenInvitacion),
+        whatsappContactService.obtenerContacto(encuentroId, tokenInvitacion),
+      ]);
 
       // Guard against stale response if encounterId or token changed
       if (encuentroId !== targetEncuentroId || tokenInvitacion !== targetToken) return;
+
+      if (waRes.ok) {
+        setWhatsappContact(waRes);
+      } else {
+        setWhatsappContact(null);
+      }
 
       if (res.ok) {
         setMensajes(res.mensajes || []);
@@ -78,6 +99,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         setSpecialState(null);
         setErrorMsg(null);
       } else {
+        setWhatsappContact(null);
         if (res.error === 'history_retention_expired') {
           setSpecialState('retention_expired');
           setCanWrite(false);
@@ -317,6 +339,71 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     }
   };
 
+  // Manejo de guardado de WhatsApp voluntario (Host)
+  const handleSaveWhatsapp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validation = whatsappContactService.validarTelefonoCliente(whatsappInput);
+    if (!validation.valid) {
+      setWhatsappError(
+        t('encounter_messages.whatsapp_invalid_phone', 'Ingresá un número internacional válido (entre 8 y 15 dígitos con código de país).')
+      );
+      return;
+    }
+
+    try {
+      setSavingWhatsapp(true);
+      setWhatsappError(null);
+      const res = await whatsappContactService.guardarContacto(encuentroId, validation.normalized, true);
+      if (res.ok) {
+        setWhatsappContact({
+          ok: true,
+          is_host: true,
+          has_contact: true,
+          opt_in: true,
+          telefono: res.telefono,
+          wa_link: res.telefono ? 'https://wa.me/' + res.telefono : null,
+        });
+        setShowWhatsappModal(false);
+      } else {
+        setWhatsappError(res.error || 'Error al guardar contacto');
+      }
+    } catch (err: any) {
+      setWhatsappError(err?.message || 'Error inesperado');
+    } finally {
+      setSavingWhatsapp(false);
+    }
+  };
+
+  // Manejo de retiro de WhatsApp (Host)
+  const handleRetirarWhatsapp = async () => {
+    const confirmRemove = window.confirm(
+      t('encounter_messages.whatsapp_remove_confirm', '¿Seguro que querés retirar tu número de WhatsApp? Los participantes confirmados ya no podrán verlo.')
+    );
+    if (!confirmRemove) return;
+
+    try {
+      setSavingWhatsapp(true);
+      const res = await whatsappContactService.retirarContacto(encuentroId);
+      if (res.ok) {
+        setWhatsappContact({
+          ok: true,
+          is_host: true,
+          has_contact: false,
+          opt_in: false,
+          telefono: null,
+          wa_link: null,
+        });
+        setShowWhatsappModal(false);
+      } else {
+        alert(res.error || 'No se pudo retirar el contacto');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error inesperado');
+    } finally {
+      setSavingWhatsapp(false);
+    }
+  };
+
   const formatTimestamp = (isoString: string): string => {
     try {
       const d = new Date(isoString);
@@ -450,39 +537,125 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         </div>
       )}
 
-      {/* SECCIÓN 1: Mensajes destacados */}
-      {destacados.length > 0 && (
-        <div className="pe-msg-destacados">
-          <div className="pe-msg-destacados-header">
-            <Pin size={14} />
-            <span>{t('encounter_messages.highlighted_title', 'Mensajes destacados')} ({destacados.length}/3)</span>
-          </div>
-          {destacados.map((d) => (
-            <article key={d.id} className="pe-msg-destacado-card">
-              <div className="pe-msg-item-top">
-                <div className="pe-msg-author-info">
-                  <span className="pe-msg-author-name">{d.autor_nombre}</span>
-                  {d.es_organizador && (
-                    <span className="pe-msg-badge-host">{t('encounter_messages.host_badge', 'Organizador')}</span>
+      {/* SECCIÓN 1: Bloque consolidado "Información para asistir" (Instrucciones definitivas y Contacto voluntario) */}
+      <div className="pe-msg-asistir-block">
+        <div className="pe-msg-asistir-header">
+          <Sparkles size={16} color="#16a34a" />
+          <span>{t('encounter_messages.attendance_info_title', 'Información para asistir')}</span>
+        </div>
+
+        {/* 1.1 Instrucciones destacadas del anfitrión */}
+        {destacados.length > 0 ? (
+          <div className="pe-msg-destacados">
+            <div className="pe-msg-destacados-header">
+              <Pin size={14} />
+              <span>{t('encounter_messages.pinned_instructions', 'Instrucciones del anfitrión')} ({destacados.length}/3)</span>
+            </div>
+            {destacados.map((d) => (
+              <article key={d.id} className="pe-msg-destacado-card">
+                <div className="pe-msg-item-top">
+                  <div className="pe-msg-author-info">
+                    <span className="pe-msg-author-name">{d.autor_nombre}</span>
+                    {d.es_organizador && (
+                      <span className="pe-msg-badge-host">{t('encounter_messages.host_badge', 'Organizador')}</span>
+                    )}
+                  </div>
+                  {isHost && (
+                    <button
+                      type="button"
+                      className="pe-msg-btn-action pe-msg-btn-action--pin"
+                      onClick={() => handleToggleDestacado(d.id, true)}
+                      title={t('encounter_messages.unpin_btn', 'Desmarcar')}
+                    >
+                      <PinOff size={13} />
+                      <span>{t('encounter_messages.unpin_btn', 'Desmarcar')}</span>
+                    </button>
                   )}
                 </div>
-                {isHost && (
+                <p className="pe-msg-content">{d.contenido}</p>
+              </article>
+            ))}
+          </div>
+        ) : isHost ? (
+          <p className="pe-msg-asistir-hint">
+            {t('encounter_messages.pinned_instructions_hint', 'Podés destacar hasta 3 mensajes clave con el ícono de chincheta para que los asistentes los vean primero como instrucciones definitivas.')}
+          </p>
+        ) : null}
+
+        {/* 1.2 Contacto voluntario de WhatsApp */}
+        {!isHost && whatsappContact?.has_contact && whatsappContact?.opt_in && whatsappContact?.wa_link && (
+          <div className="pe-msg-wa-box">
+            <div className="pe-msg-wa-info">
+              <span className="pe-msg-wa-label">{t('encounter_messages.whatsapp_contact_title', 'Contacto por WhatsApp')}</span>
+              <a
+                href={whatsappContact.wa_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pe-msg-wa-btn"
+              >
+                <MessageCircle size={17} />
+                <span>{t('encounter_messages.whatsapp_contact_btn', 'Contactar al anfitrión por WhatsApp')}</span>
+              </a>
+            </div>
+            <p className="pe-msg-wa-disclaimer">
+              <AlertCircle size={13} />
+              <span>{t('encounter_messages.whatsapp_disclaimer_participant', 'Al abrir WhatsApp, el anfitrión verá tu número de WhatsApp. Los bloqueos y reportes de PuntoEncuentro no tienen efecto fuera de la plataforma.')}</span>
+            </p>
+          </div>
+        )}
+
+        {isHost && (
+          <div className="pe-msg-wa-host-box">
+            <div className="pe-msg-wa-host-row">
+              <div className="pe-msg-wa-host-status">
+                <Phone size={15} color={whatsappContact?.opt_in && whatsappContact?.telefono ? '#16a34a' : '#64748b'} />
+                <span>
+                  {whatsappContact?.opt_in && whatsappContact?.telefono
+                    ? `${t('encounter_messages.whatsapp_host_status_active', 'Contacto de WhatsApp activo')}: +${whatsappContact.telefono}`
+                    : t('encounter_messages.whatsapp_host_status_inactive', 'Contacto de WhatsApp desactivado')}
+                </span>
+              </div>
+              <div className="pe-msg-wa-host-actions">
+                {whatsappContact?.opt_in && whatsappContact?.telefono ? (
+                  <>
+                    <button
+                      type="button"
+                      className="pe-msg-wa-action-btn"
+                      onClick={() => {
+                        setWhatsappInput('+' + whatsappContact.telefono);
+                        setWhatsappError(null);
+                        setShowWhatsappModal(true);
+                      }}
+                    >
+                      <Pencil size={12} /> {t('encounter_messages.whatsapp_host_edit_btn', 'Modificar')}
+                    </button>
+                    <button
+                      type="button"
+                      className="pe-msg-wa-action-btn pe-msg-wa-action-btn--danger"
+                      onClick={handleRetirarWhatsapp}
+                      disabled={savingWhatsapp}
+                    >
+                      <Trash2 size={12} /> {t('encounter_messages.whatsapp_host_remove_btn', 'Retirar')}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    className="pe-msg-btn-action pe-msg-btn-action--pin"
-                    onClick={() => handleToggleDestacado(d.id, true)}
-                    title={t('encounter_messages.unpin_btn', 'Desmarcar')}
+                    className="pe-msg-wa-action-btn pe-msg-wa-action-btn--primary"
+                    onClick={() => {
+                      setWhatsappInput('');
+                      setWhatsappError(null);
+                      setShowWhatsappModal(true);
+                    }}
                   >
-                    <PinOff size={13} />
-                    <span>{t('encounter_messages.unpin_btn', 'Desmarcar')}</span>
+                    <Plus size={13} /> {t('encounter_messages.whatsapp_host_share_btn', 'Compartir mi WhatsApp')}
                   </button>
                 )}
               </div>
-              <p className="pe-msg-content">{d.contenido}</p>
-            </article>
-          ))}
-        </div>
-      )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* SECCIÓN 2: Conversación del encuentro */}
       <div className="pe-msg-list">
@@ -773,6 +946,89 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
             </button>
           </div>
         </form>
+      )}
+
+      {/* MODAL CONFIGURACIÓN WHATSAPP (HOST) */}
+      {isHost && showWhatsappModal && (
+        <div
+          className="pe-msg-wa-modal-backdrop"
+          onClick={() => setShowWhatsappModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pe-wa-modal-title"
+        >
+          <div className="pe-msg-wa-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="pe-msg-wa-modal-header">
+              <h3 id="pe-wa-modal-title">
+                {t('encounter_messages.whatsapp_modal_title', 'Compartir contacto de WhatsApp')}
+              </h3>
+              <button
+                type="button"
+                className="pe-msg-wa-modal-close-btn"
+                onClick={() => setShowWhatsappModal(false)}
+                aria-label={t('encounter_messages.cancel_btn', 'Cancelar')}
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <form onSubmit={handleSaveWhatsapp}>
+              <div className="pe-msg-wa-modal-body">
+                <p className="pe-msg-wa-modal-desc">
+                  {t(
+                    'encounter_messages.whatsapp_modal_desc',
+                    'Compartí voluntariamente tu número de WhatsApp exclusivamente con las personas que hayan confirmado su asistencia. Podés modificarlo o retirarlo en cualquier momento.'
+                  )}
+                </p>
+
+                <div className="pe-msg-wa-modal-input-group">
+                  <label htmlFor="pe-wa-input" className="pe-msg-wa-modal-label">
+                    {t('encounter_messages.whatsapp_modal_input_label', 'Número de WhatsApp (con código de país)')}
+                  </label>
+                  <input
+                    id="pe-wa-input"
+                    type="tel"
+                    className="pe-msg-wa-modal-input"
+                    placeholder={t('encounter_messages.whatsapp_modal_input_placeholder', 'ej: +54 9 11 1234 5678')}
+                    value={whatsappInput}
+                    onChange={(e) => {
+                      setWhatsappInput(e.target.value);
+                      if (whatsappError) setWhatsappError(null);
+                    }}
+                    autoFocus
+                    disabled={savingWhatsapp}
+                  />
+                  {whatsappError && <p className="pe-msg-wa-modal-error">{whatsappError}</p>}
+                </div>
+              </div>
+
+              <footer className="pe-msg-wa-modal-footer">
+                <button
+                  type="button"
+                  className="pe-msg-wa-action-btn"
+                  onClick={() => setShowWhatsappModal(false)}
+                  disabled={savingWhatsapp}
+                >
+                  {t('encounter_messages.whatsapp_modal_cancel', 'Cancelar')}
+                </button>
+                <button
+                  type="submit"
+                  className="pe-msg-send-btn"
+                  disabled={savingWhatsapp || !whatsappInput.trim()}
+                >
+                  {savingWhatsapp ? (
+                    <>
+                      <span className="pe-msg-spinner" />
+                      <span>Guardando…</span>
+                    </>
+                  ) : (
+                    <span>{t('encounter_messages.whatsapp_modal_save', 'Guardar y compartir')}</span>
+                  )}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
       )}
     </section>
   );

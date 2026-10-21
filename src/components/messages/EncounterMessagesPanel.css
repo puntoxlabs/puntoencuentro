@@ -439,3 +439,308 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* ==========================================================================
+   INFORMACIÓN PARA ASISTIR Y CONTACTO WHATSAPP (Mini-sprint C2)
+   ========================================================================== */
+
+.pe-msg-asistir-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.pe-msg-asistir-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pe-msg-asistir-hint {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Caja de WhatsApp para participante confirmado */
+.pe-msg-wa-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pe-msg-wa-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (min-width: 480px) {
+  .pe-msg-wa-info {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pe-msg-wa-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #166534;
+}
+
+.pe-msg-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #16a34a;
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.pe-msg-wa-btn:hover {
+  background: #15803d;
+}
+
+.pe-msg-wa-btn:active {
+  transform: scale(0.98);
+}
+
+.pe-msg-wa-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 11.5px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.pe-msg-wa-disclaimer svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+/* Caja de configuración de WhatsApp para el Host */
+.pe-msg-wa-host-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.pe-msg-wa-host-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 520px) {
+  .pe-msg-wa-host-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pe-msg-wa-host-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.pe-msg-wa-host-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pe-msg-wa-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pe-msg-wa-action-btn:hover {
+  background: #e2e8f0;
+}
+
+.pe-msg-wa-action-btn--primary {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.pe-msg-wa-action-btn--primary:hover {
+  background: #dcfce7;
+}
+
+.pe-msg-wa-action-btn--danger {
+  color: #dc2626;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.pe-msg-wa-action-btn--danger:hover {
+  background: #fee2e2;
+}
+
+/* Modal de configuración de WhatsApp */
+.pe-msg-wa-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 9999;
+  animation: pe-msg-fade-in 0.15s ease-out;
+}
+
+.pe-msg-wa-modal {
+  background: #ffffff;
+  width: 100%;
+  max-width: 440px;
+  border-radius: 18px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pe-msg-wa-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pe-msg-wa-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pe-msg-wa-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.pe-msg-wa-modal-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.pe-msg-wa-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-msg-wa-modal-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.pe-msg-wa-modal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pe-msg-wa-modal-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.pe-msg-wa-modal-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.pe-msg-wa-modal-input:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.pe-msg-wa-modal-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.pe-msg-wa-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes pe-msg-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+

@@ -498,14 +498,9 @@ const InviteGuest: React.FC = () => {
               <span className="guest-meta-icon">
                 {encuentro.modalidad === 'presencial' ? <MapPin size={20} /> : <Video size={20} />}
               </span>
-              <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || 'Presencial') : 'Virtual'}</span>
+              <span>{encuentro.modalidad === 'presencial' ? 'Presencial' : 'Virtual'}</span>
             </div>
           </div>
-          {encuentro.modalidad === 'virtual' && encuentro.link_virtual && (
-            <div className="guest-video-link-display" style={{ marginTop: 16 }}>
-              {encuentro.link_virtual}
-            </div>
-          )}
         </div>
 
         <p className="guest-cancel-notice">
@@ -581,7 +576,7 @@ const InviteGuest: React.FC = () => {
             }
             <span>
               {encuentro.modalidad === 'presencial'
-                ? (encuentro.lugar_texto || 'Presencial')
+                ? (participante?.estado === 'confirmado' ? (encuentro.lugar_texto || 'Presencial') : 'Presencial')
                 : 'Virtual'}
             </span>
           </div>
