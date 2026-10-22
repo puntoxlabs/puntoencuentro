@@ -298,8 +298,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 
         <p className="pe-publish-modal__subtitle">
           {isVirtual
-            ? 'Abrí lugares para que otras personas puedan descubrir tu plan y solicitar sumarse. El enlace de acceso seguirá siendo privado para participantes aprobados.'
-            : 'Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. El lugar y dirección privada solo se revelará a quienes apruebes.'}
+            ? t('open_encounters.publish_subtitle_virtual', { defaultValue: 'Abrí lugares para que otras personas puedan descubrir tu plan y solicitar sumarse. El enlace de acceso se revelará una vez confirmada la realización y reconfirmada la asistencia.' })
+            : t('open_encounters.publish_subtitle_presencial', { defaultValue: 'Abrí lugares para que otras personas de tu zona puedan ver el plan y solicitar sumarse. La dirección exacta se revelará una vez confirmada la realización y reconfirmada la asistencia.' })}
         </p>
 
         {isVirtual && (
@@ -373,8 +373,8 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
               </p>
               <p className="pe-publish-private-loc__hint" style={{ margin: '6px 0 0 0', fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
                 {isVirtual
-                  ? 'Enlace donde se realizará el encuentro. No es público: solo lo verán los participantes aprobados.'
-                  : 'Indica dónde será el encuentro (nombre del lugar, referencia o dirección). No es público: solo lo verán los participantes aprobados.'}
+                  ? t('open_encounters.publish_loc_hint_virtual', { defaultValue: 'Enlace donde se realizará el encuentro. Es privado: se compartirá una vez confirmada la realización y reconfirmada la asistencia.' })
+                  : t('open_encounters.publish_loc_hint_presencial', { defaultValue: 'Indica dónde será el encuentro (nombre del lugar, referencia o dirección). Es privado: se compartirá una vez confirmada la realización y reconfirmada la asistencia.' })}
               </p>
             </>
           )}
@@ -420,6 +420,23 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
               rows={3}
               maxLength={400}
             />
+            {!isVirtual ? (
+              <div className="pe-publish-modal__desc-help" style={{ marginTop: '6px', fontSize: '12px', color: 'var(--color-on-surface-variant, #64748b)', lineHeight: '1.45', background: 'var(--color-surface-container-low, #f8fafc)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--color-outline-variant, #e2e8f0)' }}>
+                <p style={{ margin: '0 0 4px 0', fontWeight: 500, color: 'var(--color-on-surface, #334155)' }}>
+                  {t('open_encounters.open_desc_hint', { defaultValue: 'Contá de qué se trata el encuentro y sumá una referencia aproximada de dónde será.' })}
+                </p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '11.5px', color: 'var(--color-primary, #2563eb)' }}>
+                  {t('open_encounters.open_desc_examples', { defaultValue: 'Ejemplos: «Zona Plaza Colón», «Cerca de Luro y España», «Por la costa, a la altura de Playa Grande».' })}
+                </p>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-on-surface-variant, #64748b)' }}>
+                  {t('open_encounters.open_desc_clarification', { defaultValue: 'Podés mencionar una plaza, un sector o dos calles cercanas. Usá una referencia orientativa, no necesariamente el punto exacto. No publiques la dirección definitiva.' })}
+                </p>
+              </div>
+            ) : (
+              <span className="pe-publish-modal__hint">
+                {t('open_encounters.open_desc_virtual_hint', { defaultValue: 'Contá brevemente de qué se trata la videollamada y cuál es la propuesta.' })}
+              </span>
+            )}
           </div>
 
           <div className="pe-publish-modal__row">

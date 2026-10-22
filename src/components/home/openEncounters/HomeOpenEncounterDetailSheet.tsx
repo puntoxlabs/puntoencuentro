@@ -90,6 +90,10 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
       const res = await openEncountersService.reconfirmarAsistencia(encounter.id, decision);
       if (res.ok) {
         setReconfirmStatus('confirmed');
+        const authRes = await openEncountersService.getEncuentroParticipanteAutorizado(encounter.id);
+        if (authRes && authRes.ok) {
+          setAuthorizedDetail(authRes);
+        }
       } else {
         setErrorMsg(res.error || 'No se pudo actualizar tu confirmación de asistencia.');
       }
@@ -702,11 +706,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
         {authorizedDetail?.lugar_texto || authorizedDetail?.link_virtual ? (
           <p className="pe-detail-sheet__privacy-note" style={{ color: '#047857' }}>
-            📍 Como tu participación está confirmada, acá tenés los datos para asistir.
+            📍 Como tu asistencia está confirmada y el encuentro se realiza, acá tenés los datos para asistir.
           </p>
         ) : (
           <p className="pe-detail-sheet__privacy-note">
-            📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual se compartirá una vez confirmada la participación.
+            📍 Solo compartimos la zona aproximada para cuidar la privacidad de la juntada. La dirección puntual y datos de acceso se compartirán una vez confirmada la realización del encuentro y reconfirmada tu asistencia.
           </p>
         )}
 
@@ -859,8 +863,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   {t('open_encounters.withdraw_action', { defaultValue: 'No voy a poder asistir' })}
                 </button>
               </div>
-              {/* Panel de mensajes para participante confirmado */}
-              {encounter?.id && (
+              {/* Panel de mensajes para participante confirmado con logística habilitada */}
+              {encounter?.id && (authorizedDetail?.lugar_texto || authorizedDetail?.link_virtual) && (
                 <div style={{ marginTop: '1rem' }}>
                   <EncounterMessagesPanel
                     encuentroId={encounter.id}

@@ -698,13 +698,19 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 </span>
               )
             ) : (
-              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                Sin condición de mínimo para realizarse.
-              </span>
+              encuentro.realization_status === 'forced' ? (
+                <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <CheckCircle2 size={14} /> ¡Confirmado! Se realiza.
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.8rem', color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Clock size={14} /> Sin mínimo configurado: pendiente de tu confirmación para realizarse.
+                </span>
+              )
             )}
           </div>
 
-          {encuentro.min_participants && encuentro.realization_status === 'pending' && (
+          {encuentro.realization_status === 'pending' && (
             <button
               type="button"
               onClick={handleHacerloIgual}
@@ -719,9 +725,9 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 border: 'none',
                 cursor: 'pointer',
               }}
-              title="Confirmar que se realiza aunque no llegue al mínimo"
+              title="Confirmar que el encuentro se realiza"
             >
-              {forcingRealization ? 'Confirmando…' : 'Hacerlo igual'}
+              {forcingRealization ? 'Confirmando…' : (encuentro.min_participants ? 'Hacerlo igual' : 'Confirmar que se realiza')}
             </button>
           )}
         </div>
