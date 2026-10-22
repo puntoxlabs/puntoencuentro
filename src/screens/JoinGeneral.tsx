@@ -524,7 +524,7 @@ const JoinGeneral: React.FC = () => {
               ? <MapPin size={18} className="guest-meta-icon" />
               : <Video size={18} className="guest-meta-icon" />
             }
-            <span>{encuentro.modalidad === 'presencial' ? (participante?.estado === 'confirmado' ? (encuentro.lugar_texto || 'Presencial') : 'Presencial') : 'Virtual'}</span>
+            <span>{encuentro.modalidad === 'presencial' ? (encuentro.lugar_texto || (encuentro as any).open_public_zone || 'Presencial') : 'Virtual'}</span>
           </div>
         </div>
       </div>

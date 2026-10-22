@@ -84,6 +84,7 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
         coordination_status TEXT,
         min_participants INT,
         realization_status TEXT DEFAULT 'confirmed',
+        is_open BOOLEAN DEFAULT false,
         inscriptions_closed BOOLEAN DEFAULT false,
         open_public_title TEXT,
         open_description TEXT,
@@ -128,6 +129,13 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
     );
     const sqlContentFix = fs.readFileSync(migrationPathFix, 'utf8');
     await db.exec(sqlContentFix);
+
+    const migrationPathAdjust = path.resolve(
+      process.cwd(),
+      'supabase/migrations/20261021235500_adjust_v1_privacy_and_logistics_by_encounter_type.sql'
+    );
+    const sqlContentAdjust = fs.readFileSync(migrationPathAdjust, 'utf8');
+    await db.exec(sqlContentAdjust);
 
     // 3. Insertar datos de prueba
     // Encuentro activo estándar
@@ -548,23 +556,53 @@ describe('Mini-sprint C2: Contacto voluntario e instrucciones definitivas', () =
   test('9. get_participante_seguro: privacidad estricta de logística privada (pendiente, confirmado, rechazado, cancelado y revocación)', async () => {
     await setAuthContext(null);
 
-    // --- ENCUENTRO PRESENCIAL ---
-    // A) Participante pendiente NO ve la dirección exacta, pero sí datos públicos para decidir
+    // --- ENCUENTRO PRESENCIAL PRIVADO ---
+    // A) Participante pendiente SÍ ve la dirección exacta al abrir enlace privado (Regla 1)
     const resPend = await db.query<{ res: any }>(
       `SELECT public.get_participante_seguro($1) AS res;`,
       [guestTokenPending]
     );
     assert.ok(resPend.rows[0].res !== null);
     assert.strictEqual(resPend.rows[0].res.estado, 'pendiente');
-    assert.strictEqual(resPend.rows[0].res.encuentros.lugar_texto, null, 'Pendiente no debe ver dirección exacta');
+    assert.strictEqual(resPend.rows[0].res.encuentros.lugar_texto, 'Av. Colón 1234, 4to B', 'Privado pendiente ve dirección exacta');
     assert.strictEqual(resPend.rows[0].res.encuentros.link_virtual, null);
-    // Preservar datos públicos indispensables para decidir
+    // Preservar datos indispensables para decidir
     assert.strictEqual(resPend.rows[0].res.encuentros.titulo, 'Cumpleaños de Martín');
     assert.strictEqual(resPend.rows[0].res.encuentros.descripcion, 'Festejo en casa');
     assert.strictEqual(resPend.rows[0].res.encuentros.fecha, '2026-11-15');
     assert.strictEqual(resPend.rows[0].res.encuentros.hora, '19:00:00');
     assert.strictEqual(resPend.rows[0].res.encuentros.modalidad, 'presencial');
     assert.strictEqual(resPend.rows[0].res.encuentros.estado, 'activo');
+
+    // A.bis) En encuentro abierto (is_open = true), participante pendiente NO ve lugar_texto (Regla 3)
+    await db.exec(`SET ROLE postgres;`);
+    const resOpenEnc = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, descripcion, fecha, hora, modalidad, lugar_texto, is_open, open_public_zone, estado
+      ) VALUES (
+        $1, 'Mates en la plaza', 'Charla abierta', '2026-11-16', '18:00', 'presencial', 'Plaza San Martín, Banco 4', true, 'Palermo', 'activo'
+      ) RETURNING id;
+    `, [hostUser]);
+    const openEncId = resOpenEnc.rows[0].id;
+
+    const resPartOpen = await db.query<{ token_invitacion: string }>(`
+      INSERT INTO public.participantes (
+        encuentro_id, nombre_invitado, estado
+      ) VALUES (
+        $1, 'Interesado Abierto', 'pendiente'
+      ) RETURNING token_invitacion;
+    `, [openEncId]);
+    const openPendingToken = resPartOpen.rows[0].token_invitacion;
+
+    await setAuthContext(null);
+    const resOpenPend = await db.query<{ res: any }>(
+      `SELECT public.get_participante_seguro($1) AS res;`,
+      [openPendingToken]
+    );
+    assert.ok(resOpenPend.rows[0].res !== null);
+    assert.strictEqual(resOpenPend.rows[0].res.estado, 'pendiente');
+    assert.strictEqual(resOpenPend.rows[0].res.encuentros.lugar_texto, null, 'Abierto pendiente NO debe ver dirección exacta');
+    assert.strictEqual(resOpenPend.rows[0].res.encuentros.open_public_zone, 'Palermo');
 
     // B) Participante confirmado SÍ ve la dirección exacta
     const resConf = await db.query<{ res: any }>(

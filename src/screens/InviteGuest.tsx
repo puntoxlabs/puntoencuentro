@@ -576,7 +576,7 @@ const InviteGuest: React.FC = () => {
             }
             <span>
               {encuentro.modalidad === 'presencial'
-                ? (participante?.estado === 'confirmado' ? (encuentro.lugar_texto || 'Presencial') : 'Presencial')
+                ? (encuentro.lugar_texto || (encuentro as any).open_public_zone || 'Presencial')
                 : 'Virtual'}
             </span>
           </div>
