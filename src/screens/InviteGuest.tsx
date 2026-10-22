@@ -194,9 +194,20 @@ const InviteGuest: React.FC = () => {
         return;
       }
       const enc = Array.isArray(data.encuentros) ? data.encuentros[0] : data.encuentros;
-      if (enc && enc.estado !== encuentro?.estado) {
-        if (import.meta.env.DEV) console.log('[INVITE POLLING] Status updated to:', enc.estado);
-        setEncuentro(enc);
+      if (enc) {
+        if (enc.estado !== encuentro?.estado) {
+          if (import.meta.env.DEV) console.log('[INVITE POLLING] Status updated to:', enc.estado);
+        }
+        setEncuentro({
+          ...enc,
+          link_virtual: enc?.link_virtual || data.link_virtual || undefined,
+        });
+        setParticipante(data);
+        if (data.estado === 'confirmado') {
+          setAllowedMeetingLink(enc?.link_virtual || data.link_virtual || '');
+        } else {
+          setAllowedMeetingLink('');
+        }
       }
     } catch (err) {
       console.error('[INVITE POLLING] Error running polling check', err);
@@ -234,7 +245,8 @@ const InviteGuest: React.FC = () => {
             setError('No disponible');
             setEncuentro(null);
           } else if (payload.new) {
-            setEncuentro(payload.new);
+            if (import.meta.env.DEV) console.log('[INVITE REALTIME] Encounter updated, refreshing via secure RPC');
+            loadData();
           }
         }
       )
@@ -740,7 +752,10 @@ const InviteGuest: React.FC = () => {
       <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
           <button
-            onClick={() => setStep('pending')}
+            onClick={async () => {
+              await loadData();
+              setStep('pending');
+            }}
             className="guest-action-secondary"
           >
             {t('change_response', 'Cambiar respuesta')}

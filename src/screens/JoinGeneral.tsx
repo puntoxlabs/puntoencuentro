@@ -15,10 +15,13 @@ import { getThemeStyle } from '@/lib/themes';
 import { normalizeInvitationTheme, getThemeEyebrow } from '@/lib/invitationThemes';
 import { formatCount } from '@/lib/formatCount';
 import { appUsageTelemetry } from '@/services/appUsageTelemetry';
-import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2 } from 'lucide-react';
+import { CheckCircle2, CalendarCheck2, MapPin, Video, AlertCircle, CalendarX2, Users, DoorClosed } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { HomeOpenEncounterDetailSheet } from '@/components/home/openEncounters/HomeOpenEncounterDetailSheet';
+import type { OpenEncounterSummary } from '@/components/home/openEncounters/types';
+import { openEncountersService } from '@/services/openEncountersService';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
@@ -71,6 +74,8 @@ const JoinGeneral: React.FC = () => {
   const [respuestasVisibles, setRespuestasVisibles] = useState<{ nombre_invitado: string; estado: string }[]>([]);
   const [visibleEnabled, setVisibleEnabled] = useState(false);
   const [allowedMeetingLink, setAllowedMeetingLink] = useState<string>('');
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [discoverySummary, setDiscoverySummary] = useState<OpenEncounterSummary | null>(null);
   const pollRespuestasRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -128,7 +133,8 @@ const JoinGeneral: React.FC = () => {
             setError('No disponible');
             setEncuentro(null);
           } else if (payload.new) {
-            setEncuentro(payload.new);
+            if (import.meta.env.DEV) console.log('[JOIN REALTIME] Encounter updated, refreshing via secure RPC');
+            loadData();
           }
         }
       )
@@ -147,8 +153,10 @@ const JoinGeneral: React.FC = () => {
           return;
         }
 
-        if (updatedEnc.estado !== encuentro.estado) {
-          if (import.meta.env.DEV) console.log('[JOIN POLLING] Status updated to:', updatedEnc.estado);
+        if (updatedEnc) {
+          if (updatedEnc.estado !== encuentro?.estado) {
+            if (import.meta.env.DEV) console.log('[JOIN POLLING] Status updated to:', updatedEnc.estado);
+          }
           setEncuentro(updatedEnc);
         }
       } catch (err) {
@@ -201,6 +209,35 @@ const JoinGeneral: React.FC = () => {
       if (!data) throw new Error("No encontrado");
       if (import.meta.env.DEV) console.log("Estado encuentro:", data.estado);
       setEncuentro(data);
+
+      const isOpenEnc = Boolean(data.was_open || data.is_open || data.open_request_state);
+      if (isOpenEnc) {
+        const buildSummary = (d: any): OpenEncounterSummary => ({
+          id: d.id,
+          title: d.titulo,
+          startsAt: `${d.fecha || ''}T${d.hora || '00:00:00'}`,
+          dateLabel: formatFriendlyDate(d.fecha, d.hora),
+          approximateZone: d.open_public_zone || (d.modalidad === 'virtual' ? 'Virtual' : 'Presencial'),
+          localityId: d.locality_id || '',
+          openSlots: d.open_request_state === 'full' ? 0 : 1,
+          confirmedCount: 0,
+          confirmedSeats: 0,
+          language: 'es',
+          description: d.descripcion || '',
+          allowMultiSeatRequests: false,
+          maxSeatsPerRequest: 1,
+          minSeatsPerRequest: 1,
+          isHost: false,
+          inscriptionsClosed: d.open_request_state === 'inscriptions_closed',
+        });
+
+        openEncountersService.getEncuentroAbiertoById(data.id)
+          .then((summary) => {
+            if (summary) setDiscoverySummary(summary);
+            else setDiscoverySummary(buildSummary(data));
+          })
+          .catch(() => setDiscoverySummary(buildSummary(data)));
+      }
       let savedToken = undefined;
       const key = `puntoencuentro_guest_token_by_public_${public_token}`;
       try {
@@ -686,7 +723,10 @@ const JoinGeneral: React.FC = () => {
       <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
         {encuentro?.estado?.toLowerCase() === 'activo' && !isEncuentroPasado(encuentro.fecha, encuentro.hora) && (
           <button
-            onClick={() => setStep('pending')}
+            onClick={async () => {
+              await loadData();
+              setStep('pending');
+            }}
             className="guest-action-secondary"
           >
             {t('change_response', 'Cambiar respuesta')}
@@ -727,7 +767,7 @@ const JoinGeneral: React.FC = () => {
     titulo: encuentro?.titulo || '',
     fecha: encuentro?.fecha || '',
     hora: encuentro?.hora || '',
-    lugar_texto: encuentro?.lugar_texto,
+    lugar_texto: encuentro?.lugar_texto || (encuentro?.modalidad === 'presencial' ? (encuentro?.open_public_zone || 'Presencial') : undefined),
     modalidad: encuentro?.modalidad,
     descripcion: encuentro?.descripcion,
     tema_invitacion: encuentro?.tema_invitacion || 'classic',
@@ -843,10 +883,10 @@ const JoinGeneral: React.FC = () => {
                 <CalendarCheck2 size={20} className="guest-meta-icon" />
                 <span>{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
               </div>
-              {encuentro.modalidad === 'presencial' && encuentro.lugar_texto && (
+              {encuentro.modalidad === 'presencial' && (encuentro.lugar_texto || encuentro.open_public_zone) && (
                 <div className="guest-meta-row">
                   <MapPin size={20} className="guest-meta-icon" />
-                  <span>{encuentro.lugar_texto}</span>
+                  <span>{encuentro.lugar_texto || encuentro.open_public_zone}</span>
                 </div>
               )}
               <div className="guest-meta-row">
@@ -864,76 +904,154 @@ const JoinGeneral: React.FC = () => {
         )}
       </div>
 
-      {/* ── B. Confirmación ───────────────────────────────────────────── */}
-      <div style={{ padding: '20px 20px 0' }}>
-        {!isFinalizado && (
-          <div
-            className="guest-card"
-            style={{
-              marginBottom: 20,
-              ...(encuentro?.tema_invitacion === 'celebration' ? {
-                background: 'rgba(255, 255, 255, 0.88)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.6)'
-              } : {})
-            }}
-          >
-            <div className="guest-form-group">
-              <label className="guest-form-label">
-                {t('participant.visible_name', 'Tu nombre')}
-              </label>
-              <Input
-                placeholder="Ej: Leandro"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    document.getElementById('btn-confirmar')?.focus();
-                  }
-                }}
-              />
-              <p className="guest-form-help">
-                {t('participant.visible_name_help', 'Así te verá el organizador.')}
-              </p>
+      {/* ── B. Confirmación o Solicitud según procedencia y estado ── */}
+      {(() => {
+        const isOpenEncounter = Boolean(encuentro?.was_open || encuentro?.is_open || encuentro?.open_request_state);
+
+        if (isOpenEncounter) {
+          const reqState = encuentro.open_request_state;
+          return (
+            <div style={{ padding: '20px 20px 0' }}>
+              {reqState === 'inscriptions_closed' ? (
+                <div className="guest-card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <DoorClosed size={22} color="var(--color-warning, #d97706)" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Inscripciones cerradas</h3>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+                    El organizador ya cerró las inscripciones para este encuentro. No se admiten nuevas solicitudes.
+                  </p>
+                  <Button fullWidth variant="outline" onClick={() => navigate('/')}>
+                    Ver otros encuentros abiertos
+                  </Button>
+                </div>
+              ) : reqState === 'full' ? (
+                <div className="guest-card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <Users size={22} color="var(--color-warning, #d97706)" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Cupos completos</h3>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+                    Este encuentro ya completó todos sus lugares disponibles. No es posible enviar nuevas solicitudes.
+                  </p>
+                  <Button fullWidth variant="outline" onClick={() => navigate('/')}>
+                    Ver otros encuentros abiertos
+                  </Button>
+                </div>
+              ) : reqState === 'not_accepting' ? (
+                <div className="guest-card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <AlertCircle size={22} color="var(--color-on-surface-variant)" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Solicitudes no disponibles</h3>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+                    Este encuentro ya no está disponible para sumarse.
+                  </p>
+                  <Button fullWidth variant="outline" onClick={() => navigate('/')}>
+                    Ir al inicio
+                  </Button>
+                </div>
+              ) : !isFinalizado ? (
+                <div className="guest-card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <Users size={22} color="var(--color-primary, #2563eb)" />
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Encuentro abierto a la comunidad</h3>
+                  </div>
+                  <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--color-on-surface-variant)' }}>
+                    Para participar en este encuentro, podés solicitar sumarte a través de Discovery. El organizador revisará tu solicitud para confirmar tu lugar.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <Button fullWidth variant="primary" onClick={() => setIsDetailOpen(true)}>
+                      Solicitar sumarme
+                    </Button>
+                    <Button fullWidth variant="outline" onClick={() => navigate(`/?open_encounter=${encuentro.id}`)}>
+                      Ver en Discovery
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        }
+
+        // Encuentro privado general legítimo
+        return (
+          <>
+            <div style={{ padding: '20px 20px 0' }}>
+              {!isFinalizado && (
+                <div
+                  className="guest-card"
+                  style={{
+                    marginBottom: 20,
+                    ...(encuentro?.tema_invitacion === 'celebration' ? {
+                      background: 'rgba(255, 255, 255, 0.88)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(255,255,255,0.6)'
+                    } : {})
+                  }}
+                >
+                  <div className="guest-form-group">
+                    <label className="guest-form-label">
+                      {t('participant.visible_name', 'Tu nombre')}
+                    </label>
+                    <Input
+                      placeholder="Ej: Leandro"
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          document.getElementById('btn-confirmar')?.focus();
+                        }
+                      }}
+                    />
+                    <p className="guest-form-help">
+                      {t('participant.visible_name_help', 'Así te verá el organizador.')}
+                    </p>
+                  </div>
+
+                  <div className="guest-form-group" style={{ marginBottom: 0 }}>
+                    <label className="guest-form-label">
+                      Mensaje para el organizador (opcional)
+                    </label>
+                    <textarea
+                      placeholder="Ej: Llego 10 min tarde."
+                      value={mensaje}
+                      maxLength={120}
+                      onChange={(e: any) => setMensaje(e.target.value)}
+                      className="guest-textarea"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="guest-form-group" style={{ marginBottom: 0 }}>
-              <label className="guest-form-label">
-                Mensaje para el organizador (opcional)
-              </label>
-              <textarea
-                placeholder="Ej: Llego 10 min tarde."
-                value={mensaje}
-                maxLength={120}
-                onChange={(e: any) => setMensaje(e.target.value)}
-                className="guest-textarea"
-              />
-            </div>
-          </div>
-        )}
+            {!isFinalizado && (
+              <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
+                <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
+                  {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
+                </Button>
+                <button
+                  onClick={() => handleResponse('rechazado')}
+                  disabled={!nombre.trim() || loadingResponse}
+                  className="guest-action-secondary"
+                >
+                  {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
+                </button>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
-        {Boolean(encuentro?.is_open) && (
-          <p className="guest-form-help" style={{ textAlign: 'center', marginBottom: 16, fontStyle: 'italic', opacity: 0.85 }}>
-            Este encuentro también está abierto a solicitudes de otras personas.
-          </p>
-        )}
-      </div>
-
-      {!isFinalizado && (
-        <div className="guest-bottom-actions" style={{ padding: '0 20px' }}>
-          <Button id="btn-confirmar" fullWidth variant="primary" onClick={() => handleResponse('confirmado')} disabled={!nombre.trim() || loadingResponse}>
-            {loadingResponse ? t('loading_link', 'Cargando…') : t('yes_attend', 'Sí, puedo asistir')}
-          </Button>
-          <button
-            onClick={() => handleResponse('rechazado')}
-            disabled={!nombre.trim() || loadingResponse}
-            className="guest-action-secondary"
-          >
-            {loadingResponse ? 'Procesando…' : t('no_attend', 'No puedo asistir')}
-          </button>
-        </div>
+      {/* Sheet canónico de Discovery */}
+      {isDetailOpen && discoverySummary && (
+        <HomeOpenEncounterDetailSheet
+          isOpen={isDetailOpen}
+          encounter={discoverySummary}
+          onClose={() => setIsDetailOpen(false)}
+        />
       )}
       <ScrollHint visible={showScrollHint} />
     </ScreenContainer>
