@@ -1,24 +1,69 @@
 export const PUSH_PROMPT_DISMISSED_KEY = 'pe_push_prompt_dismissed_until_v1';
 export const ANDROID_PUSH_GUIDE_DISMISSED_KEY = 'pe_android_push_guide_dismissed_v1';
+export const DESKTOP_PUSH_GUIDE_DISMISSED_KEY = 'pe_desktop_push_guide_dismissed_v1';
+
+export type PushPlatform = 'android' | 'windows' | 'macos' | 'other';
 
 /**
- * Retorna true si el dispositivo actual es un entorno Android.
- * Se excluyen explícitamente Desktop, iOS y otros entornos no Android.
+ * Determina la plataforma del sistema operativo para contextualizar
+ * las guías de visibilidad de notificaciones.
+ * Excluye explícitamente iOS de las guías de escritorio y Android.
  */
-export function isAndroidDevice(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return /Android/i.test(ua);
+export function getPushPlatform(): PushPlatform {
+  if (typeof navigator === 'undefined') return 'other';
+
+  const nav = navigator as any;
+  const ua = nav.userAgent || '';
+
+  // 1. Exclusión estricta de iOS (iPhone, iPad, iPod o iPadOS como MacIntel con touch points)
+  const isIos =
+    /iPad|iPhone|iPod/i.test(ua) ||
+    (nav.platform === 'MacIntel' && (nav.maxTouchPoints ?? 0) > 1);
+  if (isIos) return 'other';
+
+  // 2. Client Hints / UserAgentData (Chromium moderno en Windows, macOS, Android)
+  if (nav.userAgentData?.platform) {
+    const p = String(nav.userAgentData.platform).toLowerCase();
+    if (p.includes('android')) return 'android';
+    if (p.includes('windows')) return 'windows';
+    if (p.includes('mac') || p.includes('macos')) return 'macos';
+  }
+
+  // 3. UserAgent y platform legacy
+  if (/Android/i.test(ua)) return 'android';
+  if (/Windows NT|Windows/i.test(ua) || /Win32|Win64/i.test(nav.platform || '')) return 'windows';
+  if (/Macintosh|Mac OS X/i.test(ua) || /MacIntel|MacPPC/i.test(nav.platform || '')) return 'macos';
+
+  return 'other';
 }
 
 /**
- * Retorna true si la guía contextual de Android ya fue ofrecida o resuelta
- * (tanto al presionar "Ver cómo configurarlas" como "Ahora no").
+ * Retorna true si la plataforma cuenta con una guía contextual especializada
+ * (Android, Windows o macOS). Excluye iOS y plataformas desconocidas.
  */
-export function isAndroidPushGuideDismissed(): boolean {
+export function isPushGuideSupportedPlatform(platform: PushPlatform = getPushPlatform()): boolean {
+  return platform === 'android' || platform === 'windows' || platform === 'macos';
+}
+
+/**
+ * Retorna true si el dispositivo actual es un entorno Android.
+ * Conservado por compatibilidad con código y pruebas existentes.
+ */
+export function isAndroidDevice(): boolean {
+  return getPushPlatform() === 'android';
+}
+
+/**
+ * Retorna true si la guía contextual de visibilidad ya fue ofrecida o resuelta
+ * para la plataforma actual (respetando la marca previa de Android).
+ */
+export function isPushVisibilityGuideDismissed(platform: PushPlatform = getPushPlatform()): boolean {
   if (typeof localStorage === 'undefined') return false;
   try {
-    return localStorage.getItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY) === 'true';
+    if (platform === 'android') {
+      return localStorage.getItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY) === 'true';
+    }
+    return localStorage.getItem(DESKTOP_PUSH_GUIDE_DISMISSED_KEY) === 'true';
   } catch {
     return false;
   }
@@ -28,21 +73,45 @@ export function isAndroidPushGuideDismissed(): boolean {
  * Registra que la guía ya fue presentada y resuelta en este navegador/dispositivo.
  * No volverá a ofrecerse automáticamente.
  */
-export function dismissAndroidPushGuide(): void {
+export function dismissPushVisibilityGuide(platform: PushPlatform = getPushPlatform()): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    if (platform === 'android') {
+      localStorage.setItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    } else {
+      localStorage.setItem(DESKTOP_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    }
   } catch {}
 }
 
 /**
  * Reinicia la marca de la guía para propósitos de pruebas o QA.
  */
-export function resetAndroidPushGuideDismissal(): void {
+export function resetPushVisibilityGuideDismissal(platform?: PushPlatform): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.removeItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY);
+    if (!platform || platform === 'android') {
+      localStorage.removeItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY);
+    }
+    if (!platform || platform !== 'android') {
+      localStorage.removeItem(DESKTOP_PUSH_GUIDE_DISMISSED_KEY);
+    }
   } catch {}
+}
+
+/**
+ * Wrappers de compatibilidad histórica para Android.
+ */
+export function isAndroidPushGuideDismissed(): boolean {
+  return isPushVisibilityGuideDismissed('android');
+}
+
+export function dismissAndroidPushGuide(): void {
+  dismissPushVisibilityGuide('android');
+}
+
+export function resetAndroidPushGuideDismissal(): void {
+  resetPushVisibilityGuideDismissal('android');
 }
 
 /**

@@ -1,0 +1,161 @@
+/* PushVisibilityGuideBanner.css - Presentación ligera contextual multiplataforma */
+
+.pe-visibility-guide-banner,
+.pe-android-guide-banner {
+  margin-top: 10px;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid rgba(24, 76, 212, 0.2);
+  box-shadow: 0 2px 8px rgba(24, 76, 212, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: visibilityBannerFadeIn 0.2s ease-out forwards;
+}
+
+@keyframes visibilityBannerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pe-visibility-guide-banner__header,
+.pe-android-guide-banner__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+}
+
+.pe-visibility-guide-banner__icon,
+.pe-android-guide-banner__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-primary-container, #E5EDFF);
+  color: var(--color-primary, #184CD4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pe-visibility-guide-banner__body,
+.pe-android-guide-banner__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pe-visibility-guide-banner__title,
+.pe-android-guide-banner__title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-on-surface, #111827);
+  line-height: 1.35;
+}
+
+.pe-visibility-guide-banner__text,
+.pe-android-guide-banner__text {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant, #4b5563);
+  line-height: 1.45;
+}
+
+.pe-visibility-guide-banner__close-icon,
+.pe-android-guide-banner__close-icon {
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pe-visibility-guide-banner__close-icon:hover,
+.pe-android-guide-banner__close-icon:hover {
+  background: var(--color-surface-variant, #f3f4f6);
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-visibility-guide-banner__actions,
+.pe-android-guide-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: 42px;
+}
+
+.pe-visibility-guide-banner__btn-primary,
+.pe-android-guide-banner__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: var(--color-primary, #184CD4);
+  color: #ffffff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pe-visibility-guide-banner__btn-primary:hover,
+.pe-android-guide-banner__btn-primary:hover {
+  background: var(--color-primary-dark, #123AA1);
+}
+
+.pe-visibility-guide-banner__btn-secondary,
+.pe-android-guide-banner__btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-on-surface-variant, #6b7280);
+  border: 1px solid transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pe-visibility-guide-banner__btn-secondary:hover,
+.pe-android-guide-banner__btn-secondary:hover {
+  background: var(--color-surface-variant, #f3f4f6);
+  color: var(--color-on-surface, #111827);
+}
+
+@media (max-width: 480px) {
+  .pe-visibility-guide-banner__actions,
+  .pe-android-guide-banner__actions {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 2px;
+  }
+  .pe-visibility-guide-banner__btn-primary,
+  .pe-visibility-guide-banner__btn-secondary,
+  .pe-android-guide-banner__btn-primary,
+  .pe-android-guide-banner__btn-secondary {
+    flex: 1;
+    min-height: 36px;
+  }
+}

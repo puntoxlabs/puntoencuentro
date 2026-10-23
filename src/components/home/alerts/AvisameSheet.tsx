@@ -25,10 +25,15 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { DevicePushSettings } from './DevicePushSettings';
 import { QuietHoursSettings } from './QuietHoursSettings';
 import { webPushService } from '@/services/webPushService';
-import { isPushPromptDismissed, isAndroidDevice, isAndroidPushGuideDismissed } from './antiNagging';
+import {
+  isPushPromptDismissed,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushVisibilityGuideDismissed,
+} from './antiNagging';
 import { AvisamePushPromptModal } from './AvisamePushPromptModal';
-import { AndroidPushGuideBanner } from './AndroidPushGuideBanner';
-import { AndroidPushGuideModal } from './AndroidPushGuideModal';
+import { PushVisibilityGuideBanner } from './PushVisibilityGuideBanner';
+import { PushVisibilityGuideModal } from './PushVisibilityGuideModal';
 import '@/components/ui/BottomSheet.css';
 import './AvisameSheet.css';
 
@@ -411,10 +416,11 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
           </div>
         )}
 
-        {/* Guía contextual de Android post-activación (por única vez) */}
-        {showAndroidGuideBanner && isAndroidDevice() && !isAndroidPushGuideDismissed() && (
+        {/* Guía contextual post-activación (por única vez) en Android, Windows y macOS */}
+        {showAndroidGuideBanner && isPushGuideSupportedPlatform(getPushPlatform()) && !isPushVisibilityGuideDismissed(getPushPlatform()) && (
           <div style={{ marginBottom: 16 }}>
-            <AndroidPushGuideBanner
+            <PushVisibilityGuideBanner
+              platform={getPushPlatform()}
               onOpenGuide={() => {
                 setShowAndroidGuideBanner(false);
                 setShowAndroidGuideModal(true);
@@ -809,17 +815,19 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
             text: '¡Aviso creado! Notificaciones activadas en este dispositivo.',
             type: 'success',
           });
-          if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {
+          const plat = getPushPlatform();
+          if (isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat)) {
             setShowAndroidGuideBanner(true);
           }
         }}
       />
 
-      {/* Modal de instrucciones Android para avisos de AvisameSheet */}
-      {isAndroidDevice() && (
-        <AndroidPushGuideModal
+      {/* Modal de instrucciones para avisos de AvisameSheet */}
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
           isOpen={showAndroidGuideModal}
           onClose={() => setShowAndroidGuideModal(false)}
+          platform={getPushPlatform()}
         />
       )}
     </>

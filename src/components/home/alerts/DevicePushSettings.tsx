@@ -3,9 +3,13 @@ import { Bell, BellOff, Check, RefreshCw, Smartphone, Sliders } from 'lucide-rea
 import { useTranslation } from 'react-i18next';
 import { webPushService } from '@/services/webPushService';
 import type { WebPushActivateError, WebPushDeviceState } from '@/types/webPush';
-import { isAndroidDevice, isAndroidPushGuideDismissed } from './antiNagging';
-import { AndroidPushGuideBanner } from './AndroidPushGuideBanner';
-import { AndroidPushGuideModal } from './AndroidPushGuideModal';
+import {
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushVisibilityGuideDismissed,
+} from './antiNagging';
+import { PushVisibilityGuideBanner } from './PushVisibilityGuideBanner';
+import { PushVisibilityGuideModal } from './PushVisibilityGuideModal';
 import './DevicePushSettings.css';
 
 const ERROR_COPY: Record<WebPushActivateError, string> = {
@@ -39,7 +43,8 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
   const [showContextualBanner, setShowContextualBanner] = useState(false);
   const mounted = useRef(true);
 
-  const isAndroid = isAndroidDevice();
+  const platform = getPushPlatform();
+  const isGuideSupported = isPushGuideSupportedPlatform(platform);
 
   const refresh = useCallback(async () => {
     const next = await webPushService.getDeviceState();
@@ -66,7 +71,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       if (!res.ok) {
         setErrorMsg(ERROR_COPY[res.error]);
       } else {
-        if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {
+        if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform)) {
           setShowContextualBanner(true);
         }
       }
@@ -207,7 +212,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             </button>
           </div>
 
-          {isAndroid && (
+          {isGuideSupported && (
             <button
               type="button"
               className="pe-push-device__guide-link"
@@ -215,15 +220,20 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             >
               <Sliders size={13} aria-hidden="true" />
               <span>
-                {t('push.android_guide_link', {
-                  defaultValue: 'Cómo mostrar avisos emergentes y en pantalla bloqueada',
-                })}
+                {platform === 'android'
+                  ? t('push.android_guide_link', {
+                      defaultValue: 'Cómo mostrar avisos emergentes y en pantalla bloqueada',
+                    })
+                  : t('push.guide_link', {
+                      defaultValue: 'Configurar visibilidad de notificaciones',
+                    })}
               </span>
             </button>
           )}
 
-          {isAndroid && showContextualBanner && !isAndroidPushGuideDismissed() && (
-            <AndroidPushGuideBanner
+          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform) && (
+            <PushVisibilityGuideBanner
+              platform={platform}
               onOpenGuide={() => {
                 setShowContextualBanner(false);
                 setShowGuideModal(true);
@@ -242,10 +252,11 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
         </p>
       )}
 
-      {isAndroid && (
-        <AndroidPushGuideModal
+      {isGuideSupported && (
+        <PushVisibilityGuideModal
           isOpen={showGuideModal}
           onClose={() => setShowGuideModal(false)}
+          platform={platform}
         />
       )}
     </section>

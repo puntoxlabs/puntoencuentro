@@ -7,7 +7,13 @@ import {
   isAndroidPushGuideDismissed,
   dismissAndroidPushGuide,
   resetAndroidPushGuideDismissal,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushVisibilityGuideDismissed,
+  dismissPushVisibilityGuide,
+  resetPushVisibilityGuideDismissal,
   ANDROID_PUSH_GUIDE_DISMISSED_KEY,
+  DESKTOP_PUSH_GUIDE_DISMISSED_KEY,
 } from '../src/components/home/alerts/antiNagging';
 
 // Polyfill localStorage in Node test runner
@@ -23,10 +29,13 @@ if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localSto
   };
 }
 
-function setMockUserAgent(ua: string) {
+function setMockUserAgent(ua: string, platformData?: string) {
   try {
     Object.defineProperty(globalThis, 'navigator', {
-      value: { userAgent: ua },
+      value: {
+        userAgent: ua,
+        userAgentData: platformData ? { platform: platformData } : undefined,
+      },
       configurable: true,
       writable: true,
     });
@@ -41,7 +50,7 @@ function setMockUserAgent(ua: string) {
   }
 }
 
-describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Android (Mejora UX)', () => {
+describe('PuntoEncuentro — Guía Web Push Multiplataforma (Android, Windows, macOS)', () => {
   const rootDir = process.cwd();
 
   beforeEach(() => {
@@ -49,182 +58,217 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     setMockUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
   });
 
-  // ── 1. DETECCIÓN DE ENTORNO Y COMPATIBILIDAD ANDROID ESTRICTA ─────────────────
+  // ── 1. DETECCIÓN DE PLATAFORMAS (ANDROID, WINDOWS, MACOS, EXCLUSIÓN IOS) ──────
 
-  test('1. isAndroidDevice detecta Android exclusivamente y descarta Desktop / iOS', () => {
+  test('1. getPushPlatform e isAndroidDevice clasifican correctamente Android, Windows, macOS e iOS', () => {
     // Caso Android
     setMockUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
-    assert.strictEqual(isAndroidDevice(), true, 'Debe retornar true para dispositivo Android');
+    assert.strictEqual(getPushPlatform(), 'android');
+    assert.strictEqual(isAndroidDevice(), true);
+    assert.strictEqual(isPushGuideSupportedPlatform('android'), true);
 
-    // Caso Windows Desktop
+    // Caso Windows
     setMockUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36');
-    assert.strictEqual(isAndroidDevice(), false, 'Debe retornar false para Windows Desktop');
+    assert.strictEqual(getPushPlatform(), 'windows');
+    assert.strictEqual(isAndroidDevice(), false);
+    assert.strictEqual(isPushGuideSupportedPlatform('windows'), true);
 
-    // Caso macOS Desktop
+    // Caso macOS
     setMockUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36');
-    assert.strictEqual(isAndroidDevice(), false, 'Debe retornar false para macOS Desktop');
+    assert.strictEqual(getPushPlatform(), 'macos');
+    assert.strictEqual(isAndroidDevice(), false);
+    assert.strictEqual(isPushGuideSupportedPlatform('macos'), true);
 
-    // Caso iPhone iOS
+    // Caso iPhone iOS (excluido)
     setMockUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
-    assert.strictEqual(isAndroidDevice(), false, 'Debe retornar false para iPhone iOS');
+    assert.strictEqual(getPushPlatform(), 'other');
+    assert.strictEqual(isAndroidDevice(), false);
+    assert.strictEqual(isPushGuideSupportedPlatform(getPushPlatform()), false);
 
-    // Caso iPad iOS
+    // Caso iPad iOS (excluido)
     setMockUserAgent('Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1');
-    assert.strictEqual(isAndroidDevice(), false, 'Debe retornar false para iPad iOS');
+    assert.strictEqual(getPushPlatform(), 'other');
+    assert.strictEqual(isAndroidDevice(), false);
+    assert.strictEqual(isPushGuideSupportedPlatform(getPushPlatform()), false);
   });
 
-  // ── 2. PERSISTENCIA DE RESOLUCIÓN Y POLÍTICA DE DISPARO ÚNICO ─────────────────
+  // ── 2. PERSISTENCIA INDEPENDIENTE Y RETROCOMPATIBILIDAD CON MARCA ANDROID ─────
 
-  test('2. Descarte o resolución persiste en localStorage y previene reaparición automática', () => {
-    assert.strictEqual(isAndroidPushGuideDismissed(), false, 'Inicialmente no debe estar descartada');
+  test('2. Persistencia independiente: respeta marca previa de Android sin interferir con Desktop', () => {
+    // Si usuario previo de Android ya descartó la guía:
+    localStorage.setItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    assert.strictEqual(isAndroidPushGuideDismissed(), true, 'Android debe figurar como descartado');
+    assert.strictEqual(isPushVisibilityGuideDismissed('android'), true, 'Android debe figurar como descartado vía helper general');
 
-    // Usuario descarta ("Ahora no") o abre ("Ver cómo configurarlas")
-    dismissAndroidPushGuide();
-    assert.strictEqual(isAndroidPushGuideDismissed(), true, 'Debe estar marcada como resuelta');
+    // Sin embargo, en Windows / macOS la guía de escritorio aún no fue descartada
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), false, 'Windows no debe estar descartado inicialmente');
+    assert.strictEqual(isPushVisibilityGuideDismissed('macos'), false, 'macOS no debe estar descartado inicialmente');
 
-    const stored = localStorage.getItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY);
-    assert.strictEqual(stored, 'true', 'Debe persistir en la clave versionada');
+    // Descarte de escritorio
+    dismissPushVisibilityGuide('windows');
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), true);
+    assert.strictEqual(isPushVisibilityGuideDismissed('macos'), true, 'Persiste en clave de escritorio');
+    assert.strictEqual(localStorage.getItem(DESKTOP_PUSH_GUIDE_DISMISSED_KEY), 'true');
 
-    // Reset de QA / pruebas
-    resetAndroidPushGuideDismissal();
-    assert.strictEqual(isAndroidPushGuideDismissed(), false, 'Reset debe limpiar la marca');
+    // Reset selectivo
+    resetPushVisibilityGuideDismissal('windows');
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), false);
+    assert.strictEqual(isPushVisibilityGuideDismissed('android'), true, 'Android sigue intacto');
   });
 
-  // ── 3. COMPONENTE ANDROID PUSH GUIDE BANNER (PRESENTACIÓN LIGERA) ─────────────
+  // ── 3. COMPONENTE PUSH VISIBILITY GUIDE BANNER (MULTIPLATAFORMA) ───────────────
 
-  test('3. AndroidPushGuideBanner cumple con los requisitos de diseño, accesibilidad y acciones', () => {
-    const bannerPath = path.join(rootDir, 'src/components/home/alerts/AndroidPushGuideBanner.tsx');
+  test('3. PushVisibilityGuideBanner cumple con los requisitos de diseño, accesibilidad y acciones', () => {
+    const bannerPath = path.join(rootDir, 'src/components/home/alerts/PushVisibilityGuideBanner.tsx');
     const content = fs.readFileSync(bannerPath, 'utf-8');
 
     // Título y texto informativo
     assert.ok(content.includes('¿Querés que los avisos sean más visibles?'), 'Debe contener el título sugerido');
-    assert.ok(content.includes('Ya podés recibir notificaciones de PuntoEncuentro'), 'Debe incluir el texto contextual');
+    assert.ok(content.includes('PuntoEncuentro ya puede enviarte notificaciones'), 'Debe incluir el texto contextual general');
     assert.ok(content.includes('Ver cómo configurarlas'), 'Debe incorporar la acción principal');
     assert.ok(content.includes('Ahora no'), 'Debe incorporar la acción secundaria');
 
-    // Ambas acciones descartan la guía persistente
-    assert.ok(content.includes('dismissAndroidPushGuide();\n    onOpenGuide();'), 'Abrir la guía persiste descarte para no repetir');
-    assert.ok(content.includes('dismissAndroidPushGuide();\n    onDismiss();'), 'Descartar persiste para no repetir');
-
-    // Accesibilidad
+    // Acciones persisten descarte
+    assert.ok(content.includes('dismissPushVisibilityGuide'), 'Debe invocar dismissPushVisibilityGuide');
     assert.ok(content.includes('role="region"'), 'Debe tener role="region" semántico');
+
+    // Exportación de compatibilidad Android
+    assert.ok(content.includes('AndroidPushGuideBanner = PushVisibilityGuideBanner'), 'Debe proveer alias AndroidPushGuideBanner');
   });
 
-  // ── 4. COMPONENTE ANDROID PUSH GUIDE MODAL (INSTRUCCIONES CLARAS) ──────────────
+  // ── 4. COMPONENTE PUSH VISIBILITY GUIDE MODAL (ANDROID, WINDOWS, MACOS) ────────
 
-  test('4. AndroidPushGuideModal implementa las 5 instrucciones requeridas, aviso de fabricantes y privacidad', () => {
-    const modalPath = path.join(rootDir, 'src/components/home/alerts/AndroidPushGuideModal.tsx');
+  test('4. PushVisibilityGuideModal implementa instrucciones completas para Android, Windows y macOS', () => {
+    const modalPath = path.join(rootDir, 'src/components/home/alerts/PushVisibilityGuideModal.tsx');
     const content = fs.readFileSync(modalPath, 'utf-8');
 
-    // Accesibilidad y diálogo
+    // Diálogo accesible
     assert.ok(content.includes('role="dialog"'), 'Debe tener role="dialog"');
     assert.ok(content.includes('aria-modal="true"'), 'Debe tener aria-modal="true"');
-    assert.ok(content.includes('aria-labelledby="android-guide-title"'), 'Debe asociar aria-labelledby');
-    assert.ok(content.includes('aria-describedby="android-guide-subtitle"'), 'Debe asociar aria-describedby');
+    assert.ok(content.includes('aria-labelledby="push-guide-title"'), 'Debe asociar aria-labelledby');
+    assert.ok(content.includes('aria-describedby="push-guide-subtitle"'), 'Debe asociar aria-describedby');
 
-    // Las 5 instrucciones requeridas
-    assert.ok(content.includes('Abrí los ajustes de notificaciones de Android.'), 'Paso 1 requerido');
-    assert.ok(content.includes('Buscá Chrome (o tu navegador) y las notificaciones del sitio PuntoEncuentro.'), 'Paso 2 requerido');
-    assert.ok(content.includes('Si está disponible, activá la opción de mostrar avisos emergentes o banners flotantes.'), 'Paso 3 requerido');
-    assert.ok(content.includes('Elegí cómo mostrar las notificaciones en la pantalla bloqueada.'), 'Paso 4 requerido');
-    assert.ok(content.includes('Comprobá que la categoría no esté en silencio y que «No molestar» no restrinja los avisos.'), 'Paso 5 requerido');
+    // Instrucciones Android
+    assert.ok(content.includes('Abrí los ajustes de notificaciones de Android.'), 'Paso 1 Android');
+    assert.ok(content.includes('Buscá Chrome (o tu navegador) y las notificaciones del sitio PuntoEncuentro.'), 'Paso 2 Android');
+    assert.ok(content.includes('Si está disponible, activá la opción de mostrar avisos emergentes o banners flotantes.'), 'Paso 3 Android');
+    assert.ok(content.includes('Elegí cómo mostrar las notificaciones en la pantalla bloqueada.'), 'Paso 4 Android');
+    assert.ok(content.includes('Comprobá que la categoría no esté en silencio y que «No molestar» no restrinja los avisos.'), 'Paso 5 Android');
 
-    // Aclaración de fabricantes y honestidad técnica (no modificar automáticamente)
-    assert.ok(content.includes('Los nombres de los menús pueden variar según el fabricante y la versión de Android'), 'Debe advertir sobre fabricantes');
-    assert.ok(content.includes('Estas opciones se configuran directamente en Android y no pueden modificarse desde la aplicación.'), 'Debe aclarar límites técnicos');
+    // Instrucciones Windows (Fase 4)
+    assert.ok(content.includes('Verificá que PuntoEncuentro tenga permitido enviar notificaciones desde tu navegador'), 'Paso 1 Windows');
+    assert.ok(content.includes('Abrí Configuración de Windows → Sistema → Notificaciones.'), 'Paso 2 Windows');
+    assert.ok(content.includes('Buscá tu navegador en la lista de aplicaciones con permiso para notificar.'), 'Paso 3 Windows');
+    assert.ok(content.includes('Activá los banners emergentes de notificación y revisá las opciones de sonido'), 'Paso 4 Windows');
+    assert.ok(content.includes('Comprobá que «No molestar» o el Asistente de concentración no estén bloqueando los avisos.'), 'Paso 5 Windows');
+    assert.ok(content.includes('Los permisos del sitio web en el navegador y las preferencias de presentación de Windows'), 'Nota de controles Windows');
+    assert.ok(content.includes('La recepción de notificaciones cuando el navegador está cerrado depende de la configuración de aplicaciones en segundo plano'), 'Nota navegador cerrado Windows');
 
-    // Privacidad: aviso genérico PuntoEncuentro y configuración personal
-    assert.ok(content.includes('Por privacidad, PuntoEncuentro muestra avisos genéricos'), 'Debe incluir recomendación de privacidad');
+    // Instrucciones macOS (Fase 5)
+    assert.ok(content.includes('Verificá que PuntoEncuentro tenga permiso para mostrar notificaciones en tu navegador (Safari, Chrome o Edge).'), 'Paso 1 macOS');
+    assert.ok(content.includes('Abrí Configuración del Sistema (o Preferencias del Sistema) → Notificaciones.'), 'Paso 2 macOS');
+    assert.ok(content.includes('Localizá tu navegador o aplicación web en la lista lateral de notificaciones.'), 'Paso 3 macOS');
+    assert.ok(content.includes('Elegí el estilo de aviso (tiras o alertas), sonidos y opciones de visualización'), 'Paso 4 macOS');
+    assert.ok(content.includes('Comprobá que los Modos de Concentración (como «No molestar») no estén silenciando'), 'Paso 5 macOS');
+    assert.ok(content.includes('Cada navegador (Safari, Chrome, Edge) administra sus permisos de forma propia en macOS.'), 'Nota navegadores macOS');
 
-    // Cierre accesible
-    assert.ok(content.includes('Escape'), 'Debe escuchar tecla Escape');
-    assert.ok(content.includes('Entendido'), 'Botón principal de cierre debe ser Entendido');
+    // Instrucciones Genéricas bajo demanda
+    assert.ok(content.includes('Comprobá que el navegador tenga permitido enviar notificaciones para el sitio PuntoEncuentro.'), 'Paso 1 Genérico');
+
+    // Privacidad y honestidad técnica
+    assert.ok(content.includes('PuntoEncuentro muestra avisos genéricos'), 'Debe incluir recomendación de privacidad');
+    assert.ok(content.includes('no pueden ser modificadas automáticamente'), 'Debe declarar honestidad técnica');
   });
 
-  // ── 5. ACCESO PERMANENTE Y EXCLUSIVIDAD ANDROID EN DEVICE PUSH SETTINGS ───────
+  // ── 5. ACCESO PERMANENTE EN DEVICE PUSH SETTINGS (CONFIGURAR VISIBILIDAD) ─────
 
-  test('5. DevicePushSettings incorpora enlace permanente y banner solo en Android cuando subscribed', () => {
+  test('5. DevicePushSettings incorpora enlace permanente y banner contextual para Android, Windows y macOS', () => {
     const dpsPath = path.join(rootDir, 'src/components/home/alerts/DevicePushSettings.tsx');
     const content = fs.readFileSync(dpsPath, 'utf-8');
 
-    // Enlace permanente bajo demanda
+    // Enlace permanente bajo demanda para plataformas soportadas
     assert.ok(
+      content.includes('Configurar visibilidad de notificaciones') ||
       content.includes('Cómo mostrar avisos emergentes y en pantalla bloqueada'),
-      'Debe contener el enlace permanente de ayuda'
+      'Debe contener el enlace permanente de visibilidad'
     );
     assert.ok(
       content.includes('className="pe-push-device__guide-link"'),
       'El enlace de ayuda debe tener su clase CSS identificable'
     );
-
-    // Condición de exclusividad Android
     assert.ok(
-      content.includes('{isAndroid && ('),
-      'El enlace permanente debe condicionarse a dispositivos Android'
-    );
-    assert.ok(
-      content.includes('isAndroid && showContextualBanner && !isAndroidPushGuideDismissed()'),
-      'El banner contextual solo se ofrece en Android si no fue descartado'
+      content.includes('isGuideSupported'),
+      'El enlace y banner deben condicionarse a isGuideSupported'
     );
 
     // Activación exitosa dispara el banner contextual si no fue descartado
     assert.ok(
-      content.includes('if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {\n          setShowContextualBanner(true);\n        }'),
-      'handleActivate dispara el banner contextual tras res.ok'
+      content.includes('if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform)) {\n          setShowContextualBanner(true);\n        }'),
+      'handleActivate dispara el banner contextual tras res.ok para plataformas soportadas'
     );
   });
 
-  // ── 6. COORDINACIÓN ENTRE AVISAME SHEET Y MODAL DE ACTIVACIÓN ─────────────────
+  // ── 6. COORDINACIÓN EN AVISAME SHEET ──────────────────────────────────────────
 
-  test('6. AvisameSheet coordina el flujo post-guardado sin superposición de modales ni pérdida de la guía', () => {
+  test('6. AvisameSheet coordina el flujo post-guardado en Android, Windows y macOS sin superposiciones', () => {
     const avisamePath = path.join(rootDir, 'src/components/home/alerts/AvisameSheet.tsx');
     const content = fs.readFileSync(avisamePath, 'utf-8');
 
-    // onActivated en AvisamePushPromptModal cierra el diálogo nativo y dispara la guía contextual en el Sheet
+    // onActivated cierra diálogo nativo y activa el banner contextual en el Sheet
     assert.ok(
-      content.includes('setShowPushPrompt(false);\n          setFeedbackMsg({\n            text: \'¡Aviso creado! Notificaciones activadas en este dispositivo.\',\n            type: \'success\',\n          });\n          if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {\n            setShowAndroidGuideBanner(true);\n          }'),
-      'onActivated cierra AvisamePushPromptModal y activa el banner contextual en el Sheet'
+      content.includes('setShowPushPrompt(false);\n          setFeedbackMsg({\n            text: \'¡Aviso creado! Notificaciones activadas en este dispositivo.\',\n            type: \'success\',\n          });'),
+      'onActivated cierra modal de alerta con feedback'
+    );
+    assert.ok(
+      content.includes('isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat)'),
+      'onActivated activa el banner si la plataforma está soportada y no descartada'
     );
 
-    // El banner se renderiza dentro del Sheet sin modales flotantes bloqueantes
+    // Apertura del modal
     assert.ok(
-      content.includes('showAndroidGuideBanner && isAndroidDevice() && !isAndroidPushGuideDismissed()'),
-      'AvisameSheet condiciona el banner a dispositivos Android y no descartados'
-    );
-
-    // Apertura del modal de instrucciones bajo demanda
-    assert.ok(
-      content.includes('<AndroidPushGuideModal\n          isOpen={showAndroidGuideModal}'),
-      'AvisameSheet monta AndroidPushGuideModal para visualización bajo demanda'
+      content.includes('<PushVisibilityGuideModal\n          isOpen={showAndroidGuideModal}'),
+      'AvisameSheet monta PushVisibilityGuideModal para visualización bajo demanda'
     );
   });
 
   // ── 7. INTERNACIONALIZACIÓN COMPLETA (ES, EN, PT, PT-BR) ──────────────────────
 
-  test('7. Claves de internacionalización push completas y consistentes en los 4 idiomas', () => {
+  test('7. Claves de internacionalización multiplataforma presentes en los 4 idiomas', () => {
     const locales = ['es', 'en', 'pt', 'pt-BR'];
-    const requiredPushKeys = [
-      'title',
-      'subtitle',
-      'activate',
-      'active',
-      'deactivate',
-      'android_guide_link',
-      'android_banner_title',
-      'android_banner_text',
-      'android_banner_cta',
-      'android_banner_dismiss',
+    const requiredKeys = [
+      'guide_link',
+      'banner_title',
+      'banner_text',
+      'windows_modal_title',
+      'windows_modal_subtitle',
+      'windows_modal_step1',
+      'windows_modal_step2',
+      'windows_modal_step3',
+      'windows_modal_step4',
+      'windows_modal_step5',
+      'windows_modal_controls_note',
+      'windows_modal_background_note',
+      'windows_modal_system_note',
+      'macos_modal_title',
+      'macos_modal_subtitle',
+      'macos_modal_step1',
+      'macos_modal_step2',
+      'macos_modal_step3',
+      'macos_modal_step4',
+      'macos_modal_step5',
+      'macos_modal_browsers_note',
+      'macos_modal_system_note',
+      'generic_modal_title',
+      'generic_modal_subtitle',
+      'generic_modal_step1',
+      'generic_modal_step2',
+      'generic_modal_step3',
+      'generic_modal_step4',
+      'generic_modal_system_note',
+      'shared_device_privacy_note',
       'android_modal_title',
-      'android_modal_subtitle',
       'android_modal_step1',
-      'android_modal_step2',
-      'android_modal_step3',
-      'android_modal_step4',
       'android_modal_step5',
-      'android_modal_manufacturers_note',
-      'android_modal_privacy_note',
-      'android_modal_system_note',
-      'android_modal_close',
     ];
 
     for (const lang of locales) {
@@ -234,7 +278,7 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
       const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       assert.ok(data.push, `Debe existir sección push en ${lang}.json`);
 
-      for (const key of requiredPushKeys) {
+      for (const key of requiredKeys) {
         assert.ok(
           typeof data.push[key] === 'string' && data.push[key].trim().length > 0,
           `Clave push.${key} debe existir y tener texto en ${lang}.json`
@@ -269,20 +313,19 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     assert.ok(serviceContent.includes('SERVICE_WORKER_URL = \'/sw.js\''));
   });
 
-  // ── 9. SIMULACIÓN DE REINGRESO A LA APLICACIÓN ─────────────────────────────────
+  // ── 9. REINGRESO A LA APLICACIÓN ───────────────────────────────────────────────
 
-  test('9. Reingreso a la aplicación: no repite la guía automáticamente si ya fue resuelta o descartada', () => {
-    // Primera visita: usuario activa y resuelve la guía (tocando "Ver cómo configurarlas")
-    assert.strictEqual(isAndroidPushGuideDismissed(), false);
-    dismissAndroidPushGuide();
-    assert.strictEqual(isAndroidPushGuideDismissed(), true);
+  test('9. Reingreso a la aplicación: no repite la guía automáticamente si ya fue resuelta en Windows o macOS', () => {
+    // Primera visita en Windows: activar y resolver
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), false);
+    dismissPushVisibilityGuide('windows');
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), true);
 
     // Simular reingreso (nuevo montaje con estado subscribed existente):
-    // La función isAndroidPushGuideDismissed lee localStorage y retorna true
-    assert.strictEqual(isAndroidPushGuideDismissed(), true, 'Debe permanecer resuelta en el reingreso');
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows'), true, 'Debe permanecer resuelta en Windows');
 
-    // Por ende, la condición (showContextualBanner && !isAndroidPushGuideDismissed()) será false
-    const bannerVisible = false && !isAndroidPushGuideDismissed();
+    // Por ende, la condición (showContextualBanner && !isPushVisibilityGuideDismissed(platform)) será false
+    const bannerVisible = false && !isPushVisibilityGuideDismissed('windows');
     assert.strictEqual(bannerVisible, false, 'El banner contextual NO debe mostrarse al reingresar');
   });
 
@@ -292,7 +335,6 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     const qaPath = path.join(rootDir, 'src/screens/InternalQA/QAWebPushDiagnostic.tsx');
     const qaContent = fs.readFileSync(qaPath, 'utf-8');
 
-    // Debe importar y renderizar DevicePushSettings
     assert.ok(
       qaContent.includes("import { DevicePushSettings } from '../../components/home/alerts/DevicePushSettings'"),
       'QAWebPushDiagnostic debe importar DevicePushSettings'
@@ -300,10 +342,6 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     assert.ok(
       qaContent.includes('<DevicePushSettings />'),
       'QAWebPushDiagnostic debe renderizar DevicePushSettings directamente'
-    );
-    assert.ok(
-      !qaContent.includes('AndroidPushGuideModal'),
-      'QAWebPushDiagnostic no debe duplicar la instancia de AndroidPushGuideModal'
     );
   });
 
@@ -313,7 +351,6 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     const dpsPath = path.join(rootDir, 'src/components/home/alerts/DevicePushSettings.tsx');
     const content = fs.readFileSync(dpsPath, 'utf-8');
 
-    // En estado unsupported no se monta el enlace de Android
     const unsupportedIdx = content.indexOf("state.kind === 'unsupported'");
     const deniedIdx = content.indexOf("state.kind === 'denied'");
     const subscribedIdx = content.indexOf("state.kind === 'subscribed'");
@@ -323,15 +360,23 @@ describe('PuntoEncuentro — Guía de Configuración de Notificaciones en Androi
     const deniedSection = content.slice(deniedIdx, content.indexOf("state.kind === 'default'"));
 
     assert.ok(
-      !unsupportedSection.includes('AndroidPushGuideBanner') &&
+      !unsupportedSection.includes('PushVisibilityGuideBanner') &&
       !unsupportedSection.includes('pe-push-device__guide-link'),
-      'Sección unsupported no debe mostrar guía de Android'
+      'Sección unsupported no debe mostrar guía'
     );
 
     assert.ok(
-      !deniedSection.includes('AndroidPushGuideBanner') &&
+      !deniedSection.includes('PushVisibilityGuideBanner') &&
       !deniedSection.includes('pe-push-device__guide-link'),
-      'Sección denied no debe mostrar guía de Android'
+      'Sección denied no debe mostrar guía'
     );
+  });
+
+  // ── 12. EXCLUSIÓN TOTAL DE IOS DE ESTA GUÍA ───────────────────────────────────
+
+  test('12. Dispositivos iOS nunca reciben la guía ni el enlace de visibilidad', () => {
+    setMockUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
+    const p = getPushPlatform();
+    assert.strictEqual(isPushGuideSupportedPlatform(p), false, 'iOS debe retornar isPushGuideSupportedPlatform = false');
   });
 });
