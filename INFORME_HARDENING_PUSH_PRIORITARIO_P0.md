@@ -161,4 +161,60 @@ Antes de iniciar este sprint, la cola remota registraba:
 
 ---
 
-**Estado:** IMPLEMENTACIÓN P0 CONCLUIDA Y VERIFICADA EN STAGING.
+## 6. Anexo de Cierre Técnico P0: Cambios de Logística y Robustez SQL
+
+### 6.1. Prioridad de Modificaciones de Logística (`encounter_logistics_changed`)
+- **Migración aditiva:** `supabase/migrations/20261023193000_harden_logistics_priority_and_claim_safety_v2.sql` aplicada en Supabase Staging (`wougfhfwqgmxhgvjqoua`).
+- **Comportamiento en `actualizar_encuentro_seguro`:**
+  - Cuando el anfitrión modifica la dirección física (`lugar_texto`) o el enlace virtual (`link_virtual`), se genera `encounter_logistics_changed` exclusivamente para participantes con estado `confirmado` o `asistio`.
+  - Se añade `priority: 'critical'` en el payload server-side.
+  - El cuerpo de la notificación Inbox permanece genérico y seguro: no expone la dirección física ni el link virtual, protegiendo las reglas de autorización y privacidad hasta que el participante ingresa a la aplicación.
+  - Actualizaciones generales del encuentro (cambio de título, descripción pública, modalidad, etc.) **no** elevan la prioridad de forma indiscriminada.
+  - Para solicitantes pendientes ante cambio de fecha/horario, se preserva `is_applicant: true` para que permanezcan en urgencia `normal`.
+
+### 6.2. Robustecimiento de la Clasificación SQL en `claim_web_push_deliveries_seguro`
+- **Problema corregido:** Se eliminó la dependencia del cast frágil `(payload->>'is_applicant')::boolean`, el cual arrojaba excepciones `invalid input syntax for type boolean` ante metadata inesperada o strings arbitrarios, abortando la transacción y bloqueando todo el lote de entregas pendientes.
+- **Implementación resiliente:**
+  ```sql
+  v_is_critical := COALESCE(
+      v_claimed_rows.notification_type IN (
+          'encounter_cancelled_for_participant',
+          'open_encounter_request_cancelled_by_host'
+      )
+      OR (
+          v_claimed_rows.notification_type IN ('encounter_schedule_changed', 'encounter_logistics_changed')
+          AND (
+              COALESCE(v_claimed_rows.payload->>'is_applicant', '') NOT IN ('true', 't', '1', 'yes')
+          )
+      )
+      OR (COALESCE(v_claimed_rows.payload->>'priority', '') = 'critical'),
+      false
+  );
+  ```
+- **Matriz de Casos Verificada por Suite Automatizada (10/10 PASS):**
+  1. **Campo ausente (`NULL`):** No arroja error. Confirmados reciben `urgency: high`.
+  2. **Booleano verdadero (`true` o `"true"`):** Solicitantes pendientes reciben `urgency: normal`.
+  3. **Booleano falso (`false` o `"false"`):** Participantes confirmados reciben `urgency: high`.
+  4. **Valor inesperado (string arbitrario, numérico u objeto anidado):** Se procesa de forma segura sin excepciones; no bloquea el procesamiento del lote.
+  5. **Notificación desconocida:** Fail-safe conservador con `urgency: normal`.
+
+### 6.3. Evidencias de Validación Posterior al Despliegue
+
+| Requisito | Comportamiento Comprobado | Estado |
+| :--- | :--- | :--- |
+| **A. Cancelación** | Despacha `is_critical: true` y `urgency: high`. | **Verificado** |
+| **B. Cambio fecha/hora confirmado** | Despacha `is_critical: true` y `urgency: high`. | **Verificado** |
+| **C. Cambio logística confirmado** | Despacha `is_critical: true` y `urgency: high`. | **Verificado** |
+| **D. Coincidencia informativa** | Despacha `is_critical: false` y `urgency: normal`. | **Verificado** |
+| **E. Tipo desconocido** | Despacha `is_critical: false` y `urgency: normal`. | **Verificado** |
+| **F. Sin reemplazo por tag idéntico** | Aviso crítico sin `tag` coexiste en panel; posterior con `pe-notification` no lo sobrescribe. | **Verificado** |
+| **G. Neutralidad y navegación** | Payload invariante `{ title: "PuntoEncuentro", body: "Tenés una nueva notificación" }` y click a `/?notifications=1`. | **Verificado** |
+| **H. Consistencia Staging** | Migración `20261023193000` aplicada en DB Staging (`wougfhfwqgmxhgvjqoua`). Funciones `web-push-worker` (v2) y `domain-events-worker` (v7) activas. | **Verificado** |
+| **I. Eventos de dominio post-deploy** | Catálogo completo de 16 handlers activos. Las 32 fallas históricas de dominio no fueron tocadas ni reprocesadas. | **Verificado (Catálogo)** / **Pendiente (Tráfico orgánico)** |
+
+### 6.4. Estado de Validación Física Android
+- Conforme a los criterios de rigor y seguridad, la validación visual de recepción en dispositivo físico Android se mantiene **separada para prueba manual de QA posterior**, sin declararla aprobada automáticamente por medios simulados.
+
+---
+
+**Estado:** MINI-SPRINT P0 TOTALMENTE CERRADO Y VERIFICADO EN STAGING.

@@ -97,9 +97,67 @@ describe('Mini-sprint P0: Blindaje de Notificaciones Críticas y Prioridad Web P
         ('${userA}', 'usera@example.com'),
         ('${userB}', 'userb@example.com')
       ON CONFLICT DO NOTHING;
+
+      -- Tablas mínimas requeridas para compilar y probar actualizar_encuentro_seguro en PGlite
+      CREATE TABLE IF NOT EXISTS public.localities (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS public.encuentros (
+        id UUID PRIMARY KEY,
+        host_id UUID NOT NULL,
+        titulo TEXT NOT NULL,
+        open_public_title TEXT,
+        descripcion TEXT,
+        open_description TEXT,
+        fecha DATE,
+        hora TIME,
+        modalidad TEXT NOT NULL DEFAULT 'presencial',
+        locality_id TEXT,
+        open_public_zone TEXT,
+        lugar_texto TEXT,
+        link_virtual TEXT,
+        max_participants INT DEFAULT 10,
+        allow_multi_seat_requests BOOLEAN DEFAULT false,
+        min_seats_per_request INT DEFAULT 1,
+        max_seats_per_request INT DEFAULT 1,
+        is_open BOOLEAN DEFAULT false,
+        opened_at TIMESTAMPTZ,
+        moderation_status TEXT DEFAULT 'approved',
+        moderation_reason TEXT,
+        moderated_at TIMESTAMPTZ,
+        moderation_decision_source TEXT,
+        closed_at TIMESTAMPTZ,
+        inscriptions_closed BOOLEAN DEFAULT false,
+        inscriptions_cycle_id UUID,
+        estado TEXT NOT NULL DEFAULT 'activo'
+      );
+      CREATE TABLE IF NOT EXISTS public.participantes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encuentro_id UUID NOT NULL,
+        user_id UUID NOT NULL,
+        seat_count INT DEFAULT 1,
+        estado TEXT NOT NULL DEFAULT 'confirmado',
+        reconfirmation_status TEXT DEFAULT 'none',
+        reconfirmed_at TIMESTAMPTZ,
+        reconfirmed_cycle_id UUID
+      );
+      CREATE TABLE IF NOT EXISTS public.solicitudes_encuentro_abierto (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encuentro_id UUID NOT NULL,
+        usuario_id UUID NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pending'
+      );
+      CREATE OR REPLACE FUNCTION public.evaluar_contenido_publico_determinista(t TEXT, d TEXT)
+      RETURNS TABLE(allowed BOOLEAN, reason TEXT) AS $$
+        SELECT true, NULL::TEXT;
+      $$ LANGUAGE sql;
+
+      GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+      GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
     `);
 
-    // 2. Cargar migraciones base de notificaciones, outbox y la nueva migración P0
+    // 2. Cargar migraciones base de notificaciones, outbox y las nuevas migraciones P0
     const migrations = [
       'supabase/migrations/20261002180000_notifications_inbox_and_outbox_base.sql',
       'supabase/migrations/20261002200000_harden_inbox_rpc_grants.sql',
@@ -107,6 +165,7 @@ describe('Mini-sprint P0: Blindaje de Notificaciones Críticas y Prioridad Web P
       'supabase/migrations/20261003140000_web_push_delivery_outbox.sql',
       'supabase/migrations/20261003150000_harden_web_push_delivery_safety.sql',
       'supabase/migrations/20261023183000_harden_web_push_claim_and_priority_v1.sql',
+      'supabase/migrations/20261023193000_harden_logistics_priority_and_claim_safety_v2.sql',
     ];
 
     for (const mig of migrations) {
@@ -196,6 +255,176 @@ describe('Mini-sprint P0: Blindaje de Notificaciones Críticas y Prioridad Web P
     assert.ok(applicantSched);
     assert.equal(applicantSched.is_critical, false);
     assert.equal(applicantSched.urgency, 'normal');
+  });
+
+  test('Validación C: Cambio de logística relevante (encounter_logistics_changed) para participante confirmado recibe prioridad high', async () => {
+    await asAdmin();
+    await db.query(`DELETE FROM public.notification_delivery_outbox;`);
+    await db.query(`DELETE FROM public.inbox_notifications;`);
+    await db.query(`DELETE FROM public.web_push_subscriptions;`);
+
+    await registerDevice(userA);
+
+    // 1. Modificación de logística generada por actualizar_encuentro_seguro para participante confirmado
+    await insertInbox(userA, 'encounter_logistics_changed', {
+      encounter_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      title: 'Encuentro de Prueba',
+      priority: 'critical',
+      change_type: 'logistics',
+    });
+
+    // 2. Modificación de logística sin priority explícito pero sin is_applicant (participante confirmado)
+    await insertInbox(userA, 'encounter_logistics_changed', {
+      encounter_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      title: 'Encuentro de Prueba 2',
+      change_type: 'logistics',
+    });
+
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', { p_batch_size: 10 });
+    assert.equal(claimRes.ok, true);
+    assert.equal(claimRes.deliveries.length, 2);
+
+    for (const d of claimRes.deliveries) {
+      assert.equal(d.notification_type, 'encounter_logistics_changed');
+      assert.equal(d.is_critical, true, 'Logística para participante confirmado debe ser critical');
+      assert.equal(d.urgency, 'high', 'Logística para participante confirmado debe ser urgency high');
+    }
+  });
+
+  test('Validación C2: actualizar_encuentro_seguro emite encounter_logistics_changed con priority critical para participantes confirmados', async () => {
+    const encounterId = '33333333-3333-3333-3333-333333333333';
+
+    await asAdmin();
+    await db.query(`DELETE FROM public.notification_delivery_outbox;`);
+    await db.query(`DELETE FROM public.inbox_notifications;`);
+    await db.query(`DELETE FROM public.web_push_subscriptions;`);
+
+    // Insertar encuentro de prueba donde userA es host
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, open_public_title, fecha, hora, modalidad, lugar_texto, is_open, estado)
+      VALUES ($1, $2, 'Encuentro Test', 'Encuentro Abierto Test', '2026-10-30', '18:00', 'presencial', 'Café Central', true, 'activo')
+      ON CONFLICT (id) DO UPDATE SET lugar_texto = 'Café Central';
+    `, [encounterId, userA]);
+
+    // Registrar userB como participante confirmado
+    await db.query(`DELETE FROM public.participantes WHERE encuentro_id = $1;`, [encounterId]);
+    await db.query(`INSERT INTO public.participantes (encuentro_id, user_id, estado) VALUES ($1, $2, 'confirmado');`, [encounterId, userB]);
+
+    // Dispositivo para userB
+    await registerDevice(userB);
+
+    // Host userA actualiza lugar_texto
+    const updateRes = await rpc(userA, 'actualizar_encuentro_seguro', {
+      p_encuentro_id: encounterId,
+      p_host_id: userA,
+      p_data: { lugar_texto: 'Nuevo Lugar Plaza Serrano' },
+    });
+    assert.equal(updateRes.ok, true);
+    assert.equal(updateRes.logistics_changed, true);
+
+    // Verificar como admin que se insertó notificación en inbox_notifications para userB
+    await asAdmin();
+    const { rows: inboxRows } = await db.query(
+      `SELECT notification_type, payload, body FROM public.inbox_notifications WHERE recipient_user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [userB]
+    );
+    assert.ok(inboxRows.length > 0);
+    const notif = inboxRows[0];
+    assert.equal(notif.notification_type, 'encounter_logistics_changed');
+    assert.equal(notif.payload.priority, 'critical', 'Debe incluir priority: critical en el payload');
+    assert.equal(notif.payload.change_type, 'logistics');
+
+    // Invariante de privacidad: el body no expone la dirección exacta
+    assert.ok(!notif.body.includes('Plaza Serrano'), 'El cuerpo de la notificación no debe exponer la dirección');
+
+    // Reclamar delivery outbox y verificar urgencia high
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', { p_batch_size: 5 });
+    assert.equal(claimRes.ok, true);
+    const deliv = claimRes.deliveries.find((d: any) => d.notification_type === 'encounter_logistics_changed');
+    assert.ok(deliv);
+    assert.equal(deliv.is_critical, true);
+    assert.equal(deliv.urgency, 'high');
+  });
+
+  test('Validación SQL Robustez: claim_web_push_deliveries_seguro tolera campo ausente, booleanos, valores inesperados y tipos desconocidos sin abortar', async () => {
+    await asAdmin();
+    await db.query(`DELETE FROM public.notification_delivery_outbox;`);
+    await db.query(`DELETE FROM public.inbox_notifications;`);
+    await db.query(`DELETE FROM public.web_push_subscriptions;`);
+
+    await registerDevice(userB);
+
+    // Caso 1: Campo is_applicant ausente en encounter_schedule_changed (confirmado) -> high
+    await insertInbox(userB, 'encounter_schedule_changed', { date_label: 'Viernes 20:00' });
+
+    // Caso 2: Booleano verdadero is_applicant: true -> normal
+    await insertInbox(userB, 'encounter_schedule_changed', { is_applicant: true });
+
+    // Caso 3: Booleano falso is_applicant: false -> high
+    await insertInbox(userB, 'encounter_schedule_changed', { is_applicant: false });
+
+    // Caso 4: Valor inesperado (string arbitrario que antes rompía por ::boolean) -> safe (no lanza excepción)
+    await insertInbox(userB, 'encounter_schedule_changed', { is_applicant: 'unexpected_text_value_that_caused_cast_exception' });
+
+    // Caso 5: Valor inesperado numérico -> safe
+    await insertInbox(userB, 'encounter_schedule_changed', { is_applicant: 12345 });
+
+    // Caso 6: Valor inesperado de tipo objeto -> safe
+    await insertInbox(userB, 'encounter_schedule_changed', { is_applicant: { nested: true } });
+
+    // Caso 7: Notificación desconocida con payload malformado -> safe, normal
+    await insertInbox(userB, 'totally_unknown_notification_type', {
+      is_applicant: 'corrupted',
+      priority: 99999,
+    });
+
+    // Caso 8: Notificación con prioridad crítica explícita -> high
+    await insertInbox(userB, 'custom_critical_alert', { priority: 'critical' });
+
+    // Reclamar todo el lote de 8 elementos en una única invocación
+    const claimRes = await rpc(null, 'claim_web_push_deliveries_seguro', { p_batch_size: 15 });
+    assert.equal(claimRes.ok, true);
+    assert.equal(claimRes.deliveries.length, 8, 'El lote completo debe procesarse sin abortar por excepciones SQL');
+
+    // Verificar clasificaciones individuales
+    const deliveries = claimRes.deliveries;
+
+    // Caso 1: ausente -> high
+    const d1 = deliveries[0];
+    assert.equal(d1.is_critical, true);
+    assert.equal(d1.urgency, 'high');
+
+    // Caso 2: true -> normal
+    const d2 = deliveries[1];
+    assert.equal(d2.is_critical, false);
+    assert.equal(d2.urgency, 'normal');
+
+    // Caso 3: false -> high
+    const d3 = deliveries[2];
+    assert.equal(d3.is_critical, true);
+    assert.equal(d3.urgency, 'high');
+
+    // Caso 4: string inesperado -> no crasheó
+    const d4 = deliveries[3];
+    assert.ok(d4, 'Elemento con string inesperado debe haberse procesado');
+
+    // Caso 5: numérico -> no crasheó
+    const d5 = deliveries[4];
+    assert.ok(d5, 'Elemento con número debe haberse procesado');
+
+    // Caso 6: objeto -> no crasheó
+    const d6 = deliveries[5];
+    assert.ok(d6, 'Elemento con objeto debe haberse procesado');
+
+    // Caso 7: desconocido -> normal
+    const d7 = deliveries[6];
+    assert.equal(d7.is_critical, false);
+    assert.equal(d7.urgency, 'normal');
+
+    // Caso 8: critical explícito -> high
+    const d8 = deliveries[7];
+    assert.equal(d8.is_critical, true);
+    assert.equal(d8.urgency, 'high');
   });
 
   test('Validación F: El payload generado por el worker es estrictamente genérico sin identificadores internos', () => {
