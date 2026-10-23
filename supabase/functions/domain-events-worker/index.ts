@@ -70,6 +70,11 @@ const EVENT_HANDLERS: Record<string, EventHandler> = {
     // La función procesar_recordatorio_solicitudes_pendientes ya inserta en
     // public.inbox_notifications de forma atómica. No duplicar Inbox ni Push.
   },
+  "encounter.participant.withdrawn.v1": async (_event, _adminClient) => {
+    // La RPC reconfirmar_asistencia_seguro ya inserta directamente en
+    // public.inbox_notifications de forma atómica. No duplicar Inbox ni Push.
+    // Marcado exitoso para Transactional Outbox audit/replay.
+  },
 
   // Alertas / Matching (Fase 2A: Inserción en inbox_notifications)
   "match.detected.v1": async (event, adminClient) => {
