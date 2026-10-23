@@ -25,8 +25,10 @@ import { formatFriendlyDate } from '@/lib/formatDate';
 import { DevicePushSettings } from './DevicePushSettings';
 import { QuietHoursSettings } from './QuietHoursSettings';
 import { webPushService } from '@/services/webPushService';
-import { isPushPromptDismissed } from './antiNagging';
+import { isPushPromptDismissed, isAndroidDevice, isAndroidPushGuideDismissed } from './antiNagging';
 import { AvisamePushPromptModal } from './AvisamePushPromptModal';
+import { AndroidPushGuideBanner } from './AndroidPushGuideBanner';
+import { AndroidPushGuideModal } from './AndroidPushGuideModal';
 import '@/components/ui/BottomSheet.css';
 import './AvisameSheet.css';
 
@@ -80,6 +82,8 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [showAndroidGuideBanner, setShowAndroidGuideBanner] = useState(false);
+  const [showAndroidGuideModal, setShowAndroidGuideModal] = useState(false);
 
   // Estados de "Mis avisos"
   const [alerts, setAlerts] = useState<MatchAlertSubscription[]>([]);
@@ -404,6 +408,21 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
           >
             {feedbackMsg.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
             <span>{feedbackMsg.text}</span>
+          </div>
+        )}
+
+        {/* Guía contextual de Android post-activación (por única vez) */}
+        {showAndroidGuideBanner && isAndroidDevice() && !isAndroidPushGuideDismissed() && (
+          <div style={{ marginBottom: 16 }}>
+            <AndroidPushGuideBanner
+              onOpenGuide={() => {
+                setShowAndroidGuideBanner(false);
+                setShowAndroidGuideModal(true);
+              }}
+              onDismiss={() => {
+                setShowAndroidGuideBanner(false);
+              }}
+            />
           </div>
         )}
 
@@ -790,8 +809,19 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
             text: '¡Aviso creado! Notificaciones activadas en este dispositivo.',
             type: 'success',
           });
+          if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {
+            setShowAndroidGuideBanner(true);
+          }
         }}
       />
+
+      {/* Modal de instrucciones Android para avisos de AvisameSheet */}
+      {isAndroidDevice() && (
+        <AndroidPushGuideModal
+          isOpen={showAndroidGuideModal}
+          onClose={() => setShowAndroidGuideModal(false)}
+        />
+      )}
     </>
   );
 };

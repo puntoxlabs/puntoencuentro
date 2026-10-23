@@ -1,0 +1,237 @@
+/* AndroidPushGuideModal.css - Diálogo accesible de instrucciones Android */
+
+@keyframes androidModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes androidModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pe-android-guide-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(3px);
+  animation: androidModalFadeIn 0.18s ease-out forwards;
+}
+
+.pe-android-guide-modal {
+  background: var(--color-surface, #ffffff);
+  border-radius: 20px;
+  padding: 20px;
+  max-width: 440px;
+  width: 100%;
+  max-height: 90vh;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  animation: androidModalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
+}
+
+.pe-android-guide-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pe-android-guide-modal__title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pe-android-guide-modal__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--color-primary-container, #E5EDFF);
+  color: var(--color-primary, #184CD4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pe-android-guide-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #111827);
+  line-height: 1.3;
+}
+
+.pe-android-guide-modal__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--color-on-surface-variant, #4b5563);
+  line-height: 1.4;
+}
+
+.pe-android-guide-modal__close-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant, #6b7280);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pe-android-guide-modal__close-btn:hover {
+  background: var(--color-surface-variant, #f3f4f6);
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-android-guide-modal__content {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-android-guide-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pe-android-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.pe-android-guide-step__num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary, #184CD4);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pe-android-guide-step__text {
+  font-size: 0.85rem;
+  color: var(--color-on-surface, #1f2937);
+  line-height: 1.4;
+  flex: 1;
+}
+
+.pe-android-guide-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.pe-android-guide-callout--info {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.pe-android-guide-callout--privacy {
+  background: var(--color-primary-container, #E5EDFF);
+  border: 1px solid rgba(24, 76, 212, 0.2);
+  color: var(--color-primary-dark, #123AA1);
+}
+
+.pe-android-guide-callout__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pe-android-guide-callout__text {
+  margin: 0;
+}
+
+.pe-android-guide-disclaimer {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-on-surface-variant, #6b7280);
+  line-height: 1.4;
+  font-style: italic;
+  text-align: center;
+}
+
+.pe-android-guide-modal__footer {
+  padding-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pe-android-guide__btn-primary {
+  width: 100%;
+  padding: 11px 18px;
+  border-radius: 12px;
+  background: var(--color-primary, #184CD4);
+  color: #ffffff;
+  border: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 2px 8px rgba(24, 76, 212, 0.25);
+}
+
+.pe-android-guide__btn-primary:hover {
+  background: var(--color-primary-dark, #123AA1);
+}
+
+.pe-android-guide__btn-primary:active {
+  transform: scale(0.99);
+}

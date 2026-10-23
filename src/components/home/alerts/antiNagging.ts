@@ -1,4 +1,49 @@
 export const PUSH_PROMPT_DISMISSED_KEY = 'pe_push_prompt_dismissed_until_v1';
+export const ANDROID_PUSH_GUIDE_DISMISSED_KEY = 'pe_android_push_guide_dismissed_v1';
+
+/**
+ * Retorna true si el dispositivo actual es un entorno Android.
+ * Se excluyen explícitamente Desktop, iOS y otros entornos no Android.
+ */
+export function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /Android/i.test(ua);
+}
+
+/**
+ * Retorna true si la guía contextual de Android ya fue ofrecida o resuelta
+ * (tanto al presionar "Ver cómo configurarlas" como "Ahora no").
+ */
+export function isAndroidPushGuideDismissed(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Registra que la guía ya fue presentada y resuelta en este navegador/dispositivo.
+ * No volverá a ofrecerse automáticamente.
+ */
+export function dismissAndroidPushGuide(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY, 'true');
+  } catch {}
+}
+
+/**
+ * Reinicia la marca de la guía para propósitos de pruebas o QA.
+ */
+export function resetAndroidPushGuideDismissal(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY);
+  } catch {}
+}
 
 /**
  * Retorna true si el usuario descartó previamente el prompt de Web Push

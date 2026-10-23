@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, Check, RefreshCw, Smartphone } from 'lucide-react';
+import { Bell, BellOff, Check, RefreshCw, Smartphone, Sliders } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { webPushService } from '@/services/webPushService';
 import type { WebPushActivateError, WebPushDeviceState } from '@/types/webPush';
+import { isAndroidDevice, isAndroidPushGuideDismissed } from './antiNagging';
+import { AndroidPushGuideBanner } from './AndroidPushGuideBanner';
+import { AndroidPushGuideModal } from './AndroidPushGuideModal';
 import './DevicePushSettings.css';
 
 const ERROR_COPY: Record<WebPushActivateError, string> = {
@@ -32,7 +35,11 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
   const [state, setState] = useState<WebPushDeviceState | null>(null);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showContextualBanner, setShowContextualBanner] = useState(false);
   const mounted = useRef(true);
+
+  const isAndroid = isAndroidDevice();
 
   const refresh = useCallback(async () => {
     const next = await webPushService.getDeviceState();
@@ -58,6 +65,10 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       const res = await webPushService.activate();
       if (!res.ok) {
         setErrorMsg(ERROR_COPY[res.error]);
+      } else {
+        if (isAndroidDevice() && !isAndroidPushGuideDismissed()) {
+          setShowContextualBanner(true);
+        }
       }
       await refresh();
     } finally {
@@ -178,28 +189,64 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       )}
 
       {state.kind === 'subscribed' && (
-        <div className="pe-push-device__row pe-push-device__row--spread">
-          <div className="pe-push-device__row">
-            <Check size={16} aria-hidden="true" style={{ color: '#059669', flexShrink: 0 }} />
-            <p className="pe-push-device__title" style={{ color: '#065f46' }}>
-              {t('push.active', { defaultValue: 'Activadas en este dispositivo' })}
-            </p>
+        <>
+          <div className="pe-push-device__row pe-push-device__row--spread">
+            <div className="pe-push-device__row">
+              <Check size={16} aria-hidden="true" style={{ color: '#059669', flexShrink: 0 }} />
+              <p className="pe-push-device__title" style={{ color: '#065f46' }}>
+                {t('push.active', { defaultValue: 'Activadas en este dispositivo' })}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="pe-push-device__btn"
+              onClick={() => void handleDeactivate()}
+              disabled={busy}
+            >
+              <span>{t('push.deactivate', { defaultValue: 'Desactivar en este dispositivo' })}</span>
+            </button>
           </div>
-          <button
-            type="button"
-            className="pe-push-device__btn"
-            onClick={() => void handleDeactivate()}
-            disabled={busy}
-          >
-            <span>{t('push.deactivate', { defaultValue: 'Desactivar en este dispositivo' })}</span>
-          </button>
-        </div>
+
+          {isAndroid && (
+            <button
+              type="button"
+              className="pe-push-device__guide-link"
+              onClick={() => setShowGuideModal(true)}
+            >
+              <Sliders size={13} aria-hidden="true" />
+              <span>
+                {t('push.android_guide_link', {
+                  defaultValue: 'Cómo mostrar avisos emergentes y en pantalla bloqueada',
+                })}
+              </span>
+            </button>
+          )}
+
+          {isAndroid && showContextualBanner && !isAndroidPushGuideDismissed() && (
+            <AndroidPushGuideBanner
+              onOpenGuide={() => {
+                setShowContextualBanner(false);
+                setShowGuideModal(true);
+              }}
+              onDismiss={() => {
+                setShowContextualBanner(false);
+              }}
+            />
+          )}
+        </>
       )}
 
       {errorMsg && (
         <p className="pe-push-device__error" role="alert">
           {errorMsg}
         </p>
+      )}
+
+      {isAndroid && (
+        <AndroidPushGuideModal
+          isOpen={showGuideModal}
+          onClose={() => setShowGuideModal(false)}
+        />
       )}
     </section>
   );
