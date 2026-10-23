@@ -26,6 +26,9 @@ interface ClaimedDeliveryItem {
   body: string;
   deep_link: string;
   expires_at: string | null;
+  notification_type?: string;
+  is_critical?: boolean;
+  urgency?: "high" | "normal";
 }
 
 function getAdminClient() {
@@ -171,14 +174,35 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
+    // Clasificación conservadora de urgencia y criticidad (Fases A y B - P0):
+    // 1. Prioriza metadatos confiables proyectados por claim_web_push_deliveries_seguro.
+    // 2. Fallback conservador: tipos desconocidos o no especificados reciben 'normal'.
+    const isCritical =
+      delivery.is_critical === true ||
+      delivery.urgency === "high" ||
+      delivery.notification_type === "encounter_cancelled_for_participant" ||
+      delivery.notification_type === "open_encounter_request_cancelled_by_host";
+
+    const effectiveUrgency: "high" | "normal" = isCritical ? "high" : "normal";
+
     // Payload completamente neutral para el Service Worker:
-    // Exclusivamente copy genérico y tag estático sin identificadores internos.
-    // Jamás incluye notification_id, IDs de usuario, encuentros ni deep_link.
-    const payload = JSON.stringify({
-      title: "PuntoEncuentro",
-      body: "Tenés una nueva notificación",
-      tag: "pe-notification",
-    });
+    // Exclusivamente copy genérico y sin identificadores internos ni target_ids.
+    // Para avisos críticos: omitimos "tag" para que no reemplace ni sea reemplazado.
+    // Para avisos normales/informativos: usamos tag: "pe-notification" para evitar acumulación descontrolada.
+    const payloadObj: Record<string, unknown> = isCritical
+      ? {
+          title: "PuntoEncuentro",
+          body: "Tenés una nueva notificación",
+          urgency: "high",
+        }
+      : {
+          title: "PuntoEncuentro",
+          body: "Tenés una nueva notificación",
+          tag: "pe-notification",
+          urgency: "normal",
+        };
+
+    const payload = JSON.stringify(payloadObj);
 
     const pushSubscription = {
       endpoint: delivery.endpoint,
@@ -191,7 +215,7 @@ Deno.serve(async (req: Request) => {
     try {
       await webpush.sendNotification(pushSubscription, payload, {
         TTL: ttl,
-        urgency: "normal",
+        urgency: effectiveUrgency,
       });
 
       // Éxito: marcar como entregado y actualizar last_seen_at

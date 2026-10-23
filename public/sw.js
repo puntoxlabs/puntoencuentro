@@ -72,14 +72,25 @@ self.addEventListener('push', (event) => {
   const title = 'PuntoEncuentro';
   const body = 'Tenés una nueva notificación';
 
+  // Mitigación de reemplazo destructivo (Fase A - P0):
+  // - Eventos críticos (urgency === 'high'): NO usan tag ni renotify,
+  //   permitiendo que coexistan en el panel visual del SO sin pisarse ni ser pisados.
+  // - Eventos normales/informativos: utilizan tag opaco 'pe-notification' con renotify: true
+  //   para evitar acumulaciones descontroladas de avisos no urgentes.
+  const isCritical = data.urgency === 'high' || data.is_critical === true;
+  const tag = isCritical ? undefined : (data.tag || 'pe-notification');
+
   const notificationOptions = {
     body,
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: data.tag || 'pe-notification',
     data: {},
-    renotify: true,
   };
+
+  if (tag) {
+    notificationOptions.tag = tag;
+    notificationOptions.renotify = true;
+  }
 
   event.waitUntil(self.registration.showNotification(title, notificationOptions));
 });
