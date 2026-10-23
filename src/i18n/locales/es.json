@@ -831,5 +831,16 @@
     "generic_modal_step4": "Comprobá que no haya modos de silencio o concentración activos que restrinjan los avisos.",
     "generic_modal_system_note": "Estas opciones se configuran en tu navegador y sistema operativo, y no pueden modificarse desde la aplicación.",
     "shared_device_privacy_note": "En dispositivos compartidos, te recomendamos configurar la visibilidad según tus preferencias de privacidad."
+  },
+  "critical_modal": {
+    "cancellation_title": "Encuentro cancelado",
+    "schedule_title": "Cambio de fecha u horario",
+    "logistics_title": "Cambio de ubicación o acceso",
+    "generic_critical_title": "Aviso importante",
+    "reason_label": "Motivo informado:",
+    "dismiss": "Entendido",
+    "confirming": "Confirmando...",
+    "error_dismiss": "No se pudo confirmar la lectura. Por favor, reintentá.",
+    "error_network": "Error de conexión al confirmar la lectura."
   }
 }

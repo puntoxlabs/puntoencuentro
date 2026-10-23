@@ -1,9 +1,9 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-import es from '@/i18n/locales/es.json';
-import en from '@/i18n/locales/en.json';
-import ptBR from '@/i18n/locales/pt-BR.json';
+import es from './locales/es.json';
+import en from './locales/en.json';
+import ptBR from './locales/pt-BR.json';
 
 i18n
   .use(initReactI18next)

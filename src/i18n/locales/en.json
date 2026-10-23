@@ -829,5 +829,16 @@
     "generic_modal_step4": "Make sure there are no silent or focus modes active that restrict alerts.",
     "generic_modal_system_note": "These options are configured in your browser and operating system, and cannot be modified automatically by the app.",
     "shared_device_privacy_note": "On shared devices, we recommend configuring screen visibility according to your privacy preferences."
+  },
+  "critical_modal": {
+    "cancellation_title": "Encounter cancelled",
+    "schedule_title": "Date or time change",
+    "logistics_title": "Location or access change",
+    "generic_critical_title": "Important notice",
+    "reason_label": "Reason provided:",
+    "dismiss": "Understood",
+    "confirming": "Confirming...",
+    "error_dismiss": "Could not confirm reading. Please try again.",
+    "error_network": "Connection error while confirming reading."
   }
 }

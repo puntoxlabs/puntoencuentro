@@ -31,7 +31,7 @@ interface NotificationsContextValue {
   subscribeToIncomingMatches: (listener: IncomingMatchListener) => () => void;
 }
 
-const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
+export const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
 
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isPermanentUser, loading: authLoading } = useAuth();

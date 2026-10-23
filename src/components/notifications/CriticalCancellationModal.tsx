@@ -1,20 +1,23 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { useNotifications } from '@/contexts/NotificationsContext';
+import { useTranslation } from 'react-i18next';
+import { useNotifications } from '../../contexts/NotificationsContext';
 import './CriticalCancellationModal.css';
 
 export const CriticalCancellationModal: React.FC = () => {
+  const { t } = useTranslation();
   const { notifications, marcarLeida } = useNotifications();
   const [isDismissing, setIsDismissing] = React.useState(false);
   const [dismissError, setDismissError] = React.useState<string | null>(null);
 
-  // Buscar la primera notificación crítica no leída (cancelaciones o cambios de agenda para confirmados)
+  // Buscar la primera notificación crítica no leída (cancelaciones, reprogramaciones o logística para confirmados)
   const criticalNotif = notifications.find(
     (n) =>
       !n.isRead &&
       (n.notificationType === 'encounter_cancelled_for_participant' ||
         n.notificationType === 'open_encounter_request_cancelled_by_host' ||
         (n.notificationType === 'encounter_schedule_changed' && !(n.payload as any)?.is_applicant) ||
+        (n.notificationType === 'encounter_logistics_changed' && !(n.payload as any)?.is_applicant) ||
         (n.payload && (n.payload as any).priority === 'critical' && !(n.payload as any)?.is_applicant))
   );
 
@@ -33,19 +36,51 @@ export const CriticalCancellationModal: React.FC = () => {
     try {
       const ok = await marcarLeida(criticalNotif.id);
       if (!ok) {
-        setDismissError('No se pudo confirmar la lectura. Por favor, reintentá.');
+        setDismissError(t('critical_modal.error_dismiss', 'No se pudo confirmar la lectura. Por favor, reintentá.'));
       }
     } catch {
-      setDismissError('Error de conexión al confirmar la lectura.');
+      setDismissError(t('critical_modal.error_network', 'Error de conexión al confirmar la lectura.'));
     } finally {
       setIsDismissing(false);
     }
   };
 
-  const payload = criticalNotif.payload as any;
-  const reason = payload?.cancellation_reason;
-  const isScheduleChange = criticalNotif.notificationType === 'encounter_schedule_changed';
-  const modalTitle = isScheduleChange ? 'Cambio de fecha u horario' : 'Encuentro cancelado';
+  const payload = (criticalNotif.payload || {}) as Record<string, any>;
+  const notifType = criticalNotif.notificationType;
+  const changeType = payload.change_type;
+
+  // 1. Cancelación de encuentro
+  const isCancellation =
+    notifType === 'encounter_cancelled_for_participant' ||
+    notifType === 'open_encounter_request_cancelled_by_host' ||
+    changeType === 'cancellation';
+
+  // 2. Reprogramación de fecha u horario
+  const isScheduleChange =
+    !isCancellation &&
+    (notifType === 'encounter_schedule_changed' || changeType === 'schedule');
+
+  // 3. Modificación de logística (ubicación o acceso)
+  const isLogisticsChange =
+    !isCancellation &&
+    !isScheduleChange &&
+    (notifType === 'encounter_logistics_changed' || changeType === 'logistics');
+
+  // 4. Otro aviso crítico reconocido
+  const isOtherCritical = !isCancellation && !isScheduleChange && !isLogisticsChange;
+
+  // Detección estricta de título (nunca mostrar 'Encuentro cancelado' si no es cancelación real)
+  let modalTitle = t('critical_modal.cancellation_title', 'Encuentro cancelado');
+  if (isScheduleChange) {
+    modalTitle = t('critical_modal.schedule_title', 'Cambio de fecha u horario');
+  } else if (isLogisticsChange) {
+    modalTitle = t('critical_modal.logistics_title', 'Cambio de ubicación o acceso');
+  } else if (isOtherCritical) {
+    modalTitle = t('critical_modal.generic_critical_title', 'Aviso importante');
+  }
+
+  // Motivo informado: exclusivamente cuando corresponde a una cancelación
+  const reason = isCancellation ? payload.cancellation_reason : null;
 
   return (
     <div className="pe-critical-modal-overlay" role="presentation">
@@ -79,9 +114,9 @@ export const CriticalCancellationModal: React.FC = () => {
           {criticalNotif.body}
         </p>
 
-        {reason && !isScheduleChange && (
+        {reason && (
           <div className="pe-critical-modal__reason-box">
-            <span className="pe-critical-modal__reason-label">Motivo informado:</span>
+            <span className="pe-critical-modal__reason-label">{t('critical_modal.reason_label', 'Motivo informado:')}</span>
             <span className="pe-critical-modal__reason-text">"{reason}"</span>
           </div>
         )}
@@ -103,7 +138,7 @@ export const CriticalCancellationModal: React.FC = () => {
           disabled={isDismissing}
           autoFocus
         >
-          {isDismissing ? 'Confirmando...' : 'Entendido'}
+          {isDismissing ? t('critical_modal.confirming', 'Confirmando...') : t('critical_modal.dismiss', 'Entendido')}
         </button>
       </div>
     </div>

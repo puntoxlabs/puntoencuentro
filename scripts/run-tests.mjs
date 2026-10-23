@@ -48,6 +48,9 @@ try {
   await server.ssrLoadModule('./scripts/test-notifications-frontend.ts');
   console.log('✅ Phase 1.5 In-App Notifications UI & frontend tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-critical-cancellation-modal-ux.tsx');
+  console.log('✅ CriticalCancellationModal UX differentiation & regression guard tests executed successfully via Vite SSR loader.');
+
   await server.ssrLoadModule('./scripts/test-alerts-matching.ts');
   console.log('✅ Phase 2A Avisame subscriptions backend & matching tests executed successfully via Vite SSR loader.');
 

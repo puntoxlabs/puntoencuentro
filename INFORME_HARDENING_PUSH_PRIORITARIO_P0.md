@@ -213,8 +213,53 @@ Antes de iniciar este sprint, la cola remota registraba:
 | **I. Eventos de dominio post-deploy** | Catálogo completo de 16 handlers activos. Las 32 fallas históricas de dominio no fueron tocadas ni reprocesadas. | **Verificado (Catálogo)** / **Pendiente (Tráfico orgánico)** |
 
 ### 6.4. Estado de Validación Física Android
-- Conforme a los criterios de rigor y seguridad, la validación visual de recepción en dispositivo físico Android se mantiene **separada para prueba manual de QA posterior**, sin declararla aprobada automáticamente por medios simulados.
+- Conforme a los criterios de rigor y seguridad, la validación visual de recepción y coexistencia de notificaciones en dispositivo físico Android se mantiene **estrictamente pendiente para prueba manual de QA**, sin declararla aprobada por medios automatizados.
 
 ---
 
-**Estado:** MINI-SPRINT P0 TOTALMENTE CERRADO Y VERIFICADO EN STAGING.
+## 7. Corrección de Regresión UX Crítica Post-P0 y Verificación Live SW
+
+### 7.1. Diagnóstico de la Regresión UX
+Tras la migración `20261023193000_harden_logistics_priority_and_claim_safety_v2.sql`, los eventos `encounter_logistics_changed` dirigidos a participantes confirmados se emitieron correctamente con `priority: 'critical'`. Sin embargo, `src/components/notifications/CriticalCancellationModal.tsx` contenía una evaluación binaria ternaria:
+```typescript
+const isScheduleChange = notification.notification_type === 'encounter_schedule_changed';
+const title = isScheduleChange ? 'Cambio de fecha u horario' : 'Encuentro cancelado';
+```
+Esto provocaba que cualquier cambio de logística (ubicación o enlace virtual) o cualquier otra notificación crítica no leída se presentara ante el usuario con el título alarmante **«Encuentro cancelado»**, e incluso renderizaba el recuadro de motivo de cancelación si el payload contenía una propiedad `reason`.
+
+### 7.2. Corrección e Invariantes UX
+Se refactorizó `CriticalCancellationModal.tsx` diferenciando explícitamente los tipos de notificación:
+1. **Cancelación real (`isCancellation`):** `encounter_cancelled_for_participant` o `open_encounter_request_cancelled_by_host`. Título: «Encuentro cancelado» (`critical_modal.cancellation_title`). El bloque de motivo (`cancellation_reason`) se restringe estrictamente a `isCancellation && reason`.
+2. **Reprogramación (`isScheduleChange`):** `encounter_schedule_changed`. Título: «Cambio de fecha u horario» (`critical_modal.schedule_title`).
+3. **Modificación de logística (`isLogisticsChange`):** `encounter_logistics_changed`. Título: «Cambio de ubicación o acceso» (`critical_modal.logistics_title`).
+4. **Otro aviso crítico reconocido (`isOtherCritical`):** Título neutral seguro «Aviso importante» (`critical_modal.generic_critical_title`).
+5. **Avisos informativos / leídos:** No abren el modal (render vacío).
+6. **Internacionalización completa:** Se incorporó el bloque de claves `critical_modal` en las 4 traducciones soportadas (`es.json`, `en.json`, `pt.json`, `pt-BR.json`).
+7. **Acciones y sesión:** Se conservó la invocación a `marcarLeida(notification.id)` mediante el botón «Entendido», la navegación a los detalles del encuentro y la tolerancia a fallos de red.
+
+### 7.3. Verificación de `public/sw.js` Servido en Vivo en Staging
+Se ejecutó verificación HTTP real contra el endpoint público de Staging:
+- **URL consultada:** `https://staging.puntoencuentro.com.ar/sw.js`
+- **Autenticación Vercel Protection:** Bypass token vía header `x-vercel-protection-bypass`.
+- **Respuesta:** HTTP 200 `application/javascript; charset=utf-8`.
+- **Validación de contenido servido:**
+  - `const isCritical = data.urgency === 'high' || data.is_critical === true;` → **PRESENTE**
+  - `const tag = isCritical ? undefined : (data.tag || 'pe-notification');` → **PRESENTE**
+- **Conclusión:** La versión con prevención de reemplazo visual y diferenciación de prioridad está efectivamente desplegada y servida en Staging.
+
+### 7.4. Pruebas Automatizadas Anti-regresión
+Se desarrolló y ejecutó la suite `scripts/test-critical-cancellation-modal-ux.tsx` (7/7 PASS):
+- ✔ Caso 1: Cancelación real → «Encuentro cancelado» + motivo informado.
+- ✔ Caso 2: Reprogramación de fecha/horario → «Cambio de fecha u horario» (NUNCA «Encuentro cancelado»).
+- ✔ Caso 3: Modificación de logística → «Cambio de ubicación o acceso» (NUNCA «Encuentro cancelado»).
+- ✔ Caso 4: Otro aviso crítico genérico → «Aviso importante» (NUNCA «Encuentro cancelado»).
+- ✔ Caso 5: Aviso informativo → No abre modal (render vacío).
+- ✔ Caso 6: Notificación leída (`isRead: true`) → No abre modal.
+- ✔ Caso 7: Acción «Entendido» → Registra lectura mediante `marcarLeida`.
+
+### 7.5. Estado de Pruebas Físicas
+Se ratifica que la coexistencia visual de notificaciones críticas e informativas en dispositivo físico Android **permanece pendiente para validación manual de QA**.
+
+---
+
+**Estado:** REGRESIÓN UX CORREGIDA, PRUEBAS AUTOMATIZADAS EXITOSAS Y SW LIVE VERIFICADO EN STAGING.
