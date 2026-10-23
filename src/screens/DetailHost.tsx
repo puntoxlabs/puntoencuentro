@@ -48,6 +48,7 @@ import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { useResilientPolling } from '@/hooks/useResilientPolling';
 import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
+import { EditScheduleModal } from '@/components/host/EditScheduleModal';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -90,6 +91,7 @@ const DetailHost: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
 
   const { user, loading: authLoading, transferClaimStatus, retryTransferClaim, signInWithGoogle } = useAuth();
 
@@ -1117,6 +1119,13 @@ const DetailHost: React.FC = () => {
   ) : null;
 
   const isHost = !!(user && encuentro.host_id === user.id);
+  const isAuthorizedHost = isHost || Boolean(hostIdRef.current && encuentro.host_id === hostIdRef.current);
+  const canEditSchedule = isAuthorizedHost &&
+    !isCancelado &&
+    !isFinalizado &&
+    !isReadOnly &&
+    Boolean(encuentro.fecha) &&
+    encuentro.date_mode !== 'coordination';
   const participanteActual = user ? participantes.find(p => p.user_id === user.id) : null;
   const isParticipant = !!participanteActual;
 
@@ -1320,8 +1329,20 @@ const DetailHost: React.FC = () => {
               </div>
             </div>
             <div className="dh-meta-list">
-              <div className="dh-meta-row">
-                <span>📅</span> <span className="dh-meta-text">{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+              <div className="dh-meta-row dh-meta-row--schedule">
+                <span>📅</span>
+                <span className="dh-meta-text">{formatFriendlyDate(encuentro.fecha, encuentro.hora)}</span>
+                {canEditSchedule && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEditScheduleModal(true)}
+                    className="dh-edit-schedule-btn"
+                    aria-label={t('edit_schedule.action_button', 'Editar fecha y horario')}
+                  >
+                    <PencilLine size={13} aria-hidden="true" />
+                    <span>{t('edit_schedule.action_button', 'Editar fecha y horario')}</span>
+                  </button>
+                )}
               </div>
               <div className="dh-meta-row">
                 <span>{isVirtual ? '💻' : '📍'}</span> <span className="dh-meta-text">{isVirtual ? 'Virtual' : (encuentro.lugar_texto || 'Presencial')}</span>
@@ -2002,6 +2023,19 @@ const DetailHost: React.FC = () => {
             </div>
           );
         })()
+      )}
+
+      {canEditSchedule && (
+        <EditScheduleModal
+          isOpen={showEditScheduleModal}
+          onClose={() => setShowEditScheduleModal(false)}
+          encuentro={encuentro}
+          hostId={hostIdRef.current || (user?.id ?? encuentro.host_id)}
+          participantes={participantes}
+          onSaveSuccess={async () => {
+            await loadData(hostIdRef.current || (user?.id ?? encuentro.host_id));
+          }}
+        />
       )}
 
       <ScrollHint visible={showScrollHint} />

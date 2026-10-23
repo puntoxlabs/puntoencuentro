@@ -201,6 +201,9 @@ try {
   await server.ssrLoadModule('./scripts/test-quick-nav-menu.ts');
   console.log('✅ Mini-sprint Prelanzamiento: Menú de navegación y accesos rápidos tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-host-edit-schedule.ts');
+  console.log('✅ Mini-sprint P1: Edición de fecha y horario tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

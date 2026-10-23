@@ -742,5 +742,33 @@
     "requires_account": "Requiere cuenta",
     "pending_badge": "{{count}} pendiente",
     "pending_badge_plural": "{{count}} pendientes"
+  },
+  "edit_schedule": {
+    "action_button": "Editar fecha y horario",
+    "modal_title": "Editar fecha y horario",
+    "modal_subtitle": "Modificá la fecha, el horario o ambos para este encuentro.",
+    "current_schedule_label": "Fecha y horario actual:",
+    "date_label": "Fecha",
+    "time_label": "Hora",
+    "time_helper_today": "Hoy: debe ser posterior a la hora actual",
+    "time_helper_any": "Cualquier horario disponible",
+    "no_changes": "No se modificó la fecha ni el horario.",
+    "invalid_datetime": "La fecha y hora deben ser futuras.",
+    "past_date_error": "La fecha no puede ser anterior a hoy.",
+    "btn_continue": "Continuar",
+    "btn_cancel": "Cancelar",
+    "btn_back_to_edit": "Volver a editar",
+    "btn_save_changes": "Guardar cambios",
+    "saving": "Guardando cambios…",
+    "confirm_title": "¿Confirmar cambio de fecha y horario?",
+    "confirm_subtitle": "Revisá los datos antes de aplicar el cambio.",
+    "previous_schedule": "Fecha y hora anterior",
+    "new_schedule": "Nueva fecha y hora",
+    "warning_affects_planning": "Este cambio afecta la planificación del encuentro.",
+    "warning_open_notifications": "Al ser un encuentro abierto, los participantes confirmados y solicitantes pendientes recibirán un aviso en su Inbox.",
+    "warning_open_reconfirmation": "Las inscripciones ya estaban cerradas: todos los participantes confirmados deberán volver a confirmar su asistencia.",
+    "warning_private_communication": "En encuentros privados o con invitados sin cuenta, recordá comunicarles la nueva fecha y hora de forma directa, ya que no reciben avisos automáticos.",
+    "error_save": "No pudimos actualizar la fecha y horario. Revisá tu conexión e intentá nuevamente.",
+    "success_toast": "Fecha y horario actualizados correctamente."
   }
 }

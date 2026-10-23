@@ -740,5 +740,33 @@
     "requires_account": "Account required",
     "pending_badge": "{{count}} pending",
     "pending_badge_plural": "{{count}} pending"
+  },
+  "edit_schedule": {
+    "action_button": "Edit date and time",
+    "modal_title": "Edit date and time",
+    "modal_subtitle": "Change the date, time, or both for this encounter.",
+    "current_schedule_label": "Current date and time:",
+    "date_label": "Date",
+    "time_label": "Time",
+    "time_helper_today": "Today: must be later than current time",
+    "time_helper_any": "Any available time",
+    "no_changes": "No changes made to date or time.",
+    "invalid_datetime": "Date and time must be in the future.",
+    "past_date_error": "Date cannot be in the past.",
+    "btn_continue": "Continue",
+    "btn_cancel": "Cancel",
+    "btn_back_to_edit": "Back to edit",
+    "btn_save_changes": "Save changes",
+    "saving": "Saving changes…",
+    "confirm_title": "Confirm date and time change?",
+    "confirm_subtitle": "Review the details before applying changes.",
+    "previous_schedule": "Previous date and time",
+    "new_schedule": "New date and time",
+    "warning_affects_planning": "This change affects the planning of the encounter.",
+    "warning_open_notifications": "As this is an open encounter, confirmed participants and pending applicants will receive an Inbox notice.",
+    "warning_open_reconfirmation": "Inscriptions were already closed: confirmed participants will need to reconfirm their attendance.",
+    "warning_private_communication": "For private encounters or guests without an account, remember to inform them directly, as automatic notices are not sent.",
+    "error_save": "Could not update date and time. Check your connection and try again.",
+    "success_toast": "Date and time successfully updated."
   }
 }
