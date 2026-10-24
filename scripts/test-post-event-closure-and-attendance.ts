@@ -228,6 +228,11 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     const hotfixSql = fs.readFileSync(hotfixPath, 'utf8');
     await db.exec(hotfixSql);
 
+    // 4. Ejecutar el hardening de seguridad P0 de regularización administrativa
+    const hardeningPath = path.join(__dirname, '../supabase/migrations/20261024203000_harden_administrative_regularization_privileges.sql');
+    const hardeningSql = fs.readFileSync(hardeningPath, 'utf8');
+    await db.exec(hardeningSql);
+
     await db.exec(`
       GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon, service_role, postgres;
       GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon, service_role, postgres;
@@ -1042,5 +1047,32 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     `);
     assert.equal((resMod2.rows[0] as any).r.ok, false);
     assert.equal((resMod2.rows[0] as any).r.error, 'closure_already_completed', 'Debe rechazar alteración de asistencias tras cierre definitivo');
+  });
+
+  test('27. Hardening P0: regularizar_cierres_administrativos_automaticos sin sesión válida falla cerrado con authentication_required', async () => {
+    // Configura JWT con claim activo pero sin sub (sesión no autenticada)
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"anon"}', false);`);
+
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos(NULL) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'authentication_required', 'auth.uid() IS NULL no debe actuar como administrador');
+  });
+
+  test('28. Hardening P0: regularizar_cierres_administrativos_automaticos rechaza cuentas anónimas con permanent_account_required', async () => {
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '${hostUser}', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{"is_anonymous":true}', false);`);
+
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos(NULL) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'permanent_account_required', 'Cuentas anónimas no deben poder regularizar cierres');
   });
 });
