@@ -2,7 +2,7 @@
 .pe-critical-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 10070;
   background-color: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -22,6 +22,7 @@
 .pe-critical-modal {
   margin: auto;
   position: relative;
+  z-index: 10071;
   width: 100%;
   max-width: 420px;
   max-height: calc(100vh - 32px);

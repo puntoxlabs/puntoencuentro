@@ -263,7 +263,7 @@ describe('PuntoEncuentro — P1-B: Corrección de Modales y Accesibilidad Móvil
     assert.ok(guideTsx.includes('createPortal(modalContent, document.body)'), 'PushVisibilityGuideModal debe renderizar en document.body mediante portal');
 
     const guideCss = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/PushVisibilityGuideModal.css'), 'utf-8');
-    assert.ok(guideCss.includes('z-index: 12000'), 'PushVisibilityGuideModal.css overlay debe tener z-index: 12000 para superar sheets y modales');
+    assert.ok(guideCss.includes('z-index: 10080'), 'PushVisibilityGuideModal.css overlay debe tener z-index: 10080 para superar sheets y modales');
 
     // 2. AvisamePushPromptModal
     const promptTsx = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/AvisamePushPromptModal.tsx'), 'utf-8');
@@ -271,7 +271,7 @@ describe('PuntoEncuentro — P1-B: Corrección de Modales y Accesibilidad Móvil
     assert.ok(promptTsx.includes('createPortal(modalContent, document.body)'), 'AvisamePushPromptModal debe renderizar en document.body mediante portal');
 
     const promptCss = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/AvisamePushPromptModal.css'), 'utf-8');
-    assert.ok(promptCss.includes('z-index: 12000'), 'AvisamePushPromptModal.css overlay debe tener z-index: 12000 para superar pe-sheet-container');
+    assert.ok(promptCss.includes('z-index: 10010'), 'AvisamePushPromptModal.css overlay debe tener z-index: 10010 para superar pe-sheet-container');
 
     // 3. ReportPublicEncounterModal
     const reportTsx = fs.readFileSync(path.join(rootDir, 'src/components/home/openEncounters/ReportPublicEncounterModal.tsx'), 'utf-8');
@@ -279,7 +279,7 @@ describe('PuntoEncuentro — P1-B: Corrección de Modales y Accesibilidad Móvil
     assert.ok(reportTsx.includes('createPortal(modalContent, document.body)'), 'ReportPublicEncounterModal debe renderizar en document.body mediante portal');
 
     const reportCss = fs.readFileSync(path.join(rootDir, 'src/components/home/openEncounters/ReportPublicEncounterModal.css'), 'utf-8');
-    assert.ok(reportCss.includes('z-index: 12000'), 'ReportPublicEncounterModal.css debe tener z-index: 12000 para superar HomeOpenEncounterDetailSheet');
+    assert.ok(reportCss.includes('z-index: 10020'), 'ReportPublicEncounterModal.css debe tener z-index: 10020 para superar HomeOpenEncounterDetailSheet');
 
     // 4. CoverageRequestModal
     const coverageTsx = fs.readFileSync(path.join(rootDir, 'src/components/coverage/CoverageRequestModal.tsx'), 'utf-8');
@@ -287,6 +287,14 @@ describe('PuntoEncuentro — P1-B: Corrección de Modales y Accesibilidad Móvil
     assert.ok(coverageTsx.includes('createPortal(modalContent, document.body)'), 'CoverageRequestModal debe renderizar en document.body mediante portal');
 
     const coverageCss = fs.readFileSync(path.join(rootDir, 'src/components/coverage/CoverageRequestModal.css'), 'utf-8');
-    assert.ok(coverageCss.includes('z-index: 12000') || coverageCss.includes('z-index: 12001'), 'CoverageRequestModal.css debe tener z-index >= 12000');
+    assert.ok(coverageCss.includes('z-index: 10030') || coverageCss.includes('z-index: 10031'), 'CoverageRequestModal.css debe tener z-index >= 10030');
+
+    // 5. AccountCollisionModal
+    const collisionTsx = fs.readFileSync(path.join(rootDir, 'src/components/auth/AccountCollisionModal.tsx'), 'utf-8');
+    assert.ok(collisionTsx.includes("import { createPortal } from 'react-dom'"), 'AccountCollisionModal debe importar createPortal');
+    assert.ok(collisionTsx.includes('createPortal(modalContent, document.body)'), 'AccountCollisionModal debe renderizar en document.body mediante portal');
+
+    const collisionCss = fs.readFileSync(path.join(rootDir, 'src/components/auth/AccountCollisionModal.css'), 'utf-8');
+    assert.ok(collisionCss.includes('z-index: 10060'), 'AccountCollisionModal.css overlay debe tener z-index: 10060 para superar LoginRequiredSheet');
   });
 });

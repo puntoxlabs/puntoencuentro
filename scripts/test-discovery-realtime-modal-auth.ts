@@ -154,8 +154,14 @@ describe('Discovery V1 Closure: Realtime, Modal Stacking & Anonymous Auth Flow',
       path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounterDetailSheet.tsx'),
       'utf-8'
     );
-    assert.ok(code.includes("if (e.key === 'Escape')"), 'Debe escuchar tecla Escape');
-    assert.ok(code.includes('previousActiveElementRef.current.focus()'), 'Debe restaurar el foco al elemento que lo abrió');
+    assert.ok(
+      code.includes("useModalStack('open-encounter-detail-sheet'") || code.includes("if (e.key === 'Escape')"),
+      'Debe escuchar tecla Escape determinista mediante pila de modales'
+    );
+    assert.ok(
+      code.includes('restoreFocus: true') || code.includes('previousActiveElementRef.current.focus()'),
+      'Debe restaurar el foco al elemento que lo abrió'
+    );
   });
 
   test('Caso 13: Sub-modales (LoginRequiredSheet y ReportPublicEncounterModal) se sitúan por encima del DetailSheet', () => {
@@ -170,7 +176,10 @@ describe('Discovery V1 Closure: Realtime, Modal Stacking & Anonymous Auth Flow',
       path.join(rootDir, 'src/components/home/openEncounters/ReportPublicEncounterModal.css'),
       'utf-8'
     );
-    assert.ok(reportCss.includes('z-index: 10050;'), 'Report backdrop debe tener z-index 10050');
+    assert.ok(
+      reportCss.includes('z-index: 10020;') || reportCss.includes('z-index: 10050;'),
+      'Report backdrop debe situarse por encima de DetailSheet (z-index >= 10020)'
+    );
   });
 
   test('Caso 14: Mobile mantiene bottom-sheet con handle y safe-area', () => {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LogIn, X } from 'lucide-react';
 import { useAuth, type AnonymousUpgradeState } from '@/contexts/AuthContext';
+import { useModalStack } from '@/lib/modalStack';
 import { AccountCollisionModal } from './AccountCollisionModal';
 import './LoginRequiredSheet.css';
 
@@ -96,6 +97,14 @@ export const LoginRequiredSheet: React.FC<LoginRequiredSheetProps> = ({
   const [showCollisionModal, setShowCollisionModal] = useState(false);
   const [collisionUpgradeState, setCollisionUpgradeState] = useState<AnonymousUpgradeState | null>(null);
   const [checkingState, setCheckingState] = useState(false);
+
+  // Gestión de Escape y foco determinista en pila modal
+  useModalStack('login-required-sheet', isOpen && !showCollisionModal, {
+    onEscape: () => {
+      if (!loading && !checkingState) onClose();
+    },
+    restoreFocus: true,
+  });
 
   if (!isOpen) return null;
 

@@ -184,8 +184,8 @@ describe('T5-B2.1 — Rate Limiting Enforcement & Validation Order Core Tests', 
       response_deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
     });
     const opciones = JSON.stringify([
-      { fecha: '2026-10-22', hora_inicio: '18:00' },
-      { fecha: '2026-10-23', hora_inicio: '18:00' },
+      { fecha: '2026-10-28', hora_inicio: '18:00' },
+      { fecha: '2026-10-29', hora_inicio: '18:00' },
     ]);
     const rAnonOpt = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${opciones}'::jsonb) AS result;`);
     assert.equal((rAnonOpt.rows[0] as any).result.ok, false);
@@ -198,7 +198,7 @@ describe('T5-B2.1 — Rate Limiting Enforcement & Validation Order Core Tests', 
     await setSession(userHost, false);
     const countHostBefore = await getBucketCount('create_encounter', userHost);
 
-    const singleOption = JSON.stringify([{ fecha: '2026-10-22', hora_inicio: '18:00' }]);
+    const singleOption = JSON.stringify([{ fecha: '2026-10-28', hora_inicio: '18:00' }]);
     const rInvalidOpt = await db.query(`SELECT public.crear_encuentro_con_opciones_seguro('${optData}'::jsonb, '${singleOption}'::jsonb) AS result;`);
     assert.equal((rInvalidOpt.rows[0] as any).result.ok, false);
     assert.equal((rInvalidOpt.rows[0] as any).result.error, 'minimum_two_options');

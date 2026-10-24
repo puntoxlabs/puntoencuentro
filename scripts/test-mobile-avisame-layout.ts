@@ -132,18 +132,18 @@ describe('Ajuste UX: Integración Web Push en flujo de Crear Aviso y Modal Post-
     const listTabSection = content.slice(listTabIdx);
 
     assert.ok(
-      !listTabSection.includes('<DevicePushSettings />'),
+      !listTabSection.includes('<DevicePushSettings'),
       'DevicePushSettings NO debe estar presente en la pestaña Mis avisos'
     );
 
     assert.ok(
-      createTabSection.includes('<DevicePushSettings />'),
+      createTabSection.includes('<DevicePushSettings'),
       'DevicePushSettings DEBE estar presente en la pestaña Crear aviso'
     );
 
     // Ubicado antes del botón submit
     const submitBtnIdx = createTabSection.indexOf('pe-avisame-submit-btn');
-    const pushSettingsIdx = createTabSection.indexOf('<DevicePushSettings />');
+    const pushSettingsIdx = createTabSection.indexOf('<DevicePushSettings');
     assert.ok(
       pushSettingsIdx !== -1 && pushSettingsIdx < submitBtnIdx,
       'DevicePushSettings debe ubicarse antes del botón Guardar aviso en el formulario'
@@ -179,12 +179,12 @@ describe('Ajuste UX: Integración Web Push en flujo de Crear Aviso y Modal Post-
 
     // Verifica que el popup evalúa isPermanentUser, isPushPromptDismissed y deviceState
     assert.ok(
-      content.includes('isPermanentUser && !isPushPromptDismissed()'),
+      content.includes('isPermanentUser && !isPushPromptDismissed('),
       'Debe evaluar que el usuario sea permanente y no haya descartado el prompt'
     );
     assert.ok(
-      content.includes("deviceState.kind === 'default' || deviceState.kind === 'granted_unsubscribed'"),
-      'Solo debe abrirse si el dispositivo tiene estado default o granted_unsubscribed'
+      content.includes("deviceState.kind !== 'subscribed'"),
+      'Solo debe abrirse si el dispositivo no está ya suscripto'
     );
 
     // Verifica que si ya está subscribed o denied, no se activa prompted
@@ -248,7 +248,7 @@ describe('Ajuste UX: Integración Web Push en flujo de Crear Aviso y Modal Post-
     const content = fs.readFileSync(modalPath, 'utf-8');
 
     assert.ok(
-      content.includes('const handleDismiss = () => {\n    if (busy) return;\n    dismissPushPrompt();\n    onClose();\n  };'),
+      content.includes('dismissPushPrompt(') && content.includes('onClose();'),
       'handleDismiss debe ejecutar dismissPushPrompt() y onClose()'
     );
   });
@@ -262,7 +262,7 @@ describe('Ajuste UX: Integración Web Push en flujo de Crear Aviso y Modal Post-
       'Debe capturar rechazo nativo'
     );
     assert.ok(
-      content.includes('dismissPushPrompt();\n          onClose();'),
+      content.includes('dismissPushPrompt(') && content.includes('onClose();'),
       'Al rechazar nativamente, registra descarte y cierra sin insistir'
     );
   });

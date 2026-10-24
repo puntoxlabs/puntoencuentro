@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle, Shield, X } from 'lucide-react';
 import type { AnonymousUpgradeState } from '@/contexts/AuthContext';
+import { useModalStack } from '@/lib/modalStack';
 import './AccountCollisionModal.css';
 
 export interface AccountCollisionModalProps {
@@ -24,6 +26,14 @@ export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Gestión en pila modal accesible (Escape y restauración de foco)
+  useModalStack('account-collision-modal', isOpen, {
+    onEscape: () => {
+      if (!isSubmitting) onClose();
+    },
+    restoreFocus: true,
+  });
+
   if (!isOpen) return null;
 
   const handleConfirm = async () => {
@@ -45,7 +55,7 @@ export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
     { label: 'Participaciones confirmadas', active: upgradeState?.hasParticipantLinks },
   ].filter((item) => item.active);
 
-  return (
+  const modalContent = (
     <>
       <div className="account-collision-overlay" onClick={onClose} aria-hidden="true" />
       <div
@@ -120,4 +130,10 @@ export const AccountCollisionModal: React.FC<AccountCollisionModalProps> = ({
       </div>
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
