@@ -67,8 +67,8 @@ export const PostEventClosureSheet: React.FC<PostEventClosureSheetProps> = ({
           const initialMap: Record<string, AttendanceStatus> = {};
           if (Array.isArray(res.participantes)) {
             res.participantes.forEach((p) => {
-              // Si ya tenía attendance_status distinto a unmarked, usarlo; sino attended por defecto
-              initialMap[p.id] = p.attendance_status !== 'unmarked' ? p.attendance_status : 'unverified';
+              // Si ya tenía attendance_status distinto a unmarked, usarlo; sino unverified por defecto
+              initialMap[p.id] = p.attendance_status && p.attendance_status !== 'unmarked' ? p.attendance_status : 'unverified';
             });
           }
           setAttendanceMap(initialMap);
@@ -348,7 +348,7 @@ export const PostEventClosureSheet: React.FC<PostEventClosureSheetProps> = ({
                     <>
                       <div className="pe-closure-sheet__participants-list">
                         {detalle.participantes.map((part) => {
-                          const currentAtt = attendanceMap[part.id] || 'attended';
+                          const currentAtt = attendanceMap[part.id] || 'unverified';
                           return (
                             <div key={part.id} className="pe-closure-sheet__participant-card">
                               <div className="pe-closure-sheet__participant-header">

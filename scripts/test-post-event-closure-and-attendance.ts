@@ -223,6 +223,11 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     const migrationSql = fs.readFileSync(migrationPath, 'utf8');
     await db.exec(migrationSql);
 
+    // 3. Ejecutar la migración correctiva de Hotfix de Integridad y Seguridad
+    const hotfixPath = path.join(__dirname, '../supabase/migrations/20261024200000_hotfix_post_event_closure_security_and_idempotency.sql');
+    const hotfixSql = fs.readFileSync(hotfixPath, 'utf8');
+    await db.exec(hotfixSql);
+
     await db.exec(`
       GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon, service_role, postgres;
       GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon, service_role, postgres;
@@ -903,5 +908,139 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     assert.equal(det.duration_minutes, 95);
     assert.equal(det.post_event_closure_status, 'pending');
     assert.ok(det.post_event_closure_deadline !== null);
+  });
+
+  test('22. Hotfix P0: regularizar_cierres_administrativos_automaticos rechaza p_host_id ajeno con forbidden', async () => {
+    await setAuth(hostUser);
+
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos('${otherUser}'::uuid) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'forbidden', 'Un usuario autenticado no debe poder regularizar a otro anfitrión');
+  });
+
+  test('23. Hotfix P0: regularizar_cierres_administrativos_automaticos con p_host_id NULL solo regulariza propios y no ajenos', async () => {
+    // 1. Encuentro vencido vacío del otherUser
+    const otherEncId = '00000000-0000-0000-0003-000000000001';
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status, post_event_closure_deadline)
+      VALUES ('${otherEncId}', '${otherUser}', 'Encuentro Vacío Ajeno', (CURRENT_DATE - INTERVAL '5 days')::date, '10:00:00', 'Parque', true, now() - INTERVAL '6 days', 'pending', now() - INTERVAL '3 days');
+    `);
+
+    // 2. Invocación de hostUser autenticado con p_host_id NULL
+    await setAuth(hostUser);
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos(NULL) AS r;
+    `);
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, true);
+
+    // 3. El encuentro de otherUser DEBE permanecer intacto en pending (aislamiento estricto)
+    const otherCheck = await db.query(`
+      SELECT post_event_closure_status FROM public.encuentros WHERE id = '${otherEncId}';
+    `);
+    assert.equal((otherCheck.rows[0] as any).post_event_closure_status, 'pending', 'El barrido de un usuario no debe tocar encuentros de otro organizador');
+  });
+
+  test('24. Hotfix P1: cerrar_encuentro_post_evento_seguro rechaza encuentros exclusivamente privados', async () => {
+    await setAuth(hostUser);
+    const privEncId = '00000000-0000-0000-0003-000000000002';
+
+    // Encuentro estrictamente privado acontecido ayer (nunca abierto)
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${privEncId}', '${hostUser}', 'Cena Privada Familiar', (CURRENT_DATE - INTERVAL '1 day')::date, '21:00:00', 'Casa', false, NULL, 'not_applicable');
+    `);
+
+    const res = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro(
+        '${privEncId}'::uuid,
+        'realized',
+        NULL,
+        '[]'::jsonb
+      ) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'only_open_encounters_require_closure', 'Encuentro exclusivamente privado no debe admitir cierre posterior');
+  });
+
+  test('25. Hotfix P0: reintento idéntico sobre encuentro completado retorna idempotencia exitosa sin duplicar auditoría', async () => {
+    await setAuth(hostUser);
+    const encId = '00000000-0000-0000-0003-000000000003';
+    const p1 = '30000000-0000-0000-0000-000000000025';
+
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, open_public_title, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${encId}', '${hostUser}', 'Encuentro Test Idempotencia', 'Test Abierto', (CURRENT_DATE - INTERVAL '1 day')::date, '18:00:00', 'Sede', true, now() - INTERVAL '3 days', 'pending');
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (id, encuentro_id, user_id, nombre_invitado, estado)
+      VALUES ('${p1}', '${encId}', '${participant1}', 'Participante 1', 'confirmado');
+    `);
+
+    const payload = JSON.stringify([{ participante_id: p1, attendance_status: 'attended' }]);
+
+    // Primer cierre
+    const res1 = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro('${encId}'::uuid, 'realized', NULL, '${payload}'::jsonb) AS r;
+    `);
+    assert.equal((res1.rows[0] as any).r.ok, true);
+
+    const auditCount1 = await db.query(`SELECT count(*)::int AS cnt FROM public.encuentro_post_event_closure_audit WHERE encuentro_id = '${encId}';`);
+    assert.equal((auditCount1.rows[0] as any).cnt, 1);
+
+    // Segundo cierre IDÉNTICO (reintento)
+    const res2 = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro('${encId}'::uuid, 'realized', NULL, '${payload}'::jsonb) AS r;
+    `);
+    const r2 = (res2.rows[0] as any).r;
+    assert.equal(r2.ok, true);
+    assert.equal(r2.no_change, true, 'Reintento idéntico debe retornar no_change=true');
+
+    // La auditoría NO debe haberse duplicado
+    const auditCount2 = await db.query(`SELECT count(*)::int AS cnt FROM public.encuentro_post_event_closure_audit WHERE encuentro_id = '${encId}';`);
+    assert.equal((auditCount2.rows[0] as any).cnt, 1, 'Auditoría no debe duplicarse en reintento idéntico');
+  });
+
+  test('26. Hotfix P0: intento de modificación de contenido sobre encuentro completado es rechazado con closure_already_completed', async () => {
+    await setAuth(hostUser);
+    const encId = '00000000-0000-0000-0003-000000000004';
+    const p1 = '30000000-0000-0000-0000-000000000026';
+
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, open_public_title, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${encId}', '${hostUser}', 'Encuentro Definitivo Test', 'Definitivo Abierto', (CURRENT_DATE - INTERVAL '1 day')::date, '18:00:00', 'Sede', true, now() - INTERVAL '3 days', 'pending');
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (id, encuentro_id, user_id, nombre_invitado, estado)
+      VALUES ('${p1}', '${encId}', '${participant1}', 'Participante 1', 'confirmado');
+    `);
+
+    // Primer cierre legítimo
+    const payload1 = JSON.stringify([{ participante_id: p1, attendance_status: 'attended' }]);
+    const res1 = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro('${encId}'::uuid, 'realized', NULL, '${payload1}'::jsonb) AS r;
+    `);
+    assert.equal((res1.rows[0] as any).r.ok, true);
+
+    // Intento de cambiar el resultado a 'not_realized'
+    const resMod1 = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro('${encId}'::uuid, 'not_realized', 'Motivo sobreescrito', '[]'::jsonb) AS r;
+    `);
+    assert.equal((resMod1.rows[0] as any).r.ok, false);
+    assert.equal((resMod1.rows[0] as any).r.error, 'closure_already_completed', 'Debe rechazar cambio de realization_status');
+
+    // Intento de cambiar la asistencia de 'attended' a 'reported_absent'
+    const payloadMod = JSON.stringify([{ participante_id: p1, attendance_status: 'reported_absent' }]);
+    const resMod2 = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro('${encId}'::uuid, 'realized', NULL, '${payloadMod}'::jsonb) AS r;
+    `);
+    assert.equal((resMod2.rows[0] as any).r.ok, false);
+    assert.equal((resMod2.rows[0] as any).r.error, 'closure_already_completed', 'Debe rechazar alteración de asistencias tras cierre definitivo');
   });
 });
