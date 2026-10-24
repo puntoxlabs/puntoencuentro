@@ -94,7 +94,7 @@ export function useModalStack(
       // 4. Restauración de foco accesible exclusivamente al cerrar
       if (optionsRef.current?.restoreFocus !== false && prevActiveElementRef.current) {
         try {
-          prevActiveElementRef.current.focus();
+          prevActiveElementRef.current.focus({ preventScroll: true });
         } catch {}
       }
     };

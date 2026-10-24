@@ -3,16 +3,22 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: var(--btn-height);
-  padding: 0 24px;
+  min-height: var(--btn-height);
+  height: auto;
+  padding: 10px 24px;
   border-radius: var(--radius-md);
   font-family: var(--font-family);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.3;
   cursor: pointer;
   border: none;
   transition: all var(--transition-base);
+  box-sizing: border-box;
 }
 
 .btn:disabled {
@@ -88,8 +94,9 @@
 
 /* Small variant for in-card actions */
 .btn-sm {
-  height: 34px;
-  padding: 0 14px;
+  min-height: 36px;
+  height: auto;
+  padding: 6px 14px;
   font-size: var(--text-sm);
   border-radius: var(--radius-md);
   font-weight: 600;

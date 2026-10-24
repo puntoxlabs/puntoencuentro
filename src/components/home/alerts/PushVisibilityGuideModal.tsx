@@ -63,6 +63,8 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   const [returnedFromBackground, setReturnedFromBackground] = useState(false);
 
   const primaryBtnRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Retorno desde ajustes: si el usuario sale a configurar y vuelve, registrar evento sin reiniciar paso
   useEffect(() => {
@@ -89,11 +91,30 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
     restoreFocus: true,
   });
 
-  // Foco accesible al cambiar de paso o al abrir
+  // Foco accesible al cambiar de paso o al abrir (con preventScroll para evitar saltos involuntarios de viewport)
   useEffect(() => {
     if (isOpen) {
+      // 1. Resetear el scroll del contenido interno y del overlay contenedor al inicio
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+      }
+      if (modalRef.current?.parentElement) {
+        modalRef.current.parentElement.scrollTop = 0;
+      }
+
+      // 2. Foco accesible sin desplazamiento automático del viewport
       const timer = setTimeout(() => {
-        primaryBtnRef.current?.focus();
+        if (step === 1) {
+          // En paso 1, enfocar el contenedor del diálogo para lectura inicial accesible
+          if (modalRef.current) {
+            modalRef.current.focus({ preventScroll: true });
+          } else {
+            primaryBtnRef.current?.focus({ preventScroll: true });
+          }
+        } else {
+          // En paso 2 y 3, enfocar la acción principal correspondiente sin desplazamiento
+          primaryBtnRef.current?.focus({ preventScroll: true });
+        }
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -102,6 +123,12 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   const handleGoToStep = (nextStep: 1 | 2 | 3) => {
     setStep(nextStep);
     saveAssistantStep(nextStep, userId);
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+    if (modalRef.current?.parentElement) {
+      modalRef.current.parentElement.scrollTop = 0;
+    }
   };
 
   const handleSendTest = async () => {
@@ -581,6 +608,8 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
       aria-hidden="false"
     >
       <div
+        ref={modalRef}
+        tabIndex={-1}
         className="pe-visibility-guide-modal"
         role="dialog"
         aria-modal="true"
@@ -637,7 +666,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
           </button>
         </nav>
 
-        <div className="pe-visibility-guide-modal__content">
+        <div ref={contentRef} className="pe-visibility-guide-modal__content">
           {/* ── PASO 1: CONFIGURAR (ACCESO DIRECTO / ATAJO + ALTERNATIVA) ───────── */}
           {step === 1 && (
             <div className="pe-assistant-step-content">
