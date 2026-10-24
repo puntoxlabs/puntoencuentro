@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle, DoorClosed } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { OpenEncounterSummary, EncuentroParticipanteAutorizado } from './types';
+import type { OpenEncounterSummary, EncuentroParticipanteAutorizado, EstadoListaEspera, SolicitudEstado } from './types';
 import { getSlotLabel } from './types';
 import { openEncountersService } from '@/services/openEncountersService';
 import { getHostAlias } from '@/lib/hostAliasStorage';
@@ -58,9 +58,13 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
   // Estados de solicitud
   const [requestState, setRequestState] = useState<{
     hasRequest: boolean;
-    status?: 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
+    status?: SolicitudEstado;
     tokenParticipante?: string;
   }>({ hasRequest: false });
+
+  const [waitlistState, setWaitlistState] = useState<EstadoListaEspera | null>(null);
+  const [isWaitlistMode, setIsWaitlistMode] = useState(false);
+  const [respondingWaitlist, setRespondingWaitlist] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(false);
@@ -207,6 +211,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
     // Resetear formulario y estado de login
     setIsFormOpen(false);
+    setIsWaitlistMode(false);
+    setWaitlistState(null);
     setIsLoginRequired(false);
     setIsReportModalOpen(false);
     setIsReported(false);
@@ -216,8 +222,21 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setApplicantMessage('');
     setRequestedSeats(1);
 
-    // Consultar estado de solicitud previa y detalle autorizado — solo si usuario permanente
+    // Consultar estado de solicitud previa, lista de espera y detalle autorizado — solo si usuario permanente
     if (!isDemo && userId) {
+      openEncountersService
+        .getEstadoListaEspera(encounter.id)
+        .then((wRes) => {
+          if (wRes && wRes.ok && wRes.in_waitlist) {
+            setWaitlistState(wRes);
+            setRequestState({
+              hasRequest: true,
+              status: wRes.status,
+            });
+          }
+        })
+        .catch(() => {});
+
       openEncountersService
         .getMiSolicitud(encounter.id, userId)
         .then((res) => {
@@ -454,6 +473,78 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     setIsFormOpen(true);
   };
 
+  const handleStartWaitlist = () => {
+    if (isDemo) return;
+    if (isHost || (authorizedDetail && !authorizedDetail.is_host)) return;
+    if (encounter.inscriptionsClosed) {
+      setErrorMsg('Las inscripciones para este encuentro están cerradas.');
+      return;
+    }
+    if (!isPermanentUser) {
+      try {
+        const pendingRequest = {
+          encounterId: encounter.id,
+          applicantName: applicantName || undefined,
+          applicantMessage: applicantMessage || undefined,
+          requestedSeats: requestedSeats || 1,
+          action: 'request_join' as const,
+        };
+        sessionStorage.setItem(PENDING_OPEN_REQUEST_KEY, JSON.stringify(pendingRequest));
+      } catch {
+        /* storage fallback */
+      }
+      setIsLoginRequired(true);
+      return;
+    }
+    setIsWaitlistMode(true);
+    setIsFormOpen(true);
+  };
+
+  const handleResponderOferta = async (acepta: boolean) => {
+    const reqId = waitlistState?.request_id;
+    if (!reqId) return;
+
+    setRespondingWaitlist(true);
+    setErrorMsg(null);
+    try {
+      const res = await openEncountersService.responderOfertaListaEspera(reqId, acepta);
+      if (res.ok) {
+        if (acepta) {
+          setRequestState((prev) => ({ ...prev, status: 'waitlist_confirmed' }));
+          setWaitlistState((prev) => (prev ? { ...prev, status: 'waitlist_confirmed' } : null));
+        } else {
+          setRequestState({ hasRequest: false });
+          setWaitlistState(null);
+        }
+      } else {
+        setErrorMsg(res.message || 'No se pudo procesar tu respuesta.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al procesar tu respuesta.');
+    } finally {
+      setRespondingWaitlist(false);
+    }
+  };
+
+  const handleRetirarseListaEspera = async () => {
+    const reqId = waitlistState?.request_id;
+    if (!reqId) return;
+    const confirm = window.confirm('¿Estás seguro de que querés retirarte de la lista de espera?');
+    if (!confirm) return;
+
+    try {
+      const res = await openEncountersService.retirarseListaEspera(reqId);
+      if (res.ok) {
+        setRequestState({ hasRequest: false });
+        setWaitlistState(null);
+      } else {
+        setErrorMsg('No se pudo retirar de la lista de espera.');
+      }
+    } catch {
+      setErrorMsg('Error al retirarse de la lista de espera.');
+    }
+  };
+
   const handleLoginWithGoogle = async () => {
     if (!encounter) return;
 
@@ -498,6 +589,46 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
     setSubmitting(true);
     setErrorMsg(null);
+
+    if (isWaitlistMode) {
+      try {
+        const res = await openEncountersService.unirseListaEspera(
+          encounter.id,
+          applicantName.trim(),
+          applicantMessage.trim(),
+          encounter.allowMultiSeatRequests ? requestedSeats : 1
+        );
+        if (res.ok) {
+          setRequestState({
+            hasRequest: true,
+            status: 'waitlist_waiting',
+          });
+          setWaitlistState({
+            ok: true,
+            in_waitlist: true,
+            request_id: res.request_id,
+            status: 'waitlist_waiting',
+            position: res.position,
+            seat_count: res.seat_count,
+          });
+          setIsFormOpen(false);
+          setIsWaitlistMode(false);
+        } else {
+          if (res.error === 'already_requested') {
+            setErrorMsg('Ya estás anotado en la lista de espera o tenés una solicitud activa.');
+          } else if (res.error === 'already_joined') {
+            setErrorMsg('Ya estás confirmado como participante.');
+          } else {
+            setErrorMsg(res.message || 'No pudimos anotarte en la lista de espera.');
+          }
+        }
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Error al anotarte en la lista de espera.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     try {
       // SEGURIDAD: solo se envía el nombre, mensaje y cupo solicitado — la identidad la provee el JWT en el backend
@@ -966,6 +1097,87 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 </>
               )}
 
+              {requestState.status === 'waitlist_waiting' && (
+                <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--waitlist" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '1rem', borderRadius: '12px' }}>
+                  <div className="pe-detail-sheet__status-title" style={{ color: '#0369a1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Users size={16} />
+                    <span>Estás en lista de espera {waitlistState?.position ? `(Puesto #${waitlistState.position})` : ''}</span>
+                  </div>
+                  <p className="pe-detail-sheet__status-desc" style={{ color: '#0284c7', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    Te notificaremos si se libera un cupo para que puedas confirmar tu interés.
+                  </p>
+                  <button
+                    type="button"
+                    style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#64748b', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={handleRetirarseListaEspera}
+                  >
+                    Retirarme de la lista de espera
+                  </button>
+                </div>
+              )}
+
+              {requestState.status === 'waitlist_offered' && (
+                <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--offered" style={{ background: '#ecfdf5', border: '1px solid #10b981', padding: '1rem', borderRadius: '12px' }}>
+                  <div className="pe-detail-sheet__status-title" style={{ color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CheckCircle2 size={18} />
+                    <span>¡Tenés un lugar disponible!</span>
+                  </div>
+                  <p className="pe-detail-sheet__status-desc" style={{ color: '#065f46', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    Se liberaron cupos para este encuentro. Confirmá que seguís interesado antes de que venza la oferta.
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                      disabled={respondingWaitlist}
+                      onClick={() => handleResponderOferta(true)}
+                    >
+                      {respondingWaitlist ? 'Confirmando…' : 'Sigo interesado'}
+                    </button>
+                    <button
+                      type="button"
+                      className="pe-detail-sheet__btn-cancel"
+                      disabled={respondingWaitlist}
+                      style={{ background: '#f1f5f9', color: '#475569' }}
+                      onClick={() => handleResponderOferta(false)}
+                    >
+                      Ceder lugar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {requestState.status === 'waitlist_confirmed' && (
+                <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--confirmed-waitlist" style={{ background: '#eff6ff', border: '1px solid #3b82f6', padding: '1rem', borderRadius: '12px' }}>
+                  <div className="pe-detail-sheet__status-title" style={{ color: '#1d4ed8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Clock size={16} />
+                    <span>Interés confirmado · En revisión del anfitrión</span>
+                  </div>
+                  <p className="pe-detail-sheet__status-desc" style={{ color: '#1e40af', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    Tu lugar está reservado temporalmente mientras el anfitrión aprueba tu incorporación.
+                  </p>
+                  <button
+                    type="button"
+                    style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#64748b', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={handleRetirarseListaEspera}
+                  >
+                    Retirarme de la lista
+                  </button>
+                </div>
+              )}
+
+              {requestState.status === 'waitlist_expired' && (
+                <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--expired" style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '1rem', borderRadius: '12px' }}>
+                  <div className="pe-detail-sheet__status-title" style={{ color: '#991b1b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Clock size={16} />
+                    <span>Oportunidad de cupo vencida</span>
+                  </div>
+                  <p className="pe-detail-sheet__status-desc" style={{ color: '#b91c1c', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    El plazo para responder venció y los cupos fueron asignados al siguiente postulante.
+                  </p>
+                </div>
+              )}
+
               {(requestState.status === 'withdrawn' || requestState.status === 'cancelled') && (
                 <>
                   <div className="pe-detail-sheet__status-title" style={{ color: '#64748b' }}>
@@ -994,7 +1206,9 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           ) : isFormOpen ? (
             <form onSubmit={handleSubmitRequest} className="pe-detail-sheet__request-form">
               <h4 className="pe-detail-sheet__form-title">
-                {t('open_encounters.request_modal_title', { defaultValue: 'Sumarme a este encuentro' })}
+                {isWaitlistMode
+                  ? 'Anotarme en lista de espera'
+                  : t('open_encounters.request_modal_title', { defaultValue: 'Sumarme a este encuentro' })}
               </h4>
 
               {errorMsg && <div className="pe-detail-sheet__form-error">{errorMsg}</div>}
@@ -1087,7 +1301,11 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
                   disabled={submitting}
                 >
-                  {submitting ? 'Enviando…' : t('open_encounters.request_submit', { defaultValue: 'Enviar solicitud' })}
+                  {submitting
+                    ? 'Enviando…'
+                    : isWaitlistMode
+                    ? 'Confirmar inscripción en lista de espera'
+                    : t('open_encounters.request_submit', { defaultValue: 'Enviar solicitud' })}
                 </button>
               </div>
             </form>
@@ -1108,8 +1326,18 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 <span>Completo · Sin lugares disponibles</span>
               </div>
               <p className="pe-detail-sheet__status-desc" style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                No quedan lugares disponibles para este encuentro.
+                No quedan lugares disponibles para este encuentro. Podés anotarte en la lista de espera por si se libera un cupo.
               </p>
+              {!encounter.inscriptionsClosed && (
+                <button
+                  type="button"
+                  className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={handleStartWaitlist}
+                >
+                  Anotarme en lista de espera
+                </button>
+              )}
             </div>
           ) : isBelowMin ? (
             <div className="pe-detail-sheet__status-box pe-detail-sheet__status-box--rejected">
@@ -1120,6 +1348,16 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               <p className="pe-detail-sheet__status-desc">
                 Quedan {encounter.openSlots} {encounter.openSlots === 1 ? 'lugar' : 'lugares'}, pero el mínimo por solicitud es {minSeats}.
               </p>
+              {!encounter.inscriptionsClosed && (
+                <button
+                  type="button"
+                  className="pe-detail-sheet__cta pe-detail-sheet__cta--primary"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={handleStartWaitlist}
+                >
+                  Anotarme en lista de espera
+                </button>
+              )}
             </div>
           ) : (
             <>

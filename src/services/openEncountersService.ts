@@ -6,6 +6,7 @@ import type {
   AbrirEncuentroPayload,
   MiSolicitudItem,
   EncuentroParticipanteAutorizado,
+  EstadoListaEspera,
 } from '@/components/home/openEncounters/types';
 import type {
   PublicContentReportReason,
@@ -537,6 +538,110 @@ export const openEncountersService = {
       return data as { ok: boolean; error?: string };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Se anota voluntariamente en la lista de espera de un encuentro abierto.
+   */
+  async unirseListaEspera(
+    encuentroId: string,
+    nombre: string,
+    mensaje?: string,
+    seatCount: number = 1
+  ): Promise<{
+    ok: boolean;
+    request_id?: string;
+    position?: number;
+    seat_count?: number;
+    error?: string;
+    message?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('unirse_lista_espera_encuentro_abierto', {
+        p_encuentro_id: encuentroId,
+        p_nombre: nombre,
+        p_mensaje: mensaje ?? null,
+        p_seat_count: seatCount,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error uniéndose a lista de espera:', error);
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Responde a una oferta temporal de cupo («Sigo interesado» o ceder lugar).
+   */
+  async responderOfertaListaEspera(
+    requestId: string,
+    acepta: boolean
+  ): Promise<{
+    ok: boolean;
+    status?: string;
+    error?: string;
+    message?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('responder_oferta_lista_espera_seguro', {
+        p_request_id: requestId,
+        p_acepta: acepta,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error respondiendo oferta de lista de espera:', error);
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Se retira voluntariamente de la lista de espera (libera reserva si la tenía).
+   */
+  async retirarseListaEspera(
+    requestId: string
+  ): Promise<{
+    ok: boolean;
+    status?: string;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('retirarse_lista_espera_seguro', {
+        p_request_id: requestId,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error retirándose de lista de espera:', error);
+        return { ok: false, error: error.message };
+      }
+      return data as any;
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'unknown_error' };
+    }
+  },
+
+  /**
+   * Obtiene el estado de lista de espera del usuario para un encuentro.
+   */
+  async getEstadoListaEspera(
+    encuentroId: string
+  ): Promise<EstadoListaEspera> {
+    try {
+      const { data, error } = await supabase.rpc('get_estado_lista_espera_seguro', {
+        p_encuentro_id: encuentroId,
+      });
+      if (error) {
+        console.error('[openEncountersService] Error fetching estado lista de espera:', error);
+        return { ok: false, in_waitlist: false };
+      }
+      return data as EstadoListaEspera;
+    } catch (err: any) {
+      return { ok: false, in_waitlist: false };
     }
   },
 

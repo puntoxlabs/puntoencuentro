@@ -210,6 +210,9 @@ try {
   await server.ssrLoadModule('./scripts/test-post-event-closure-and-attendance.ts');
   console.log('✅ Mini-sprint A: Cierre posterior, asistencia efectiva y reconocimiento responsable tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-waitlist-and-recovery.ts');
+  console.log('✅ Mini-sprint B: Lista de espera y recuperación de cupos tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

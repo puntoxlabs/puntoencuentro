@@ -216,7 +216,11 @@ test('H2/H3 Restored Guards: Corrección final y validación de seguridad', asyn
 
     assert.ok(approvalMigrations.length > 0);
     const latestMigrationFile = approvalMigrations[approvalMigrations.length - 1];
-    assert.equal(latestMigrationFile, '20261016223000_restore_h2_h3_guards_in_approval_rpc.sql');
+    assert.ok(
+      latestMigrationFile === '20261016223000_restore_h2_h3_guards_in_approval_rpc.sql' ||
+      latestMigrationFile === '20261024220000_open_encounters_waitlist_and_recovery_v1.sql',
+      `Unexpected latest migration for approval RPC: ${latestMigrationFile}`
+    );
 
     const content = fs.readFileSync(path.join(migrationsDir, latestMigrationFile), 'utf8');
 

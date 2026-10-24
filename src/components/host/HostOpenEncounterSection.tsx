@@ -342,8 +342,11 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     }
   };
 
-  const pendingRequests = solicitudes.filter((s) => s.estado === 'pending');
-  const resolvedRequests = solicitudes.filter((s) => s.estado !== 'pending');
+  const pendingRequests = solicitudes.filter((s) => s.estado === 'pending' || s.estado === 'waitlist_confirmed');
+  const waitlistQueue = solicitudes.filter((s) => s.estado === 'waitlist_waiting' || s.estado === 'waitlist_offered');
+  const resolvedRequests = solicitudes.filter(
+    (s) => s.estado !== 'pending' && s.estado !== 'waitlist_confirmed' && s.estado !== 'waitlist_waiting' && s.estado !== 'waitlist_offered'
+  );
   const isResolvedExpanded = showResolved ?? (!isOpen && pendingRequests.length === 0);
 
   const handleStartPublish = () => {
@@ -785,6 +788,21 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                     <span className="pe-host-request-item__name">
                       {req.nombre_solicitante}
                     </span>
+                    {req.estado === 'waitlist_confirmed' && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: '#1d4ed8',
+                          backgroundColor: '#eff6ff',
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                        }}
+                      >
+                        · Lista de espera (cupo reservado)
+                      </span>
+                    )}
                     {req.seat_count && req.seat_count > 1 ? (
                       <span
                         className="pe-host-request-item__seats-badge"
@@ -844,8 +862,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                     type="button"
                     className="pe-host-request-item__btn-accept"
                     onClick={() => handleAprobar(req.id)}
-                    disabled={processingId === req.id || availableSlots < (req.seat_count || 1)}
-                    title={availableSlots < (req.seat_count || 1) ? 'Cupo insuficiente' : undefined}
+                    disabled={processingId === req.id || (req.estado !== 'waitlist_confirmed' && availableSlots < (req.seat_count || 1))}
+                    title={req.estado !== 'waitlist_confirmed' && availableSlots < (req.seat_count || 1) ? 'Cupo insuficiente' : undefined}
                   >
                     <CheckCircle2 size={14} />
                     <span>
@@ -857,6 +875,28 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {waitlistQueue.length > 0 && (
+          <div
+            style={{
+              marginTop: '0.75rem',
+              padding: '0.625rem 0.875rem',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              fontSize: '0.8125rem',
+              color: '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <Users size={15} />
+            <span>
+              Lista de espera: {waitlistQueue.length} {waitlistQueue.length === 1 ? 'persona esperando cupo' : 'personas esperando cupos'} si se liberan lugares.
+            </span>
           </div>
         )}
 

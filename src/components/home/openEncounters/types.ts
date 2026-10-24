@@ -32,7 +32,16 @@ export interface Localidad {
   orden: number;
 }
 
-export type SolicitudEstado = 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
+export type SolicitudEstado =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'withdrawn'
+  | 'cancelled'
+  | 'waitlist_waiting'
+  | 'waitlist_offered'
+  | 'waitlist_confirmed'
+  | 'waitlist_expired';
 
 export interface OpenEncounterRequest {
   id: string;
@@ -40,18 +49,24 @@ export interface OpenEncounterRequest {
   usuario_id: string;
   nombre_solicitante: string;
   mensaje?: string | null;
+  motivo_baja?: string | null;
   estado: SolicitudEstado;
   participante_id?: string | null;
   token_participante?: string | null;
   created_at: string;
   resolved_at?: string | null;
   seat_count?: number;
+  is_waitlist?: boolean;
+  waitlist_offered_at?: string | null;
+  waitlist_expires_at?: string | null;
+  waitlist_confirmed_at?: string | null;
+  host_approval_expires_at?: string | null;
 }
 
 export interface MiSolicitudItem {
   request_id: string;
   encuentro_id: string;
-  estado: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  estado: SolicitudEstado;
   seat_count: number;
   created_at: string;
   resolved_at?: string | null;
@@ -61,6 +76,27 @@ export interface MiSolicitudItem {
   modalidad: 'presencial' | 'virtual';
   open_public_zone: string;
   is_expired?: boolean;
+  is_waitlist?: boolean;
+  waitlist_offered_at?: string | null;
+  waitlist_expires_at?: string | null;
+  waitlist_confirmed_at?: string | null;
+  host_approval_expires_at?: string | null;
+  waitlist_position?: number | null;
+}
+
+export interface EstadoListaEspera {
+  ok: boolean;
+  in_waitlist: boolean;
+  request_id?: string;
+  status?: SolicitudEstado;
+  position?: number | null;
+  total_waiting?: number;
+  seat_count?: number;
+  waitlist_offered_at?: string | null;
+  waitlist_expires_at?: string | null;
+  seconds_remaining?: number | null;
+  waitlist_confirmed_at?: string | null;
+  host_approval_expires_at?: string | null;
 }
 
 export interface EncuentroParticipanteAutorizado {
