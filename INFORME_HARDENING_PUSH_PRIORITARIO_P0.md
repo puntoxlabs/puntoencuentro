@@ -258,8 +258,35 @@ Se desarrolló y ejecutó la suite `scripts/test-critical-cancellation-modal-ux.
 - ✔ Caso 7: Acción «Entendido» → Registra lectura mediante `marcarLeida`.
 
 ### 7.5. Estado de Pruebas Físicas
-Se ratifica que la coexistencia visual de notificaciones críticas e informativas en dispositivo físico Android **permanece pendiente para validación manual de QA**.
+Se ratifica que la coexistencia visual de notificaciones críticas e informativas en dispositivo físico Android **permanece formalmente pendiente para validación manual de QA**, diferenciándola de la correcta apertura y diferenciación del modal crítico in-app.
 
 ---
 
-**Estado:** REGRESIÓN UX CORREGIDA, PRUEBAS AUTOMATIZADAS EXITOSAS Y SW LIVE VERIFICADO EN STAGING.
+## 8. Resultados de la Validación Física en Dispositivo Android (Staging)
+
+### 8.1. Parámetros de la Corrida
+- **Fecha y hora local:** 23 de octubre de 2026, 23:07 – 23:20 ART
+- **Entorno:** Staging (`wougfhfwqgmxhgvjqoua` / `staging.puntoencuentro.com.ar`)
+- **Encuentro de QA:** `8f488fce-4355-4052-b9ba-8d6bd8bd2255` (*QA Web Push Multiplataforma*)
+- **Anfitrión A:** `cff4f76f-4e42-4954-ae81-4aafe0346e74` (`qa-push-guide-evaluator@puntoencuentro.test`)
+- **Participante B:** `ae9716ae-8bae-485e-96d0-6d8d8269f0f9` (Leandro Vega)
+- **Dispositivo de prueba:** Teléfono Android físico real con Chrome/PWA sobre Staging.
+
+### 8.2. Matriz de Resultados Comprobados
+
+| Dimensión Evaluada | Evidencia Técnica y Registro Empírico | Estado |
+| :--- | :--- | :--- |
+| **1. Entrega técnica por el proveedor (FCM)** | **Prueba A (Crítica):** FCM HTTP 201 Created a las `02:07:36Z` (`attempt_count: 1`, outbox `dc4ed90f-6940-4ef5-a37b-899abfc18308`).<br>**Prueba B (Informativa):** FCM HTTP 201 Created a las `02:08:46Z` (`attempt_count: 1`, outbox `dbfcde08-962d-4b27-ac66-5bec3bd9ca58`). | **COMPROBADO** |
+| **2. Recepción física en Android** | El participante confirmó la recepción física en el teléfono Android en pantalla bloqueada tras el despacho del evento crítico. | **COMPROBADO** |
+| **3. Coexistencia visual en panel nativo de Android** | Tras el despacho de B (`23:08:46`), a las `23:10` se observó una única tarjeta de notificación de PuntoEncuentro. Las capturas del teléfono no prueban por sí solas la coexistencia simultánea de dos tarjetas en el centro de notificaciones del SO (posible sustitución por Service Worker cliente residente sin refrescar o agrupamiento nativo compacto). | **PENDIENTE** |
+| **4. Apertura y título correcto del modal crítico** | **Captura física Android (`23:16`):** Al ingresar a PuntoEncuentro, el modal crítico se despliega con el título exacto **«Cambio de ubicación o acceso»** (NUNCA «Encuentro cancelado»), sin cuadro de motivo de cancelación, con el título del encuentro *"QA Web Push Multiplataforma"* y texto explicativo neutral. Ambas notificaciones aparecen registradas en el Inbox in-app. | **COMPROBADO** |
+| **5. Registro de lectura mediante «Entendido»** | Al presionar «Entendido», la base de datos de Staging registró formalmente la lectura: `inbox_notifications.read_at = '2026-10-24T02:16:42.378334+00:00'` para la notificación `4a23a123-2162-4280-a9ee-4e188ba64143`. El modal se cerró definitivamente sin reapariciones y el aviso en la bandeja pasó a estado leído (sin indicador azul), mientras que el aviso informativo posterior permaneció pendiente con su indicador azul activo. | **COMPROBADO** |
+
+### 8.3. Dictamen Final del Mini-sprint P0
+- **Blindaje UX de Notificaciones Críticas In-App:** **APROBADO Y VALIDADO EN DISPOSITIVO FÍSICO REAL**.
+- **Backend, Migraciones SQL, RPCs y Edge Functions Staging:** **APROBADO Y OPERATIVO**.
+- **Coexistencia visual en panel nativo de Android:** **PENDIENTE DE HOMOLOGACIÓN FÍSICA ESPECÍFICA**.
+
+---
+
+**Estado:** MINI-SPRINT P0 CERRADO — BLINDAJE CRÍTICO VALIDADO FÍSICAMENTE; COEXISTENCIA EN PANEL NATIVO PENDIENTE DE HOMOLOGACIÓN.
