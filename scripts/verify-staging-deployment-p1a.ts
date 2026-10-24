@@ -7,7 +7,7 @@
  * secretos ni deshabilitar controles de acceso.
  */
 
-import { getVercelBypassSecret, assertStagingEnvironment } from './lib/environment-guard';
+import { getVercelBypassSecret, assertStagingEnvironment, STAGING_PROJECT_REF } from './lib/environment-guard';
 
 const STAGING_URL = 'https://staging.puntoencuentro.com.ar';
 
