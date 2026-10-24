@@ -115,7 +115,7 @@ const Step4Review: React.FC<Step4ReviewProps> = ({ onBack, onNavigate }) => {
         createdSuccessfullyRef.current = true;
         useRepeatEncounterStore.getState().bindEncuentro(result.encuentro.id, draft.repeatToken);
         resetDraft();
-        navigate(`/coordination/${result.encuentro.id}`);
+        navigate(`/coordination/${result.encuentro.id}`, { state: { justCreated: true } });
 
         import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
           qaTelemetryService.trackEvent({

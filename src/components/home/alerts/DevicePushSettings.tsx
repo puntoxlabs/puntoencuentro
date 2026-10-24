@@ -27,6 +27,7 @@ const ERROR_COPY: Record<WebPushActivateError, string> = {
 
 export interface DevicePushSettingsProps {
   onStateChange?: (state: WebPushDeviceState) => void;
+  userId?: string | null;
 }
 
 /**
@@ -34,10 +35,12 @@ export interface DevicePushSettingsProps {
  * Regla: el permiso del navegador solo se solicita al tocar "Activar".
  * Montar este componente solo LEE el estado; jamás pide permiso.
  */
-export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateChange }) => {
+export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateChange, userId }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<WebPushDeviceState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testingNotification, setTestingNotification] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{ type: 'ok' | 'error'; message: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showContextualBanner, setShowContextualBanner] = useState(false);
@@ -93,6 +96,39 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       await refresh();
     } finally {
       if (mounted.current) setBusy(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    if (testingNotification) return;
+    setTestingNotification(true);
+    setTestFeedback(null);
+    try {
+      const res = await webPushService.testLocalNotification();
+      if (res.ok) {
+        setTestFeedback({
+          type: 'ok',
+          message: t('push.test_success', {
+            defaultValue: '¡Notificación de prueba emitida! Comprobá si tu sistema mostró el aviso o emitió sonido.',
+          }),
+        });
+      } else {
+        setTestFeedback({
+          type: 'error',
+          message: t('push.test_error', {
+            defaultValue: 'No se pudo emitir la notificación de prueba en este navegador.',
+          }),
+        });
+      }
+    } catch {
+      setTestFeedback({
+        type: 'error',
+        message: t('push.test_error', {
+          defaultValue: 'Error al emitir la notificación de prueba.',
+        }),
+      });
+    } finally {
+      if (mounted.current) setTestingNotification(false);
     }
   };
 
@@ -224,6 +260,10 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
                   ? t('push.android_guide_link', {
                       defaultValue: 'Cómo mostrar avisos emergentes y en pantalla bloqueada',
                     })
+                  : platform === 'ios'
+                  ? t('push.ios_guide_link', {
+                      defaultValue: 'Cómo configurar avisos en iPhone y iPad',
+                    })
                   : t('push.guide_link', {
                       defaultValue: 'Configurar visibilidad de notificaciones',
                     })}
@@ -231,9 +271,47 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             </button>
           )}
 
-          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform) && (
+          {/* Opción de prueba voluntaria de visualización y sonido */}
+          <div className="pe-push-device__test-section">
+            <button
+              type="button"
+              className="pe-push-device__test-btn"
+              onClick={() => void handleTestNotification()}
+              disabled={testingNotification || busy}
+            >
+              {testingNotification ? (
+                <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <Bell size={13} aria-hidden="true" />
+              )}
+              <span>{t('push.test_button', { defaultValue: 'Probar visualización y sonido' })}</span>
+            </button>
+
+            {testFeedback && (
+              <p
+                className={`pe-push-device__test-feedback ${
+                  testFeedback.type === 'ok'
+                    ? 'pe-push-device__test-feedback--ok'
+                    : 'pe-push-device__test-feedback--error'
+                }`}
+                role="status"
+              >
+                {testFeedback.message}
+              </p>
+            )}
+
+            <p className="pe-push-device__test-disclaimer">
+              {t('push.test_disclaimer', {
+                defaultValue:
+                  'Esta prueba es local para este navegador y pantalla. No verifica el recorrido de entrega desde el servidor ni garantiza recepción con el navegador o aplicación cerrados.',
+              })}
+            </p>
+          </div>
+
+          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform, userId) && (
             <PushVisibilityGuideBanner
               platform={platform}
+              userId={userId}
               onOpenGuide={() => {
                 setShowContextualBanner(false);
                 setShowGuideModal(true);
@@ -257,6 +335,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
           isOpen={showGuideModal}
           onClose={() => setShowGuideModal(false)}
           platform={platform}
+          userId={userId}
         />
       )}
     </section>

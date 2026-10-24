@@ -169,9 +169,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
 
       useWizardStore.getState().reset();
       if (tipo === 'individual') {
-        navigate(`/add-guests/${encuentroId}`, { replace: true });
+        navigate(`/add-guests/${encuentroId}`, { replace: true, state: { justCreated: true } });
       } else {
-        navigate(`/share/${encuentroId}`, { replace: true });
+        navigate(`/share/${encuentroId}`, { replace: true, state: { justCreated: true } });
       }
 
       const creationSource = wizardData.creation_source || 'manual';
@@ -239,9 +239,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
         setLinkingError(null);
 
         if (tipo === 'individual') {
-          navigate(`/add-guests/${targetEncuentroId}`, { replace: true });
+          navigate(`/add-guests/${targetEncuentroId}`, { replace: true, state: { justCreated: true } });
         } else {
-          navigate(`/share/${targetEncuentroId}`, { replace: true });
+          navigate(`/share/${targetEncuentroId}`, { replace: true, state: { justCreated: true } });
         }
       } else {
         console.warn('[RETRY CONVERSION WARNING] Falló reintento:', convRes.error);
@@ -265,9 +265,9 @@ const Step4InviteType: React.FC<Step4Props> = () => {
     useWizardStore.getState().reset();
 
     if (tipo === 'individual') {
-      navigate(`/add-guests/${targetEncuentroId}`, { replace: true });
+      navigate(`/add-guests/${targetEncuentroId}`, { replace: true, state: { justCreated: true } });
     } else {
-      navigate(`/share/${targetEncuentroId}`, { replace: true });
+      navigate(`/share/${targetEncuentroId}`, { replace: true, state: { justCreated: true } });
     }
   };
 

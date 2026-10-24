@@ -26,6 +26,16 @@ import { ContextualBlockAction } from '@/components/trust/ContextualBlockAction'
 import { ScrollHint } from '@/components/ui/ScrollHint';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { KidsBirthdayInvitationPreview } from '@/components/ui/KidsBirthdayInvitationPreview';
+import { webPushService } from '@/services/webPushService';
+import {
+  PushPromptModal,
+  PushVisibilityGuideModal,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushPromptDismissed,
+  hasParticipationConfirmedBefore,
+  recordParticipationConfirmed,
+} from '@/components/home/alerts';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
 import { FriendsInvitationPreview } from '@/components/ui/FriendsInvitationPreview';
@@ -82,6 +92,8 @@ const InviteGuest: React.FC = () => {
   const [mySolicitudId, setMySolicitudId] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [hasReportedHost, setHasReportedHost] = useState(false);
+  const [showParticipantPrompt, setShowParticipantPrompt] = useState(false);
+  const [showParticipantGuide, setShowParticipantGuide] = useState(false);
 
   const isEncuentroFinalizado = Boolean(
     encuentro &&
@@ -401,6 +413,21 @@ const InviteGuest: React.FC = () => {
       if (import.meta.env.DEV) console.log('[INVITE] Paso 4: mostrando pantalla de éxito');
       setStep('done');
       setJustConfirmed(true);
+
+      // Activación contextual: primera confirmación de participante en cuenta permanente
+      if (estado === 'confirmado' && user && !user.is_anonymous) {
+        if (!hasParticipationConfirmedBefore(user.id) && !isPushPromptDismissed(user.id)) {
+          recordParticipationConfirmed(user.id);
+          webPushService
+            .getDeviceState()
+            .then((devState) => {
+              if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
+                setShowParticipantPrompt(true);
+              }
+            })
+            .catch(() => {});
+        }
+      }
     } catch (err: any) {
       if (import.meta.env.DEV) console.error('[INVITE] ERROR en handleResponse:', err?.message, err);
       if (err.message === 'meeting_cancelled') {
@@ -810,6 +837,30 @@ const InviteGuest: React.FC = () => {
         />
       )}
       <ScrollHint visible={showScrollHint} />
+
+      <PushPromptModal
+        isOpen={showParticipantPrompt}
+        onClose={() => setShowParticipantPrompt(false)}
+        onActivated={() => {
+          setShowParticipantPrompt(false);
+          setShowParticipantGuide(true);
+        }}
+        onOpenGuide={() => {
+          setShowParticipantPrompt(false);
+          setShowParticipantGuide(true);
+        }}
+        context="participant"
+        userId={user?.id}
+      />
+
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
+          isOpen={showParticipantGuide}
+          onClose={() => setShowParticipantGuide(false)}
+          platform={getPushPlatform()}
+          userId={user?.id}
+        />
+      )}
     </ScreenContainer>
   );
 
@@ -1096,6 +1147,30 @@ const InviteGuest: React.FC = () => {
       )}
 
       <ScrollHint visible={showScrollHint} />
+
+      <PushPromptModal
+        isOpen={showParticipantPrompt}
+        onClose={() => setShowParticipantPrompt(false)}
+        onActivated={() => {
+          setShowParticipantPrompt(false);
+          setShowParticipantGuide(true);
+        }}
+        onOpenGuide={() => {
+          setShowParticipantPrompt(false);
+          setShowParticipantGuide(true);
+        }}
+        context="participant"
+        userId={user?.id}
+      />
+
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
+          isOpen={showParticipantGuide}
+          onClose={() => setShowParticipantGuide(false)}
+          platform={getPushPlatform()}
+          userId={user?.id}
+        />
+      )}
     </ScreenContainer>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
@@ -18,6 +18,7 @@ import { getHostId } from '@/lib/auth';
 const ShareLink: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -29,8 +30,8 @@ const ShareLink: React.FC = () => {
     // Aquí solo aseguramos que getHostId() haya inicializado el UUID anónimo.
     getHostId();
 
-    navigate(`/meet/${id}?share=1`, { replace: true });
-  }, [id, authLoading, user?.id]);
+    navigate(`/meet/${id}?share=1`, { replace: true, state: location.state });
+  }, [id, authLoading, user?.id, location.state]);
 
   // Pantalla minima mientras auth resuelve (evita flash)
   return (

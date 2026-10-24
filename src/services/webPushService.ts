@@ -38,6 +38,7 @@ export interface PushManagerLike {
 
 export interface ServiceWorkerRegistrationLike {
   pushManager: PushManagerLike;
+  showNotification?(title: string, options?: unknown): Promise<void>;
 }
 
 export interface ServiceWorkerContainerLike {
@@ -362,7 +363,47 @@ export function createWebPushService(deps: WebPushDeps) {
     }
   }
 
-  return { getDeviceState, activate, deactivate, cleanupOnSignOut, unsubscribeLocalOnly };
+  /**
+   * Dispara una notificación de prueba local para verificar la presentación,
+   * sonido y comportamiento visual en este dispositivo.
+   * Aclaración: NO verifica el recorrido de Web Push desde Supabase ni garantiza
+   * entrega con la aplicación cerrada.
+   */
+  async function testLocalNotification(): Promise<{ ok: boolean; error?: string }> {
+    const env = deps.getEnv();
+    const unsupported = detectUnsupported(env);
+    if (unsupported) return { ok: false, error: 'unsupported' };
+
+    if (!env.notification || env.notification.permission !== 'granted') {
+      return { ok: false, error: 'permission_not_granted' };
+    }
+
+    if (!env.serviceWorker) {
+      return { ok: false, error: 'no_service_worker' };
+    }
+
+    try {
+      const reg = await env.serviceWorker.ready;
+      if (typeof reg.showNotification === 'function') {
+        await reg.showNotification('PuntoEncuentro', {
+          body: 'Notificación de prueba: así se presentarán los avisos importantes.',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          tag: 'pe-test-notification',
+          renotify: true,
+        });
+        return { ok: true };
+      } else {
+        deps.warn('testNotification', 'no_showNotification_method');
+        return { ok: false, error: 'not_supported' };
+      }
+    } catch (err: any) {
+      deps.warn('testNotification', 'showNotification_failed');
+      return { ok: false, error: err?.message || 'test_failed' };
+    }
+  }
+
+  return { getDeviceState, activate, deactivate, cleanupOnSignOut, unsubscribeLocalOnly, testLocalNotification };
 }
 
 // ── Instancia real (lectura perezosa del entorno del navegador) ─────────────────────────

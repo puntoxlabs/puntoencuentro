@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -17,11 +17,25 @@ import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { ReuseEncounterSheet } from '@/components/reuse';
+import { webPushService } from '@/services/webPushService';
+import {
+  PushPromptModal,
+  PushVisibilityGuideModal,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushPromptDismissed,
+  hasEncounterCreatedBefore,
+  recordEncounterCreated,
+} from '@/components/home/alerts';
 
 const DetailHostCoordination: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
+  const isJustCreated = (location.state as any)?.justCreated === true;
+  const [showHostPrompt, setShowHostPrompt] = useState(false);
+  const [showHostGuide, setShowHostGuide] = useState(false);
 
   const [detail, setDetail] = useState<CoordinationHostDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +46,24 @@ const DetailHostCoordination: React.FC = () => {
 
   const { user } = useAuth();
   const hostId = user?.id;
+  const isPermanentUser = Boolean(user && !user.is_anonymous);
+
+  // Activación contextual tras creación exitosa de coordinación
+  useEffect(() => {
+    if (!isJustCreated || !isPermanentUser || !user?.id) return;
+    if (hasEncounterCreatedBefore(user.id) || isPushPromptDismissed(user.id)) return;
+
+    recordEncounterCreated(user.id);
+
+    webPushService
+      .getDeviceState()
+      .then((devState) => {
+        if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
+          setShowHostPrompt(true);
+        }
+      })
+      .catch(() => {});
+  }, [isJustCreated, isPermanentUser, user?.id]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [personalMessage, setPersonalMessage] = useState('');
   const [activeShareTarget, setActiveShareTarget] = useState<'general' | 'confirmed' | null>(null);
@@ -937,6 +969,28 @@ const DetailHostCoordination: React.FC = () => {
         initialMessage={personalMessage}
         onSave={handleSavePersonalMessage}
       />
+      <PushPromptModal
+        isOpen={showHostPrompt}
+        onClose={() => setShowHostPrompt(false)}
+        onActivated={() => {
+          setShowHostPrompt(false);
+          setShowHostGuide(true);
+        }}
+        onOpenGuide={() => {
+          setShowHostPrompt(false);
+          setShowHostGuide(true);
+        }}
+        context="host"
+        userId={user?.id}
+      />
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
+          isOpen={showHostGuide}
+          onClose={() => setShowHostGuide(false)}
+          platform={getPushPlatform()}
+          userId={user?.id}
+        />
+      )}
     </ScreenContainer>
   );
 };

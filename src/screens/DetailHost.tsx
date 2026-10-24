@@ -1,11 +1,21 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { MoreVertical, PencilLine, MessageSquare } from 'lucide-react';
 import { encuentrosService } from '@/services/encuentrosService';
 import { participantesService } from '@/services/participantesService';
+import { webPushService } from '@/services/webPushService';
+import {
+  PushPromptModal,
+  PushVisibilityGuideModal,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushPromptDismissed,
+  hasEncounterCreatedBefore,
+  recordEncounterCreated,
+} from '@/components/home/alerts';
 import { formatFriendlyDate, isEncuentroPasado } from '@/lib/formatDate';
 import { formatFechaHoraWhatsApp, preventNumberLinking } from '@/lib/formatWhatsapp';
 import { useDetailStore } from '@/store/detailStore';
@@ -57,8 +67,12 @@ const DetailHost: React.FC = () => {
   const { id } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const isFromShare = searchParams.get('share') === '1';
+  const isJustCreated = (location.state as any)?.justCreated === true;
+  const [showHostPrompt, setShowHostPrompt] = useState(false);
+  const [showHostGuide, setShowHostGuide] = useState(false);
   const { getValidCache, setDetailData, setScrollPosition } = useDetailStore();
   const validCache = getValidCache(id!);
 
@@ -94,6 +108,26 @@ const DetailHost: React.FC = () => {
   const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
 
   const { user, loading: authLoading, transferClaimStatus, retryTransferClaim, signInWithGoogle } = useAuth();
+  const isPermanentUser = Boolean(user && !user.is_anonymous);
+
+  // Activación contextual para anfitriones: solo tras creación efectiva, en cuenta permanente y sin interrumpir
+  useEffect(() => {
+    if (!isJustCreated || !isPermanentUser || !user?.id) return;
+    if (hasEncounterCreatedBefore(user.id) || isPushPromptDismissed(user.id)) return;
+
+    // Registrar creación para no repetir en visitas futuras
+    recordEncounterCreated(user.id);
+
+    // Consultar estado en segundo plano
+    webPushService
+      .getDeviceState()
+      .then((devState) => {
+        if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
+          setShowHostPrompt(true);
+        }
+      })
+      .catch(() => {});
+  }, [isJustCreated, isPermanentUser, user?.id]);
 
   // Estados para invitado individual
   const [nombre, setNombre] = useState('');
@@ -2039,6 +2073,30 @@ const DetailHost: React.FC = () => {
       )}
 
       <ScrollHint visible={showScrollHint} />
+
+      <PushPromptModal
+        isOpen={showHostPrompt}
+        onClose={() => setShowHostPrompt(false)}
+        onActivated={() => {
+          setShowHostPrompt(false);
+          setShowHostGuide(true);
+        }}
+        onOpenGuide={() => {
+          setShowHostPrompt(false);
+          setShowHostGuide(true);
+        }}
+        context="host"
+        userId={user?.id}
+      />
+
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
+          isOpen={showHostGuide}
+          onClose={() => setShowHostGuide(false)}
+          platform={getPushPlatform()}
+          userId={user?.id}
+        />
+      )}
     </ScreenContainer>
   );
 };

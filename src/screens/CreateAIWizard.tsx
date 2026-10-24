@@ -774,7 +774,7 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
         reset();
         sessionStorage.removeItem('cancel_reference');
 
-        navigate(`/coordination/${encounterId}`, { replace: true });
+        navigate(`/coordination/${encounterId}`, { replace: true, state: { justCreated: true } });
         return;
       }
 
@@ -827,9 +827,9 @@ export const CreateAIWizard: React.FC<CreateAIWizardProps> = ({
 
       // 7. Redirect to guest/sharing screen based on invitation type (matching manual wizard)
       if (config.invitationType === 'individual') {
-        navigate(`/add-guests/${encounterId}`, { replace: true });
+        navigate(`/add-guests/${encounterId}`, { replace: true, state: { justCreated: true } });
       } else {
-        navigate(`/share/${encounterId}`, { replace: true });
+        navigate(`/share/${encounterId}`, { replace: true, state: { justCreated: true } });
       }
     } catch (err: any) {
       console.error('[CreateAIWizard] Error creating encounter:', err);

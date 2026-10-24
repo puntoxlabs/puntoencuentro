@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
@@ -8,6 +8,7 @@ import { getEncuentroHost } from '@/lib/meetHostsStorage';
 const AddGuests: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -21,8 +22,8 @@ const AddGuests: React.FC = () => {
     }
 
     // Redirect with replace to prevent breaking back navigation and support direct refresh
-    navigate(`/meet/${id}?guests=1`, { replace: true });
-  }, [id, authLoading, navigate, user]);
+    navigate(`/meet/${id}?guests=1`, { replace: true, state: location.state });
+  }, [id, authLoading, navigate, user, location.state]);
 
   return (
     <ScreenContainer>

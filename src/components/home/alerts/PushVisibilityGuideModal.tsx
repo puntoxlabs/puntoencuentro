@@ -1,13 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { Smartphone, Monitor, Laptop, Sliders, X, CheckCircle, Info, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getPushPlatform, type PushPlatform } from './antiNagging';
+import { getPushPlatform, recordPushGuideCompleted, type PushPlatform } from './antiNagging';
+import { useModalStack } from '@/lib/modalStack';
 import './PushVisibilityGuideModal.css';
 
 export interface PushVisibilityGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   platform?: PushPlatform;
+  userId?: string | null;
 }
 
 /**
@@ -15,16 +17,24 @@ export interface PushVisibilityGuideModalProps {
  * - Android (avisos flotantes y pantalla bloqueada)
  * - Windows (banners de notificación, sonidos y No molestar)
  * - macOS (tiras/alertas, centro de notificaciones y Modos de concentración)
+ * - iOS / iPadOS (PWA en pantalla de inicio, permisos y modos de concentración)
  * - Genérico (bajo demanda para otras plataformas compatibles)
  */
 export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> = ({
   isOpen,
   onClose,
   platform,
+  userId,
 }) => {
   const { t } = useTranslation();
   const primaryBtnRef = useRef<HTMLButtonElement>(null);
   const currentPlatform = platform || getPushPlatform();
+
+  // Gestión accesible en pila de modales (Escape único y restauración de foco)
+  useModalStack('push-visibility-guide', isOpen, {
+    onEscape: onClose,
+    restoreFocus: true,
+  });
 
   // Foco accesible al abrir
   useEffect(() => {
@@ -36,17 +46,10 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
     }
   }, [isOpen]);
 
-  // Tecla Escape para cerrar
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const handleUnderstood = () => {
+    recordPushGuideCompleted(currentPlatform, userId);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -54,6 +57,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   const renderIcon = () => {
     switch (currentPlatform) {
       case 'android':
+      case 'ios':
         return <Smartphone size={20} />;
       case 'windows':
         return <Monitor size={20} />;
@@ -67,6 +71,10 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   // Título según plataforma
   const getTitle = () => {
     switch (currentPlatform) {
+      case 'ios':
+        return t('push.ios_modal_title', {
+          defaultValue: 'Configurar avisos en iPhone y iPad',
+        });
       case 'windows':
         return t('push.windows_modal_title', {
           defaultValue: 'Configurar visibilidad de notificaciones en Windows',
@@ -89,6 +97,11 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   // Subtítulo según plataforma
   const getSubtitle = () => {
     switch (currentPlatform) {
+      case 'ios':
+        return t('push.ios_modal_subtitle', {
+          defaultValue:
+            'Para recibir avisos en iOS, se requiere agregar PuntoEncuentro a la pantalla de inicio y configurar las notificaciones en el sistema:',
+        });
       case 'windows':
         return t('push.windows_modal_subtitle', {
           defaultValue:
@@ -114,6 +127,57 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
 
   // Pasos de instrucciones según plataforma
   const renderSteps = () => {
+    if (currentPlatform === 'ios') {
+      return (
+        <ol className="pe-visibility-guide-steps">
+          <li className="pe-visibility-guide-step">
+            <span className="pe-visibility-guide-step__num">1</span>
+            <span className="pe-visibility-guide-step__text">
+              {t('push.ios_modal_step1', {
+                defaultValue:
+                  'En Safari, tocá el botón Compartir (flecha hacia arriba) y elegí «Agregar a la pantalla de inicio».',
+              })}
+            </span>
+          </li>
+          <li className="pe-visibility-guide-step">
+            <span className="pe-visibility-guide-step__num">2</span>
+            <span className="pe-visibility-guide-step__text">
+              {t('push.ios_modal_step2', {
+                defaultValue:
+                  'Abrí PuntoEncuentro desde el icono de tu pantalla de inicio y tocá «Activar notificaciones».',
+              })}
+            </span>
+          </li>
+          <li className="pe-visibility-guide-step">
+            <span className="pe-visibility-guide-step__num">3</span>
+            <span className="pe-visibility-guide-step__text">
+              {t('push.ios_modal_step3', {
+                defaultValue: 'En tu iPhone o iPad, abrí Ajustes → Notificaciones → PuntoEncuentro.',
+              })}
+            </span>
+          </li>
+          <li className="pe-visibility-guide-step">
+            <span className="pe-visibility-guide-step__num">4</span>
+            <span className="pe-visibility-guide-step__text">
+              {t('push.ios_modal_step4', {
+                defaultValue:
+                  'Verificá que estén activadas las opciones de Pantalla bloqueada, Centro de notificaciones, Tiras y Sonidos.',
+              })}
+            </span>
+          </li>
+          <li className="pe-visibility-guide-step">
+            <span className="pe-visibility-guide-step__num">5</span>
+            <span className="pe-visibility-guide-step__text">
+              {t('push.ios_modal_step5', {
+                defaultValue:
+                  'Comprobá que los Modos de Concentración («No molestar») o el Resumen programado no silencien los avisos.',
+              })}
+            </span>
+          </li>
+        </ol>
+      );
+    }
+
     if (currentPlatform === 'windows') {
       return (
         <ol className="pe-visibility-guide-steps">
@@ -312,6 +376,24 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
 
   // Notas informativas adicionales
   const renderPlatformNotes = () => {
+    if (currentPlatform === 'ios') {
+      return (
+        <div className="pe-visibility-guide-callout pe-visibility-guide-callout--info">
+          <Info size={16} aria-hidden="true" className="pe-visibility-guide-callout__icon" />
+          <p className="pe-visibility-guide-callout__text">
+            {t('push.ios_modal_pwa_note', {
+              defaultValue:
+                'Web Push en iOS requiere iOS 16.4 o superior y funciona exclusivamente abriendo la aplicación desde la pantalla de inicio (PWA).',
+            })}{' '}
+            {t('push.ios_modal_focus_note', {
+              defaultValue:
+                'Cada Modo de Concentración (No molestar, Trabajo, Descanso) o Resumen programado en iOS puede silenciar o diferir la llegada de avisos.',
+            })}
+          </p>
+        </div>
+      );
+    }
+
     if (currentPlatform === 'windows') {
       return (
         <div className="pe-visibility-guide-callout pe-visibility-guide-callout--info">
@@ -383,6 +465,11 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   // Limitación técnica del sistema operativo
   const getDisclaimer = () => {
     switch (currentPlatform) {
+      case 'ios':
+        return t('push.ios_modal_system_note', {
+          defaultValue:
+            'Estas opciones se configuran directamente en iOS y Safari, y no pueden modificarse desde la aplicación.',
+        });
       case 'windows':
         return t('push.windows_modal_system_note', {
           defaultValue:
@@ -461,7 +548,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
             ref={primaryBtnRef}
             type="button"
             className="pe-visibility-guide__btn-primary"
-            onClick={onClose}
+            onClick={handleUnderstood}
           >
             <CheckCircle size={15} aria-hidden="true" />
             <span>{t('push.android_modal_close', { defaultValue: 'Entendido' })}</span>

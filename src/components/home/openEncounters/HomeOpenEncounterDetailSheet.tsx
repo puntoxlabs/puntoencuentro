@@ -14,6 +14,17 @@ import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import type { PublicContentReportReason } from '@/types/trust';
+import { useModalStack } from '@/lib/modalStack';
+import { webPushService } from '@/services/webPushService';
+import {
+  PushPromptModal,
+  PushVisibilityGuideModal,
+  getPushPlatform,
+  isPushGuideSupportedPlatform,
+  isPushPromptDismissed,
+  hasOpenParticipationNotified,
+  recordOpenParticipationNotified,
+} from '@/components/home/alerts';
 import './HomeOpenEncounterDetailSheet.css';
 
 // Clave de sessionStorage para persistir contexto de solicitud entre redirect OAuth
@@ -70,6 +81,9 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     reason?: PublicContentReportReason | null;
     comment?: string;
   } | null>(null);
+
+  const [showOpenPushPrompt, setShowOpenPushPrompt] = useState(false);
+  const [showOpenGuideModal, setShowOpenGuideModal] = useState(false);
 
   useEffect(() => {
     if (authorizedDetail?.reconfirmation_status) {
@@ -212,6 +226,21 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               status: res.estado,
               tokenParticipante: res.token_participante,
             });
+
+            // Si la participación fue aprobada por el anfitrión, ofrecer configuración asistida
+            if (res.estado === 'approved' && isPermanentUser && userId) {
+              if (!hasOpenParticipationNotified(encounter.id, userId) && !isPushPromptDismissed(userId)) {
+                recordOpenParticipationNotified(encounter.id, userId);
+                webPushService
+                  .getDeviceState()
+                  .then((devState) => {
+                    if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
+                      setShowOpenPushPrompt(true);
+                    }
+                  })
+                  .catch(() => {});
+              }
+            }
           } else {
             setRequestState({ hasRequest: false });
           }
@@ -231,6 +260,18 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                 sessionStorage.removeItem(PENDING_OPEN_REQUEST_KEY);
               } catch {
                 /* storage fallback */
+              }
+            } else if (!authRes.is_host && isPermanentUser && userId) {
+              if (!hasOpenParticipationNotified(encounter.id, userId) && !isPushPromptDismissed(userId)) {
+                recordOpenParticipationNotified(encounter.id, userId);
+                webPushService
+                  .getDeviceState()
+                  .then((devState) => {
+                    if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
+                      setShowOpenPushPrompt(true);
+                    }
+                  })
+                  .catch(() => {});
               }
             }
           } else {
@@ -306,28 +347,29 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
     }
   }, [isOpen, encounter?.id, isDemo, userId, isPermanentUser, user?.user_metadata?.full_name]);
 
+  // Gestión determinista de pila de modales para Escape y foco
+  useModalStack('open-encounter-detail-sheet', isOpen, {
+    onEscape: () => {
+      if (isLoginRequired) {
+        setIsLoginRequired(false);
+      } else {
+        onClose();
+      }
+    },
+    restoreFocus: true,
+  });
+
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isLoginRequired) {
-          setIsLoginRequired(false);
-        } else {
-          onClose();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       closeBtnRef.current?.focus();
     }, 50);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
     };
-  }, [isOpen, onClose, isLoginRequired]);
+  }, [isOpen]);
 
   if (!isOpen || !encounter) return null;
 
@@ -1238,6 +1280,30 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
             </div>
           </div>
         </div>
+      )}
+
+      <PushPromptModal
+        isOpen={showOpenPushPrompt}
+        onClose={() => setShowOpenPushPrompt(false)}
+        onActivated={() => {
+          setShowOpenPushPrompt(false);
+          setShowOpenGuideModal(true);
+        }}
+        onOpenGuide={() => {
+          setShowOpenPushPrompt(false);
+          setShowOpenGuideModal(true);
+        }}
+        context="open_participant"
+        userId={userId}
+      />
+
+      {isPushGuideSupportedPlatform(getPushPlatform()) && (
+        <PushVisibilityGuideModal
+          isOpen={showOpenGuideModal}
+          onClose={() => setShowOpenGuideModal(false)}
+          platform={getPushPlatform()}
+          userId={userId}
+        />
       )}
     </>
 

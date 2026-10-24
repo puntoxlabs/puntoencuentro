@@ -79,17 +79,17 @@ describe('PuntoEncuentro — Guía Web Push Multiplataforma (Android, Windows, m
     assert.strictEqual(isAndroidDevice(), false);
     assert.strictEqual(isPushGuideSupportedPlatform('macos'), true);
 
-    // Caso iPhone iOS (excluido)
+    // Caso iPhone iOS (soportado en P1-A con guía especializada)
     setMockUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
-    assert.strictEqual(getPushPlatform(), 'other');
+    assert.strictEqual(getPushPlatform(), 'ios');
     assert.strictEqual(isAndroidDevice(), false);
-    assert.strictEqual(isPushGuideSupportedPlatform(getPushPlatform()), false);
+    assert.strictEqual(isPushGuideSupportedPlatform('ios'), true);
 
-    // Caso iPad iOS (excluido)
+    // Caso iPad iOS (soportado en P1-A con guía especializada)
     setMockUserAgent('Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1');
-    assert.strictEqual(getPushPlatform(), 'other');
+    assert.strictEqual(getPushPlatform(), 'ios');
     assert.strictEqual(isAndroidDevice(), false);
-    assert.strictEqual(isPushGuideSupportedPlatform(getPushPlatform()), false);
+    assert.strictEqual(isPushGuideSupportedPlatform('ios'), true);
   });
 
   // ── 2. PERSISTENCIA INDEPENDIENTE Y RETROCOMPATIBILIDAD CON MARCA ANDROID ─────
@@ -372,11 +372,12 @@ describe('PuntoEncuentro — Guía Web Push Multiplataforma (Android, Windows, m
     );
   });
 
-  // ── 12. EXCLUSIÓN TOTAL DE IOS DE ESTA GUÍA ───────────────────────────────────
+  // ── 12. SOPORTE DE IOS EN P1-A CON GUÍA ESPECIALIZADA ─────────────────────────
 
-  test('12. Dispositivos iOS nunca reciben la guía ni el enlace de visibilidad', () => {
+  test('12. Dispositivos iOS reciben la guía especializada en P1-A', () => {
     setMockUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1');
     const p = getPushPlatform();
-    assert.strictEqual(isPushGuideSupportedPlatform(p), false, 'iOS debe retornar isPushGuideSupportedPlatform = false');
+    assert.strictEqual(p, 'ios');
+    assert.strictEqual(isPushGuideSupportedPlatform(p), true, 'iOS debe retornar isPushGuideSupportedPlatform = true');
   });
 });

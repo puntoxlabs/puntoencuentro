@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   getPushPlatform,
   dismissPushVisibilityGuide,
+  recordPushGuideViewed,
   type PushPlatform,
 } from './antiNagging';
 import './PushVisibilityGuideBanner.css';
@@ -12,27 +13,30 @@ export interface PushVisibilityGuideBannerProps {
   onOpenGuide: () => void;
   onDismiss: () => void;
   platform?: PushPlatform;
+  userId?: string | null;
 }
 
 /**
  * Banner contextual ofrecido por única vez tras una activación exitosa de Web Push.
- * Adaptado para Android, Windows y macOS.
+ * Adaptado para Android, Windows, macOS e iOS.
  */
 export const PushVisibilityGuideBanner: React.FC<PushVisibilityGuideBannerProps> = ({
   onOpenGuide,
   onDismiss,
   platform,
+  userId,
 }) => {
   const { t } = useTranslation();
   const currentPlatform = platform || getPushPlatform();
 
   const handleOpen = () => {
-    dismissPushVisibilityGuide(currentPlatform);
+    // Abrir la guía registra que fue consultada, pero NO equivale a completar la configuración
+    recordPushGuideViewed(currentPlatform, userId);
     onOpenGuide();
   };
 
   const handleDismiss = () => {
-    dismissPushVisibilityGuide(currentPlatform);
+    dismissPushVisibilityGuide(currentPlatform, userId);
     onDismiss();
   };
 

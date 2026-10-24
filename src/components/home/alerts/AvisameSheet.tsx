@@ -22,6 +22,7 @@ import type {
 } from '@/types/matchAlerts';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { formatFriendlyDate } from '@/lib/formatDate';
+import { useAuth } from '@/contexts/AuthContext';
 import { DevicePushSettings } from './DevicePushSettings';
 import { QuietHoursSettings } from './QuietHoursSettings';
 import { webPushService } from '@/services/webPushService';
@@ -34,6 +35,7 @@ import {
 import { AvisamePushPromptModal } from './AvisamePushPromptModal';
 import { PushVisibilityGuideBanner } from './PushVisibilityGuideBanner';
 import { PushVisibilityGuideModal } from './PushVisibilityGuideModal';
+import { useModalStack } from '@/lib/modalStack';
 import '@/components/ui/BottomSheet.css';
 import './AvisameSheet.css';
 
@@ -61,6 +63,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
   isPermanentUser = true,
 }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   // Tabs: 'create' | 'list'
@@ -148,26 +151,24 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
     }
   }, [isOpen, isPermanentUser, fetchMisAlertas]);
 
-  // Manejo de tecla Escape y foco inicial
+  // Registro en la pila de modales accesibles y manejo de tecla Escape
+  useModalStack('avisame-sheet', isOpen, {
+    onEscape: onClose,
+    restoreFocus: true,
+  });
+
+  // Foco inicial accesible
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
     const timer = setTimeout(() => {
       closeBtnRef.current?.focus();
     }, 50);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       clearTimeout(timer);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // Bloqueo de scroll en body mientras el bottom sheet está abierto para evitar scroll chaining en mobile
   useEffect(() => {
@@ -247,10 +248,10 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
       void fetchMisAlertas();
 
       let prompted = false;
-      if (isPermanentUser && !isPushPromptDismissed()) {
+      if (isPermanentUser && !isPushPromptDismissed(user?.id)) {
         try {
           const deviceState = await webPushService.getDeviceState();
-          if (deviceState.kind === 'default' || deviceState.kind === 'granted_unsubscribed') {
+          if (deviceState.kind !== 'subscribed' && deviceState.kind !== 'not_configured') {
             setShowPushPrompt(true);
             prompted = true;
           }
@@ -616,7 +617,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
             {/* Configuración de Web Push y Horarios Silenciosos (solo usuario permanente) */}
             {isPermanentUser && (
               <>
-                <DevicePushSettings />
+                <DevicePushSettings userId={user?.id} />
                 <QuietHoursSettings />
               </>
             )}
@@ -802,6 +803,9 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
       {/* Modal contextual post-guardado de alerta (Fase 3B UX) */}
       <AvisamePushPromptModal
         isOpen={showPushPrompt}
+        userId={user?.id}
+        context="avisame"
+        onOpenGuide={() => setShowAndroidGuideModal(true)}
         onClose={() => {
           setShowPushPrompt(false);
           setFeedbackMsg({
@@ -828,6 +832,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
           isOpen={showAndroidGuideModal}
           onClose={() => setShowAndroidGuideModal(false)}
           platform={getPushPlatform()}
+          userId={user?.id}
         />
       )}
     </>
