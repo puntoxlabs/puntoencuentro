@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
 import { openEncountersService } from '@/services/openEncountersService';
+import { PendingClosureBlockedModal } from '@/components/host/PendingClosureBlockedModal';
 import './OpenEncounterPublishModal.css';
 
 export interface OpenEncounterPublishModalProps {
@@ -47,6 +48,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
 }) => {
   const { t } = useTranslation();
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
+  const [pendingClosureData, setPendingClosureData] = useState<{ id: string; title: string } | null>(null);
   const [title, setTitle] = useState(defaultTitle);
   const [description, setDescription] = useState(defaultDescription);
   const [slotsInput, setSlotsInput] = useState<string>(defaultSlots ? String(defaultSlots) : '2');
@@ -241,7 +243,13 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
         onPublished(res);
         onClose();
       } else {
-        if (res.error === 'content_moderation_blocked') {
+        if (res.error === 'pending_closure_required') {
+          setPendingClosureData({
+            id: res.pending_encuentro_id || '',
+            title: res.pending_encuentro_title || '',
+          });
+          setErrorMsg(res.message || 'Tenés un encuentro abierto anterior pendiente de cierre.');
+        } else if (res.error === 'content_moderation_blocked') {
           setErrorMsg(
             t('open_encounters.rejected_notice', {
               defaultValue:
@@ -552,6 +560,21 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
           </div>
         </form>
       </div>
+      {pendingClosureData && (
+        <PendingClosureBlockedModal
+          isOpen={Boolean(pendingClosureData)}
+          pendingEncuentroId={pendingClosureData.id}
+          pendingEncuentroTitle={pendingClosureData.title}
+          onClose={() => setPendingClosureData(null)}
+          onGoToClosure={(encId) => {
+            setPendingClosureData(null);
+            onClose();
+            if (typeof window !== 'undefined') {
+              window.location.href = `/encuentro/${encId}`;
+            }
+          }}
+        />
+      )}
     </>
   );
 };

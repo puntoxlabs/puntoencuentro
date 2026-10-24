@@ -55,6 +55,8 @@ import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSec
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { ReuseEncounterSheet } from '@/components/reuse';
+import { PendingClosureBanner } from '@/components/host/PendingClosureBanner';
+import { PostEventClosureSheet } from '@/components/host/PostEventClosureSheet';
 import { Repeat, Bookmark } from 'lucide-react';
 import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { useResilientPolling } from '@/hooks/useResilientPolling';
@@ -107,6 +109,7 @@ const DetailHost: React.FC = () => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
   const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
+  const [isClosureSheetOpen, setIsClosureSheetOpen] = useState(false);
 
   const { user, loading: authLoading, transferClaimStatus, retryTransferClaim, signInWithGoogle } = useAuth();
   const isPermanentUser = Boolean(user && !user.is_anonymous);
@@ -648,6 +651,24 @@ const DetailHost: React.FC = () => {
       <div className="dh-centered">
         <p className="dh-loading-text">Cargando detalle…</p>
       </div>
+      {isClosureSheetOpen && id && (
+        <PostEventClosureSheet
+          isOpen={isClosureSheetOpen}
+          encuentroId={id}
+          onClose={() => setIsClosureSheetOpen(false)}
+          onSuccess={async () => {
+            const hostId = user?.id ?? getHostId();
+            if (id && hostId) {
+              try {
+                const updated = await encuentrosService.getDetalleHostSeguro(id, hostId);
+                if (updated) setEncuentro(updated);
+              } catch (e) {
+                console.warn('[DetailHost] Error reloading encounter post closure:', e);
+              }
+            }
+          }}
+        />
+      )}
     </ScreenContainer>
   );
 
@@ -1410,6 +1431,61 @@ const DetailHost: React.FC = () => {
                 Este encuentro ya finalizó. No se puede modificar.
               </span>
             </div>
+          )}
+
+          {/* BANNER DE CIERRE POST-EVENTO */}
+          {isFinalizado && (encuentro.is_open || (encuentro as any)?.opened_at) && (
+            encuentro.post_event_closure_status === 'completed' ? (
+              <div
+                style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '12px',
+                  margin: '1rem 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                  <CheckCircle2 size={18} color="#10b981" />
+                  <span>
+                    {encuentro.post_event_realization_status === 'realized'
+                      ? 'Cierre registrado: Realizado con registro de asistencia'
+                      : 'Cierre registrado: No realizado'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClosureSheetOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #10b981',
+                    color: '#065f46',
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ver / Editar
+                </button>
+              </div>
+            ) : (
+              <PendingClosureBanner
+                encuentroId={id!}
+                encuentroTitle={encuentro.open_public_title || encuentro.titulo}
+                isOverdue={Boolean(
+                  encuentro.post_event_closure_status === 'overdue' ||
+                  (encuentro.post_event_closure_deadline && new Date() > new Date(encuentro.post_event_closure_deadline))
+                )}
+                onOpenClosure={() => setIsClosureSheetOpen(true)}
+              />
+            )
           )}
 
           {/* 1.5 ALIAS DEL ANFITRIÓN COMPACTO */}

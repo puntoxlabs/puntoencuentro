@@ -218,6 +218,8 @@ export const openEncountersService = {
     message?: string;
     reason?: string;
     error?: string;
+    pending_encuentro_id?: string;
+    pending_encuentro_title?: string;
   }> {
     // 1. Choke point server-side: valida permisos, datos privados y aplica reglas deterministas.
     // El RPC SIEMPRE deja el encuentro no bloqueado en review_pending e is_open = false.
