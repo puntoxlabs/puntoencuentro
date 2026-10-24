@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, MapPin, CheckCircle, Compass, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { coverageService, type CoverageResponse } from '@/services/coverageService';
@@ -84,7 +85,7 @@ export const CoverageRequestModal: React.FC<CoverageRequestModalProps> = ({
     onClose();
   };
 
-  return (
+  const modalContent = (
     <>
       <div className="pe-coverage-overlay" onClick={onClose} aria-hidden="true" />
       <div
@@ -254,4 +255,10 @@ export const CoverageRequestModal: React.FC<CoverageRequestModalProps> = ({
       </div>
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

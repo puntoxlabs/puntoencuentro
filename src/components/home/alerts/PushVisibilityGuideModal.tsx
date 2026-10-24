@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Smartphone,
   Monitor,
@@ -597,7 +598,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
     }
   };
 
-  return (
+  const modalContent = (
     <div
       className="pe-visibility-guide-overlay"
       onClick={(e) => {
@@ -971,6 +972,12 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
 
 /**

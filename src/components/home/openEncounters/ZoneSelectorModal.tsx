@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from './types';
@@ -92,7 +93,7 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
     return acc;
   }, {} as Record<string, Localidad[]>);
 
-  return (
+  const modalContent = (
     <>
       <div className="pe-zones-overlay" onClick={onClose} aria-hidden="true" />
       <div
@@ -182,7 +183,17 @@ export const ZoneSelectorModal: React.FC<ZoneSelectorModalProps> = ({
           </button>
         </div>
       </div>
+    </>
+  );
 
+  const renderedModal =
+    typeof document !== 'undefined' && document.body
+      ? createPortal(modalContent, document.body)
+      : modalContent;
+
+  return (
+    <>
+      {renderedModal}
       <CoverageRequestModal
         isOpen={isCoverageModalOpen}
         onClose={() => setIsCoverageModalOpen(false)}

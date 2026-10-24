@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Ban, ShieldCheck, AlertCircle } from 'lucide-react';
 import { trustService } from '@/services/trustService';
 import './ContextualBlockModal.css';
@@ -89,7 +90,7 @@ export const ContextualBlockModal: React.FC<ContextualBlockModalProps> = ({
   const modalTitleId = 'contextual-block-modal-title';
   const modalDescId = 'contextual-block-modal-desc';
 
-  return (
+  const modalContent = (
     <div
       className="pe-block-modal-overlay"
       onClick={(e) => {
@@ -182,4 +183,10 @@ export const ContextualBlockModal: React.FC<ContextualBlockModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

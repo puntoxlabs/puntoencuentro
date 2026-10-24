@@ -6,7 +6,7 @@
   background-color: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 1100;
+  z-index: 12000;
   animation: pe-coverage-fade-in 0.2s ease-out forwards;
 }
 
@@ -24,7 +24,7 @@
   border: 1px solid var(--color-outline-variant, #e2e8f0);
   border-radius: 16px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  z-index: 1101;
+  z-index: 12001;
   padding: 24px;
   display: flex;
   flex-direction: column;

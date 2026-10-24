@@ -253,4 +253,40 @@ describe('PuntoEncuentro — P1-B: Corrección de Modales y Accesibilidad Móvil
       assert.ok(json.push.assistant_confirm_yes, `assistant_confirm_yes en ${locale}.json`);
     }
   });
+
+  // ── 6. ARQUITECTURA DE PORTALES Y ESCAPE DE STACKING CONTEXT / CLIPPING ──────
+
+  test('15. PushVisibilityGuideModal y modales dependientes renderizan vía createPortal(..., document.body)', () => {
+    // 1. PushVisibilityGuideModal
+    const guideTsx = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/PushVisibilityGuideModal.tsx'), 'utf-8');
+    assert.ok(guideTsx.includes("import { createPortal } from 'react-dom'"), 'PushVisibilityGuideModal debe importar createPortal');
+    assert.ok(guideTsx.includes('createPortal(modalContent, document.body)'), 'PushVisibilityGuideModal debe renderizar en document.body mediante portal');
+
+    const guideCss = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/PushVisibilityGuideModal.css'), 'utf-8');
+    assert.ok(guideCss.includes('z-index: 12000'), 'PushVisibilityGuideModal.css overlay debe tener z-index: 12000 para superar sheets y modales');
+
+    // 2. AvisamePushPromptModal
+    const promptTsx = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/AvisamePushPromptModal.tsx'), 'utf-8');
+    assert.ok(promptTsx.includes("import { createPortal } from 'react-dom'"), 'AvisamePushPromptModal debe importar createPortal');
+    assert.ok(promptTsx.includes('createPortal(modalContent, document.body)'), 'AvisamePushPromptModal debe renderizar en document.body mediante portal');
+
+    const promptCss = fs.readFileSync(path.join(rootDir, 'src/components/home/alerts/AvisamePushPromptModal.css'), 'utf-8');
+    assert.ok(promptCss.includes('z-index: 12000'), 'AvisamePushPromptModal.css overlay debe tener z-index: 12000 para superar pe-sheet-container');
+
+    // 3. ReportPublicEncounterModal
+    const reportTsx = fs.readFileSync(path.join(rootDir, 'src/components/home/openEncounters/ReportPublicEncounterModal.tsx'), 'utf-8');
+    assert.ok(reportTsx.includes("import { createPortal } from 'react-dom'"), 'ReportPublicEncounterModal debe importar createPortal');
+    assert.ok(reportTsx.includes('createPortal(modalContent, document.body)'), 'ReportPublicEncounterModal debe renderizar en document.body mediante portal');
+
+    const reportCss = fs.readFileSync(path.join(rootDir, 'src/components/home/openEncounters/ReportPublicEncounterModal.css'), 'utf-8');
+    assert.ok(reportCss.includes('z-index: 12000'), 'ReportPublicEncounterModal.css debe tener z-index: 12000 para superar HomeOpenEncounterDetailSheet');
+
+    // 4. CoverageRequestModal
+    const coverageTsx = fs.readFileSync(path.join(rootDir, 'src/components/coverage/CoverageRequestModal.tsx'), 'utf-8');
+    assert.ok(coverageTsx.includes("import { createPortal } from 'react-dom'"), 'CoverageRequestModal debe importar createPortal');
+    assert.ok(coverageTsx.includes('createPortal(modalContent, document.body)'), 'CoverageRequestModal debe renderizar en document.body mediante portal');
+
+    const coverageCss = fs.readFileSync(path.join(rootDir, 'src/components/coverage/CoverageRequestModal.css'), 'utf-8');
+    assert.ok(coverageCss.includes('z-index: 12000') || coverageCss.includes('z-index: 12001'), 'CoverageRequestModal.css debe tener z-index >= 12000');
+  });
 });

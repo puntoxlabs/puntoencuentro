@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { openEncountersService } from '@/services/openEncountersService';
@@ -263,9 +264,8 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
     }
   };
 
-  return (
-    <>
-      <div className="pe-report-public-backdrop" onClick={() => !submitting && handleClose()}>
+  const modalContent = (
+    <div className="pe-report-public-backdrop" onClick={() => !submitting && handleClose()}>
         <div
           ref={cardRef}
           className="pe-report-public-card"
@@ -408,7 +408,16 @@ export const ReportPublicEncounterModal: React.FC<ReportPublicEncounterModalProp
           )}
         </div>
       </div>
+  );
 
+  const renderedModal =
+    typeof document !== 'undefined' && document.body
+      ? createPortal(modalContent, document.body)
+      : modalContent;
+
+  return (
+    <>
+      {renderedModal}
       <LoginRequiredSheet
         isOpen={isLoginRequired}
         onClose={() => {

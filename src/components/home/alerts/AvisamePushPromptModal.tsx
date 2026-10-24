@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, BellOff, RefreshCw, Smartphone, Sliders } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { webPushService } from '@/services/webPushService';
@@ -232,7 +233,7 @@ export const PushPromptModal: React.FC<PushPromptModalProps> = ({
     });
   };
 
-  return (
+  const modalContent = (
     <div
       className="pe-push-prompt-overlay"
       onClick={(e) => {
@@ -323,6 +324,12 @@ export const PushPromptModal: React.FC<PushPromptModalProps> = ({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };
 
 /**

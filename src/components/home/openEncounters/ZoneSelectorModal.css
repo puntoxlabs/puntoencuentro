@@ -3,7 +3,7 @@
   inset: 0;
   background-color: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(4px);
-  z-index: 1000;
+  z-index: 10000;
   animation: pe-fade-in 0.2s ease-out;
 }
 
@@ -19,7 +19,7 @@
   background: #ffffff;
   border-radius: 20px;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2);
-  z-index: 1001;
+  z-index: 10001;
   display: flex;
   flex-direction: column;
   padding: 24px;
