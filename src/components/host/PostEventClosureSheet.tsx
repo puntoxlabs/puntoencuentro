@@ -68,7 +68,7 @@ export const PostEventClosureSheet: React.FC<PostEventClosureSheetProps> = ({
           if (Array.isArray(res.participantes)) {
             res.participantes.forEach((p) => {
               // Si ya tenía attendance_status distinto a unmarked, usarlo; sino attended por defecto
-              initialMap[p.id] = p.attendance_status !== 'unmarked' ? p.attendance_status : 'attended';
+              initialMap[p.id] = p.attendance_status !== 'unmarked' ? p.attendance_status : 'unverified';
             });
           }
           setAttendanceMap(initialMap);
@@ -159,6 +159,8 @@ export const PostEventClosureSheet: React.FC<PostEventClosureSheetProps> = ({
       setSubmitting(false);
     }
   };
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <div

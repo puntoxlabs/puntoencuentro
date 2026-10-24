@@ -1455,7 +1455,9 @@ const DetailHost: React.FC = () => {
                   <span>
                     {encuentro.post_event_realization_status === 'realized'
                       ? 'Cierre registrado: Realizado con registro de asistencia'
-                      : 'Cierre registrado: No realizado'}
+                      : encuentro.post_event_realization_status === 'not_realized'
+                      ? 'Cierre registrado: No realizado'
+                      : 'Cierre registrado: Resultado no verificado'}
                   </span>
                 </div>
                 <button
@@ -1475,7 +1477,43 @@ const DetailHost: React.FC = () => {
                   Ver / Editar
                 </button>
               </div>
-            ) : (
+            ) : encuentro.post_event_closure_status === 'auto_closed' ? (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  color: '#475569',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '12px',
+                  margin: '1rem 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
+                  <Clock size={18} color="#64748b" />
+                  <span>Cierre regularizado automáticamente (sin confirmación de participantes)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClosureSheetOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #cbd5e1',
+                    color: '#475569',
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ver detalle
+                </button>
+              </div>
+            ) : (encuentro.post_event_closure_status === 'pending' || encuentro.post_event_closure_status === 'overdue') ? (
               <PendingClosureBanner
                 encuentroId={id!}
                 encuentroTitle={encuentro.open_public_title || encuentro.titulo}
@@ -1485,7 +1523,7 @@ const DetailHost: React.FC = () => {
                 )}
                 onOpenClosure={() => setIsClosureSheetOpen(true)}
               />
-            )
+            ) : null
           )}
 
           {/* 1.5 ALIAS DEL ANFITRIÓN COMPACTO */}

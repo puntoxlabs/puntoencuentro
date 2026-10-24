@@ -786,4 +786,122 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     `);
     assert.equal(auditRes.rows.length, 1);
   });
+
+  test('18. Activación de ciclo posterior cuando un encuentro privado se abre/publica', async () => {
+    await setAuth(hostUser);
+    const encId = '00000000-0000-0000-0002-000000000018';
+
+    // 1. Encuentro nace estrictamente privado
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, duration_minutes, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${encId}', '${hostUser}', 'Encuentro Inicialmente Privado', (CURRENT_DATE + INTERVAL '2 days')::date, '19:00:00', 90, 'Club', false, NULL, 'not_applicable');
+    `);
+
+    // 2. Posteriormente el anfitrión lo abre/publica
+    await db.query(`
+      UPDATE public.encuentros
+      SET is_open = true,
+          opened_at = now()
+      WHERE id = '${encId}';
+    `);
+
+    const encRes = await db.query(`
+      SELECT post_event_closure_status, post_event_closure_deadline FROM public.encuentros WHERE id = '${encId}';
+    `);
+    const enc = encRes.rows[0] as any;
+    assert.equal(enc.post_event_closure_status, 'pending', 'El trigger debe inicializar el estado a pending');
+    assert.ok(enc.post_event_closure_deadline !== null, 'El trigger debe calcular el vencimiento');
+  });
+
+  test('19. Encuentros históricos vencidos antes de la migración no bloquean al anfitrión', async () => {
+    const historicalHost = '77777777-7777-7777-7777-777777777777';
+    await db.query(`
+      INSERT INTO auth.users (id, email) VALUES ('${historicalHost}', 'hist@test.com') ON CONFLICT DO NOTHING;
+    `);
+    await setAuth(historicalHost);
+    const historicalEncId = '00000000-0000-0000-0002-000000000019';
+
+    // Encuentro histórico regularizado por backfill
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status, post_event_closure_type, post_event_closed_responsibly, post_event_realization_status, post_event_closure_deadline)
+      VALUES ('${historicalEncId}', '${historicalHost}', 'Encuentro Antiguo Histórico', (CURRENT_DATE - INTERVAL '30 days')::date, '20:00:00', 'Club', false, now() - INTERVAL '35 days', 'auto_closed', 'administrative_auto', false, 'unconfirmed', now() - INTERVAL '28 days');
+    `);
+
+    // El host publica un nuevo encuentro
+    const newEncId = '00000000-0000-0000-0002-000000000020';
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, modalidad, lugar_texto, is_open)
+      VALUES ('${newEncId}', '${historicalHost}', 'Encuentro Sin Bloqueo Histórico', (CURRENT_DATE + INTERVAL '5 days')::date, '21:00:00', 'presencial', 'Local Central', false);
+    `);
+
+    const openRes = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${newEncId}'::uuid,
+        '${historicalHost}'::uuid,
+        'Descripción válida',
+        10,
+        'palermo',
+        'Palermo',
+        'Título Público Sin Bloqueo'
+      ) AS r;
+    `);
+
+    const openResult = (openRes.rows[0] as any).r;
+    assert.equal(openResult.ok, true, 'No debe bloquearse por encuentros históricos auto_closed');
+  });
+
+  test('20. Cierre con resultado "unconfirmed": salida administrativa neutral sin mérito ni bloqueo', async () => {
+    await setAuth(hostUser);
+    const encId = '00000000-0000-0000-0002-000000000021';
+
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, open_public_title, fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${encId}', '${hostUser}', 'Encuentro Imposible de Confirmar', 'Encuentro No Confirmado', (CURRENT_DATE - INTERVAL '1 day')::date, '18:00:00', 'Plaza', true, now() - INTERVAL '2 days', 'pending');
+    `);
+
+    const pId = '60000000-0000-0000-0000-000000000001';
+    await db.query(`
+      INSERT INTO public.participantes (id, encuentro_id, user_id, nombre_invitado, estado)
+      VALUES ('${pId}', '${encId}', '${participant1}', 'Ignacio', 'confirmado');
+    `);
+
+    // Host cierra declarando que no es posible confirmar el resultado
+    const res = await db.query(`
+      SELECT public.cerrar_encuentro_post_evento_seguro(
+        '${encId}'::uuid,
+        'unconfirmed',
+        'Imposible verificar asistencia',
+        '[]'::jsonb
+      ) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, true);
+    assert.equal(result.closure_status, 'completed');
+    assert.equal(result.post_event_realization_status, 'unconfirmed');
+    assert.equal(result.closed_responsibly, false, 'No debe otorgar mérito de cierre responsable');
+
+    const partRes = await db.query(`SELECT attendance_status FROM public.participantes WHERE id = '${pId}';`);
+    assert.equal((partRes.rows[0] as any).attendance_status, 'unverified', 'Participantes deben quedar neutrales como unverified');
+  });
+
+  test('21. get_detalle_host_seguro proyecta duration_minutes y datos de post-evento', async () => {
+    await setAuth(hostUser);
+    const encId = '00000000-0000-0000-0002-000000000022';
+
+    await db.query(`
+      INSERT INTO public.encuentros (id, host_id, titulo, fecha, hora, duration_minutes, lugar_texto, is_open, opened_at, post_event_closure_status)
+      VALUES ('${encId}', '${hostUser}', 'Prueba Proyección Host', '2026-11-15', '16:00:00', 95, 'Club', true, now(), 'pending');
+    `);
+
+    const detRes = await db.query(`
+      SELECT public.get_detalle_host_seguro('${encId}'::uuid, '${hostUser}'::uuid) AS r;
+    `);
+
+    const det = (detRes.rows[0] as any).r;
+    assert.equal(det.id, encId);
+    assert.equal(det.duration_minutes, 95);
+    assert.equal(det.post_event_closure_status, 'pending');
+    assert.ok(det.post_event_closure_deadline !== null);
+  });
 });

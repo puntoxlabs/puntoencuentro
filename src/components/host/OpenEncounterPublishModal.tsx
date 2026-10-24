@@ -570,7 +570,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
             setPendingClosureData(null);
             onClose();
             if (typeof window !== 'undefined') {
-              window.location.href = `/encuentro/${encId}`;
+              window.location.href = `/meet/${encId}`;
             }
           }}
         />

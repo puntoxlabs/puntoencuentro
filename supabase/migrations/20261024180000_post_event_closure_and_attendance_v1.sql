@@ -275,14 +275,19 @@ BEGIN
 
     -- 3. Procesar según resultado informado
     IF p_realization_status = 'unconfirmed' THEN
-        -- El host declara provisionalmente que no puede confirmarlo todavía
-        IF v_now <= v_deadline THEN
-            v_new_status := 'pending';
-        ELSE
-            v_new_status := 'overdue';
-        END IF;
+        -- El host declara formalmente que no es posible confirmar el resultado del encuentro
+        -- Salida administrativa neutral: completa el cierre para no bloquear indefinidamente al host,
+        -- pero NO otorga reconocimiento responsable (closed_responsibly = false) y no presume asistencia.
+        v_new_status := 'completed';
         v_closed_responsibly := false;
-        v_closure_type := NULL;
+        v_closure_type := CASE WHEN v_now <= v_deadline THEN 'within_deadline' ELSE 'overdue' END;
+
+        -- Marcar a todos los confirmados en estado neutral 'unverified'
+        UPDATE public.participantes
+        SET attendance_status = 'unverified',
+            attendance_recorded_at = v_now
+        WHERE encuentro_id = p_encuentro_id
+          AND estado IN ('confirmado', 'asistio');
     ELSIF p_realization_status = 'not_realized' THEN
         -- El encuentro no se realizó: cierre voluntario responsable con motivo
         v_new_status := 'completed';
@@ -927,13 +932,22 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    IF (NEW.fecha IS DISTINCT FROM OLD.fecha) OR (NEW.hora IS DISTINCT FROM OLD.hora) OR (NEW.duration_minutes IS DISTINCT FROM OLD.duration_minutes) THEN
-        IF NEW.opened_at IS NOT NULL THEN
+    -- 1. Activación de ciclo posterior: Encuentro que nace privado y se abre/publica
+    IF (NEW.opened_at IS NOT NULL AND OLD.opened_at IS NULL) OR (NEW.is_open = true AND OLD.is_open = false) THEN
+        IF NEW.estado = 'activo' AND (NEW.post_event_closure_status IS NULL OR NEW.post_event_closure_status = 'not_applicable') THEN
+            NEW.post_event_closure_status := 'pending';
             NEW.post_event_closure_deadline := public.calcular_vencimiento_cierre_encuentro(NEW.fecha, NEW.hora, NEW.duration_minutes);
         END IF;
     END IF;
 
-    -- Si se cancela el encuentro, anular la obligación de cierre posterior
+    -- 2. Reprogramación: cambio de fecha, hora o duración
+    IF (NEW.fecha IS DISTINCT FROM OLD.fecha) OR (NEW.hora IS DISTINCT FROM OLD.hora) OR (NEW.duration_minutes IS DISTINCT FROM OLD.duration_minutes) THEN
+        IF NEW.opened_at IS NOT NULL OR NEW.is_open = true THEN
+            NEW.post_event_closure_deadline := public.calcular_vencimiento_cierre_encuentro(NEW.fecha, NEW.hora, NEW.duration_minutes);
+        END IF;
+    END IF;
+
+    -- 3. Cancelación: anular la obligación de cierre posterior incompatible
     IF NEW.estado = 'cancelado' AND OLD.estado <> 'cancelado' THEN
         NEW.post_event_closure_status := 'not_applicable';
     END IF;
@@ -950,32 +964,33 @@ CREATE TRIGGER trg_actualizar_closure_deadline
 
 
 -- ------------------------------------------------------------------------------
--- 11. BACKFILL SEGURO PARA ENCUENTROS EXISTENTES
+-- 11. BACKFILL SEGURO PARA ENCUENTROS EXISTENTES (POLÍTICA SIN BLOQUEOS RETROACTIVOS)
 -- ------------------------------------------------------------------------------
 
--- Encuentros abiertos activos preexistentes
+-- 11a. Encuentros abiertos futuros o actualmente dentro del plazo de 48h de gracia:
+-- Se inicializan en 'pending' con su vencimiento correspondiente.
 UPDATE public.encuentros
 SET post_event_closure_status = 'pending',
     post_event_closure_deadline = public.calcular_vencimiento_cierre_encuentro(fecha, hora, duration_minutes)
 WHERE opened_at IS NOT NULL
   AND estado = 'activo'
-  AND post_event_closure_status = 'not_applicable';
+  AND post_event_closure_status = 'not_applicable'
+  AND COALESCE(public.calcular_vencimiento_cierre_encuentro(fecha, hora, duration_minutes), pg_catalog.now()) >= pg_catalog.now();
 
--- Auto-cerrar administrativamente aquellos preexistentes ya pasados sin participantes
+-- 11b. Encuentros abiertos históricos cuyo plazo de gracia ya venció antes de esta migración:
+-- Política de transición explícita: Se regularizan como 'auto_closed' (administrative_auto, unconfirmed)
+-- para garantizar que los anfitriones NO sufran bloqueos retroactivos indebidos por encuentros pasados.
 UPDATE public.encuentros e
 SET post_event_closure_status = 'auto_closed',
     post_event_closure_type = 'administrative_auto',
     post_event_closed_responsibly = false,
     post_event_realization_status = 'unconfirmed',
-    post_event_closed_at = pg_catalog.now()
+    post_event_closed_at = pg_catalog.now(),
+    post_event_closure_deadline = public.calcular_vencimiento_cierre_encuentro(e.fecha, e.hora, e.duration_minutes)
 WHERE e.opened_at IS NOT NULL
   AND e.estado = 'activo'
-  AND e.post_event_closure_status = 'pending'
-  AND pg_catalog.now() > COALESCE(e.post_event_closure_deadline, public.calcular_vencimiento_cierre_encuentro(e.fecha, e.hora, e.duration_minutes))
-  AND NOT EXISTS (
-      SELECT 1 FROM public.participantes p
-      WHERE p.encuentro_id = e.id AND p.estado IN ('confirmado', 'asistio')
-  );
+  AND e.post_event_closure_status = 'not_applicable'
+  AND public.calcular_vencimiento_cierre_encuentro(e.fecha, e.hora, e.duration_minutes) < pg_catalog.now();
 
 
 -- ------------------------------------------------------------------------------
@@ -1058,6 +1073,7 @@ BEGIN
         'creado_en', v_encuentro.creado_en,
         'is_open', COALESCE(v_encuentro.is_open, false),
         'open_description', v_encuentro.open_description,
+        'duration_minutes', v_encuentro.duration_minutes,
         'max_participants', v_encuentro.max_participants,
         'public_capacity', v_encuentro.max_participants,
         'allow_multi_seat_requests', COALESCE(v_encuentro.allow_multi_seat_requests, false),

@@ -42,7 +42,7 @@ export const PendingClosureBlockedModal: React.FC<PendingClosureBlockedModalProp
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
