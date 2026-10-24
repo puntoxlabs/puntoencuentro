@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Smartphone, Monitor, Laptop, Sliders, X, CheckCircle, Info, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getPushPlatform, recordPushGuideCompleted, type PushPlatform } from './antiNagging';
+import { getPushPlatform, recordPushGuideCompleted, recordPushGuideViewed, type PushPlatform } from './antiNagging';
 import { useModalStack } from '@/lib/modalStack';
 import './PushVisibilityGuideModal.css';
 
@@ -46,8 +46,13 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
     }
   }, [isOpen]);
 
-  const handleUnderstood = () => {
+  const handleConfigured = () => {
     recordPushGuideCompleted(currentPlatform, userId);
+    onClose();
+  };
+
+  const handleLater = () => {
+    recordPushGuideViewed(currentPlatform, userId);
     onClose();
   };
 
@@ -498,7 +503,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
       className="pe-visibility-guide-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          handleLater();
         }
       }}
       aria-hidden="false"
@@ -528,7 +533,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
           <button
             type="button"
             className="pe-visibility-guide-modal__close-btn"
-            onClick={onClose}
+            onClick={handleLater}
             aria-label={t('common.close', { defaultValue: 'Cerrar' })}
           >
             <X size={18} />
@@ -548,10 +553,17 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
             ref={primaryBtnRef}
             type="button"
             className="pe-visibility-guide__btn-primary"
-            onClick={handleUnderstood}
+            onClick={handleConfigured}
           >
             <CheckCircle size={15} aria-hidden="true" />
-            <span>{t('push.android_modal_close', { defaultValue: 'Entendido' })}</span>
+            <span>{t('push.guide_action_configured', { defaultValue: 'Ya lo configuré' })}</span>
+          </button>
+          <button
+            type="button"
+            className="pe-visibility-guide__btn-secondary"
+            onClick={handleLater}
+          >
+            <span>{t('push.guide_action_later', { defaultValue: 'Lo haré después' })}</span>
           </button>
         </footer>
       </div>

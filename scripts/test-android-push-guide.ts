@@ -203,7 +203,7 @@ describe('PuntoEncuentro — Guía Web Push Multiplataforma (Android, Windows, m
 
     // Activación exitosa dispara el banner contextual si no fue descartado
     assert.ok(
-      content.includes('if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform)) {\n          setShowContextualBanner(true);\n        }'),
+      content.includes('if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform, effectiveUserId)) {\n          setShowContextualBanner(true);\n        }'),
       'handleActivate dispara el banner contextual tras res.ok para plataformas soportadas'
     );
   });
@@ -220,7 +220,7 @@ describe('PuntoEncuentro — Guía Web Push Multiplataforma (Android, Windows, m
       'onActivated cierra modal de alerta con feedback'
     );
     assert.ok(
-      content.includes('isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat)'),
+      content.includes('isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat, user?.id)'),
       'onActivated activa el banner si la plataforma está soportada y no descartada'
     );
 

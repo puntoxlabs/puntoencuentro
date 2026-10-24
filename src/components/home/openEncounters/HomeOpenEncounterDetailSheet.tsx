@@ -24,6 +24,7 @@ import {
   isPushPromptDismissed,
   hasOpenParticipationNotified,
   recordOpenParticipationNotified,
+  recordWebPushActivated,
 } from '@/components/home/alerts';
 import './HomeOpenEncounterDetailSheet.css';
 
@@ -230,15 +231,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
             // Si la participación fue aprobada por el anfitrión, ofrecer configuración asistida
             if (res.estado === 'approved' && isPermanentUser && userId) {
               if (!hasOpenParticipationNotified(encounter.id, userId) && !isPushPromptDismissed(userId)) {
-                recordOpenParticipationNotified(encounter.id, userId);
                 webPushService
                   .getDeviceState()
                   .then((devState) => {
-                    if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
-                      setShowOpenPushPrompt(true);
+                    if (devState.kind === 'subscribed') {
+                      recordWebPushActivated(userId);
+                      recordOpenParticipationNotified(encounter.id, userId);
+                      return;
                     }
+
+                    if (devState.kind === 'not_configured') {
+                      return;
+                    }
+
+                    recordOpenParticipationNotified(encounter.id, userId);
+                    setShowOpenPushPrompt(true);
                   })
-                  .catch(() => {});
+                  .catch(() => {
+                    // Error temporal: preservar oportunidad
+                  });
               }
             }
           } else {
@@ -263,15 +274,25 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               }
             } else if (!authRes.is_host && isPermanentUser && userId) {
               if (!hasOpenParticipationNotified(encounter.id, userId) && !isPushPromptDismissed(userId)) {
-                recordOpenParticipationNotified(encounter.id, userId);
                 webPushService
                   .getDeviceState()
                   .then((devState) => {
-                    if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
-                      setShowOpenPushPrompt(true);
+                    if (devState.kind === 'subscribed') {
+                      recordWebPushActivated(userId);
+                      recordOpenParticipationNotified(encounter.id, userId);
+                      return;
                     }
+
+                    if (devState.kind === 'not_configured') {
+                      return;
+                    }
+
+                    recordOpenParticipationNotified(encounter.id, userId);
+                    setShowOpenPushPrompt(true);
                   })
-                  .catch(() => {});
+                  .catch(() => {
+                    // Error temporal: preservar oportunidad
+                  });
               }
             }
           } else {

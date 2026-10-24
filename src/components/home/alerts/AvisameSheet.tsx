@@ -418,10 +418,11 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
         )}
 
         {/* Guía contextual post-activación (por única vez) en Android, Windows y macOS */}
-        {showAndroidGuideBanner && isPushGuideSupportedPlatform(getPushPlatform()) && !isPushVisibilityGuideDismissed(getPushPlatform()) && (
+        {showAndroidGuideBanner && isPushGuideSupportedPlatform(getPushPlatform()) && !isPushVisibilityGuideDismissed(getPushPlatform(), user?.id) && (
           <div style={{ marginBottom: 16 }}>
             <PushVisibilityGuideBanner
               platform={getPushPlatform()}
+              userId={user?.id}
               onOpenGuide={() => {
                 setShowAndroidGuideBanner(false);
                 setShowAndroidGuideModal(true);
@@ -820,7 +821,7 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
             type: 'success',
           });
           const plat = getPushPlatform();
-          if (isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat)) {
+          if (isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat, user?.id)) {
             setShowAndroidGuideBanner(true);
           }
         }}

@@ -198,6 +198,42 @@ describe('PuntoEncuentro — P1-A: Configuración asistida de notificaciones imp
     );
   });
 
+  test('3b. Aislamiento estricto de preferencias: usuario permanente nunca hereda claves legacy globales de otras cuentas', () => {
+    const userA = 'user_legacy_001';
+    const userB = 'user_clean_002';
+
+    // Simular que en el navegador existía un descarte global legacy
+    localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, String(Date.now() + 14 * 24 * 60 * 60 * 1000));
+    localStorage.setItem(ANDROID_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    localStorage.setItem(DESKTOP_PUSH_GUIDE_DISMISSED_KEY, 'true');
+    localStorage.setItem(IOS_PUSH_GUIDE_DISMISSED_KEY, 'true');
+
+    // Compatibilidad: un llamador sin sesión (unscoped) todavía lee las claves legacy globales
+    assert.strictEqual(isPushPromptDismissed(), true, 'Llamador legacy sin sesión detecta descarte');
+    assert.strictEqual(isPushVisibilityGuideDismissed('android'), true, 'Llamador legacy sin sesión detecta guía descartada');
+
+    // AISLAMIENTO: Un usuario permanente (con userId) NUNCA hereda las claves globales legacy
+    assert.strictEqual(isPushPromptDismissed(userB), false, 'User B NO debe heredar el descarte legacy global');
+    assert.strictEqual(isPushVisibilityGuideDismissed('android', userB), false, 'User B NO debe heredar la guía descartada legacy');
+    assert.strictEqual(isPushVisibilityGuideDismissed('windows', userB), false, 'User B NO debe heredar la guía desktop legacy');
+    assert.strictEqual(isPushVisibilityGuideDismissed('ios', userB), false, 'User B NO debe heredar la guía iOS legacy');
+
+    // Si User A descarta con scope, solo User A se ve afectado
+    dismissPushPrompt(14, userA);
+    assert.strictEqual(isPushPromptDismissed(userA), true);
+    assert.strictEqual(isPushPromptDismissed(userB), false);
+
+    // Guía: «Lo haré después» registra vista pero NO completado
+    recordPushGuideViewed('android', userB);
+    assert.strictEqual(isPushGuideViewed('android', userB), true);
+    assert.strictEqual(isPushVisibilityGuideDismissed('android', userB), false, '«Lo haré después» no debe marcar completado');
+
+    // Guía: «Ya lo configuré» registra completado
+    recordPushGuideCompleted('android', userB);
+    assert.strictEqual(isPushVisibilityGuideDismissed('android', userB), true, '«Ya lo configuré» marca completado');
+    assert.strictEqual(isPushVisibilityGuideDismissed('android', userA), false, 'User A permanece independiente');
+  });
+
   // ── 3. RASTREO DE PRIMERAS ACCIONES CONTEXTUALES ─────────────────────────────
 
   test('4. Rastreos de primeras acciones: Anfitrión, Participante y Encuentro Abierto', () => {
@@ -220,38 +256,197 @@ describe('PuntoEncuentro — P1-A: Configuración asistida de notificaciones imp
     assert.strictEqual(hasOpenParticipationNotified(encId, userId), true);
   });
 
+  test('4b. Flujo de invitaciones contextuales: error temporal de red NO consume la oportunidad de configuración', async () => {
+    const userId = 'user_host_network_test';
+
+    // 1. Simular fallo de red al consultar el estado del dispositivo
+    let promptShown = false;
+
+    const simulateContextualCheck = async (getDeviceStateFn: () => Promise<any>) => {
+      if (hasEncounterCreatedBefore(userId) || isPushPromptDismissed(userId)) return;
+
+      try {
+        const devState = await getDeviceStateFn();
+        if (devState.kind === 'subscribed') {
+          recordWebPushActivated(userId);
+          recordEncounterCreated(userId);
+          return;
+        }
+        if (devState.kind === 'not_configured') {
+          return;
+        }
+        recordEncounterCreated(userId);
+        promptShown = true;
+      } catch {
+        // Error de red temporal: NO consumir oportunidad
+      }
+    };
+
+    // Ejecutar con fallo de red
+    await simulateContextualCheck(async () => {
+      throw new Error('Failed to fetch / Network error');
+    });
+
+    assert.strictEqual(promptShown, false);
+    assert.strictEqual(hasEncounterCreatedBefore(userId), false, 'Oportunidad NO consumida tras error de red');
+
+    // 2. Ejecutar con éxito cuando vuelve la conexión
+    await simulateContextualCheck(async () => {
+      return { kind: 'default', isSubscribed: false };
+    });
+
+    assert.strictEqual(promptShown, true, 'Invitación mostrada tras reintento exitoso');
+    assert.strictEqual(hasEncounterCreatedBefore(userId), true, 'Ahora sí se registra la acción');
+  });
+
   // ── 4. ACCESIBILIDAD: GESTIÓN DE PILA DE MODALES (ESCAPE DETERMINISTA Y FOCO) ─
 
-  test('5. Pila de modales (Modal Stack) asegura que Escape cierre solo el diálogo superior', () => {
-    // 1. AvisameSheet se abre
-    pushModal('avisame-sheet');
+  test('5. Pila de modales (Modal Stack) asegura que Escape cierre solo el diálogo superior y restaura foco ante rerenders', () => {
+    const listeners: Record<string, ((e: any) => void)[]> = {};
+    let activeElement: any = null;
+
+    (globalThis as any).window = {
+      addEventListener: (event: string, cb: (e: any) => void) => {
+        listeners[event] = listeners[event] || [];
+        listeners[event].push(cb);
+      },
+      removeEventListener: (event: string, cb: (e: any) => void) => {
+        if (!listeners[event]) return;
+        listeners[event] = listeners[event].filter((fn) => fn !== cb);
+      },
+      dispatchEvent: (e: any) => {
+        const cbs = listeners[e.type] || [];
+        for (const cb of [...cbs]) {
+          cb(e);
+        }
+        return true;
+      },
+    };
+
+    const createElement = (name: string) => {
+      const el = {
+        name,
+        focus: () => { activeElement = el; },
+      };
+      return el;
+    };
+
+    (globalThis as any).document = {
+      get activeElement() {
+        return activeElement;
+      },
+    };
+
+    // Botón en la Home que abre AvisameSheet
+    const homeBellBtn = createElement('homeBellBtn');
+    homeBellBtn.focus();
+    assert.strictEqual(document.activeElement, homeBellBtn);
+
+    // Emulador de ciclo de vida del hook useModalStack
+    function createHookInstance(modalId: string) {
+      let isOpen = false;
+      let prevActive: any = null;
+      let currentOptions: any = null;
+      let keydownListener: any = null;
+
+      return {
+        render: (nextIsOpen: boolean, options: any) => {
+          currentOptions = options;
+          if (nextIsOpen && !isOpen) {
+            isOpen = true;
+            prevActive = document.activeElement;
+            pushModal(modalId);
+            keydownListener = (e: any) => {
+              if (e.key === 'Escape' && isTopModal(modalId)) {
+                e.stopPropagation();
+                currentOptions?.onEscape?.();
+              }
+            };
+            window.addEventListener('keydown', keydownListener);
+          } else if (!nextIsOpen && isOpen) {
+            isOpen = false;
+            if (keydownListener) {
+              window.removeEventListener('keydown', keydownListener);
+              keydownListener = null;
+            }
+            popModal(modalId);
+            if (currentOptions?.restoreFocus !== false && prevActive) {
+              prevActive.focus();
+            }
+          }
+          // Ante rerender con isOpen = true, NO se desapila ni se restaura el foco
+        },
+      };
+    }
+
+    const avisameHook = createHookInstance('avisame-sheet');
+    let avisameSheetCloseCount = 0;
+    avisameHook.render(true, {
+      onEscape: () => {
+        avisameSheetCloseCount++;
+        avisameHook.render(false, {});
+      },
+    });
+
     assert.strictEqual(isTopModal('avisame-sheet'), true);
     assert.strictEqual(hasModalsAbove('avisame-sheet'), false);
 
-    // 2. AvisamePushPromptModal se abre encima de AvisameSheet
-    pushModal('push-prompt-modal');
-    assert.strictEqual(isTopModal('push-prompt-modal'), true);
-    assert.strictEqual(isTopModal('avisame-sheet'), false, 'AvisameSheet ya no está al frente');
-    assert.strictEqual(hasModalsAbove('avisame-sheet'), true);
+    // Dentro de AvisameSheet, el usuario hace foco en el botón para abrir la guía
+    const guideTriggerBtn = createElement('guideTriggerBtn');
+    guideTriggerBtn.focus();
+    assert.strictEqual(document.activeElement, guideTriggerBtn);
 
-    // 3. PushVisibilityGuideModal se abre encima del prompt
-    pushModal('push-visibility-guide');
+    // Se abre el modal secundario PushVisibilityGuideModal
+    let guideModalCloseCount = 0;
+    const guideHook = createHookInstance('push-visibility-guide');
+    guideHook.render(true, {
+      onEscape: () => {
+        guideModalCloseCount++;
+        guideHook.render(false, {});
+      },
+    });
+
     assert.strictEqual(isTopModal('push-visibility-guide'), true);
-    assert.strictEqual(isTopModal('push-prompt-modal'), false);
+    assert.strictEqual(hasModalsAbove('avisame-sheet'), true);
     assert.strictEqual(isTopModal('avisame-sheet'), false);
 
-    // Presionar Escape: solo se desapila el superior
-    popModal('push-visibility-guide');
-    assert.strictEqual(isTopModal('push-prompt-modal'), true);
+    // Provocar RERENDERS en el componente padre (AvisameSheet) con callbacks nuevos
+    for (let i = 0; i < 5; i++) {
+      avisameHook.render(true, {
+        onEscape: () => {
+          avisameSheetCloseCount++;
+          avisameHook.render(false, {});
+        },
+      });
+    }
+
+    // La pila NO debe haberse alterado: push-visibility-guide sigue siendo el top
+    assert.strictEqual(isTopModal('push-visibility-guide'), true, 'El modal secundario debe permanecer en el top tras rerenders');
     assert.strictEqual(isTopModal('avisame-sheet'), false);
 
-    // Presionar Escape en el prompt: ahora el top vuelve a ser AvisameSheet
-    popModal('push-prompt-modal');
-    assert.strictEqual(isTopModal('avisame-sheet'), true);
+    // El foco NO debe haber sido restaurado prematuramente
+    assert.notStrictEqual(document.activeElement, homeBellBtn, 'No debe restaurar foco prematuramente a homeBellBtn');
 
-    // Presionar Escape en AvisameSheet
-    popModal('avisame-sheet');
+    // Presionar tecla Escape
+    window.dispatchEvent({ type: 'keydown', key: 'Escape', stopPropagation: () => {} });
+
+    // Confirmar que SOLO se cerró el diálogo superior (push-visibility-guide)
+    assert.strictEqual(guideModalCloseCount, 1, 'PushVisibilityGuideModal debió cerrarse');
+    assert.strictEqual(avisameSheetCloseCount, 0, 'AvisameSheet NO debió cerrarse');
+    assert.strictEqual(isTopModal('avisame-sheet'), true, 'AvisameSheet ahora es el top');
+
+    // Confirmar que el foco volvió a guideTriggerBtn (el botón dentro de AvisameSheet que abrió la guía)
+    assert.strictEqual(document.activeElement, guideTriggerBtn, 'Foco debe restaurarse a guideTriggerBtn');
+
+    // Presionar tecla Escape nuevamente
+    window.dispatchEvent({ type: 'keydown', key: 'Escape', stopPropagation: () => {} });
+
+    // Confirmar que ahora sí se cerró AvisameSheet
+    assert.strictEqual(avisameSheetCloseCount, 1, 'AvisameSheet debió cerrarse con el segundo Escape');
     assert.strictEqual(isTopModal('avisame-sheet'), false);
+
+    // Confirmar que el foco volvió al homeBellBtn (el botón que abrió AvisameSheet)
+    assert.strictEqual(document.activeElement, homeBellBtn, 'Foco debe restaurarse a homeBellBtn');
   });
 
   // ── 5. VERIFICACIÓN VOLUNTARIA DE NOTIFICACIÓN LOCAL EN WEBPUSHSERVICE ──────────
@@ -362,8 +557,11 @@ describe('PuntoEncuentro — P1-A: Configuración asistida de notificaciones imp
     assert.ok(content.includes('ios_modal_step5'), 'Paso 5: Modos de concentración / Resumen programado');
     assert.ok(content.includes('ios_modal_pwa_note'), 'Nota técnica de requerimiento PWA en iOS');
 
-    // Registro de completado
-    assert.ok(content.includes('recordPushGuideCompleted(currentPlatform, userId)'), 'Debe registrar completado al hacer Entendido');
+    // Registro de completado y acción de posponer («Ya lo configuré» vs «Lo haré después»)
+    assert.ok(content.includes('recordPushGuideCompleted(currentPlatform, userId)'), 'Debe registrar completado al hacer Ya lo configuré');
+    assert.ok(content.includes('recordPushGuideViewed(currentPlatform, userId)'), 'Debe registrar vista al hacer Lo haré después');
+    assert.ok(content.includes('guide_action_configured'), 'Debe usar clave de traducción para Ya lo configuré');
+    assert.ok(content.includes('guide_action_later'), 'Debe usar clave de traducción para Lo haré después');
     assert.ok(content.includes("useModalStack('push-visibility-guide'"), 'Debe registrarse en useModalStack');
   });
 
@@ -462,6 +660,8 @@ describe('PuntoEncuentro — P1-A: Configuración asistida de notificaciones imp
       'test_disclaimer',
       'test_success',
       'test_error',
+      'guide_action_configured',
+      'guide_action_later',
     ];
 
     for (const locale of locales) {

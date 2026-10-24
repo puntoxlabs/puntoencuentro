@@ -262,7 +262,7 @@ export const AccountSheet: React.FC<AccountSheetProps> = ({ isOpen, onClose }) =
             <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Notificaciones en este dispositivo
             </p>
-            <DevicePushSettings onStateChange={setPushState} />
+            <DevicePushSettings onStateChange={setPushState} userId={user?.id} />
             {pushState?.kind === 'not_configured' && (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--color-on-surface-variant)' }}>
                 Las notificaciones push todavía no están habilitadas en este entorno.

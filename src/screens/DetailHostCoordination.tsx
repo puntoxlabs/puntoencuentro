@@ -26,6 +26,7 @@ import {
   isPushPromptDismissed,
   hasEncounterCreatedBefore,
   recordEncounterCreated,
+  recordWebPushActivated,
 } from '@/components/home/alerts';
 
 const DetailHostCoordination: React.FC = () => {
@@ -53,16 +54,30 @@ const DetailHostCoordination: React.FC = () => {
     if (!isJustCreated || !isPermanentUser || !user?.id) return;
     if (hasEncounterCreatedBefore(user.id) || isPushPromptDismissed(user.id)) return;
 
-    recordEncounterCreated(user.id);
-
+    // Consultar estado en segundo plano ANTES de registrar o consumir la oportunidad
     webPushService
       .getDeviceState()
       .then((devState) => {
-        if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
-          setShowHostPrompt(true);
+        if (devState.kind === 'subscribed') {
+          // Suscripción ya activa: registrar activación y que ya creó encuentro para no insistir
+          recordWebPushActivated(user.id);
+          recordEncounterCreated(user.id);
+          return;
         }
+
+        if (devState.kind === 'not_configured') {
+          // Función no configurada: no ofrecer y NO consumir la oportunidad
+          return;
+        }
+
+        // Estado elegible (default, granted_unsubscribed, denied, unsupported):
+        // Registrar que la invitación fue efectivamente ofrecida y mostrar el modal
+        recordEncounterCreated(user.id);
+        setShowHostPrompt(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Error temporal de red/consulta: NO consumir la oportunidad
+      });
   }, [isJustCreated, isPermanentUser, user?.id]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [personalMessage, setPersonalMessage] = useState('');

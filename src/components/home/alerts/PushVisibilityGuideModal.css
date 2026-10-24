@@ -225,9 +225,10 @@
 
 .pe-visibility-guide-modal__footer,
 .pe-android-guide-modal__footer {
-  padding-top: 4px;
+  padding-top: 6px;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .pe-visibility-guide__btn-primary,
@@ -257,5 +258,35 @@
 
 .pe-visibility-guide__btn-primary:active,
 .pe-android-guide__btn-primary:active {
+  transform: scale(0.99);
+}
+
+.pe-visibility-guide__btn-secondary,
+.pe-android-guide__btn-secondary {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-on-surface-variant, #4b5563);
+  border: 1px solid var(--color-outline, #d1d5db);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pe-visibility-guide__btn-secondary:hover,
+.pe-android-guide__btn-secondary:hover {
+  background: var(--color-surface-variant, #f3f4f6);
+  color: var(--color-on-surface, #111827);
+  border-color: var(--color-on-surface-variant, #9ca3af);
+}
+
+.pe-visibility-guide__btn-secondary:active,
+.pe-android-guide__btn-secondary:active {
   transform: scale(0.99);
 }

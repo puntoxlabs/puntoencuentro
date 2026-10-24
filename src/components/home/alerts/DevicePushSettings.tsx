@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Check, RefreshCw, Smartphone, Sliders } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/contexts/AuthContext';
 import { webPushService } from '@/services/webPushService';
 import type { WebPushActivateError, WebPushDeviceState } from '@/types/webPush';
 import {
@@ -37,6 +38,8 @@ export interface DevicePushSettingsProps {
  */
 export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateChange, userId }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const effectiveUserId = userId !== undefined ? userId : user?.id;
   const [state, setState] = useState<WebPushDeviceState | null>(null);
   const [busy, setBusy] = useState(false);
   const [testingNotification, setTestingNotification] = useState(false);
@@ -74,7 +77,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
       if (!res.ok) {
         setErrorMsg(ERROR_COPY[res.error]);
       } else {
-        if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform)) {
+        if (isPushGuideSupportedPlatform(platform) && !isPushVisibilityGuideDismissed(platform, effectiveUserId)) {
           setShowContextualBanner(true);
         }
       }
@@ -308,10 +311,10 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             </p>
           </div>
 
-          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform, userId) && (
+          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform, effectiveUserId) && (
             <PushVisibilityGuideBanner
               platform={platform}
-              userId={userId}
+              userId={effectiveUserId}
               onOpenGuide={() => {
                 setShowContextualBanner(false);
                 setShowGuideModal(true);
@@ -335,7 +338,7 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
           isOpen={showGuideModal}
           onClose={() => setShowGuideModal(false)}
           platform={platform}
-          userId={userId}
+          userId={effectiveUserId}
         />
       )}
     </section>

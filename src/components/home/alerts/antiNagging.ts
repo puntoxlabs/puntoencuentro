@@ -102,10 +102,10 @@ export function isPushVisibilityGuideDismissed(
       key = IOS_PUSH_GUIDE_DISMISSED_KEY;
     }
 
-    // Comprobar clave con scope de usuario primero, o fallback a global
+    // Aislamiento estricto por usuario: si hay userId, consultar EXCLUSIVAMENTE
+    // la clave con scope del usuario, sin heredar claves globales de otras cuentas.
     if (userId) {
-      const userScoped = localStorage.getItem(getScopedKey(key, userId));
-      if (userScoped !== null) return userScoped === 'true';
+      return localStorage.getItem(getScopedKey(key, userId)) === 'true';
     }
     return localStorage.getItem(key) === 'true';
   } catch {
@@ -147,8 +147,11 @@ export function resetPushVisibilityGuideDismissal(
   if (typeof localStorage === 'undefined') return;
   try {
     const removeKey = (k: string) => {
-      localStorage.removeItem(k);
-      if (userId) localStorage.removeItem(getScopedKey(k, userId));
+      if (userId) {
+        localStorage.removeItem(getScopedKey(k, userId));
+      } else {
+        localStorage.removeItem(k);
+      }
     };
 
     if (!platform || platform === 'android') {
@@ -202,12 +205,15 @@ export function recordPushPromptShown(context: string, userId?: string | null): 
 export function isPushPromptDismissed(userId?: string | null): boolean {
   if (typeof localStorage === 'undefined') return false;
   try {
-    const key = getScopedKey(PUSH_PROMPT_DISMISSED_KEY, userId);
-    let val = localStorage.getItem(key);
-    // Si no hay con scope de usuario, revisar el legacy no-scoped
-    if (!val && userId) {
-      val = localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY);
+    // Aislamiento estricto por usuario: si hay userId, consultar EXCLUSIVAMENTE
+    // la clave con scope del usuario para no heredar períodos de descarte de otras cuentas.
+    if (userId) {
+      const val = localStorage.getItem(getScopedKey(PUSH_PROMPT_DISMISSED_KEY, userId));
+      if (!val) return false;
+      const until = parseInt(val, 10);
+      return Number.isFinite(until) && Date.now() < until;
     }
+    const val = localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY);
     if (!val) return false;
     const until = parseInt(val, 10);
     return Number.isFinite(until) && Date.now() < until;
@@ -239,9 +245,9 @@ export function dismissPushPrompt(days = 14, userId?: string | null): void {
 export function clearPushPromptDismissal(userId?: string | null): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    const key = getScopedKey(PUSH_PROMPT_DISMISSED_KEY, userId);
-    localStorage.removeItem(key);
-    if (!userId) {
+    if (userId) {
+      localStorage.removeItem(getScopedKey(PUSH_PROMPT_DISMISSED_KEY, userId));
+    } else {
       localStorage.removeItem(PUSH_PROMPT_DISMISSED_KEY);
     }
   } catch {}

@@ -799,6 +799,8 @@
     "android_modal_privacy_note": "For privacy, PuntoEncuentro displays generic alerts (\"PuntoEncuentro — You have a new notification\") without revealing encounter details. We recommend configuring visibility according to your privacy preferences.",
     "android_modal_system_note": "These options are configured directly in Android and cannot be modified automatically by the app.",
     "android_modal_close": "Got it",
+    "guide_action_configured": "Already configured",
+    "guide_action_later": "I'll do it later",
     "guide_link": "Configure notification visibility",
     "banner_title": "Want notifications to be more visible?",
     "banner_text": "PuntoEncuentro can now send you notifications. You can configure how they appear on your device, including pop-up alerts and other available options.",

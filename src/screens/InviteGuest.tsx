@@ -35,6 +35,7 @@ import {
   isPushPromptDismissed,
   hasParticipationConfirmedBefore,
   recordParticipationConfirmed,
+  recordWebPushActivated,
 } from '@/components/home/alerts';
 import { CelebrationInvitationPreview } from '@/components/ui/CelebrationInvitationPreview';
 import { FormalInvitationPreview } from '@/components/ui/FormalInvitationPreview';
@@ -417,15 +418,25 @@ const InviteGuest: React.FC = () => {
       // Activación contextual: primera confirmación de participante en cuenta permanente
       if (estado === 'confirmado' && user && !user.is_anonymous) {
         if (!hasParticipationConfirmedBefore(user.id) && !isPushPromptDismissed(user.id)) {
-          recordParticipationConfirmed(user.id);
           webPushService
             .getDeviceState()
             .then((devState) => {
-              if (devState.kind !== 'subscribed' && devState.kind !== 'not_configured') {
-                setShowParticipantPrompt(true);
+              if (devState.kind === 'subscribed') {
+                recordWebPushActivated(user.id);
+                recordParticipationConfirmed(user.id);
+                return;
               }
+
+              if (devState.kind === 'not_configured') {
+                return;
+              }
+
+              recordParticipationConfirmed(user.id);
+              setShowParticipantPrompt(true);
             })
-            .catch(() => {});
+            .catch(() => {
+              // Error temporal de red/consulta: NO consumir la oportunidad
+            });
         }
       }
     } catch (err: any) {

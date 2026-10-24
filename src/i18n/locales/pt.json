@@ -445,6 +445,8 @@
     "android_modal_privacy_note": "Por privacidade, o PuntoEncuentro apresenta avisos genéricos (\"PuntoEncuentro — Tem uma nova notificação\") sem revelar detalhes dos encontros. Recomendamos que configure a visibilidade de acordo com as suas preferências de privacidade.",
     "android_modal_system_note": "Estas opções são configuradas diretamente no Android e não podem ser alteradas automaticamente pela aplicação.",
     "android_modal_close": "Entendido",
+    "guide_action_configured": "Já configurei",
+    "guide_action_later": "Farei mais tarde",
     "guide_link": "Configurar visibilidade das notificações",
     "banner_title": "Quer que os avisos sejam mais visíveis?",
     "banner_text": "O PuntoEncuentro já pode enviar-lhe notificações. Pode configurar como aparecem no seu dispositivo, incluindo avisos pop-up e outras opções disponíveis.",

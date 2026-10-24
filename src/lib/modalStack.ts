@@ -53,12 +53,19 @@ export interface UseModalStackOptions {
 /**
  * Hook para registrar un modal en la pila, capturar Escape exclusivamente
  * cuando está al frente y restaurar el foco accesible al elemento disparador previo.
+ *
+ * Robusto ante rerenders: separa la suscripción del ciclo de vida (isOpen, modalId)
+ * de las variaciones de referencia en los callbacks (onEscape, restoreFocus), evitando
+ * reordenamientos indebidos de la pila o restauraciones prematuras de foco.
  */
 export function useModalStack(
   modalId: string,
   isOpen: boolean,
   options?: UseModalStackOptions
 ) {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const prevActiveElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -70,11 +77,11 @@ export function useModalStack(
     // 2. Apilar este modal
     pushModal(modalId);
 
-    // 3. Listener seguro para Escape
+    // 3. Listener seguro para Escape que consulta siempre la referencia más reciente
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isTopModal(modalId)) {
         e.stopPropagation();
-        options?.onEscape?.();
+        optionsRef.current?.onEscape?.();
       }
     };
 
@@ -84,12 +91,12 @@ export function useModalStack(
       window.removeEventListener('keydown', handleKeyDown);
       popModal(modalId);
 
-      // 4. Restauración de foco accesible al cerrar
-      if (options?.restoreFocus !== false && prevActiveElementRef.current) {
+      // 4. Restauración de foco accesible exclusivamente al cerrar
+      if (optionsRef.current?.restoreFocus !== false && prevActiveElementRef.current) {
         try {
           prevActiveElementRef.current.focus();
         } catch {}
       }
     };
-  }, [isOpen, modalId, options?.onEscape, options?.restoreFocus]);
+  }, [isOpen, modalId]);
 }
