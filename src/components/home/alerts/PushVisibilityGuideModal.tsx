@@ -1,7 +1,31 @@
-import React, { useEffect, useRef } from 'react';
-import { Smartphone, Monitor, Laptop, Sliders, X, CheckCircle, Info, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Smartphone,
+  Monitor,
+  Laptop,
+  Sliders,
+  X,
+  CheckCircle,
+  Info,
+  ShieldCheck,
+  Bell,
+  RefreshCw,
+  ArrowRight,
+  ArrowLeft,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getPushPlatform, recordPushGuideCompleted, recordPushGuideViewed, type PushPlatform } from './antiNagging';
+import {
+  getPushPlatform,
+  recordPushGuideCompleted,
+  recordPushGuideViewed,
+  recordWebPushActivated,
+  dismissSoundVisibilityAssistant,
+  getAssistantSavedStep,
+  saveAssistantStep,
+  clearAssistantSavedStep,
+  type PushPlatform,
+} from './antiNagging';
+import { webPushService } from '@/services/webPushService';
 import { useModalStack } from '@/lib/modalStack';
 import './PushVisibilityGuideModal.css';
 
@@ -13,12 +37,14 @@ export interface PushVisibilityGuideModalProps {
 }
 
 /**
- * Modal unificado y accesible para configuración de visibilidad Web Push en:
- * - Android (avisos flotantes y pantalla bloqueada)
- * - Windows (banners de notificación, sonidos y No molestar)
- * - macOS (tiras/alertas, centro de notificaciones y Modos de concentración)
- * - iOS / iPadOS (PWA en pantalla de inicio, permisos y modos de concentración)
- * - Genérico (bajo demanda para otras plataformas compatibles)
+ * Asistente Multiplataforma de Sonido y Visibilidad (P1-B).
+ *
+ * Estrategia híbrida:
+ * - Paso 1: Configurar (Opción A de acceso directo cuando existe + Opción B de instrucciones alternativas).
+ * - Paso 2: Probar (emisión local voluntaria mediante testLocalNotification con repetición y feedback).
+ * - Paso 3: Confirmar (validación declarada por el usuario con opciones: funciona, probar otra vez o posponer).
+ *
+ * Robusto ante cambios de foco y salida a Ajustes del sistema (conserva el paso en curso).
  */
 export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> = ({
   isOpen,
@@ -27,16 +53,43 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
   userId,
 }) => {
   const { t } = useTranslation();
-  const primaryBtnRef = useRef<HTMLButtonElement>(null);
   const currentPlatform = platform || getPushPlatform();
+
+  // Paso actual (1: Configurar, 2: Probar, 3: Confirmar), restaurado desde sessionStorage si existe
+  const [step, setStep] = useState<1 | 2 | 3>(() => getAssistantSavedStep(userId));
+  const [showAlternativeInstructions, setShowAlternativeInstructions] = useState(false);
+  const [testingNotification, setTestingNotification] = useState(false);
+  const [testResult, setTestResult] = useState<'idle' | 'sent' | 'error'>('idle');
+  const [returnedFromBackground, setReturnedFromBackground] = useState(false);
+
+  const primaryBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Retorno desde ajustes: si el usuario sale a configurar y vuelve, registrar evento sin reiniciar paso
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setReturnedFromBackground(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isOpen]);
+
+  const handleDismiss = () => {
+    recordPushGuideViewed(currentPlatform, userId);
+    dismissSoundVisibilityAssistant(14, userId);
+    clearAssistantSavedStep(userId);
+    onClose();
+  };
 
   // Gestión accesible en pila de modales (Escape único y restauración de foco)
   useModalStack('push-visibility-guide', isOpen, {
-    onEscape: onClose,
+    onEscape: handleDismiss,
     restoreFocus: true,
   });
 
-  // Foco accesible al abrir
+  // Foco accesible al cambiar de paso o al abrir
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
@@ -44,15 +97,34 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, step]);
 
-  const handleConfigured = () => {
-    recordPushGuideCompleted(currentPlatform, userId);
-    onClose();
+  const handleGoToStep = (nextStep: 1 | 2 | 3) => {
+    setStep(nextStep);
+    saveAssistantStep(nextStep, userId);
   };
 
-  const handleLater = () => {
-    recordPushGuideViewed(currentPlatform, userId);
+  const handleSendTest = async () => {
+    if (testingNotification) return;
+    setTestingNotification(true);
+    try {
+      const res = await webPushService.testLocalNotification();
+      if (res.ok) {
+        setTestResult('sent');
+      } else {
+        setTestResult('error');
+      }
+    } catch {
+      setTestResult('error');
+    } finally {
+      setTestingNotification(false);
+    }
+  };
+
+  const handleConfirmSuccess = () => {
+    recordPushGuideCompleted(currentPlatform, userId);
+    recordWebPushActivated(userId);
+    clearAssistantSavedStep(userId);
     onClose();
   };
 
@@ -130,7 +202,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
     }
   };
 
-  // Pasos de instrucciones según plataforma
+  // Instrucciones paso a paso según plataforma (Opción B / manual)
   const renderSteps = () => {
     if (currentPlatform === 'ios') {
       return (
@@ -503,7 +575,7 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
       className="pe-visibility-guide-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          handleLater();
+          handleDismiss();
         }
       }}
       aria-hidden="false"
@@ -533,38 +605,339 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
           <button
             type="button"
             className="pe-visibility-guide-modal__close-btn"
-            onClick={handleLater}
+            onClick={handleDismiss}
             aria-label={t('common.close', { defaultValue: 'Cerrar' })}
           >
             <X size={18} />
           </button>
         </header>
 
-        <div className="pe-visibility-guide-modal__content">
-          {renderSteps()}
-          {renderPlatformNotes()}
-          {renderPrivacyNote()}
+        {/* Barra accesible de progreso de 3 pasos */}
+        <nav className="pe-assistant-stepper" aria-label="Progreso del asistente">
+          <button
+            type="button"
+            className={`pe-assistant-step-pill ${step === 1 ? 'pe-assistant-step-pill--active' : ''}`}
+            onClick={() => handleGoToStep(1)}
+          >
+            {t('push.assistant_step_config', { defaultValue: '1. Configurar' })}
+          </button>
+          <button
+            type="button"
+            className={`pe-assistant-step-pill ${step === 2 ? 'pe-assistant-step-pill--active' : ''}`}
+            onClick={() => handleGoToStep(2)}
+          >
+            {t('push.assistant_step_test', { defaultValue: '2. Probar' })}
+          </button>
+          <button
+            type="button"
+            className={`pe-assistant-step-pill ${step === 3 ? 'pe-assistant-step-pill--active' : ''}`}
+            onClick={() => handleGoToStep(3)}
+          >
+            {t('push.assistant_step_confirm', { defaultValue: '3. Confirmar' })}
+          </button>
+        </nav>
 
-          <p className="pe-visibility-guide-disclaimer">{getDisclaimer()}</p>
+        <div className="pe-visibility-guide-modal__content">
+          {/* ── PASO 1: CONFIGURAR (ACCESO DIRECTO / ATAJO + ALTERNATIVA) ───────── */}
+          {step === 1 && (
+            <div className="pe-assistant-step-content">
+              {/* Acceso directo en Windows (Opción A) */}
+              {currentPlatform === 'windows' && (
+                <div className="pe-assistant__direct-box">
+                  <a
+                    href="ms-settings:notifications"
+                    className="pe-assistant__direct-btn"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Sliders size={16} aria-hidden="true" />
+                    <span>
+                      {t('push.assistant_direct_button_windows', {
+                        defaultValue: 'Abrir Configuración de Windows',
+                      })}
+                    </span>
+                  </a>
+                  <p className="pe-assistant__hint">
+                    {t('push.assistant_direct_windows_disclaimer', {
+                      defaultValue:
+                        'Windows o tu navegador pueden pedirte confirmación para abrir la aplicación de Configuración.',
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    className="pe-assistant__alt-toggle-btn"
+                    onClick={() => setShowAlternativeInstructions((prev) => !prev)}
+                  >
+                    {showAlternativeInstructions
+                      ? t('push.assistant_hide_alt', { defaultValue: 'Ocultar instrucciones manuales' })
+                      : t('push.assistant_alt_link', {
+                          defaultValue: '¿No se abrió la configuración? Ver instrucciones',
+                        })}
+                  </button>
+                </div>
+              )}
+
+              {/* Atajo comprobado en Android (Motorola / Chrome) */}
+              {currentPlatform === 'android' && (
+                <div className="pe-assistant__shortcut-card">
+                  <div className="pe-assistant__shortcut-header">
+                    <Smartphone size={18} aria-hidden="true" className="pe-assistant__shortcut-icon" />
+                    <h4 className="pe-assistant__shortcut-title">
+                      {t('push.assistant_android_shortcut_title', {
+                        defaultValue: 'Atajo en Android: mantener presionada la notificación',
+                      })}
+                    </h4>
+                  </div>
+                  <p className="pe-assistant__shortcut-text">
+                    {t('push.assistant_android_shortcut_desc', {
+                      defaultValue:
+                        'En Android, la forma más rápida de abrir los ajustes del canal del sitio es mantener presionada la notificación de prueba que enviaremos en el siguiente paso.',
+                    })}
+                  </p>
+                  <ul className="pe-assistant__checklist">
+                    <li>
+                      🔔{' '}
+                      {t('push.assistant_android_item_sound', {
+                        defaultValue: 'Alerta o Sonido: activar para que emita tono o vibración.',
+                      })}
+                    </li>
+                    <li>
+                      🪟{' '}
+                      {t('push.assistant_android_item_popup', {
+                        defaultValue:
+                          'Avisos emergentes / Banners flotantes: activar para que aparezca sobre otras apps.',
+                      })}
+                    </li>
+                    <li>
+                      🔒{' '}
+                      {t('push.assistant_android_item_lock', {
+                        defaultValue: 'Pantalla bloqueada: elegir «Mostrar todo el contenido».',
+                      })}
+                    </li>
+                  </ul>
+                  <button
+                    type="button"
+                    className="pe-assistant__alt-toggle-btn"
+                    onClick={() => setShowAlternativeInstructions((prev) => !prev)}
+                  >
+                    {showAlternativeInstructions
+                      ? t('push.assistant_hide_alt', { defaultValue: 'Ocultar instrucciones manuales' })
+                      : t('push.assistant_android_alt_link', {
+                          defaultValue: '¿Preferís ver las instrucciones paso a paso?',
+                        })}
+                  </button>
+                </div>
+              )}
+
+              {/* Mostrar instrucciones paso a paso en macOS, iOS o si el usuario pide alternativa */}
+              {(currentPlatform === 'macos' ||
+                currentPlatform === 'ios' ||
+                currentPlatform === 'other' ||
+                showAlternativeInstructions) && (
+                <div className="pe-assistant__manual-steps">
+                  {renderSteps()}
+                </div>
+              )}
+
+              {renderPlatformNotes()}
+              {renderPrivacyNote()}
+
+              <p className="pe-visibility-guide-disclaimer">{getDisclaimer()}</p>
+            </div>
+          )}
+
+          {/* ── PASO 2: PROBAR (EMISIÓN VOLUNTARIA LOCAL) ──────────────────────── */}
+          {step === 2 && (
+            <div className="pe-assistant-step-content">
+              <div className="pe-assistant__test-card">
+                <h4 className="pe-assistant__test-title">
+                  {t('push.assistant_test_title', { defaultValue: 'Emitir notificación de prueba' })}
+                </h4>
+                <p className="pe-assistant__test-desc">
+                  {t('push.assistant_test_desc', {
+                    defaultValue:
+                      'Tocá el botón para enviar una notificación local y comprobar el sonido y la vibración en este dispositivo.',
+                  })}
+                </p>
+
+                <button
+                  ref={primaryBtnRef}
+                  type="button"
+                  className="pe-assistant__test-trigger-btn"
+                  onClick={() => void handleSendTest()}
+                  disabled={testingNotification}
+                >
+                  {testingNotification ? (
+                    <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Bell size={15} aria-hidden="true" />
+                  )}
+                  <span>
+                    {testingNotification
+                      ? t('push.assistant_test_sending', { defaultValue: 'Enviando notificación...' })
+                      : t('push.assistant_test_btn', { defaultValue: 'Enviar notificación de prueba' })}
+                  </span>
+                </button>
+
+                {testResult === 'sent' && (
+                  <div className="pe-assistant__feedback pe-assistant__feedback--ok" role="status">
+                    <CheckCircle size={16} aria-hidden="true" className="pe-assistant__feedback-icon" />
+                    <div>
+                      <p className="pe-assistant__feedback-msg">
+                        {currentPlatform === 'android'
+                          ? t('push.assistant_test_sent_android', {
+                              defaultValue:
+                                '¡Notificación enviada! Deslizá la barra superior o mirá el aviso. Mantené presionada la notificación de PuntoEncuentro para tocar el engranaje ⚙️ de ajustes del canal.',
+                            })
+                          : t('push.assistant_test_sent_general', {
+                              defaultValue:
+                                '¡Notificación emitida! Comprobá si sonó y apareció el banner en tu pantalla.',
+                            })}
+                      </p>
+                      <button
+                        type="button"
+                        className="pe-assistant__retest-btn"
+                        onClick={() => void handleSendTest()}
+                        disabled={testingNotification}
+                      >
+                        {t('push.assistant_test_retry_btn', { defaultValue: 'Enviar otra prueba' })}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {testResult === 'error' && (
+                  <div className="pe-assistant__feedback pe-assistant__feedback--error" role="alert">
+                    <Info size={16} aria-hidden="true" className="pe-assistant__feedback-icon" />
+                    <p className="pe-assistant__feedback-msg">
+                      {t('push.assistant_test_error', {
+                        defaultValue:
+                          'No se pudo emitir la notificación. Comprobá que los permisos no estén bloqueados.',
+                      })}
+                    </p>
+                  </div>
+                )}
+
+                {returnedFromBackground && (
+                  <div className="pe-assistant__return-hint">
+                    <Info size={14} aria-hidden="true" />
+                    <span>
+                      {t('push.assistant_returned_hint', {
+                        defaultValue:
+                          'De regreso de Ajustes: podés enviar otra prueba para comprobar si el sonido y los banners quedaron activos.',
+                      })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {renderPrivacyNote()}
+            </div>
+          )}
+
+          {/* ── PASO 3: CONFIRMAR (VERIFICACIÓN DEL USUARIO) ───────────────────── */}
+          {step === 3 && (
+            <div className="pe-assistant-step-content">
+              <div className="pe-assistant__confirm-card">
+                <h4 className="pe-assistant__confirm-title">
+                  {t('push.assistant_confirm_title', { defaultValue: 'Verificar sonido y visualización' })}
+                </h4>
+                <p className="pe-assistant__confirm-question">
+                  {t('push.assistant_confirm_question', {
+                    defaultValue: '¿Escuchaste el sonido y viste correctamente la notificación?',
+                  })}
+                </p>
+                <p className="pe-assistant__confirm-disclaimer">
+                  {t('push.assistant_confirm_disclaimer', {
+                    defaultValue:
+                      'PuntoEncuentro no puede inspeccionar automáticamente el volumen ni los ajustes del sistema operativo.',
+                  })}
+                </p>
+              </div>
+
+              {renderPrivacyNote()}
+            </div>
+          )}
         </div>
 
+        {/* Footer adaptativo según el paso en curso */}
         <footer className="pe-visibility-guide-modal__footer">
-          <button
-            ref={primaryBtnRef}
-            type="button"
-            className="pe-visibility-guide__btn-primary"
-            onClick={handleConfigured}
-          >
-            <CheckCircle size={15} aria-hidden="true" />
-            <span>{t('push.guide_action_configured', { defaultValue: 'Ya lo configuré' })}</span>
-          </button>
-          <button
-            type="button"
-            className="pe-visibility-guide__btn-secondary"
-            onClick={handleLater}
-          >
-            <span>{t('push.guide_action_later', { defaultValue: 'Lo haré después' })}</span>
-          </button>
+          {step === 1 && (
+            <>
+              <button
+                ref={primaryBtnRef}
+                type="button"
+                className="pe-visibility-guide__btn-primary"
+                onClick={() => handleGoToStep(2)}
+              >
+                <span>{t('push.assistant_next_to_test', { defaultValue: 'Continuar a la prueba' })}</span>
+                <ArrowRight size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="pe-visibility-guide__btn-secondary"
+                onClick={handleDismiss}
+              >
+                <span>{t('push.guide_action_later', { defaultValue: 'Lo haré después' })}</span>
+              </button>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <button
+                type="button"
+                className="pe-visibility-guide__btn-primary"
+                onClick={() => handleGoToStep(3)}
+              >
+                <span>{t('push.assistant_next_to_verify', { defaultValue: 'Continuar a la verificación' })}</span>
+                <ArrowRight size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="pe-visibility-guide__btn-secondary"
+                onClick={() => handleGoToStep(1)}
+              >
+                <ArrowLeft size={14} aria-hidden="true" />
+                <span>{t('push.assistant_back_to_config', { defaultValue: 'Volver a instrucciones' })}</span>
+              </button>
+            </>
+          )}
+
+          {step === 3 && (
+            <div className="pe-assistant__confirm-actions">
+              <button
+                ref={primaryBtnRef}
+                type="button"
+                className="pe-visibility-guide__btn-primary"
+                onClick={handleConfirmSuccess}
+              >
+                <CheckCircle size={15} aria-hidden="true" />
+                <span>
+                  {t('push.assistant_confirm_yes', {
+                    defaultValue: t('push.guide_action_configured', {
+                      defaultValue: 'Sí, funciona correctamente',
+                    }),
+                  })}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="pe-visibility-guide__btn-secondary"
+                onClick={() => handleGoToStep(2)}
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                <span>{t('push.assistant_confirm_retry', { defaultValue: 'Probar otra vez' })}</span>
+              </button>
+              <button
+                type="button"
+                className="pe-visibility-guide__btn-neutral"
+                onClick={handleDismiss}
+              >
+                <span>{t('push.assistant_confirm_later', { defaultValue: 'Lo revisaré después' })}</span>
+              </button>
+            </div>
+          )}
         </footer>
       </div>
     </div>
@@ -576,3 +949,6 @@ export const PushVisibilityGuideModal: React.FC<PushVisibilityGuideModalProps> =
  */
 export const AndroidPushGuideModal = PushVisibilityGuideModal;
 export type AndroidPushGuideModalProps = PushVisibilityGuideModalProps;
+
+export const NotificationAssistantModal = PushVisibilityGuideModal;
+export type NotificationAssistantModalProps = PushVisibilityGuideModalProps;

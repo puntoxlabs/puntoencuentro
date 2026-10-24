@@ -8,6 +8,7 @@ import {
   getPushPlatform,
   isPushGuideSupportedPlatform,
   isPushVisibilityGuideDismissed,
+  isSoundVisibilityAssistantDismissed,
 } from './antiNagging';
 import { PushVisibilityGuideBanner } from './PushVisibilityGuideBanner';
 import { PushVisibilityGuideModal } from './PushVisibilityGuideModal';
@@ -259,17 +260,25 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             >
               <Sliders size={13} aria-hidden="true" />
               <span>
-                {platform === 'android'
-                  ? t('push.android_guide_link', {
-                      defaultValue: 'Cómo mostrar avisos emergentes y en pantalla bloqueada',
-                    })
-                  : platform === 'ios'
-                  ? t('push.ios_guide_link', {
-                      defaultValue: 'Cómo configurar avisos en iPhone y iPad',
-                    })
-                  : t('push.guide_link', {
-                      defaultValue: 'Configurar visibilidad de notificaciones',
-                    })}
+                {isPushVisibilityGuideDismissed(platform, effectiveUserId)
+                  ? (platform === 'android'
+                      ? t('push.android_guide_configured_link', {
+                          defaultValue: 'Sonido y avisos configurados (revisar)',
+                        })
+                      : t('push.guide_configured_link', {
+                          defaultValue: 'Visibilidad de notificaciones configurada (revisar)',
+                        }))
+                  : (platform === 'android'
+                      ? t('push.android_assistant_link', {
+                          defaultValue: 'Configurar sonido y avisos emergentes',
+                        })
+                      : platform === 'ios'
+                      ? t('push.ios_guide_link', {
+                          defaultValue: 'Cómo configurar avisos en iPhone y iPad',
+                        })
+                      : t('push.assistant_link', {
+                          defaultValue: 'Configurar visibilidad de notificaciones',
+                        }))}
               </span>
             </button>
           )}
@@ -311,7 +320,10 @@ export const DevicePushSettings: React.FC<DevicePushSettingsProps> = ({ onStateC
             </p>
           </div>
 
-          {isGuideSupported && showContextualBanner && !isPushVisibilityGuideDismissed(platform, effectiveUserId) && (
+          {isGuideSupported &&
+            showContextualBanner &&
+            !isPushVisibilityGuideDismissed(platform, effectiveUserId) &&
+            !isSoundVisibilityAssistantDismissed(effectiveUserId) && (
             <PushVisibilityGuideBanner
               platform={platform}
               userId={effectiveUserId}

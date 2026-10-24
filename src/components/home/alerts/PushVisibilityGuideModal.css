@@ -290,3 +290,308 @@
 .pe-android-guide__btn-secondary:active {
   transform: scale(0.99);
 }
+
+/* ── P1-B ASISTENTE MULTIPLATAFORMA DE 3 PASOS ── */
+
+.pe-assistant-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface-variant, #f3f4f6);
+  padding: 4px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.pe-assistant-step-pill {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant, #6b7280);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.pe-assistant-step-pill--active {
+  background: #ffffff;
+  color: var(--color-primary, #184CD4);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pe-assistant-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Acceso directo (Windows) */
+.pe-assistant__direct-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.pe-assistant__direct-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease;
+}
+
+.pe-assistant__direct-btn:hover {
+  background: #0369a1;
+}
+
+.pe-assistant__hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-on-surface-variant, #6b7280);
+  line-height: 1.35;
+}
+
+.pe-assistant__alt-toggle-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  color: var(--color-primary, #184CD4);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-align: left;
+}
+
+/* Atajo Android (Motorola) */
+.pe-assistant__shortcut-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pe-assistant__shortcut-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166534;
+}
+
+.pe-assistant__shortcut-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #166534;
+}
+
+.pe-assistant__shortcut-text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.pe-assistant__checklist {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.pe-assistant__manual-steps {
+  border-top: 1px dashed var(--color-outline, #e5e7eb);
+  padding-top: 10px;
+}
+
+/* Paso 2: Probar */
+.pe-assistant__test-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline, #e5e7eb);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pe-assistant__test-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-assistant__test-desc {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--color-on-surface-variant, #4b5563);
+  line-height: 1.4;
+}
+
+.pe-assistant__test-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  background: var(--color-primary-container, #E5EDFF);
+  color: var(--color-primary-dark, #123AA1);
+  border: 1px solid rgba(24, 76, 212, 0.3);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pe-assistant__test-trigger-btn:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.pe-assistant__test-trigger-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pe-assistant__feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.pe-assistant__feedback--ok {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+}
+
+.pe-assistant__feedback--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.pe-assistant__feedback-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pe-assistant__feedback-msg {
+  margin: 0 0 6px;
+}
+
+.pe-assistant__retest-btn {
+  background: #ffffff;
+  border: 1px solid #86efac;
+  color: #166534;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.pe-assistant__retest-btn:hover {
+  background: #f0fdf4;
+}
+
+.pe-assistant__return-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+/* Paso 3: Confirmar */
+.pe-assistant__confirm-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.pe-assistant__confirm-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-on-surface, #111827);
+}
+
+.pe-assistant__confirm-question {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.pe-assistant__confirm-disclaimer {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-on-surface-variant, #6b7280);
+  font-style: italic;
+}
+
+.pe-assistant__confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.pe-visibility-guide__btn-neutral {
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-on-surface-variant, #6b7280);
+  border: none;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.pe-visibility-guide__btn-neutral:hover {
+  color: var(--color-on-surface, #111827);
+}

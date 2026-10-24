@@ -7,6 +7,8 @@ export const PUSH_PROMPT_SHOWN_KEY = 'pe_push_prompt_shown_v1';
 export const HOST_FIRST_ENCOUNTER_KEY = 'pe_host_first_encounter_created_v1';
 export const PARTICIPANT_FIRST_CONFIRMATION_KEY = 'pe_participant_first_confirmed_v1';
 export const OPEN_PARTICIPATION_NOTIFIED_KEY = 'pe_open_participation_notified_v1';
+export const SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY = 'pe_sound_visibility_assistant_dismissed_until_v1';
+export const ASSISTANT_SAVED_STEP_KEY = 'pe_assistant_saved_step_v1';
 
 export type PushPlatform = 'android' | 'windows' | 'macos' | 'ios' | 'other';
 
@@ -250,6 +252,88 @@ export function clearPushPromptDismissal(userId?: string | null): void {
     } else {
       localStorage.removeItem(PUSH_PROMPT_DISMISSED_KEY);
     }
+  } catch {}
+}
+
+/**
+ * Cooldown independiente del Asistente de Sonido y Visibilidad (P1-B).
+ * Retorna true si el asistente fue pospuesto («Ahora no» o «Lo revisaré después»)
+ * y el período de descanso (14 días) sigue activo para este usuario/dispositivo.
+ */
+export function isSoundVisibilityAssistantDismissed(userId?: string | null): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    if (userId) {
+      const val = localStorage.getItem(getScopedKey(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY, userId));
+      if (!val) return false;
+      const until = parseInt(val, 10);
+      return Number.isFinite(until) && Date.now() < until;
+    }
+    const val = localStorage.getItem(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY);
+    if (!val) return false;
+    const until = parseInt(val, 10);
+    return Number.isFinite(until) && Date.now() < until;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Registra que el usuario pospuso el asistente de sonido y visibilidad (14 días por defecto).
+ */
+export function dismissSoundVisibilityAssistant(days = 14, userId?: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const ms = days * 24 * 60 * 60 * 1000;
+    const until = String(Date.now() + ms);
+    const key = getScopedKey(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY, userId);
+    localStorage.setItem(key, until);
+    if (!userId) {
+      localStorage.setItem(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY, until);
+    }
+  } catch {}
+}
+
+export function clearSoundVisibilityAssistantDismissal(userId?: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (userId) {
+      localStorage.removeItem(getScopedKey(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY, userId));
+    } else {
+      localStorage.removeItem(SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY);
+    }
+  } catch {}
+}
+
+/**
+ * Persistencia del paso en curso del Asistente (1, 2 o 3) en sessionStorage.
+ * Permite al usuario salir a Ajustes de Android/Windows/iOS y regresar sin reiniciar el asistente.
+ */
+export function getAssistantSavedStep(userId?: string | null): 1 | 2 | 3 {
+  if (typeof sessionStorage === 'undefined') return 1;
+  try {
+    const key = getScopedKey(ASSISTANT_SAVED_STEP_KEY, userId);
+    const val = sessionStorage.getItem(key);
+    if (val === '2' || val === '3') return Number(val) as 2 | 3;
+    return 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function saveAssistantStep(step: 1 | 2 | 3, userId?: string | null): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const key = getScopedKey(ASSISTANT_SAVED_STEP_KEY, userId);
+    sessionStorage.setItem(key, String(step));
+  } catch {}
+}
+
+export function clearAssistantSavedStep(userId?: string | null): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const key = getScopedKey(ASSISTANT_SAVED_STEP_KEY, userId);
+    sessionStorage.removeItem(key);
   } catch {}
 }
 

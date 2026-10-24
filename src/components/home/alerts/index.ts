@@ -7,12 +7,18 @@ export { PushPromptModal, AvisamePushPromptModal } from './AvisamePushPromptModa
 export type { PushPromptModalProps, PushPromptContext, AvisamePushPromptModalProps } from './AvisamePushPromptModal';
 export { PushVisibilityGuideBanner, AndroidPushGuideBanner } from './PushVisibilityGuideBanner';
 export type { PushVisibilityGuideBannerProps, AndroidPushGuideBannerProps } from './PushVisibilityGuideBanner';
-export { PushVisibilityGuideModal, AndroidPushGuideModal } from './PushVisibilityGuideModal';
-export type { PushVisibilityGuideModalProps, AndroidPushGuideModalProps } from './PushVisibilityGuideModal';
+export { PushVisibilityGuideModal, AndroidPushGuideModal, NotificationAssistantModal } from './PushVisibilityGuideModal';
+export type { PushVisibilityGuideModalProps, AndroidPushGuideModalProps, NotificationAssistantModalProps } from './PushVisibilityGuideModal';
 export {
   isPushPromptDismissed,
   dismissPushPrompt,
   clearPushPromptDismissal,
+  isSoundVisibilityAssistantDismissed,
+  dismissSoundVisibilityAssistant,
+  clearSoundVisibilityAssistantDismissal,
+  getAssistantSavedStep,
+  saveAssistantStep,
+  clearAssistantSavedStep,
   isAndroidDevice,
   isIosDevice,
   isIosStandalone,
@@ -38,5 +44,6 @@ export {
   ANDROID_PUSH_GUIDE_DISMISSED_KEY,
   DESKTOP_PUSH_GUIDE_DISMISSED_KEY,
   IOS_PUSH_GUIDE_DISMISSED_KEY,
+  SOUND_VISIBILITY_ASSISTANT_DISMISSED_KEY,
 } from './antiNagging';
 export type { PushPlatform } from './antiNagging';

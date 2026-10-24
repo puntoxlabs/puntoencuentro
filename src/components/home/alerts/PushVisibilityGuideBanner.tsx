@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   getPushPlatform,
   dismissPushVisibilityGuide,
+  dismissSoundVisibilityAssistant,
   recordPushGuideViewed,
   type PushPlatform,
 } from './antiNagging';
@@ -36,6 +37,7 @@ export const PushVisibilityGuideBanner: React.FC<PushVisibilityGuideBannerProps>
   };
 
   const handleDismiss = () => {
+    dismissSoundVisibilityAssistant(14, userId);
     dismissPushVisibilityGuide(currentPlatform, userId);
     onDismiss();
   };

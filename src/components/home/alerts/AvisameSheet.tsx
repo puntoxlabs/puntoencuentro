@@ -31,6 +31,7 @@ import {
   getPushPlatform,
   isPushGuideSupportedPlatform,
   isPushVisibilityGuideDismissed,
+  isSoundVisibilityAssistantDismissed,
 } from './antiNagging';
 import { AvisamePushPromptModal } from './AvisamePushPromptModal';
 import { PushVisibilityGuideBanner } from './PushVisibilityGuideBanner';
@@ -418,7 +419,10 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
         )}
 
         {/* Guía contextual post-activación (por única vez) en Android, Windows y macOS */}
-        {showAndroidGuideBanner && isPushGuideSupportedPlatform(getPushPlatform()) && !isPushVisibilityGuideDismissed(getPushPlatform(), user?.id) && (
+        {showAndroidGuideBanner &&
+          isPushGuideSupportedPlatform(getPushPlatform()) &&
+          !isPushVisibilityGuideDismissed(getPushPlatform(), user?.id) &&
+          !isSoundVisibilityAssistantDismissed(user?.id) && (
           <div style={{ marginBottom: 16 }}>
             <PushVisibilityGuideBanner
               platform={getPushPlatform()}
@@ -822,7 +826,9 @@ export const AvisameSheet: React.FC<AvisameSheetProps> = ({
           });
           const plat = getPushPlatform();
           if (isPushGuideSupportedPlatform(plat) && !isPushVisibilityGuideDismissed(plat, user?.id)) {
-            setShowAndroidGuideBanner(true);
+            if (!isSoundVisibilityAssistantDismissed(user?.id)) {
+              setShowAndroidGuideBanner(true);
+            }
           }
         }}
       />
