@@ -233,6 +233,11 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     const hardeningSql = fs.readFileSync(hardeningPath, 'utf8');
     await db.exec(hardeningSql);
 
+    // 5. Ejecutar micro-hotfix de session_user en regularización administrativa
+    const microhotfixPath = path.join(__dirname, '../supabase/migrations/20261024210000_fix_session_user_administrative_regularization.sql');
+    const microhotfixSql = fs.readFileSync(microhotfixPath, 'utf8');
+    await db.exec(microhotfixSql);
+
     await db.exec(`
       GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon, service_role, postgres;
       GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon, service_role, postgres;
@@ -1074,5 +1079,90 @@ describe('Mini-Sprint A: Cierre posterior, asistencia efectiva y reconocimiento 
     const result = (res.rows[0] as any).r;
     assert.equal(result.ok, false);
     assert.equal(result.error, 'permanent_account_required', 'Cuentas anónimas no deben poder regularizar cierres');
+  });
+
+  test('29. Micro-hotfix P0: rol authenticated sin claim sub (auth.uid() IS NULL) falla cerrado con authentication_required', async () => {
+    // Simula una sesión que envía rol authenticated pero carece de un sub válido
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'authenticated', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"authenticated"}', false);`);
+
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos(NULL) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'authentication_required', 'Rol authenticated sin identidad de usuario debe fallar cerrado');
+  });
+
+  test('30. Micro-hotfix P0: service_role explícito en JWT permite regularización global interna', async () => {
+    // Configura JWT con claim de service_role administrativo
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);`);
+
+    const res = await db.query(`
+      SELECT public.regularizar_cierres_administrativos_automaticos(NULL) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, true, 'service_role verificado debe poder ejecutar la regularización global');
+    assert.ok(typeof result.regularized_count === 'number');
+  });
+
+  test('31. Micro-hotfix P0: llamada legítima desde abrir_encuentro_seguro regulariza propios sin error', async () => {
+    const cleanHost = '11111111-1111-1111-1111-111111111199';
+    await db.query(`
+      INSERT INTO auth.users (id, email) VALUES ('${cleanHost}', 'cleanhost@example.com')
+      ON CONFLICT (id) DO NOTHING;
+    `);
+    await setAuth(cleanHost);
+
+    // Encuentro previo vencido sin participantes (debe regularizarse automáticamente durante abrir_encuentro_seguro)
+    const oldEncId = '00000000-0000-0000-0003-000000000006';
+    await db.query(`
+      INSERT INTO public.encuentros (
+        id, host_id, titulo, open_public_title, open_public_zone, locality_id, max_participants,
+        fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status, post_event_closure_deadline
+      )
+      VALUES (
+        '${oldEncId}', '${cleanHost}', 'Encuentro Previo Sin Participantes', 'Previo', 'Palermo', 'palermo', 10,
+        (CURRENT_DATE - INTERVAL '5 days')::date, '20:00:00', 'Bar', true, now() - INTERVAL '6 days', 'pending', now() - INTERVAL '3 days'
+      );
+    `);
+
+    const encId = '00000000-0000-0000-0003-000000000005';
+    // Crear nuevo encuentro privado listo para apertura
+    await db.query(`
+      INSERT INTO public.encuentros (
+        id, host_id, titulo, open_public_title, open_public_zone, locality_id, max_participants,
+        fecha, hora, lugar_texto, is_open, opened_at, post_event_closure_status
+      )
+      VALUES (
+        '${encId}', '${cleanHost}', 'Encuentro Apertura Con Regularizacion', 'Apertura Abierta', 'Palermo', 'palermo', 10,
+        (CURRENT_DATE + INTERVAL '5 days')::date, '20:00:00', 'Bar', false, NULL, 'not_applicable'
+      );
+    `);
+
+    // Invocación de abrir_encuentro_seguro (internamente llama a regularizar_cierres_administrativos_automaticos(v_caller_id))
+    const res = await db.query(`
+      SELECT public.abrir_encuentro_seguro(
+        '${encId}'::uuid,
+        '${cleanHost}'::uuid,
+        'Descripción del encuentro',
+        10,
+        'palermo',
+        'Palermo',
+        'Título Público Apertura'
+      ) AS r;
+    `);
+
+    const result = (res.rows[0] as any).r;
+    assert.equal(result.ok, true, 'abrir_encuentro_seguro debe funcionar perfectamente integrando la regularización');
+
+    // Verificar que el encuentro previo se regularizó automáticamente a 'auto_closed'
+    const checkOld = await db.query(`SELECT post_event_closure_status FROM public.encuentros WHERE id = '${oldEncId}';`);
+    assert.equal((checkOld.rows[0] as any).post_event_closure_status, 'auto_closed');
   });
 });
