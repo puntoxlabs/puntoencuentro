@@ -116,10 +116,10 @@ BEGIN
         COALESCE(pg_catalog.sum(CASE WHEN e.post_event_realization_status = 'realized' THEN 1 ELSE 0 END), 0)::int,
         COALESCE(pg_catalog.sum(CASE WHEN e.post_event_realization_status = 'not_realized' THEN 1 ELSE 0 END), 0)::int,
         COALESCE(pg_catalog.sum(CASE WHEN e.estado = 'cancelado' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closure_status = 'closed_on_time' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closure_status = 'closed_late' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closure_type = 'auto_empty_regularization' OR e.post_event_closure_status = 'expired_unconfirmed' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closed_at IS NULL AND e.estado <> 'cancelado' AND ((e.fecha::text || ' ' || e.hora::text)::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires') < v_now THEN 1 ELSE 0 END), 0)::int
+        COALESCE(pg_catalog.sum(CASE WHEN (e.post_event_closure_status = 'completed' AND (e.post_event_closure_type = 'within_deadline' OR e.post_event_closure_type IS NULL)) OR e.post_event_closure_status = 'closed_on_time' THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closure_type = 'overdue' OR e.post_event_closure_status = 'overdue' OR e.post_event_closure_status = 'closed_late' THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN e.post_event_closure_status = 'auto_closed' OR e.post_event_closure_type = 'administrative_auto' OR e.post_event_closure_type = 'auto_empty_regularization' OR e.post_event_closure_status = 'expired_unconfirmed' THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN (e.post_event_closure_status = 'pending' OR (e.post_event_closed_at IS NULL AND e.estado <> 'cancelado' AND ((e.fecha::text || ' ' || e.hora::text)::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires') < v_now)) THEN 1 ELSE 0 END), 0)::int
     INTO
         v_host_encuentros_organizados,
         v_host_encuentros_completados_declarados,
