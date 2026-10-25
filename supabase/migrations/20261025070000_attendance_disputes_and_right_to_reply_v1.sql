@@ -1706,4 +1706,28 @@ $$;
 REVOKE ALL ON FUNCTION public.get_historial_asistencia_factual_seguro(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_historial_asistencia_factual_seguro(UUID) TO authenticated, postgres, service_role;
 
+
+-- ------------------------------------------------------------------------------
+-- 15. PROGRAMACIÓN CRON DE VENCIMIENTOS (7 DÍAS SIN RESPUESTA)
+-- ------------------------------------------------------------------------------
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+        BEGIN
+            PERFORM cron.unschedule('vencimiento_controversias_asistencia_job');
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+
+        PERFORM cron.schedule(
+            'vencimiento_controversias_asistencia_job',
+            '0 * * * *',
+            'SELECT public.procesar_vencimientos_controversias_seguro();'
+        );
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
 COMMIT;
