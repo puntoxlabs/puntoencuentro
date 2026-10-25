@@ -317,6 +317,17 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     const sprintCSqlContent = fs.readFileSync(sprintCSqlPath, 'utf8');
     await db.exec(sprintCSqlContent);
 
+    // Aplicar la migración de hotfix de integridad e inmutabilidad
+    const hotfixCSqlPath = path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20261025080000_hotfix_disputes_integrity_and_immutability_v1.sql'
+    );
+    const hotfixCSqlContent = fs.readFileSync(hotfixCSqlPath, 'utf8');
+    await db.exec(hotfixCSqlContent);
+
     // Verificar que el registro preexistente fue migrado de forma segura a 'in_human_review'
     const migratedCheck = await db.query<{ attendance_dispute_status: string }>(`
       SELECT attendance_dispute_status FROM public.participantes
@@ -1138,5 +1149,229 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     `);
     assert.equal((internalCall.rows[0].res as any).ok, true);
     assert.equal(typeof (internalCall.rows[0].res as any).processed_count, 'number');
+  });
+
+  test('22. P0: Reclamo contra el anfitrión (host_no_show / encounter_not_realized) NUNCA altera la asistencia del denunciante hacia falta', async () => {
+    await setAuth(hostUser);
+    const encRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, open_public_title, fecha, hora, duration_minutes, is_open, opened_at, modalidad, locality_id, open_public_zone)
+      VALUES ('${hostUser}', 'Encuentro P0 Host No Show', 'P0 Host No Show', CURRENT_DATE - INTERVAL '1 day', '19:00:00', 120, true, CURRENT_TIMESTAMP - INTERVAL '2 days', 'presencial', 'palermo', 'Palermo')
+      RETURNING id;
+    `);
+    const encId = encRes.rows[0].id;
+
+    const partRes = await db.query<{ id: string }>(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, attendance_status, tipo_invitacion)
+      VALUES ('${encId}', '${partUserB}', 'Denunciante PartB', 'confirmado', 'unverified', 'individual')
+      RETURNING id;
+    `);
+    const partId = partRes.rows[0].id;
+
+    // Participante denuncia que el host no asistió
+    await setAuth(partUserB);
+    const claimRes = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encId}',
+        p_tipo_controversia := 'host_no_show',
+        p_motivo := 'El anfitrión no vino y el café estaba cerrado.'
+      ) AS res;
+    `);
+    const claimDisputeId = (claimRes.rows[0].res as any).dispute_id;
+    assert.equal((claimRes.rows[0].res as any).ok, true);
+
+    // Moderador independiente resuelve confirmando la falta del anfitrión (confirmed)
+    await setAuth(modIndependent);
+    const resolveRes = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${claimDisputeId}',
+        p_resolucion := 'confirmed',
+        p_fundamentacion := 'Se verificaron llamadas y testigos; el organizador efectivamente no asistió al encuentro.'
+      ) AS res;
+    `);
+    assert.equal((resolveRes.rows[0].res as any).ok, true);
+
+    // INVARIANTE CRÍTICA P0: El denunciante NO debe tener reported_absent
+    const partCheck = await db.query<{ attendance_status: string; attendance_dispute_status: string }>(`
+      SELECT attendance_status, attendance_dispute_status FROM public.participantes WHERE id = '${partId}';
+    `);
+    assert.notEqual(partCheck.rows[0].attendance_status, 'reported_absent', 'El denunciante jamás debe ser marcado como ausente cuando denuncia al host');
+    assert.equal(partCheck.rows[0].attendance_dispute_status, 'resolved_justified');
+
+    // El encuentro debe reflejar el hecho del organizador
+    const encCheck = await db.query<{ post_event_realization_status: string; post_event_unrealized_reason: string }>(`
+      SELECT post_event_realization_status, post_event_unrealized_reason FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(encCheck.rows[0].post_event_realization_status, 'not_realized');
+    assert.match(encCheck.rows[0].post_event_unrealized_reason, /ausencia de anfitrión acreditada/);
+  });
+
+  test('23. P0: Inmutabilidad de resoluciones definitivas (rechazo estricto a modificaciones y segundo moderador)', async () => {
+    // Tomamos la controversia resuelta en el test 22
+    const dispRes = await db.query<{ id: string }>(`
+      SELECT id FROM public.asistencia_controversias WHERE tipo_controversia = 'host_no_show' AND estado = 'resolved_justified' LIMIT 1;
+    `);
+    const dispId = dispRes.rows[0].id;
+
+    // 1. Reintento idéntico por el mismo moderador -> éxito idempotente
+    await setAuth(modIndependent);
+    const retrySame = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${dispId}',
+        p_resolucion := 'confirmed',
+        p_fundamentacion := 'Reintento idéntico'
+      ) AS res;
+    `);
+    assert.equal((retrySame.rows[0].res as any).ok, true);
+    assert.equal((retrySame.rows[0].res as any).idempotent, true);
+
+    // 2. Intento de cambiar la resolución a 'insufficient_evidence' por un segundo moderador -> DEBE RECHAZARSE
+    const secondMod = '77777777-7777-7777-7777-777777777777';
+    await db.exec(`
+      INSERT INTO auth.users (id, email) VALUES ('${secondMod}', 'secondmod@test.com') ON CONFLICT DO NOTHING;
+      INSERT INTO public.moderation_authorized_users (user_id, role, active) VALUES ('${secondMod}', 'moderator', true) ON CONFLICT DO NOTHING;
+    `);
+
+    await setAuth(secondMod);
+    const modChangeRes = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${dispId}',
+        p_resolucion := 'insufficient_evidence',
+        p_fundamentacion := 'Segundo moderador intenta cambiar el fallo'
+      ) AS res;
+    `);
+    assert.equal((modChangeRes.rows[0].res as any).ok, false);
+    assert.equal((modChangeRes.rows[0].res as any).error, 'dispute_already_resolved');
+  });
+
+  test('24. P1: Integridad de aclaraciones (rechazo tras resolución y conservación de historial acumulado)', async () => {
+    // 1. Intento de aportar aclaración sobre un caso ya resuelto -> DEBE RECHAZARSE
+    const dispRes = await db.query<{ id: string }>(`
+      SELECT id FROM public.asistencia_controversias WHERE estado = 'resolved_justified' LIMIT 1;
+    `);
+    const dispId = dispRes.rows[0].id;
+
+    await setAuth(hostUser);
+    const clarifClosedRes = await db.query(`
+      SELECT public.aportar_aclaracion_controversia_seguro(
+        p_dispute_id := '${dispId}',
+        p_aclaracion_texto := 'Intento tardío de aclaración tras fallo definitivo'
+      ) AS res;
+    `);
+    assert.equal((clarifClosedRes.rows[0].res as any).ok, false);
+    assert.equal((clarifClosedRes.rows[0].res as any).error, 'dispute_already_resolved');
+
+    // 2. Sobre caso abierto: aclaraciones sucesivas no sobrescriben destructivamente sino que se acumulan
+    const encOpen = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, open_public_title, fecha, hora, duration_minutes, is_open, opened_at, modalidad, locality_id, open_public_zone)
+      VALUES ('${hostUser}', 'Encuentro Aclaraciones Acumuladas', 'Aclaraciones', CURRENT_DATE - INTERVAL '1 day', '18:00:00', 120, true, CURRENT_TIMESTAMP - INTERVAL '2 days', 'presencial', 'palermo', 'Palermo')
+      RETURNING id;
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, tipo_invitacion)
+      VALUES ('${encOpen.rows[0].id}', '${partUserA}', 'Carlos A', 'confirmado', 'individual');
+    `);
+
+    await setAuth(partUserA);
+    const newClaim = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encOpen.rows[0].id}',
+        p_tipo_controversia := 'closure_data_error',
+        p_motivo := 'Error en horario y datos informados de cierre.'
+      ) AS res;
+    `);
+    const newDisputeId = (newClaim.rows[0].res as any).dispute_id;
+
+    await setAuth(hostUser);
+    await db.query(`
+      SELECT public.aportar_aclaracion_controversia_seguro(
+        p_dispute_id := '${newDisputeId}',
+        p_aclaracion_texto := 'Primera aclaración: los datos eran correctos.'
+      );
+    `);
+
+    await db.query(`
+      SELECT public.aportar_aclaracion_controversia_seguro(
+        p_dispute_id := '${newDisputeId}',
+        p_aclaracion_texto := 'Segunda aclaración: adjunto comprobante de horario.'
+      );
+    `);
+
+    const dispCheck = await db.query<{ explicacion_contraparte: string }>(`
+      SELECT explicacion_contraparte FROM public.asistencia_controversias WHERE id = '${newDisputeId}';
+    `);
+    assert.match(dispCheck.rows[0].explicacion_contraparte, /Primera aclaración/);
+    assert.match(dispCheck.rows[0].explicacion_contraparte, /Segunda aclaración/);
+
+    // Auditoría debe contener ambas entradas
+    const auditCheck = await db.query(`
+      SELECT accion, notas FROM public.asistencia_controversia_auditoria WHERE controversia_id = '${newDisputeId}' AND accion = 'counterparty_clarification';
+    `);
+    assert.equal(auditCheck.rowCount, 2, 'Deben existir 2 entradas de auditoría de aclaración');
+  });
+
+  test('25. P1: Elegibilidad temporal y funcional (encuentro futuro, encuentro privado y participante no confirmado)', async () => {
+    // 1. Encuentro futuro -> DEBE RECHAZARSE con event_not_started_yet
+    await setAuth(hostUser);
+    const encFuturo = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, open_public_title, fecha, hora, duration_minutes, is_open, opened_at, modalidad, locality_id, open_public_zone)
+      VALUES ('${hostUser}', 'Encuentro Futuro No Iniciado', 'Futuro', CURRENT_DATE + INTERVAL '2 days', '20:00:00', 120, true, CURRENT_TIMESTAMP, 'presencial', 'palermo', 'Palermo')
+      RETURNING id;
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, tipo_invitacion)
+      VALUES ('${encFuturo.rows[0].id}', '${partUserA}', 'Carlos A', 'confirmado', 'individual');
+    `);
+
+    await setAuth(partUserA);
+    const futClaim = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encFuturo.rows[0].id}',
+        p_tipo_controversia := 'host_no_show',
+        p_motivo := 'Intento prematuro de denuncia antes de que empiece el evento'
+      ) AS res;
+    `);
+    assert.equal((futClaim.rows[0].res as any).ok, false);
+    assert.equal((futClaim.rows[0].res as any).error, 'event_not_started_yet');
+
+    // 2. Encuentro exclusivamente privado (is_open = false, opened_at IS NULL) -> DEBE RECHAZARSE con only_open_encounters_supported
+    await setAuth(hostUser);
+    const encPrivado = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, fecha, hora, duration_minutes, is_open, opened_at, modalidad)
+      VALUES ('${hostUser}', 'Encuentro Privado Asado', CURRENT_DATE - INTERVAL '1 day', '20:00:00', 120, false, NULL, 'presencial')
+      RETURNING id;
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, tipo_invitacion)
+      VALUES ('${encPrivado.rows[0].id}', '${partUserA}', 'Carlos A', 'confirmado', 'individual');
+    `);
+
+    await setAuth(partUserA);
+    const privClaim = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encPrivado.rows[0].id}',
+        p_tipo_controversia := 'encounter_not_realized',
+        p_motivo := 'Denuncia sobre encuentro privado'
+      ) AS res;
+    `);
+    assert.equal((privClaim.rows[0].res as any).ok, false);
+    assert.equal((privClaim.rows[0].res as any).error, 'only_open_encounters_supported');
+
+    // 3. Usuario sin inscripción confirmada sobre encuentro ya iniciado -> DEBE RECHAZARSE con only_confirmed_participants_allowed
+    const encPasado = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo, open_public_title, fecha, hora, duration_minutes, is_open, opened_at, modalidad, locality_id, open_public_zone)
+      VALUES ('${hostUser}', 'Encuentro Pasado Abierto', 'Pasado', CURRENT_DATE - INTERVAL '1 day', '20:00:00', 120, true, CURRENT_TIMESTAMP - INTERVAL '2 days', 'presencial', 'palermo', 'Palermo')
+      RETURNING id;
+    `);
+
+    await setAuth(thirdPartyUser);
+    const unconfirmedClaim = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encPasado.rows[0].id}',
+        p_tipo_controversia := 'host_no_show',
+        p_motivo := 'Tercero sin inscripción intenta denunciar'
+      ) AS res;
+    `);
+    assert.equal((unconfirmedClaim.rows[0].res as any).ok, false);
+    assert.equal((unconfirmedClaim.rows[0].res as any).error, 'only_confirmed_participants_allowed');
   });
 });
