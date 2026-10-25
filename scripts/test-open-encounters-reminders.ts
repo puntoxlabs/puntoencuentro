@@ -4,6 +4,8 @@ import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateDeepLink } from '../src/lib/deepLink';
+import { isValidPostAuthRedirect } from '../src/hooks/usePostAuthRedirect';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,8 +170,8 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL,
         endpoint TEXT NOT NULL UNIQUE,
-        p256dh TEXT NOT NULL,
-        auth TEXT NOT NULL,
+        p256dh_key TEXT NOT NULL,
+        auth_key TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
@@ -194,7 +196,7 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
       );
 
       -- Suscripciones Web Push de prueba
-      INSERT INTO public.web_push_subscriptions (id, user_id, endpoint, p256dh, auth, status)
+      INSERT INTO public.web_push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key, status)
       VALUES 
         ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '${partUserA}', 'https://push.example.com/userA', 'p256A', 'authA', 'active'),
         ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '${partUserB}', 'https://push.example.com/userB', 'p256B', 'authB', 'active'),
@@ -592,10 +594,14 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
 
     await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
 
-    // Solo se emite 1 recordatorio al titular
-    const log = await db.query(`SELECT * FROM public.encounter_reminders_log WHERE encuentro_id = '${encId}';`);
-    assert.equal(log.rows.length, 1);
-    assert.equal(log.rows[0].user_id, multiUser);
+    // Se emite 1 recordatorio para participantes (al titular, ninguno para acompañante sin cuenta)
+    const logParts = await db.query(`SELECT * FROM public.encounter_reminders_log WHERE encuentro_id = '${encId}' AND user_id <> '${hostUser}';`);
+    assert.equal(logParts.rows.length, 1);
+    assert.equal(logParts.rows[0].user_id, multiUser);
+
+    // Y el anfitrión recibe su recordatorio como host
+    const logHost = await db.query(`SELECT * FROM public.encounter_reminders_log WHERE encuentro_id = '${encId}' AND user_id = '${hostUser}';`);
+    assert.equal(logHost.rows.length, 1);
   });
 
   // ---------------------------------------------------------------------------
@@ -752,11 +758,26 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
     assert.ok(notifications.rows.length > 0);
     const notif = notifications.rows[0];
 
-    // Deep link seguro a /meet/:id
-    assert.match(notif.deep_link as string, /^\/meet\/[a-f0-9-]+$/);
+    // Deep link seguro de participante hacia /solicitudes?open_encounter=:id
+    assert.match(notif.deep_link as string, /^\/solicitudes\?open_encounter=[a-f0-9-]+$/);
     // Payload facilita consultar detalles y opción de retirarse
     assert.equal(notif.payload.withdrawal_route, '/solicitudes');
+    assert.equal(notif.payload.detail_route, notif.deep_link);
     assert.equal(notif.payload.can_withdraw, true);
+    assert.equal(notif.payload.role, 'participant');
+
+    // Deep link seguro de anfitrión hacia /meet/:id
+    const hostNotifications = await db.query(`
+      SELECT * FROM public.inbox_notifications
+      WHERE recipient_user_id = '${hostUser}' AND notification_type = 'encounter_reminder_24h'
+      ORDER BY created_at ASC
+      LIMIT 1;
+    `);
+    assert.ok(hostNotifications.rows.length > 0);
+    const hostNotif = hostNotifications.rows[0];
+    assert.match(hostNotif.deep_link as string, /^\/meet\/[a-f0-9-]+$/);
+    assert.equal(hostNotif.payload.role, 'host');
+    assert.equal(hostNotif.payload.detail_route, hostNotif.deep_link);
   });
 
   // ---------------------------------------------------------------------------
@@ -817,5 +838,211 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
     const tr = (thirdRes.rows[0].res as any);
     assert.equal(tr.ok, false);
     assert.equal(tr.error, 'forbidden');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 20. Reprogramaciones e idempotencia en ciclo A -> B -> A
+  // ---------------------------------------------------------------------------
+  test('20. Reprogramaciones e idempotencia en ciclo A -> B -> A', async () => {
+    // Horario A: exactamente dentro de la ventana de 24 horas a partir de ahora
+    const timeA = new Date(Date.now()).toTimeString().split(' ')[0];
+    const encId = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Ciclo Reprogramacion A-B-A',
+      isOpen: true,
+      fechaOffsetDays: 1,
+      hora: timeA,
+      createdAtOffsetHours: 48,
+    });
+    const partC = '77777777-7777-7777-7777-777777777777';
+    await db.query(`INSERT INTO auth.users (id, email) VALUES ('${partC}', 'partc@test.com') ON CONFLICT DO NOTHING;`);
+    await db.query(`
+      INSERT INTO public.web_push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key, status)
+      VALUES ('dddddddd-dddd-dddd-dddd-dddddddddddd', '${partC}', 'https://push.example.com/userC', 'p256C', 'authC', 'active')
+      ON CONFLICT DO NOTHING;
+    `);
+    await addParticipant(encId, partC, { createdAtOffsetHours: 36 });
+
+    // 1. Procesar recordatorios en Horario A
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    const logA1 = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encId}' AND user_id = '${partC}' AND scheduled_for_time = '${timeA}';
+    `);
+    assert.equal(logA1.rows.length, 1);
+    assert.equal(logA1.rows[0].status, 'sent');
+
+    // 2. Reprogramar a Horario B (pasado mañana)
+    const timeB = new Date(Date.now() + 3600 * 1000).toTimeString().split(' ')[0];
+    await db.query(`
+      UPDATE public.encuentros
+      SET fecha = CURRENT_DATE + INTERVAL '2 days',
+          hora = '${timeB}'
+      WHERE id = '${encId}';
+    `);
+
+    // Invalida recordatorio para horario anterior
+    const logA2 = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encId}' AND user_id = '${partC}' AND scheduled_for_time = '${timeA}';
+    `);
+    assert.equal(logA2.rows.length, 1);
+    assert.equal(logA2.rows[0].status, 'invalidated');
+
+    // 3. Regresar a Horario A (mañana a timeA)
+    await db.query(`
+      UPDATE public.encuentros
+      SET fecha = CURRENT_DATE + INTERVAL '1 day',
+          hora = '${timeA}'
+      WHERE id = '${encId}';
+    `);
+
+    // 4. Procesar recordatorios nuevamente para Horario A
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    const logA3 = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encId}' AND user_id = '${partC}' AND scheduled_for_time = '${timeA}';
+    `);
+    assert.equal(logA3.rows.length, 1);
+    assert.equal(logA3.rows[0].status, 'sent', 'Dedup no bloquea nuevo aviso para el horario vigente A');
+
+    // 5. Ejecución posterior no duplica
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+    const countCheck = await db.query(`
+      SELECT count(*) as c FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encId}' AND user_id = '${partC}' AND scheduled_for_time = '${timeA}';
+    `);
+    assert.equal(Number(countCheck.rows[0].c), 1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 21. Quiet hours en worker claim y bypass para avisos críticos
+  // ---------------------------------------------------------------------------
+  test('21. Quiet hours en worker claim: cancelación de no críticos y entrega garantizada de críticos', async () => {
+    // 1. Notificación no crítica con outbox pendiente para usuario en quiet hours
+    const nonCritInbox = await db.query<{ id: string }>(`
+      INSERT INTO public.inbox_notifications (
+        recipient_user_id, notification_type, target_type, target_id, deep_link,
+        title, body, payload, dedup_key, expires_at
+      ) VALUES (
+        '${partQuietUser}', 'encounter_reminder_24h', 'encounter', gen_random_uuid(), '/solicitudes',
+        'Recordatorio normal', 'Texto', '{"suppress_push": false}'::jsonb, 'dedup_claim_quiet_noncrit', CURRENT_TIMESTAMP + INTERVAL '1 day'
+      ) RETURNING id;
+    `);
+    const subQuiet = await db.query<{ id: string }>(`
+      SELECT id FROM public.web_push_subscriptions WHERE user_id = '${partQuietUser}' LIMIT 1;
+    `);
+    const outboxNonCrit = await db.query<{ id: string }>(`
+      INSERT INTO public.notification_delivery_outbox (
+        inbox_notification_id, recipient_user_id, channel, web_push_subscription_id,
+        status, dedup_key
+      ) VALUES (
+        '${nonCritInbox.rows[0].id}', '${partQuietUser}', 'web_push', '${subQuiet.rows[0].id}',
+        'pending', 'dedup_outbox_quiet_noncrit'
+      ) RETURNING id;
+    `);
+
+    // 2. Notificación crítica (cancelación de encuentro) para el mismo usuario
+    const critInbox = await db.query<{ id: string }>(`
+      INSERT INTO public.inbox_notifications (
+        recipient_user_id, notification_type, target_type, target_id, deep_link,
+        title, body, payload, dedup_key, expires_at
+      ) VALUES (
+        '${partQuietUser}', 'encounter_cancelled_for_participant', 'encounter', gen_random_uuid(), '/solicitudes',
+        'Encuentro cancelado', 'Texto', '{"priority": "critical"}'::jsonb, 'dedup_claim_quiet_crit', CURRENT_TIMESTAMP + INTERVAL '1 day'
+      ) RETURNING id;
+    `);
+    const outboxCrit = await db.query<{ id: string }>(`
+      INSERT INTO public.notification_delivery_outbox (
+        inbox_notification_id, recipient_user_id, channel, web_push_subscription_id,
+        status, dedup_key
+      ) VALUES (
+        '${critInbox.rows[0].id}', '${partQuietUser}', 'web_push', '${subQuiet.rows[0].id}',
+        'pending', 'dedup_outbox_quiet_crit'
+      ) RETURNING id;
+    `);
+
+    // 3. Worker ejecuta claim_web_push_deliveries_seguro
+    const claimRes = await db.query(`SELECT public.claim_web_push_deliveries_seguro(10, 'worker-test') AS res;`);
+    const cr = (claimRes.rows[0].res as any);
+    assert.equal(cr.ok, true);
+
+    // La entrega no crítica debió ser cancelada por quiet hours en el claim
+    const nonCritCheck = await db.query(`
+      SELECT status, last_error FROM public.notification_delivery_outbox WHERE id = '${outboxNonCrit.rows[0].id}';
+    `);
+    assert.equal(nonCritCheck.rows[0].status, 'cancelled');
+    assert.equal(nonCritCheck.rows[0].last_error, 'Suppressed by quiet hours');
+
+    // La entrega crítica debió superar quiet hours y pasar a 'processing' con is_critical = true
+    const critCheck = await db.query(`
+      SELECT status FROM public.notification_delivery_outbox WHERE id = '${outboxCrit.rows[0].id}';
+    `);
+    assert.equal(critCheck.rows[0].status, 'processing');
+    const claimedCrit = cr.deliveries.find((d: any) => d.delivery_id === outboxCrit.rows[0].id);
+    assert.ok(claimedCrit, 'El aviso crítico debe estar presente en el lote de despacho');
+    assert.equal(claimedCrit.is_critical, true);
+    assert.equal(claimedCrit.urgency, 'high');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 22. Diferenciación de estados de entrega
+  // ---------------------------------------------------------------------------
+  test('22. Diferenciación de estados de entrega (Inbox vs Outbox pending vs delivered vs suppressed)', async () => {
+    const encId = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Estados Entrega',
+      isOpen: true,
+      fechaOffsetDays: 1,
+      hora: new Date(Date.now()).toTimeString().split(' ')[0],
+      createdAtOffsetHours: 48,
+    });
+    await addParticipant(encId, partUserA, { createdAtOffsetHours: 30 });
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    await setAuth(hostUser);
+    const hostRes = await db.query(`SELECT public.get_recordatorios_encuentro_seguro('${encId}') AS res;`);
+    const hr = (hostRes.rows[0].res as any);
+    assert.equal(hr.ok, true);
+
+    const partReminder = hr.reminders.find((r: any) => r.recipient_role === 'participant');
+    assert.ok(partReminder);
+    // Inbox: guardado y entregado en bandeja (read_at is null)
+    assert.equal(partReminder.inbox_status, 'delivered');
+    // Web Push: encolado en espera de despacho por worker
+    assert.equal(partReminder.push_delivery_status, 'pending');
+
+    // Simular que el gateway Web Push completó la entrega
+    await db.query(`
+      UPDATE public.notification_delivery_outbox
+      SET status = 'delivered',
+          delivered_at = CURRENT_TIMESTAMP
+      WHERE recipient_user_id = '${partUserA}';
+    `);
+
+    const hostResAfter = await db.query(`SELECT public.get_recordatorios_encuentro_seguro('${encId}') AS res;`);
+    const hrAfter = (hostResAfter.rows[0].res as any);
+    const partReminderAfter = hrAfter.reminders.find((r: any) => r.recipient_role === 'participant');
+    assert.equal(partReminderAfter.push_delivery_status, 'delivered');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 23. Validación de deep link y redirección post-auth de participante
+  // ---------------------------------------------------------------------------
+  test('23. Validación de deep link y compatibilidad post-auth para participantes', () => {
+    const validUuid = '12345678-1234-1234-1234-123456789abc';
+    const participantDeepLink = `/solicitudes?open_encounter=${validUuid}`;
+
+    // 1. Validador interno de deep links en UI
+    const validated = validateDeepLink(participantDeepLink);
+    assert.equal(validated, participantDeepLink);
+
+    // 2. Validador post-auth (redirección tras login de Google y recarga)
+    assert.equal(isValidPostAuthRedirect(participantDeepLink), true);
+    assert.equal(isValidPostAuthRedirect('/solicitudes'), true);
+    assert.equal(isValidPostAuthRedirect('/solicitudes?malicious=true'), false);
+    assert.equal(isValidPostAuthRedirect('/solicitudes#token=123'), false);
   });
 });

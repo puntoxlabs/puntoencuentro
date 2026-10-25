@@ -4,6 +4,9 @@
 
 export type ReminderType = 'reminder_24h' | 'reminder_2h';
 export type ReminderStatus = 'sent' | 'failed' | 'invalidated' | 'suppressed_quiet_hours';
+export type PushDeliveryStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'cancelled' | 'suppressed_quiet_hours' | 'not_enqueued';
+export type InboxDeliveryStatus = 'delivered' | 'read';
+export type ReminderRecipientRole = 'host' | 'participant';
 
 export interface EncounterReminderItem {
   id: string;
@@ -12,6 +15,9 @@ export interface EncounterReminderItem {
   status: ReminderStatus;
   scheduled_for_date: string;
   scheduled_for_time: string;
+  recipient_role?: ReminderRecipientRole;
+  inbox_status?: InboxDeliveryStatus;
+  push_delivery_status?: PushDeliveryStatus;
 }
 
 export interface EncounterRemindersResponse {

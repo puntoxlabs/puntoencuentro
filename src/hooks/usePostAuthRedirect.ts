@@ -57,13 +57,30 @@ export function isValidPostAuthRedirect(path: unknown): boolean {
     return false;
   }
 
-  // 4. Rechazar query params o fragmentos para evitar fuga o inyección de tokens en URL
-  if (path.includes('?') || path.includes('#')) {
+  // 4. Rechazar fragmentos (#) para evitar fugas de hash
+  if (path.includes('#')) {
     return false;
   }
 
+  // 4.1. Manejo de query params: por defecto se rechazan para evitar fuga o inyección de tokens en URL,
+  // permitiendo exclusivamente ?open_encounter=<uuid> para la ruta segura /solicitudes
+  let pathWithoutQuery = path;
+  if (path.includes('?')) {
+    const [base, query] = path.split('?');
+    if (base === '/solicitudes' && query) {
+      const match = query.match(/^open_encounter=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+      if (match) {
+        pathWithoutQuery = base;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
   // 5. Rutas estáticas autorizadas
-  if (STATIC_ALLOWED_POST_AUTH_ROUTES.has(path)) {
+  if (STATIC_ALLOWED_POST_AUTH_ROUTES.has(pathWithoutQuery)) {
     return true;
   }
 
