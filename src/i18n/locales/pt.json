@@ -641,5 +641,20 @@
     "submit_clarification": "Enviar esclarecimento",
     "clarification_required": "Por favor insira o texto de esclarecimento.",
     "error_submitting_clarification": "Erro ao enviar o esclarecimento"
+  },
+  "trajectory": {
+      "title": "Minha Trajetória em Encontros Abertos",
+      "sampleEstablished": "3 ou mais experiências",
+      "samplePreliminary": "1 ou 2 experiências",
+      "sampleNeutral": "Sem experiências registradas",
+      "asHost": "Como Anfitrião",
+      "hostOrganized": "Encontros organizados",
+      "hostClosedOnTime": "Encerramentos no prazo",
+      "hostGuestsReceived": "Participantes recebidos",
+      "asParticipant": "Como Participante",
+      "partConfirmed": "Encontros confirmados",
+      "partCorroborated": "Presenças comprovadas",
+      "partReconfirmed": "Reconfirmações mantidas",
+      "neutralFooter": "Informação factual e verificada de Encontros Abertos. Não utiliza avaliações públicas nem penalidades automáticas."
   }
 }

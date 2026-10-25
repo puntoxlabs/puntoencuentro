@@ -995,5 +995,20 @@
     "submit_clarification": "Submit clarification",
     "clarification_required": "Please enter clarification text.",
     "error_submitting_clarification": "Error submitting clarification"
+  },
+  "trajectory": {
+      "title": "My Track Record in Open Encounters",
+      "sampleEstablished": "3 or more experiences",
+      "samplePreliminary": "1 or 2 experiences",
+      "sampleNeutral": "No experiences recorded",
+      "asHost": "As Host",
+      "hostOrganized": "Encounters organized",
+      "hostClosedOnTime": "On-time closures",
+      "hostGuestsReceived": "Guests received",
+      "asParticipant": "As Participant",
+      "partConfirmed": "Encounters confirmed",
+      "partCorroborated": "Corroborated attendances",
+      "partReconfirmed": "Reconfirmations kept",
+      "neutralFooter": "Factual and verified information from Open Encounters. Does not use public ratings or automatic penalties."
   }
 }

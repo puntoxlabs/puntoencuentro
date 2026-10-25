@@ -81,6 +81,8 @@ export interface AttendanceDisputeDetail extends AttendanceDisputeItem {
   }>;
 }
 
+import type { ContextoFactual, TrayectoriaAnfitrion, TrayectoriaParticipante } from './factualTrajectory';
+
 export interface FactualAttendanceHistory {
   ok: boolean;
   user_id?: string;
@@ -94,7 +96,13 @@ export interface FactualAttendanceHistory {
   registros_no_verificados?: number;
   reportes_rectificados_o_desestimados: number;
   controversias_organizador_recibidas: number;
+  reclamos_no_realizacion_recibidos?: number;
+  reclamos_ausencia_anfitrion_recibidos?: number;
+  reclamos_error_cierre_recibidos?: number;
   controversias_organizador_iniciadas: number;
+  contexto_factual?: ContextoFactual;
+  trayectoria_anfitrion?: TrayectoriaAnfitrion;
+  trayectoria_participante?: TrayectoriaParticipante;
   error?: string;
 }
 

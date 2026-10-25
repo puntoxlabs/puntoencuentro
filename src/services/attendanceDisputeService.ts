@@ -184,4 +184,12 @@ export const attendanceDisputeService = {
       };
     }
   },
+
+  /**
+   * Obtiene la trayectoria completa en Encuentros Abiertos (Mini-Sprint D).
+   */
+  async getTrayectoriaEncuentrosAbiertos(userId?: string) {
+    const { factualTrajectoryService } = await import('./factualTrajectoryService');
+    return factualTrajectoryService.getTrayectoria(userId);
+  },
 };

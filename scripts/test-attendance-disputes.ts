@@ -339,6 +339,17 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     const diffHostSqlContent = fs.readFileSync(diffHostSqlPath, 'utf8');
     await db.exec(diffHostSqlContent);
 
+    // Aplicar la migración de Mini-Sprint D (base factual y trayectoria en encuentros abiertos)
+    const sprintDSqlPath = path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20261025090000_open_encounters_factual_trajectory_v1.sql'
+    );
+    const sprintDSqlContent = fs.readFileSync(sprintDSqlPath, 'utf8');
+    await db.exec(sprintDSqlContent);
+
     // Verificar que el registro preexistente fue migrado de forma segura a 'in_human_review'
     const migratedCheck = await db.query<{ attendance_dispute_status: string }>(`
       SELECT attendance_dispute_status FROM public.participantes

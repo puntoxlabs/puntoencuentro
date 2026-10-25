@@ -23,6 +23,7 @@ import { attendanceDisputeService } from '@/services/attendanceDisputeService';
 import type { AttendanceDisputeItem } from '@/types/attendanceDispute';
 import { AttendanceDisputeResponseModal } from '@/components/attendance/AttendanceDisputeResponseModal';
 import { ReportEncounterRealizationModal } from '@/components/attendance/ReportEncounterRealizationModal';
+import { FactualTrajectoryCard } from '@/components/attendance/FactualTrajectoryCard';
 import './HomeSolicitudesSection.css';
 
 export interface HomeSolicitudesSectionProps {
@@ -273,6 +274,7 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
   if (solicitudes.length === 0 && activeAbsenceDisputes.length === 0) {
     return (
       <div className="pe-solicitudes-section">
+        <FactualTrajectoryCard userId={user?.id} />
         <div className="pe-solicitudes-empty">
           <div className="pe-solicitudes-empty-icon" aria-hidden="true">
             <Inbox size={28} />
@@ -358,6 +360,7 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
 
   return (
     <div className="pe-solicitudes-section">
+      <FactualTrajectoryCard userId={user?.id} />
       {errorMsg && (
         <div
           role="alert"
