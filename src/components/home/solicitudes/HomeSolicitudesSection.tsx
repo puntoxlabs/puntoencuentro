@@ -17,7 +17,12 @@ import {
   ChevronUp,
   Inbox,
   ArrowRight,
+  ShieldAlert,
 } from 'lucide-react';
+import { attendanceDisputeService } from '@/services/attendanceDisputeService';
+import type { AttendanceDisputeItem } from '@/types/attendanceDispute';
+import { AttendanceDisputeResponseModal } from '@/components/attendance/AttendanceDisputeResponseModal';
+import { ReportEncounterRealizationModal } from '@/components/attendance/ReportEncounterRealizationModal';
 import './HomeSolicitudesSection.css';
 
 export interface HomeSolicitudesSectionProps {
@@ -32,22 +37,46 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
   const { t } = useTranslation();
   const { user, isPermanentUser } = useAuth();
   const [solicitudes, setSolicitudes] = useState<MiSolicitudItem[]>([]);
+  const [misControversias, setMisControversias] = useState<AttendanceDisputeItem[]>([]);
   const [loading, setLoading] = useState(initialLoading);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [isPastExpanded, setIsPastExpanded] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [activeDisputeModal, setActiveDisputeModal] = useState<{
+    isOpen: boolean;
+    disputeId: string;
+    encounterTitle: string;
+    replyDeadline?: string;
+  } | null>(null);
+
+  const [realizationModal, setRealizationModal] = useState<{
+    isOpen: boolean;
+    encuentroId: string;
+    encounterTitle: string;
+  } | null>(null);
+
   const loadData = useCallback(async () => {
     if (!user || !isPermanentUser) {
       setSolicitudes([]);
+      setMisControversias([]);
       setLoading(false);
       return;
     }
 
     try {
       setErrorMsg(null);
-      const data = await openEncountersService.getMisSolicitudes();
-      setSolicitudes(data || []);
+      const [solicitudesRes, controversiasRes] = await Promise.allSettled([
+        openEncountersService.getMisSolicitudes(),
+        attendanceDisputeService.getMisControversias(),
+      ]);
+
+      if (solicitudesRes.status === 'fulfilled') {
+        setSolicitudes(solicitudesRes.value || []);
+      }
+      if (controversiasRes.status === 'fulfilled' && controversiasRes.value.ok) {
+        setMisControversias(controversiasRes.value.controversias || []);
+      }
     } catch (err: any) {
       console.error('[HomeSolicitudesSection] Error al cargar solicitudes:', err);
       setErrorMsg('No pudimos cargar tus solicitudes. Intentá nuevamente.');
@@ -59,6 +88,32 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Deep link handler: detecta ?dispute_id=... o #controversia=... y auto-abre el modal si corresponde
+  useEffect(() => {
+    if (typeof window === 'undefined' || misControversias.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const disputeIdFromQuery = params.get('dispute_id');
+    const hash = window.location.hash;
+    const hashMatch = hash.match(/controversia=([a-f0-9-]+)/i);
+    const targetDisputeId = disputeIdFromQuery || (hashMatch ? hashMatch[1] : null);
+
+    if (targetDisputeId) {
+      const matching = misControversias.find((c) => c.id === targetDisputeId);
+      if (
+        matching &&
+        matching.tipo_controversia === 'absence_reported' &&
+        (matching.estado === 'awaiting_response' || matching.estado === 'unverified_timeout')
+      ) {
+        setActiveDisputeModal({
+          isOpen: true,
+          disputeId: matching.id,
+          encounterTitle: matching.encuentro_title || 'Encuentro',
+          replyDeadline: matching.plazo_respuesta_vence_en,
+        });
+      }
+    }
+  }, [misControversias]);
 
   // Suscripción Realtime a cambios en solicitudes_encuentro_abierto del usuario
   useEffect(() => {
@@ -168,7 +223,54 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
     (s) => s.estado === 'rejected' || s.estado === 'cancelled' || s.estado === 'waitlist_expired' || (s.estado === 'pending' && s.is_expired)
   );
 
-  if (solicitudes.length === 0) {
+  const activeAbsenceDisputes = misControversias.filter(
+    (c) =>
+      c.tipo_controversia === 'absence_reported' &&
+      (c.estado === 'awaiting_response' || c.estado === 'unverified_timeout')
+  );
+
+  const renderDisputeBadge = (encuentroId: string) => {
+    const d = misControversias.find((c) => c.encuentro_id === encuentroId);
+    if (!d) return null;
+    if (d.estado === 'awaiting_response') {
+      return (
+        <span className="pe-solicitud-badge" style={{ background: '#fffbeb', color: '#b45309' }}>
+          <AlertCircle size={12} aria-hidden="true" /> Inasistencia en descargo
+        </span>
+      );
+    }
+    if (d.estado === 'in_human_review') {
+      return (
+        <span className="pe-solicitud-badge" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
+          <Clock size={12} aria-hidden="true" /> En revisión de moderación
+        </span>
+      );
+    }
+    if (d.estado === 'resolved_justified') {
+      return (
+        <span className="pe-solicitud-badge" style={{ background: '#f0fdf4', color: '#15803d' }}>
+          <CheckCircle2 size={12} aria-hidden="true" /> Inasistencia justificada
+        </span>
+      );
+    }
+    if (d.estado === 'resolved_registration_error' || d.estado === 'rectified') {
+      return (
+        <span className="pe-solicitud-badge" style={{ background: '#f0fdf4', color: '#15803d' }}>
+          <CheckCircle2 size={12} aria-hidden="true" /> Asistencia rectificada
+        </span>
+      );
+    }
+    if (d.estado === 'unverified_timeout' || d.estado === 'dismissed_insufficient_evidence') {
+      return (
+        <span className="pe-solicitud-badge" style={{ background: '#f1f5f9', color: '#475569' }}>
+          <Clock size={12} aria-hidden="true" /> Estado neutral no verificado
+        </span>
+      );
+    }
+    return null;
+  };
+
+  if (solicitudes.length === 0 && activeAbsenceDisputes.length === 0) {
     return (
       <div className="pe-solicitudes-section">
         <div className="pe-solicitudes-empty">
@@ -270,6 +372,72 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
           }}
         >
           {errorMsg}
+        </div>
+      )}
+
+      {/* ── Banner de controversias de asistencia con derecho a respuesta ── */}
+      {activeAbsenceDisputes.length > 0 && (
+        <div className="pe-solicitudes-group" style={{ marginBottom: '1.5rem' }}>
+          <div
+            style={{
+              border: '2px solid #f59e0b',
+              background: '#fffbeb',
+              borderRadius: '16px',
+              padding: '1.25rem',
+              boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.5rem' }}>
+              <AlertCircle size={20} color="#d97706" />
+              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#92400e' }}>
+                Revisión de inasistencia — Derecho a respuesta
+              </h4>
+            </div>
+            <p style={{ margin: '0 0 0.875rem 0', fontSize: '0.875rem', color: '#78350f', lineHeight: 1.45 }}>
+              El anfitrión de un encuentro registró una inasistencia. Tenés derecho a responder, informar si avisaste previamente o pedir revisión humana imparcial.
+            </p>
+            {activeAbsenceDisputes.map((dispute) => (
+              <div
+                key={dispute.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  background: '#ffffff',
+                  borderRadius: '10px',
+                  border: '1px solid #fde68a',
+                  marginTop: '0.5rem',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#1e293b' }}>
+                    {dispute.encuentro_title || 'Encuentro'}
+                  </div>
+                  <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                    Plazo de respuesta: {new Date(dispute.plazo_respuesta_vence_en).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="pe-solicitud-btn pe-solicitud-btn--primary"
+                  style={{ background: '#d97706', color: '#ffffff' }}
+                  onClick={() =>
+                    setActiveDisputeModal({
+                      isOpen: true,
+                      disputeId: dispute.id,
+                      encounterTitle: dispute.encuentro_title || 'Encuentro',
+                      replyDeadline: dispute.plazo_respuesta_vence_en,
+                    })
+                  }
+                >
+                  Responder reporte
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -427,7 +595,10 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
               >
                 <div className="pe-solicitud-card-top">
                   <h4 className="pe-solicitud-card-title">{s.open_public_title}</h4>
-                  {renderBadge(s)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                    {renderBadge(s)}
+                    {renderDisputeBadge(s.encuentro_id)}
+                  </div>
                 </div>
 
                 <div className="pe-solicitud-confirmed-banner">
@@ -463,6 +634,20 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                     onClick={() => onSelectEncuentro(s.encuentro_id)}
                   >
                     Ver encuentro <ArrowRight size={14} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="pe-solicitud-btn pe-solicitud-btn--secondary"
+                    onClick={() =>
+                      setRealizationModal({
+                        isOpen: true,
+                        encuentroId: s.encuentro_id,
+                        encounterTitle: s.open_public_title,
+                      })
+                    }
+                    title="Informar si el encuentro no se realizó o hubo un problema relevante"
+                  >
+                    <ShieldAlert size={14} aria-hidden="true" /> Reportar no realización
                   </button>
                 </div>
               </article>
@@ -551,7 +736,10 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                   >
                     <div className="pe-solicitud-card-top">
                       <h4 className="pe-solicitud-card-title">{s.open_public_title}</h4>
-                      {renderBadge(s)}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                        {renderBadge(s)}
+                        {renderDisputeBadge(s.encuentro_id)}
+                      </div>
                     </div>
 
                     <div className="pe-solicitud-meta">
@@ -570,12 +758,57 @@ export const HomeSolicitudesSection: React.FC<HomeSolicitudesSectionProps> = ({
                         {s.seat_count === 1 ? '1 lugar' : `${s.seat_count} lugares`}
                       </span>
                     </div>
+
+                    <div className="pe-solicitud-actions" style={{ marginTop: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="pe-solicitud-btn pe-solicitud-btn--secondary"
+                        onClick={() =>
+                          setRealizationModal({
+                            isOpen: true,
+                            encuentroId: s.encuentro_id,
+                            encounterTitle: s.open_public_title,
+                          })
+                        }
+                        title="Informar si el encuentro no se realizó o hubo un problema relevante"
+                      >
+                        <ShieldAlert size={14} aria-hidden="true" /> Reportar no realización
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Modales de controversias montados ── */}
+      {activeDisputeModal?.isOpen && (
+        <AttendanceDisputeResponseModal
+          isOpen={activeDisputeModal.isOpen}
+          disputeId={activeDisputeModal.disputeId}
+          encounterTitle={activeDisputeModal.encounterTitle}
+          replyDeadline={activeDisputeModal.replyDeadline}
+          onClose={() => setActiveDisputeModal(null)}
+          onSuccess={() => {
+            setActiveDisputeModal(null);
+            void loadData();
+          }}
+        />
+      )}
+
+      {realizationModal?.isOpen && (
+        <ReportEncounterRealizationModal
+          isOpen={realizationModal.isOpen}
+          encuentroId={realizationModal.encuentroId}
+          encounterTitle={realizationModal.encounterTitle}
+          onClose={() => setRealizationModal(null)}
+          onSuccess={() => {
+            setRealizationModal(null);
+            void loadData();
+          }}
+        />
       )}
     </div>
   );

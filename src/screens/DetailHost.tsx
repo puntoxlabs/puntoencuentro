@@ -62,6 +62,10 @@ import { evaluatePrivateAntiAbuseGate } from '@/lib/moderation';
 import { useResilientPolling } from '@/hooks/useResilientPolling';
 import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import { EditScheduleModal } from '@/components/host/EditScheduleModal';
+import { AlertTriangle } from 'lucide-react';
+import { attendanceDisputeService } from '@/services/attendanceDisputeService';
+import type { AttendanceDisputeItem } from '@/types/attendanceDispute';
+import { HostDisputeClarificationModal } from '@/components/attendance/HostDisputeClarificationModal';
 import './DetailHost.css';
 
 /** Función eliminada a favor de la exportada en formatDate.ts */
@@ -110,6 +114,14 @@ const DetailHost: React.FC = () => {
   const [themeSaving, setThemeSaving] = useState(false);
   const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
   const [isClosureSheetOpen, setIsClosureSheetOpen] = useState(false);
+  const [hostDisputes, setHostDisputes] = useState<AttendanceDisputeItem[]>([]);
+  const [clarificationModal, setClarificationModal] = useState<{
+    isOpen: boolean;
+    disputeId: string;
+    encounterTitle: string;
+    tipoControversia: string;
+    motivoOriginal?: string;
+  } | null>(null);
 
   const { user, loading: authLoading, transferClaimStatus, retryTransferClaim, signInWithGoogle } = useAuth();
   const isPermanentUser = Boolean(user && !user.is_anonymous);
@@ -151,6 +163,34 @@ const DetailHost: React.FC = () => {
   const [selectedGuestMessage, setSelectedGuestMessage] = useState<any>(null);
   // Marca local de invitaciones ya compartidas (persiste en localStorage)
   const [sharedInvites, setSharedInvites] = useState<Record<string, boolean>>({});
+
+  // Carga controversias vinculadas al encuentro y gestiona el deep link #controversia=...
+  useEffect(() => {
+    if (!id || !user?.id) return;
+    void attendanceDisputeService.getMisControversias().then((res) => {
+      if (res.ok && res.controversias) {
+        const related = res.controversias.filter((c) => c.encuentro_id === id);
+        setHostDisputes(related);
+
+        if (typeof window !== 'undefined') {
+          const hash = window.location.hash;
+          const match = hash.match(/controversia=([a-f0-9-]+)/i);
+          if (match) {
+            const found = related.find((c) => c.id === match[1]);
+            if (found) {
+              setClarificationModal({
+                isOpen: true,
+                disputeId: found.id,
+                encounterTitle: found.encuentro_title || encuentro?.titulo || 'Encuentro',
+                tipoControversia: found.tipo_controversia,
+                motivoOriginal: found.descargo_texto || undefined,
+              });
+            }
+          }
+        }
+      }
+    });
+  }, [id, user?.id, encuentro?.titulo]);
   // Opciones de visibilidad
   const [visibilidadRespuestas, setVisibilidadRespuestas] = useState(false);
   const [savingVisibilidad, setSavingVisibilidad] = useState(false);
@@ -1526,6 +1566,62 @@ const DetailHost: React.FC = () => {
             ) : null
           )}
 
+          {/* BANNER DE CONTROVERSIA DE ASISTENCIA / REALIZACIÓN PARA EL ANFITRIÓN */}
+          {hostDisputes.length > 0 && (
+            <div
+              style={{
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                color: '#92400e',
+                padding: '0.875rem 1rem',
+                borderRadius: '12px',
+                margin: '1rem 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+                <AlertTriangle size={18} color="#d97706" />
+                <span>
+                  {hostDisputes[0].tipo_controversia === 'absence_reported'
+                    ? 'Descargo de asistencia presentado por un participante'
+                    : 'Observación sobre la realización del encuentro'}
+                  {' — Estado: '}
+                  <span style={{ textTransform: 'capitalize' }}>
+                    {hostDisputes[0].estado === 'in_human_review' ? 'En revisión de moderación' : hostDisputes[0].estado}
+                  </span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setClarificationModal({
+                    isOpen: true,
+                    disputeId: hostDisputes[0].id,
+                    encounterTitle: encuentro?.titulo || 'Encuentro',
+                    tipoControversia: hostDisputes[0].tipo_controversia,
+                    motivoOriginal: hostDisputes[0].descargo_texto || undefined,
+                  })
+                }
+                style={{
+                  background: '#d97706',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '0.375rem 0.75rem',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Aportar aclaración
+              </button>
+            </div>
+          )}
+
           {/* 1.5 ALIAS DEL ANFITRIÓN COMPACTO */}
           {!isReadOnly && !isCancelado && (
             <div className="dh-alias-bar">
@@ -2222,6 +2318,26 @@ const DetailHost: React.FC = () => {
           onClose={() => setShowHostGuide(false)}
           platform={getPushPlatform()}
           userId={user?.id}
+        />
+      )}
+          {clarificationModal?.isOpen && (
+        <HostDisputeClarificationModal
+          isOpen={clarificationModal.isOpen}
+          disputeId={clarificationModal.disputeId}
+          encounterTitle={clarificationModal.encounterTitle}
+          tipoControversia={clarificationModal.tipoControversia}
+          motivoOriginal={clarificationModal.motivoOriginal}
+          onClose={() => setClarificationModal(null)}
+          onSuccess={() => {
+            setClarificationModal(null);
+            if (id) {
+              void attendanceDisputeService.getMisControversias().then((res) => {
+                if (res.ok && res.controversias) {
+                  setHostDisputes(res.controversias.filter((c) => c.encuentro_id === id));
+                }
+              });
+            }
+          }}
         />
       )}
     </ScreenContainer>

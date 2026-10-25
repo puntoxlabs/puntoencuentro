@@ -91,6 +91,7 @@ const AppRoutes: React.FC = () => {
       <TransferClaimBanner />
       <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/solicitudes" element={<Home />} />
       <Route path="/preview/home-d" element={<PreviewHomeD />} />
       <Route path="/preview/home-gsap" element={<PreviewHomeGsap />} />
       <Route path="/create" element={<CreateWizard />} />

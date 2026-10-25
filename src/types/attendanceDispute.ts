@@ -85,11 +85,13 @@ export interface FactualAttendanceHistory {
   ok: boolean;
   user_id?: string;
   total_encuentros_participados: number;
+  asistencias_declaradas_host?: number;
   asistencias_declaradas: number;
   asistencias_verificadas: number;
   inasistencias_reportadas_pendientes: number;
   inasistencias_reconocidas: number;
   inasistencias_moderadas: number;
+  registros_no_verificados?: number;
   reportes_rectificados_o_desestimados: number;
   controversias_organizador_recibidas: number;
   controversias_organizador_iniciadas: number;

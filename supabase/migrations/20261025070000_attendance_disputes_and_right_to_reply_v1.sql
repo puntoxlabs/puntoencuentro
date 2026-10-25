@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Migración: 20261024240000_attendance_disputes_and_right_to_reply_v1.sql
+-- Migración: 20261025070000_attendance_disputes_and_right_to_reply_v1.sql
 -- Fase V1 Mini-Sprint C — Controversias, Derecho a Respuesta y Moderación de Asistencia
 --
 -- Objetivos:
@@ -28,15 +28,23 @@ BEGIN;
 
 DO $$
 BEGIN
+    -- 1. Primero remover el CHECK restrictivo anterior del Sprint A para permitir la migración segura
     ALTER TABLE public.participantes
         DROP CONSTRAINT IF EXISTS check_participantes_attendance_dispute_status;
 
+    -- 2. Migrar datos preexistentes de Sprint A de forma segura sin pérdida de registros
+    UPDATE public.participantes
+    SET attendance_dispute_status = 'in_human_review'
+    WHERE attendance_dispute_status = 'pending_review';
+
+    -- 3. Crear el nuevo CHECK unificado con todos los estados del Sprint C y compatibilidad
     ALTER TABLE public.participantes
         ADD CONSTRAINT check_participantes_attendance_dispute_status
         CHECK (
             attendance_dispute_status IS NULL
             OR attendance_dispute_status IN (
                 'none',
+                'pending_review',
                 'awaiting_response',
                 'response_received',
                 'in_human_review',
@@ -82,7 +90,9 @@ CREATE TABLE IF NOT EXISTS public.asistencia_controversias (
             'resolved_registration_error',
             'dismissed_insufficient_evidence',
             'rectified',
-            'unverified_timeout'
+            'unverified_timeout',
+            'dismissed',
+            'pending_review'
         )
     ),
     descargo_tipo TEXT CHECK (
@@ -510,7 +520,7 @@ BEGIN
                                     'attendance_reported_absent',
                                     'attendance_dispute',
                                     v_dispute_id,
-                                    '/meet/' || p_encuentro_id || '#controversia=' || v_dispute_id,
+                                    '/solicitudes?dispute_id=' || v_dispute_id,
                                     'Declaración de inasistencia en revisión',
                                     'El organizador de "' || COALESCE(v_encuentro.open_public_title, 'Encuentro') || '" registró una inasistencia. Tenés derecho a responder o solicitar revisión.',
                                     pg_catalog.json_build_object(
@@ -709,7 +719,8 @@ BEGIN
         IF v_dispute.participante_id IS NOT NULL THEN
             UPDATE public.participantes
             SET attendance_status = v_new_attendance_status,
-                attendance_dispute_status = v_new_dispute_status
+                attendance_dispute_status = v_new_dispute_status,
+                estado = CASE WHEN v_new_attendance_status = 'attended' THEN 'asistio' ELSE estado END
             WHERE id = v_dispute.participante_id;
         END IF;
 
@@ -748,7 +759,8 @@ BEGIN
         IF v_dispute.participante_id IS NOT NULL THEN
             UPDATE public.participantes
             SET attendance_status = v_new_attendance_status,
-                attendance_dispute_status = v_new_dispute_status
+                attendance_dispute_status = v_new_dispute_status,
+                estado = CASE WHEN v_new_attendance_status = 'attended' THEN 'asistio' ELSE estado END
             WHERE id = v_dispute.participante_id;
         END IF;
 
@@ -1164,6 +1176,8 @@ DECLARE
     v_new_att_status TEXT;
     v_notif_title TEXT;
     v_notif_body TEXT;
+    v_participant_user_id UUID;
+    v_host_user_id UUID;
 BEGIN
     IF v_user_id IS NULL THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
@@ -1298,7 +1312,10 @@ BEGIN
         )
     );
 
-    -- Notificar al participante
+    v_participant_user_id := CASE WHEN v_dispute.tipo_controversia = 'absence_reported' THEN v_dispute.involucrado_id ELSE v_dispute.iniciado_por END;
+    v_host_user_id := CASE WHEN v_dispute.tipo_controversia = 'absence_reported' THEN v_dispute.iniciado_por ELSE v_dispute.involucrado_id END;
+
+    -- Notificar al participante (Deep link a la vista de solicitudes / controversia del participante)
     INSERT INTO public.inbox_notifications (
         recipient_user_id,
         notification_type,
@@ -1311,19 +1328,19 @@ BEGIN
         dedup_key,
         expires_at
     ) VALUES (
-        v_dispute.involucrado_id,
+        v_participant_user_id,
         'attendance_dispute_resolved',
         'attendance_dispute',
         p_dispute_id,
-        '/meet/' || v_dispute.encuentro_id || '#controversia=' || p_dispute_id,
+        '/solicitudes?dispute_id=' || p_dispute_id,
         v_notif_title,
         v_notif_body,
         pg_catalog.jsonb_build_object('dispute_id', p_dispute_id, 'resolution', p_resolucion),
-        'dispute_res:' || p_dispute_id || ':' || v_dispute.involucrado_id || ':' || v_now::text,
+        'dispute_res:' || p_dispute_id || ':' || v_participant_user_id || ':' || v_now::text,
         v_now + INTERVAL '30 days'
     ) ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
 
-    -- Notificar al organizador
+    -- Notificar al organizador (Deep link a la gestión del encuentro del host)
     INSERT INTO public.inbox_notifications (
         recipient_user_id,
         notification_type,
@@ -1336,7 +1353,7 @@ BEGIN
         dedup_key,
         expires_at
     ) VALUES (
-        v_dispute.iniciado_por,
+        v_host_user_id,
         'attendance_dispute_resolved',
         'attendance_dispute',
         p_dispute_id,
@@ -1344,7 +1361,7 @@ BEGIN
         'Resolución de controversia de asistencia',
         'La moderación concluyó la revisión del caso en "' || COALESCE(v_encuentro.open_public_title, 'Encuentro') || '".',
         pg_catalog.jsonb_build_object('dispute_id', p_dispute_id, 'resolution', p_resolucion),
-        'dispute_res:' || p_dispute_id || ':' || v_dispute.iniciado_por || ':' || v_now::text,
+        'dispute_res:' || p_dispute_id || ':' || v_host_user_id || ':' || v_now::text,
         v_now + INTERVAL '30 days'
     ) ON CONFLICT (recipient_user_id, dedup_key) DO NOTHING;
 
@@ -1372,17 +1389,29 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+    v_caller_id UUID := auth.uid();
+    v_jwt_claims JSONB := auth.jwt();
+    v_has_jwt BOOLEAN := (v_jwt_claims IS NOT NULL AND v_jwt_claims <> '{}'::jsonb);
     v_caller_role TEXT := COALESCE(
-        auth.jwt() ->> 'role',
+        v_jwt_claims ->> 'role',
         NULLIF(pg_catalog.current_setting('request.jwt.claim.role', true), ''),
         ''
+    );
+    v_is_internal BOOLEAN := (
+        v_caller_role = 'service_role'
+        OR (
+            session_user IN ('postgres', 'service_role')
+            AND v_caller_role = ''
+            AND NOT v_has_jwt
+            AND v_caller_id IS NULL
+        )
     );
     v_rec RECORD;
     v_count INT := 0;
     v_now TIMESTAMPTZ := pg_catalog.now();
 BEGIN
-    -- Protección contra llamadas arbitrarias de clientes web
-    IF v_caller_role IN ('authenticated', 'anon') THEN
+    -- Protección contra llamadas no autorizadas: requiere contexto interno verificado (cron o service_role)
+    IF NOT v_is_internal THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'forbidden');
     END IF;
 
@@ -1598,11 +1627,12 @@ DECLARE
     v_is_mod BOOLEAN := public.is_moderation_authorized();
     v_target_id UUID;
     v_total_participados INT := 0;
-    v_asistencias_declaradas INT := 0;
+    v_asistencias_declaradas_host INT := 0;
     v_asistencias_verificadas INT := 0;
     v_inasistencias_pendientes INT := 0;
     v_inasistencias_reconocidas INT := 0;
     v_inasistencias_moderadas INT := 0;
+    v_registros_no_verificados INT := 0;
     v_reportes_rectificados INT := 0;
     v_controversias_host_recibidas INT := 0;
     v_controversias_host_iniciadas INT := 0;
@@ -1622,22 +1652,24 @@ BEGIN
         v_target_id := v_caller_id;
     END IF;
 
-    -- Conteo factual desde participantes
+    -- Conteo factual desde participantes (diferenciando declaraciones unilaterales del host de hechos verificados)
     SELECT
         COALESCE(pg_catalog.count(*), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN attendance_status = 'attended' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN attendance_status = 'attended' AND (attendance_dispute_status IS NULL OR attendance_dispute_status IN ('none', 'resolved_justified')) THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN attendance_status = 'attended' AND (attendance_dispute_status IS NULL OR attendance_dispute_status IN ('none', 'pending_review')) THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN attendance_status = 'attended' AND attendance_dispute_status IN ('resolved_registration_error', 'rectified') THEN 1 ELSE 0 END), 0)::int,
         COALESCE(pg_catalog.sum(CASE WHEN attendance_status = 'reported_absent' AND attendance_dispute_status = 'awaiting_response' THEN 1 ELSE 0 END), 0)::int,
         COALESCE(pg_catalog.sum(CASE WHEN attendance_dispute_status = 'confirmed_by_participant' THEN 1 ELSE 0 END), 0)::int,
         COALESCE(pg_catalog.sum(CASE WHEN attendance_dispute_status = 'resolved_unjustified' THEN 1 ELSE 0 END), 0)::int,
-        COALESCE(pg_catalog.sum(CASE WHEN attendance_dispute_status IN ('dismissed', 'dismissed_insufficient_evidence', 'rectified') THEN 1 ELSE 0 END), 0)::int
+        COALESCE(pg_catalog.sum(CASE WHEN attendance_dispute_status IN ('unverified_timeout', 'dismissed_insufficient_evidence', 'dismissed') OR attendance_status = 'unverified' THEN 1 ELSE 0 END), 0)::int,
+        COALESCE(pg_catalog.sum(CASE WHEN attendance_dispute_status IN ('dismissed', 'dismissed_insufficient_evidence', 'rectified', 'resolved_registration_error', 'resolved_justified') THEN 1 ELSE 0 END), 0)::int
     INTO
         v_total_participados,
-        v_asistencias_declaradas,
+        v_asistencias_declaradas_host,
         v_asistencias_verificadas,
         v_inasistencias_pendientes,
         v_inasistencias_reconocidas,
         v_inasistencias_moderadas,
+        v_registros_no_verificados,
         v_reportes_rectificados
     FROM public.participantes
     WHERE user_id = v_target_id
@@ -1657,11 +1689,13 @@ BEGIN
         'ok', true,
         'user_id', v_target_id,
         'total_encuentros_participados', v_total_participados,
-        'asistencias_declaradas', v_asistencias_declaradas,
+        'asistencias_declaradas_host', v_asistencias_declaradas_host,
+        'asistencias_declaradas', v_asistencias_declaradas_host,
         'asistencias_verificadas', v_asistencias_verificadas,
         'inasistencias_reportadas_pendientes', v_inasistencias_pendientes,
         'inasistencias_reconocidas', v_inasistencias_reconocidas,
         'inasistencias_moderadas', v_inasistencias_moderadas,
+        'registros_no_verificados', v_registros_no_verificados,
         'reportes_rectificados_o_desestimados', v_reportes_rectificados,
         'controversias_organizador_recibidas', v_controversias_host_recibidas,
         'controversias_organizador_iniciadas', v_controversias_host_iniciadas

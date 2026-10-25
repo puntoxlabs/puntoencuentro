@@ -7,6 +7,7 @@ const TOKEN_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 export const STATIC_ALLOWED_POST_AUTH_ROUTES = new Set([
   '/',
+  '/solicitudes',
   '/create',
   '/create/coordination',
   '/create/ai',

@@ -536,11 +536,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [activeScope, setActiveScope] = useState<'todos' | 'organizo' | 'participo'>(() => (forcedVariant === 'gsap' || effectiveVariant === 'gsap' || enableOpenDiscovery ? 'todos' : 'organizo'));
   const [userSectionTab, setUserSectionTab] = useState<'encuentros' | 'intenciones' | 'solicitudes'>(() => {
     const sp = new URLSearchParams(location?.search || (typeof window !== 'undefined' ? window.location.search : ''));
+    if (
+      location?.pathname === '/solicitudes' ||
+      sp.has('dispute_id') ||
+      sp.get('tab') === 'solicitudes' ||
+      sp.get('section') === 'solicitudes' ||
+      (typeof window !== 'undefined' && window.location.hash?.includes('controversia='))
+    ) {
+      return 'solicitudes';
+    }
     if (sp.get('tab') === 'intenciones' || sp.get('section') === 'intenciones') {
       return 'intenciones';
-    }
-    if (sp.get('tab') === 'solicitudes' || sp.get('section') === 'solicitudes') {
-      return 'solicitudes';
     }
     if (typeof window !== 'undefined' && window.sessionStorage?.getItem('puntoencuentro_pending_intention')) {
       return 'intenciones';

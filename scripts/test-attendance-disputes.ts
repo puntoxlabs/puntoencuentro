@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateDeepLink } from '../src/lib/deepLink';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -279,22 +280,53 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
       ON CONFLICT DO NOTHING;
     `);
 
-    // 2. Cargar migraciones sucesivas
-    const migrations = [
+    // 2. Cargar migraciones sucesivas del Sprint A y B
+    const previousMigrations = [
       '20261024180000_post_event_closure_and_attendance_v1.sql',
       '20261024200000_hotfix_post_event_closure_security_and_idempotency.sql',
       '20261024203000_harden_administrative_regularization_privileges.sql',
       '20261024210000_fix_session_user_administrative_regularization.sql',
       '20261024220000_open_encounters_waitlist_and_recovery_v1.sql',
       '20261024230000_hotfix_waitlist_concurrency_and_discovery_v1.sql',
-      '20261024240000_attendance_disputes_and_right_to_reply_v1.sql',
     ];
 
-    for (const mig of migrations) {
+    for (const mig of previousMigrations) {
       const sqlPath = path.join(__dirname, '..', 'supabase', 'migrations', mig);
       const sqlContent = fs.readFileSync(sqlPath, 'utf8');
       await db.exec(sqlContent);
     }
+
+    // P0 TEST: Insertar registro con valor de Sprint A ('pending_review') ANTES de la migración del Sprint C
+    // para probar que la nueva migración no falla por CHECK constraint ni pierde datos.
+    const preEnc = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (host_id, titulo) VALUES ('${hostUser}', 'Encuentro Preexistente') RETURNING id;
+    `);
+    await db.query(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, attendance_dispute_status)
+      VALUES ('${preEnc.rows[0].id}', '${partUserA}', 'Carlos Preexistente', 'pending_review');
+    `);
+
+    // Aplicar la migración cronológica del Sprint C
+    const sprintCSqlPath = path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20261025070000_attendance_disputes_and_right_to_reply_v1.sql'
+    );
+    const sprintCSqlContent = fs.readFileSync(sprintCSqlPath, 'utf8');
+    await db.exec(sprintCSqlContent);
+
+    // Verificar que el registro preexistente fue migrado de forma segura a 'in_human_review'
+    const migratedCheck = await db.query<{ attendance_dispute_status: string }>(`
+      SELECT attendance_dispute_status FROM public.participantes
+      WHERE encuentro_id = '${preEnc.rows[0].id}' AND user_id = '${partUserA}';
+    `);
+    assert.equal(
+      migratedCheck.rows[0].attendance_dispute_status,
+      'in_human_review',
+      'Los registros anteriores con pending_review deben migrarse a in_human_review'
+    );
   });
 
   test('01. Creación automática de controversia al reportar inasistencia (awaiting_response, 7 días)', async () => {
@@ -364,10 +396,10 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     assert.equal(partCheck.rows[0].attendance_dispute_status, 'awaiting_response');
   });
 
-  test('02. Notificación en Inbox con copy neutral y sin juicio de valor', async () => {
-    // Verificar que la notificación enviada a Carlos A tiene tono neutro y respetuoso
-    const notifRes = await db.query<{ title: string; body: string; notification_type: string }>(`
-      SELECT title, body, notification_type
+  test('02. Notificación en Inbox con copy neutral y deep link seguro a /solicitudes', async () => {
+    // Verificar que la notificación enviada a Carlos A tiene tono neutro, respetuoso y deep link adecuado
+    const notifRes = await db.query<{ title: string; body: string; notification_type: string; deep_link: string }>(`
+      SELECT title, body, notification_type, deep_link
       FROM public.inbox_notifications
       WHERE recipient_user_id = '${partUserA}'
       ORDER BY created_at DESC LIMIT 1;
@@ -378,6 +410,8 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     assert.equal(notif.notification_type, 'attendance_reported_absent');
     assert.match(notif.title, /inasistencia|asistencia/i, 'El título debe ser neutro e informativo');
     assert.match(notif.body, /derecho a responder|revisión/i, 'El cuerpo debe garantizar el derecho a respuesta');
+    assert.equal(notif.deep_link.startsWith('/solicitudes?dispute_id='), true, 'El deep link de participante debe apuntar a /solicitudes y NO a /meet/:id');
+    assert.equal(Boolean(validateDeepLink(notif.deep_link)), true, 'El deep link debe ser válido ante validateDeepLink');
   });
 
   test('03. Descargo del participante: reconocimiento de inasistencia (confirmed_by_participant)', async () => {
@@ -1029,10 +1063,13 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     const h = histRes.rows[0].res as any;
     assert.equal(h.ok, true);
     assert.equal(typeof h.total_encuentros_participados, 'number');
-    assert.equal(typeof h.asistencias_verificadas, 'number');
+    assert.equal(typeof h.asistencias_declaradas_host, 'number', 'Debe distinguir asistencias declaradas unilateralmente por el host');
+    assert.equal(typeof h.asistencias_declaradas, 'number', 'Retrocompatibilidad de asistencias declaradas');
+    assert.equal(typeof h.asistencias_verificadas, 'number', 'Debe proyectar asistencias verificadas/rectificadas');
     assert.equal(typeof h.inasistencias_reportadas_pendientes, 'number');
     assert.equal(typeof h.inasistencias_reconocidas, 'number');
     assert.equal(typeof h.inasistencias_moderadas, 'number');
+    assert.equal(typeof h.registros_no_verificados, 'number', 'Debe proyectar registros no verificados / salidas neutrales');
     assert.equal(typeof h.reportes_rectificados_o_desestimados, 'number');
 
     // Verificar que un tercero común NO puede ver el historial factual de otro usuario
@@ -1042,5 +1079,64 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     `);
     assert.equal((forbiddenHist.rows[0].res as any).ok, false);
     assert.equal((forbiddenHist.rows[0].res as any).error, 'forbidden');
+  });
+
+  test('20. Resolución de moderación entrega deep links diferenciados (participante -> /solicitudes, host -> /meet)', async () => {
+    await setAuth(modIndependent);
+
+    // Buscar una controversia activa
+    const dispRes = await db.query<{ id: string; encuentro_id: string }>(`
+      SELECT id, encuentro_id FROM public.asistencia_controversias
+      WHERE estado = 'in_human_review' LIMIT 1;
+    `);
+
+    if (dispRes.rows.length > 0) {
+      const dId = dispRes.rows[0].id;
+      const res = await db.query(`
+        SELECT public.resolver_controversia_moderacion_seguro(
+          p_dispute_id := '${dId}',
+          p_resolucion := 'justified',
+          p_fundamentacion := 'Aviso oportuno verificado'
+        ) AS res;
+      `);
+      assert.equal((res.rows[0].res as any).ok, true);
+
+      // Comprobar las notificaciones generadas en inbox
+      const notifs = await db.query<{ recipient_user_id: string; deep_link: string }>(`
+        SELECT recipient_user_id, deep_link
+        FROM public.inbox_notifications
+        WHERE target_id = '${dId}' AND notification_type = 'attendance_dispute_resolved';
+      `);
+
+      for (const n of notifs.rows) {
+        if (n.recipient_user_id === hostUser) {
+          assert.match(n.deep_link, /^\/meet\/.*#controversia=/, 'El host debe recibir deep link a /meet/:id#controversia');
+        } else {
+          assert.match(n.deep_link, /^\/solicitudes\?dispute_id=/, 'El participante debe recibir deep link a /solicitudes?dispute_id');
+        }
+        assert.equal(Boolean(validateDeepLink(n.deep_link)), true, 'Todo deep link generado debe pasar validateDeepLink');
+      }
+    }
+  });
+
+  test('21. Protección de ejecución interna en procesar_vencimientos_controversias_seguro', async () => {
+    // Invocación como usuario autenticado -> DEBE FALLAR con forbidden
+    await setAuth(hostUser);
+    const authCall = await db.query(`
+      SELECT public.procesar_vencimientos_controversias_seguro() AS res;
+    `);
+    assert.equal((authCall.rows[0].res as any).ok, false);
+    assert.equal((authCall.rows[0].res as any).error, 'forbidden');
+
+    // Invocación como contexto interno service_role
+    await db.query(`SELECT set_config('request.jwt.claim.role', 'service_role', false);`);
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);`);
+
+    const internalCall = await db.query(`
+      SELECT public.procesar_vencimientos_controversias_seguro() AS res;
+    `);
+    assert.equal((internalCall.rows[0].res as any).ok, true);
+    assert.equal(typeof (internalCall.rows[0].res as any).processed_count, 'number');
   });
 });
