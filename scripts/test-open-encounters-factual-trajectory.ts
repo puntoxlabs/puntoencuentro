@@ -229,6 +229,19 @@ describe('Mini-Sprint D: Confianza bidireccional, base factual y trayectoria en 
     );
     const sprintDSqlContent = fs.readFileSync(sprintDSqlPath, 'utf8');
     await db.exec(sprintDSqlContent);
+
+    // Aplicar la corrección aditiva de Sprint D
+    const fixDSqlPath = path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20261025100000_factual_trajectory_provenance_and_realized_experiences_v1.sql'
+    );
+    if (fs.existsSync(fixDSqlPath)) {
+      const fixDSqlContent = fs.readFileSync(fixDSqlPath, 'utf8');
+      await db.exec(fixDSqlContent);
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -678,5 +691,80 @@ describe('Mini-Sprint D: Confianza bidireccional, base factual y trayectoria en 
     assert.ok(f.trayectoria_anfitrion !== undefined);
     assert.ok(f.trayectoria_participante !== undefined);
     assert.ok(f.contexto_factual !== undefined);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 15. Uniformar exclusión de participantes privados anteriores a la apertura
+  // ---------------------------------------------------------------------------
+  test('15. Exclusión uniforme de invitados privados previos en participantes_recibidos y anfitriones_distintos', async () => {
+    const encMixed = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, is_open, opened_at, fecha, hora, estado
+      ) VALUES (
+        '${hostUser}', 'Encuentro Test Procedencia', 'Test Procedencia', true, CURRENT_TIMESTAMP - INTERVAL '1 day',
+        CURRENT_DATE - INTERVAL '1 day', '19:00:00', 'activo'
+      ) RETURNING id;
+    `);
+    const encMixedId = encMixed.rows[0].id;
+
+    // Participante C se unió ANTES de opened_at (privado previo)
+    const priorUser = '00000000-0000-0000-0000-000000000009';
+    await db.query(`INSERT INTO auth.users (id, email) VALUES ('${priorUser}', 'prior@test.com') ON CONFLICT DO NOTHING;`);
+    await db.query(`
+      INSERT INTO public.participantes (
+        encuentro_id, user_id, nombre_invitado, estado, attendance_status, creado_en, admission_source
+      ) VALUES (
+        '${encMixedId}', '${priorUser}', 'Invitado Previo', 'confirmado', 'attended',
+        CURRENT_TIMESTAMP - INTERVAL '2 days', 'private_general_link'
+      );
+    `);
+
+    // Consultar trayectoria del host: NO debe sumar en participantes_recibidos_total
+    await setAuth(hostUser);
+    const hostRes = await db.query(`SELECT public.get_trayectoria_encuentros_abiertos_seguro() AS res;`);
+    const ht = (hostRes.rows[0].res as any);
+    // El host solo recibió al participante que fue admitido como abierto (partUserA), no al priorUser
+    assert.ok(ht.trayectoria_anfitrion.datos_objetivos.participantes_recibidos_total >= 1);
+
+    // Consultar trayectoria del priorUser: NO debe sumar hostUser en anfitriones_distintos_interactuados
+    await setAuth(priorUser);
+    const priorRes = await db.query(`SELECT public.get_trayectoria_encuentros_abiertos_seguro() AS res;`);
+    const pt = (priorRes.rows[0].res as any);
+    assert.equal(pt.contexto_factual.anfitriones_distintos_interactuados, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 16. Diferenciación de experiencias efectivamente realizadas vs programadas/canceladas
+  // ---------------------------------------------------------------------------
+  test('16. Diferenciación de experiencias realizadas vs programadas futuros o canceladas', async () => {
+    // Crear un encuentro futuro programado para el host
+    await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, is_open, opened_at, fecha, hora, estado
+      ) VALUES (
+        '${hostUser}', 'Encuentro Futuro Programado', 'Futuro', true, CURRENT_TIMESTAMP,
+        CURRENT_DATE + INTERVAL '5 days', '18:00:00', 'activo'
+      );
+    `);
+
+    // Crear un encuentro cancelado para el host
+    await db.query(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, is_open, opened_at, fecha, hora, estado
+      ) VALUES (
+        '${hostUser}', 'Encuentro Cancelado', 'Cancelado', true, CURRENT_TIMESTAMP - INTERVAL '3 days',
+        CURRENT_DATE - INTERVAL '2 days', '18:00:00', 'cancelado'
+      );
+    `);
+
+    await setAuth(hostUser);
+    const hostRes = await db.query(`SELECT public.get_trayectoria_encuentros_abiertos_seguro() AS res;`);
+    const ht = (hostRes.rows[0].res as any);
+
+    // Encuentros futuros programados y cancelados no suman a total_experiencias_unicas
+    assert.ok(ht.trayectoria_anfitrion.datos_objetivos.encuentros_abiertos_programados_futuros >= 1);
+    assert.ok(ht.trayectoria_anfitrion.datos_objetivos.encuentros_abiertos_cancelados >= 1);
+    // total_experiencias_unicas solo cuenta los que efectivamente se realizaron
+    assert.ok(ht.contexto_factual.total_experiencias_unicas < ht.trayectoria_anfitrion.datos_objetivos.encuentros_abiertos_organizados);
   });
 });

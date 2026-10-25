@@ -18,6 +18,7 @@ export interface ContextoFactual {
 
 export interface TrayectoriaAnfitrionDatosObjetivos {
   encuentros_abiertos_organizados: number;
+  encuentros_abiertos_programados_futuros?: number;
   encuentros_abiertos_cancelados: number;
   participantes_recibidos_total: number;
   cierres_a_tiempo: number;
@@ -48,6 +49,7 @@ export interface TrayectoriaAnfitrion {
 
 export interface TrayectoriaParticipanteDatosObjetivos {
   encuentros_abiertos_confirmados: number;
+  encuentros_abiertos_programados_futuros?: number;
   reconfirmaciones_completadas: number;
   retiros_voluntarios_registrados: number;
 }
