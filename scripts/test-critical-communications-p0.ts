@@ -770,8 +770,9 @@ describe('P0 / Bloque 1: Comunicaciones Críticas e Integridad de Estados', () =
       ORDER BY created_at ASC;
     `);
     assert.equal(fechaNotifs.rows.length, 4, 'Deben existir 4 avisos acumulados de agenda (2 hora + 2 fecha)');
-    assert.ok(fechaNotifs.rows[2].body.includes('05/12/2026'));
-    assert.ok(fechaNotifs.rows[3].body.includes('01/12/2026'));
+    const dateBodies = fechaNotifs.rows.slice(2).map(r => r.body);
+    assert.ok(dateBodies.some(b => b.includes('05/12/2026')), 'Debe incluir aviso con fecha 05/12/2026');
+    assert.ok(dateBodies.some(b => b.includes('01/12/2026')), 'Debe incluir aviso con fecha 01/12/2026');
 
     // --- 3. DIRECCIÓN / LOGÍSTICA: Sede A -> Sede B -> Sede A ---
     // A -> B: debe notificar

@@ -114,6 +114,7 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
         post_event_realization_status TEXT,
         post_event_closed_at TIMESTAMPTZ,
         post_event_closed_responsibly BOOLEAN DEFAULT false,
+        creado_en TIMESTAMPTZ DEFAULT now(),
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
       );
@@ -204,16 +205,16 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
       ON CONFLICT DO NOTHING;
     `);
 
-    // 2. Aplicar la migración de Mini-Sprint E
-    const sprintESqlPath = path.join(
-      __dirname,
-      '..',
-      'supabase',
-      'migrations',
-      '20261025110000_open_encounters_reminders_and_absence_prevention_v1.sql'
-    );
-    const sprintESqlContent = fs.readFileSync(sprintESqlPath, 'utf8');
-    await db.exec(sprintESqlContent);
+    // 2. Aplicar las migraciones de Mini-Sprint E (base + compatibilidad creado_en + precisión temporal)
+    for (const file of [
+      '20261025110000_open_encounters_reminders_and_absence_prevention_v1.sql',
+      '20261025114500_fix_reminders_encuentros_creado_en_column_v1.sql',
+      '20261025120000_adjust_reminders_precision_windows_and_recovery_v1.sql',
+    ]) {
+      const sqlPath = path.join(__dirname, '..', 'supabase', 'migrations', file);
+      const sqlContent = fs.readFileSync(sqlPath, 'utf8');
+      await db.exec(sqlContent);
+    }
   });
 
   // Helper para crear encuentro abierto
@@ -229,10 +230,11 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
     const res = await db.query<{ id: string }>(`
       INSERT INTO public.encuentros (
         host_id, titulo, open_public_title, is_open, opened_at,
-        fecha, hora, estado, created_at
+        fecha, hora, estado, creado_en, created_at
       ) VALUES (
         '${params.hostId}', '${params.title}', '${params.title}', ${params.isOpen}, CURRENT_TIMESTAMP - INTERVAL '3 days',
         CURRENT_DATE + INTERVAL '${params.fechaOffsetDays} days', '${params.hora}', '${params.estado || 'activo'}',
+        CURRENT_TIMESTAMP - INTERVAL '${params.createdAtOffsetHours} hours',
         CURRENT_TIMESTAMP - INTERVAL '${params.createdAtOffsetHours} hours'
       ) RETURNING id;
     `);
@@ -1044,5 +1046,213 @@ describe('Mini-Sprint E: Recordatorios 24 h / 2 h y Prevención de Inasistencias
     assert.equal(isValidPostAuthRedirect('/solicitudes'), true);
     assert.equal(isValidPostAuthRedirect('/solicitudes?malicious=true'), false);
     assert.equal(isValidPostAuthRedirect('/solicitudes#token=123'), false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 24. Límites de precisión de la ventana 24 h (sincronizada con 10 min pg_cron)
+  // ---------------------------------------------------------------------------
+  test('24. Límites de precisión 24 h: rechazo a 24h 20m (evita 25h prematuro) y aceptación a 24h 05m', async () => {
+    // A. Encuentro a 24h 20m en el futuro (> 24h 10m): NO debe emitirse aún (el viejo código a 25h lo emitía 1h antes)
+    const futureDateA = new Date(Date.now() + 24 * 3600000 + 20 * 60000); // +24h 20m
+    const fechaA = futureDateA.toISOString().split('T')[0];
+    const horaA = futureDateA.toTimeString().split(' ')[0];
+
+    const encTooEarly = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Prematuro 24h 20m',
+      isOpen: true,
+      fechaOffsetDays: 1,
+      hora: horaA,
+      createdAtOffsetHours: 48,
+    });
+    // Forzar fecha exacta calculada
+    await db.query(`UPDATE public.encuentros SET fecha = '${fechaA}' WHERE id = '${encTooEarly}';`);
+    await addParticipant(encTooEarly, partUserA, { createdAtOffsetHours: 36 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+    const logTooEarly = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encTooEarly}' AND reminder_type = 'reminder_24h';
+    `);
+    assert.equal(logTooEarly.rows.length, 0, 'No debe emitir recordatorio a 24h 20m');
+
+    // B. Encuentro a 24h 05m en el futuro (<= 24h 10m, dentro del tick de cron): SÍ debe emitirse
+    const futureDateB = new Date(Date.now() + 24 * 3600000 + 4 * 60000); // +24h 04m
+    const fechaB = futureDateB.toISOString().split('T')[0];
+    const horaB = futureDateB.toTimeString().split(' ')[0];
+
+    const encJustInTime = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro En Ventana 24h 05m',
+      isOpen: true,
+      fechaOffsetDays: 1,
+      hora: horaB,
+      createdAtOffsetHours: 48,
+    });
+    await db.query(`UPDATE public.encuentros SET fecha = '${fechaB}' WHERE id = '${encJustInTime}';`);
+    await addParticipant(encJustInTime, partUserA, { createdAtOffsetHours: 36 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+    const logJustInTime = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encJustInTime}' AND reminder_type = 'reminder_24h';
+    `);
+    assert.equal(logJustInTime.rows.length, 2, 'Debe emitir a anfitrión y participante');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 25. Límites de precisión de la ventana 2 h (sincronizada con 10 min pg_cron)
+  // ---------------------------------------------------------------------------
+  test('25. Límites de precisión 2 h: rechazo a 2h 20m (evita 2h 15m prematuro) y aceptación a 2h 05m', async () => {
+    // A. Encuentro a 2h 20m en el futuro (> 2h 10m): NO debe emitirse
+    const futureDateA = new Date(Date.now() + 2 * 3600000 + 20 * 60000);
+    const horaA = futureDateA.toTimeString().split(' ')[0];
+
+    const encTooEarly = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Prematuro 2h 20m',
+      isOpen: true,
+      fechaOffsetDays: 0,
+      hora: horaA,
+      createdAtOffsetHours: 24,
+    });
+    await addParticipant(encTooEarly, partUserB, { createdAtOffsetHours: 12 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+    const logTooEarly = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encTooEarly}' AND reminder_type = 'reminder_2h';
+    `);
+    assert.equal(logTooEarly.rows.length, 0, 'No debe emitir recordatorio a 2h 20m');
+
+    // B. Encuentro a 2h 05m en el futuro (<= 2h 10m): SÍ debe emitirse con copy ordinario
+    const futureDateB = new Date(Date.now() + 2 * 3600000 + 3 * 60000);
+    const horaB = futureDateB.toTimeString().split(' ')[0];
+
+    const encJustInTime = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro En Ventana 2h 05m',
+      isOpen: true,
+      fechaOffsetDays: 0,
+      hora: horaB,
+      createdAtOffsetHours: 24,
+    });
+    await addParticipant(encJustInTime, partUserB, { createdAtOffsetHours: 12 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+    const logJustInTime = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encJustInTime}' AND reminder_type = 'reminder_2h';
+    `);
+    assert.equal(logJustInTime.rows.length, 2);
+
+    const inbox = await db.query(`
+      SELECT * FROM public.inbox_notifications
+      WHERE recipient_user_id = '${partUserB}' AND target_id = '${encJustInTime}';
+    `);
+    assert.match(inbox.rows[0].title as string, /comienza en 2 horas/i);
+    assert.match(inbox.rows[0].body as string, /empieza en 2 horas/i);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 26. Recuperación controlada ante demoras del cron (aviso 2h generado tarde)
+  // ---------------------------------------------------------------------------
+  test('26. Recuperación demorada 2 h: cron ejecutado a 35 min antes del evento adapta el copy a "comienza pronto"', async () => {
+    // Encuentro en 35 minutos (cron sufrió demora y corre a 35m antes del evento)
+    const delayedDate = new Date(Date.now() + 35 * 60000);
+    const delayedHora = delayedDate.toTimeString().split(' ')[0];
+
+    const encDelayed = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Cron Demorado 35m',
+      isOpen: true,
+      fechaOffsetDays: 0,
+      hora: delayedHora,
+      createdAtOffsetHours: 24,
+    });
+    await addParticipant(encDelayed, partUserA, { createdAtOffsetHours: 12 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    // El recordatorio SÍ se recupera (no se pierde la prevención de inasistencia)
+    const logDelayed = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encDelayed}' AND reminder_type = 'reminder_2h';
+    `);
+    assert.equal(logDelayed.rows.length, 2, 'Debe recuperarse y emitirse a anfitrión y participante');
+
+    // PERO el copy NO debe decir "comienza en 2 horas" (temporalmente falso) sino "comienza pronto"
+    const inbox = await db.query(`
+      SELECT * FROM public.inbox_notifications
+      WHERE recipient_user_id = '${partUserA}' AND target_id = '${encDelayed}';
+    `);
+    assert.equal(inbox.rows.length, 1);
+    assert.match(inbox.rows[0].title as string, /comienza pronto/i);
+    assert.match(inbox.rows[0].body as string, /empieza pronto/i);
+    assert.doesNotMatch(inbox.rows[0].title as string, /en 2 horas/i);
+    assert.doesNotMatch(inbox.rows[0].body as string, /en 2 horas/i);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 27. Recuperación controlada ante demoras del cron (aviso 24h el mismo día)
+  // ---------------------------------------------------------------------------
+  test('27. Recuperación demorada 24 h: cron ejecutado el mismo día adapta el copy a "hoy" en lugar de "mañana"', async () => {
+    // Encuentro hoy a las 23:30 (en 12 horas, dentro de ventana [24h 10m .. 10h])
+    // Creado hace 35 horas -> anticipación >= 23h 30m
+    const encSameDay = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Hoy Demorado',
+      isOpen: true,
+      fechaOffsetDays: 0,
+      hora: '23:30:00',
+      createdAtOffsetHours: 35,
+    });
+    await db.query(`UPDATE public.encuentros SET fecha = CURRENT_DATE, hora = '23:30:00' WHERE id = '${encSameDay}';`);
+    await addParticipant(encSameDay, partUserA, { createdAtOffsetHours: 30 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    const log = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encSameDay}' AND reminder_type = 'reminder_24h';
+    `);
+    assert.equal(log.rows.length, 2, 'Debe emitir aviso recuperado');
+
+    const inbox = await db.query(`
+      SELECT * FROM public.inbox_notifications
+      WHERE recipient_user_id = '${partUserA}' AND target_id = '${encSameDay}';
+    `);
+    assert.equal(inbox.rows.length, 1);
+    // Debido a que la fecha es HOY, no debe decir "mañana" sino "hoy"
+    assert.match(inbox.rows[0].title as string, /hoy es el encuentro/i);
+    assert.match(inbox.rows[0].body as string, /hoy tenés el encuentro/i);
+    assert.doesNotMatch(inbox.rows[0].title as string, /mañana/i);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 28. Cero avisos retrospectivos tras el inicio del evento
+  // ---------------------------------------------------------------------------
+  test('28. Cero avisos retrospectivos tras el inicio del evento', async () => {
+    // Evento iniciado hace 15 minutos
+    const pastDate = new Date(Date.now() - 15 * 60000);
+    const pastHora = pastDate.toTimeString().split(' ')[0];
+
+    const encStarted = await createEncounter({
+      hostId: hostUser,
+      title: 'Encuentro Ya Iniciado',
+      isOpen: true,
+      fechaOffsetDays: 0,
+      hora: pastHora,
+      createdAtOffsetHours: 24,
+    });
+    await addParticipant(encStarted, partUserB, { createdAtOffsetHours: 12 });
+
+    await db.query(`SELECT public.procesar_recordatorios_encuentros_abiertos_seguro();`);
+
+    const log = await db.query(`
+      SELECT * FROM public.encounter_reminders_log
+      WHERE encuentro_id = '${encStarted}';
+    `);
+    assert.equal(log.rows.length, 0, 'No debe emitir ningún recordatorio retrospectivo tras el inicio');
   });
 });

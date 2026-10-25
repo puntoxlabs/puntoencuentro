@@ -233,16 +233,16 @@ async function runStagingQAMiniSprintE() {
     console.log('✅ Escenario 1 superado: aviso 24h generado con enlaces diferenciados por rol.\n');
 
     // -------------------------------------------------------------------------
-    // Escenario 2: Aviso 2h para participante confirmado
+    // Escenario 2: Aviso 2h para participante confirmado (Ventana ordinaria ~2h)
     // -------------------------------------------------------------------------
     console.log('--- Escenario 2: Aviso 2h para participante confirmado ---');
-    const timeIn90m = new Date(Date.now() + 90 * 60 * 1000).toTimeString().split(' ')[0];
+    const timeIn115m = new Date(Date.now() + 115 * 60 * 1000).toTimeString().split(' ')[0];
     const enc2hId = await createEncounterFixture({
       hostId: hostUser,
       title: 'Encuentro Staging 2h',
       isOpen: true,
       fechaOffsetDays: 0,
-      hora: timeIn90m,
+      hora: timeIn115m,
       createdAtOffsetHours: 4,
     });
     await addParticipantFixture(enc2hId, partUserB, { createdAtOffsetHours: 3 });
@@ -258,7 +258,7 @@ async function runStagingQAMiniSprintE() {
     assert.equal(inboxPartB?.length, 1);
     assert.equal(inboxPartB![0].notification_type, 'encounter_reminder_2h');
     assert.match(inboxPartB![0].title, /2 horas/i);
-    console.log('✅ Escenario 2 superado: aviso 2h generado en ventana correcta.\n');
+    console.log('✅ Escenario 2 superado: aviso 2h generado en ventana ordinaria correcta.\n');
 
     // -------------------------------------------------------------------------
     // Escenario 3: Idempotencia y Cron Repetido
