@@ -213,6 +213,9 @@ try {
   await server.ssrLoadModule('./scripts/test-waitlist-and-recovery.ts');
   console.log('✅ Mini-sprint B: Lista de espera y recuperación de cupos tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-attendance-disputes.ts');
+  console.log('✅ Mini-sprint C: Controversias, derecho a respuesta y moderación de asistencia tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

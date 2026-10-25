@@ -301,3 +301,61 @@
   padding-top: 16px;
   border-top: 1px solid var(--color-outline-variant, #E1E3EA);
 }
+
+/* Tabs de navegación */
+.moderation-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--color-outline-variant, #E1E3EA);
+  padding-bottom: 8px;
+}
+
+.moderation-tab-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--color-on-surface-variant, #64748B);
+  transition: all 0.15s ease;
+}
+
+.moderation-tab-btn:hover {
+  background: var(--color-surface-hover, #F1F5F9);
+  color: var(--color-on-surface, #0F1322);
+}
+
+.moderation-tab-btn--active {
+  background: var(--color-primary-container, #EEF2FF);
+  color: var(--color-primary, #4F46E5);
+}
+
+.moderation-meta-tag--dispute-type {
+  background: #E0E7FF;
+  color: #3730A3;
+  font-weight: 600;
+}
+
+.moderation-meta-tag--waiting {
+  background: #EFF6FF;
+  color: #1D4ED8;
+}
+
+.moderation-meta-tag--review {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+.moderation-meta-tag--resolved {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.moderation-meta-tag--conflict {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+

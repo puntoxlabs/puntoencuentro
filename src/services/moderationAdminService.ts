@@ -187,3 +187,51 @@ export const resolverModeracion = async (
     return { ok: false, error: err?.message || 'unknown_error', message: err?.message || 'Error de conexión' };
   }
 };
+
+/**
+ * Obtiene la cola de controversias de asistencia y realización para moderadores autorizados.
+ */
+export const getControversiasModeracionQueue = async (
+  status?: string
+): Promise<{ ok: boolean; queue: import('../types/attendanceDispute').AttendanceDisputeItem[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_controversias_moderacion_seguro', {
+      p_status: status ?? null,
+    });
+    if (error) {
+      return { ok: false, queue: [], error: error.message };
+    }
+    const res = data as any;
+    return {
+      ok: true,
+      queue: Array.isArray(res?.queue) ? res.queue : [],
+    };
+  } catch (err: any) {
+    return { ok: false, queue: [], error: err?.message || 'unknown_error' };
+  }
+};
+
+/**
+ * Resuelve una controversia de asistencia desde la moderación humana independiente.
+ */
+export const resolverControversiaModeracion = async (
+  disputeId: string,
+  resolucion: import('../types/attendanceDispute').AttendanceDisputeResolution,
+  fundamentacion: string
+): Promise<{ ok: boolean; status?: string; resolution?: string; error?: string; message?: string }> => {
+  try {
+    const { data, error } = await supabase.rpc('resolver_controversia_moderacion_seguro', {
+      p_dispute_id: disputeId,
+      p_resolucion: resolucion,
+      p_fundamentacion: fundamentacion,
+    });
+
+    if (error) {
+      return { ok: false, error: error.message, message: error.message };
+    }
+
+    return (data as any) || { ok: false, error: 'empty_response' };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'unknown_error', message: err?.message || 'Error de conexión' };
+  }
+};
