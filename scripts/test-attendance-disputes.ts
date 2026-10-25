@@ -328,6 +328,17 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     const hotfixCSqlContent = fs.readFileSync(hotfixCSqlPath, 'utf8');
     await db.exec(hotfixCSqlContent);
 
+    // Aplicar la migración de ajuste final (diferenciación de reclamos contra host y preservación de cierre histórico)
+    const diffHostSqlPath = path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20261025083000_differentiate_host_claims_and_preserve_closure_v1.sql'
+    );
+    const diffHostSqlContent = fs.readFileSync(diffHostSqlPath, 'utf8');
+    await db.exec(diffHostSqlContent);
+
     // Verificar que el registro preexistente fue migrado de forma segura a 'in_human_review'
     const migratedCheck = await db.query<{ attendance_dispute_status: string }>(`
       SELECT attendance_dispute_status FROM public.participantes
@@ -1190,19 +1201,25 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     `);
     assert.equal((resolveRes.rows[0].res as any).ok, true);
 
-    // INVARIANTE CRÍTICA P0: El denunciante NO debe tener reported_absent
-    const partCheck = await db.query<{ attendance_status: string; attendance_dispute_status: string }>(`
-      SELECT attendance_status, attendance_dispute_status FROM public.participantes WHERE id = '${partId}';
+    // INVARIANTE CRÍTICA P0: El denunciante NO debe mutar su asistencia ni tener reported_absent
+    const partCheck = await db.query<{ attendance_status: string }>(`
+      SELECT attendance_status FROM public.participantes WHERE id = '${partId}';
     `);
-    assert.notEqual(partCheck.rows[0].attendance_status, 'reported_absent', 'El denunciante jamás debe ser marcado como ausente cuando denuncia al host');
-    assert.equal(partCheck.rows[0].attendance_dispute_status, 'resolved_justified');
+    assert.equal(partCheck.rows[0].attendance_status, 'unverified', 'La asistencia del denunciante debe permanecer intacta');
 
-    // El encuentro debe reflejar el hecho del organizador
-    const encCheck = await db.query<{ post_event_realization_status: string; post_event_unrealized_reason: string }>(`
-      SELECT post_event_realization_status, post_event_unrealized_reason FROM public.encuentros WHERE id = '${encId}';
+    // INVARIANTE CRÍTICA: El cierre histórico del encuentro permanece intacto en public.encuentros
+    const encCheck = await db.query<{ post_event_realization_status: string | null }>(`
+      SELECT post_event_realization_status FROM public.encuentros WHERE id = '${encId}';
     `);
-    assert.equal(encCheck.rows[0].post_event_realization_status, 'not_realized');
-    assert.match(encCheck.rows[0].post_event_unrealized_reason, /ausencia de anfitrión acreditada/);
+    assert.equal(encCheck.rows[0].post_event_realization_status, null, 'El cierre histórico de Sprint A no debe mutarse por la moderación');
+
+    // La controversia registra el hecho concreto acreditado
+    const dispCheck = await db.query<{ metadata: any; estado: string }>(`
+      SELECT metadata, estado FROM public.asistencia_controversias WHERE id = '${claimDisputeId}';
+    `);
+    assert.equal(dispCheck.rows[0].estado, 'resolved_justified');
+    assert.equal(dispCheck.rows[0].metadata.confirmed_fact, 'host_absence_confirmed');
+    assert.equal(dispCheck.rows[0].metadata.historical_closure_preserved, true);
   });
 
   test('23. P0: Inmutabilidad de resoluciones definitivas (rechazo estricto a modificaciones y segundo moderador)', async () => {
@@ -1373,5 +1390,195 @@ describe('Mini-Sprint C: Controversias, derecho a respuesta y moderación de asi
     `);
     assert.equal((unconfirmedClaim.rows[0].res as any).ok, false);
     assert.equal((unconfirmedClaim.rows[0].res as any).error, 'only_confirmed_participants_allowed');
+  });
+
+  test('26. Ajuste Final: Diferenciación de las tres controversias contra el host y preservación estricta del cierre histórico de Sprint A', async () => {
+    // Preparar un encuentro con cierre histórico Sprint A completado como 'realized' y cerrado responsablemente
+    await setAuth(hostUser);
+    const encRes = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, fecha, hora, duration_minutes,
+        is_open, opened_at, modalidad, locality_id, open_public_zone,
+        post_event_closure_status, post_event_realization_status,
+        post_event_closed_at, post_event_closure_type, post_event_closed_responsibly
+      ) VALUES (
+        '${hostUser}', 'Encuentro Cierre Historico A', 'Cierre Historico A',
+        CURRENT_DATE - INTERVAL '2 days', '18:00:00', 120,
+        true, CURRENT_TIMESTAMP - INTERVAL '4 days', 'presencial', 'palermo', 'Palermo',
+        'completed', 'realized',
+        CURRENT_TIMESTAMP - INTERVAL '1 day', 'within_deadline', true
+      ) RETURNING id;
+    `);
+    const encId = encRes.rows[0].id;
+
+    // Participante 1 tenía asistencia 'attended'
+    const p1Res = await db.query<{ id: string }>(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, attendance_status, tipo_invitacion)
+      VALUES ('${encId}', '${partUserA}', 'Carlos Attended', 'confirmado', 'attended', 'individual')
+      RETURNING id;
+    `);
+    const partA_id = p1Res.rows[0].id;
+
+    // Participante 2 tenía asistencia 'reported_absent'
+    const p2Res = await db.query<{ id: string }>(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, attendance_status, tipo_invitacion)
+      VALUES ('${encId}', '${partUserB}', 'Beto Absent', 'confirmado', 'reported_absent', 'individual')
+      RETURNING id;
+    `);
+    const partB_id = p2Res.rows[0].id;
+
+    // -------------------------------------------------------------------------
+    // Escenario 1 y 4: Participante con 'attended' denuncia 'host_no_show'
+    // -------------------------------------------------------------------------
+    await setAuth(partUserA);
+    const claim1Res = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encId}',
+        p_tipo_controversia := 'host_no_show',
+        p_motivo := 'El encuentro se hizo entre nosotros pero el host faltó.'
+      ) AS res;
+    `);
+    const disp1Id = (claim1Res.rows[0].res as any).dispute_id;
+
+    // Moderador confirma la ausencia del host
+    await setAuth(modIndependent);
+    const mod1 = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${disp1Id}',
+        p_resolucion := 'confirmed',
+        p_fundamentacion := 'Comprobada la ausencia del organizador; los asistentes realizaron la actividad.'
+      ) AS res;
+    `);
+    assert.equal((mod1.rows[0].res as any).ok, true);
+    assert.equal((mod1.rows[0].res as any).confirmed_fact, 'host_absence_confirmed');
+
+    // Comprobar Escenario 4: El denunciante tenía 'attended' -> PERMANECE EN 'attended'
+    const p1Check = await db.query<{ attendance_status: string; estado: string }>(`
+      SELECT attendance_status, estado FROM public.participantes WHERE id = '${partA_id}';
+    `);
+    assert.equal(p1Check.rows[0].attendance_status, 'attended', 'La asistencia attended del denunciante no debe cambiar');
+
+    // Comprobar Escenario 6: El cierre histórico del Sprint A permanece INTACTO en encuentros
+    const encCheck1 = await db.query<{ post_event_realization_status: string; post_event_closure_status: string; post_event_closed_responsibly: boolean }>(`
+      SELECT post_event_realization_status, post_event_closure_status, post_event_closed_responsibly FROM public.encuentros WHERE id = '${encId}';
+    `);
+    assert.equal(encCheck1.rows[0].post_event_realization_status, 'realized', 'post_event_realization_status histórico debe seguir siendo realized');
+    assert.equal(encCheck1.rows[0].post_event_closure_status, 'completed');
+    assert.equal(encCheck1.rows[0].post_event_closed_responsibly, true);
+
+    // -------------------------------------------------------------------------
+    // Escenario 2 y 5: Participante con 'reported_absent' denuncia 'encounter_not_realized'
+    // -------------------------------------------------------------------------
+    const enc2Res = await db.query<{ id: string }>(`
+      INSERT INTO public.encuentros (
+        host_id, titulo, open_public_title, fecha, hora, duration_minutes,
+        is_open, opened_at, modalidad, locality_id, open_public_zone,
+        post_event_closure_status, post_event_realization_status,
+        post_event_closed_at, post_event_closed_responsibly
+      ) VALUES (
+        '${hostUser}', 'Encuentro Cierre Historico 2', 'Cierre Historico 2',
+        CURRENT_DATE - INTERVAL '2 days', '20:00:00', 120,
+        true, CURRENT_TIMESTAMP - INTERVAL '4 days', 'presencial', 'palermo', 'Palermo',
+        'completed', 'realized', CURRENT_TIMESTAMP - INTERVAL '1 day', true
+      ) RETURNING id;
+    `);
+    const enc2Id = enc2Res.rows[0].id;
+
+    const p2_enc2Res = await db.query<{ id: string }>(`
+      INSERT INTO public.participantes (encuentro_id, user_id, nombre_invitado, estado, attendance_status, tipo_invitacion)
+      VALUES ('${enc2Id}', '${partUserB}', 'Beto Denunciante', 'confirmado', 'reported_absent', 'individual')
+      RETURNING id;
+    `);
+    const p2_enc2Id = p2_enc2Res.rows[0].id;
+
+    await setAuth(partUserB);
+    const claim2Res = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${enc2Id}',
+        p_tipo_controversia := 'encounter_not_realized',
+        p_motivo := 'El lugar estaba clausurado y el encuentro no ocurrió.'
+      ) AS res;
+    `);
+    const disp2Id = (claim2Res.rows[0].res as any).dispute_id;
+
+    await setAuth(modIndependent);
+    const mod2 = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${disp2Id}',
+        p_resolucion := 'confirmed',
+        p_fundamentacion := 'Verificado con el establecimiento; el encuentro no se realizó.'
+      ) AS res;
+    `);
+    assert.equal((mod2.rows[0].res as any).ok, true);
+    assert.equal((mod2.rows[0].res as any).confirmed_fact, 'encounter_not_realized_confirmed');
+
+    // Comprobar Escenario 5: El denunciante tenía 'reported_absent' -> PERMANECE EN 'reported_absent'
+    // (no se modifica automáticamente; debe tramitarse por la controversia individual de asistencia)
+    const p2Check = await db.query<{ attendance_status: string }>(`
+      SELECT attendance_status FROM public.participantes WHERE id = '${p2_enc2Id}';
+    `);
+    assert.equal(p2Check.rows[0].attendance_status, 'reported_absent', 'La asistencia del denunciante no debe modificarse automáticamente');
+
+    // Comprobar que en enc2 el cierre histórico de Sprint A permanece intacto
+    const enc2Check = await db.query<{ post_event_realization_status: string }>(`
+      SELECT post_event_realization_status FROM public.encuentros WHERE id = '${enc2Id}';
+    `);
+    assert.equal(enc2Check.rows[0].post_event_realization_status, 'realized', 'Cierre histórico permanece intacto');
+
+    // -------------------------------------------------------------------------
+    // Escenario 3: Se confirma error de cierre ('closure_data_error')
+    // -------------------------------------------------------------------------
+    await setAuth(partUserA);
+    const claim3Res = await db.query(`
+      SELECT public.iniciar_controversia_realizacion_seguro(
+        p_encuentro_id := '${encId}',
+        p_tipo_controversia := 'closure_data_error',
+        p_motivo := 'Error en horario de finalización declarado en el cierre.'
+      ) AS res;
+    `);
+    const disp3Id = (claim3Res.rows[0].res as any).dispute_id;
+
+    await setAuth(modIndependent);
+    const mod3 = await db.query(`
+      SELECT public.resolver_controversia_moderacion_seguro(
+        p_dispute_id := '${disp3Id}',
+        p_resolucion := 'confirmed',
+        p_fundamentacion := 'Se constató discrepancia de horario sin afectar la realización.'
+      ) AS res;
+    `);
+    assert.equal((mod3.rows[0].res as any).ok, true);
+    assert.equal((mod3.rows[0].res as any).confirmed_fact, 'closure_data_error_confirmed');
+
+    // -------------------------------------------------------------------------
+    // Escenario 7: La resolución posterior queda correctamente auditada
+    // -------------------------------------------------------------------------
+    const auditCheck = await db.query<{ detalles: any }>(`
+      SELECT detalles FROM public.asistencia_controversia_auditoria WHERE controversia_id = '${disp1Id}' AND accion = 'resolved_by_moderator';
+    `);
+    assert.equal(auditCheck.rows[0].detalles.historical_closure_preserved, true);
+    assert.equal(auditCheck.rows[0].detalles.confirmed_fact, 'host_absence_confirmed');
+
+    // -------------------------------------------------------------------------
+    // Escenario 8: Historial factual diferencia los 3 tipos de controversia
+    // -------------------------------------------------------------------------
+    await setAuth(hostUser);
+    const histRes = await db.query(`
+      SELECT public.get_historial_asistencia_factual_seguro(p_user_id := '${hostUser}') AS res;
+    `);
+    const hist = (histRes.rows[0].res as any);
+    assert.equal(hist.ok, true);
+    assert.equal(typeof hist.controversias_organizador_recibidas, 'number');
+    assert.equal(typeof hist.reclamos_no_realizacion_recibidos, 'number');
+    assert.equal(typeof hist.reclamos_ausencia_anfitrion_recibidos, 'number');
+    assert.equal(typeof hist.reclamos_error_cierre_recibidos, 'number');
+
+    assert.ok(hist.reclamos_ausencia_anfitrion_recibidos >= 1, 'Debe registrar la controversia de ausencia de anfitrión');
+    assert.ok(hist.reclamos_no_realizacion_recibidos >= 1, 'Debe registrar la controversia de no realización');
+    assert.ok(hist.reclamos_error_cierre_recibidos >= 1, 'Debe registrar la controversia de error de cierre');
+    assert.equal(
+      hist.controversias_organizador_recibidas,
+      hist.reclamos_no_realizacion_recibidos + hist.reclamos_ausencia_anfitrion_recibidos + hist.reclamos_error_cierre_recibidos,
+      'La suma de las controversias diferenciadas debe coincidir con el total recibido'
+    );
   });
 });
