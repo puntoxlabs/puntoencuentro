@@ -999,18 +999,29 @@
     "error_submitting_clarification": "Error al enviar la aclaración"
   },
   "trajectory": {
-      "title": "Mi Trayectoria en Encuentros Abiertos",
-      "sampleEstablished": "3 o más experiencias",
-      "samplePreliminary": "1 o 2 experiencias",
-      "sampleNeutral": "Sin experiencias",
-      "asHost": "Como Anfitrión",
-      "hostOrganized": "Encuentros organizados",
-      "hostClosedOnTime": "Cierres a tiempo",
-      "hostGuestsReceived": "Participantes recibidos",
-      "asParticipant": "Como Participante",
-      "partConfirmed": "Encuentros confirmados",
-      "partCorroborated": "Asistencias corroboradas",
-      "partReconfirmed": "Reconfirmaciones cumplidas",
-      "neutralFooter": "Información fáctica y verificada de Encuentros Abiertos. No utiliza valoraciones públicas ni penalizaciones automáticas."
+    "title": "Mi Trayectoria en Encuentros Abiertos",
+    "sampleEstablished": "3 o más experiencias",
+    "samplePreliminary": "1 o 2 experiencias",
+    "sampleNeutral": "Sin experiencias",
+    "asHost": "Como Anfitrión",
+    "hostOrganized": "Encuentros organizados",
+    "hostClosedOnTime": "Cierres a tiempo",
+    "hostGuestsReceived": "Participantes recibidos",
+    "asParticipant": "Como Participante",
+    "partConfirmed": "Encuentros confirmados",
+    "partCorroborated": "Asistencias corroboradas",
+    "partReconfirmed": "Reconfirmaciones cumplidas",
+    "neutralFooter": "Información fáctica y verificada de Encuentros Abiertos. No utiliza valoraciones públicas ni penalizaciones automáticas."
+  },
+  "reminders": {
+    "reminder_24h_title": "Recordatorio: mañana es el encuentro",
+    "reminder_24h_body": "Mañana tenés el encuentro. Podés revisar los detalles o avisar con anticipación si no podés asistir.",
+    "reminder_2h_title": "Recordatorio: tu encuentro comienza en 2 horas",
+    "reminder_2h_body": "Tu encuentro empieza en 2 horas. Verificá cómo llegar o las instrucciones de ingreso.",
+    "generic_push_title": "Recordatorio de encuentro",
+    "generic_push_24h_body": "Mañana tenés un encuentro programado. Ingresá para ver detalles e instrucciones.",
+    "generic_push_2h_body": "Tu encuentro comienza en 2 horas. Ingresá para ver ubicación e instrucciones.",
+    "withdraw_action": "Avisar que no asisto",
+    "view_details_action": "Ver detalles del encuentro"
   }
 }

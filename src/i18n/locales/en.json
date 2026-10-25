@@ -997,18 +997,29 @@
     "error_submitting_clarification": "Error submitting clarification"
   },
   "trajectory": {
-      "title": "My Track Record in Open Encounters",
-      "sampleEstablished": "3 or more experiences",
-      "samplePreliminary": "1 or 2 experiences",
-      "sampleNeutral": "No experiences recorded",
-      "asHost": "As Host",
-      "hostOrganized": "Encounters organized",
-      "hostClosedOnTime": "On-time closures",
-      "hostGuestsReceived": "Guests received",
-      "asParticipant": "As Participant",
-      "partConfirmed": "Encounters confirmed",
-      "partCorroborated": "Corroborated attendances",
-      "partReconfirmed": "Reconfirmations kept",
-      "neutralFooter": "Factual and verified information from Open Encounters. Does not use public ratings or automatic penalties."
+    "title": "My Track Record in Open Encounters",
+    "sampleEstablished": "3 or more experiences",
+    "samplePreliminary": "1 or 2 experiences",
+    "sampleNeutral": "No experiences recorded",
+    "asHost": "As Host",
+    "hostOrganized": "Encounters organized",
+    "hostClosedOnTime": "On-time closures",
+    "hostGuestsReceived": "Guests received",
+    "asParticipant": "As Participant",
+    "partConfirmed": "Encounters confirmed",
+    "partCorroborated": "Corroborated attendances",
+    "partReconfirmed": "Reconfirmations kept",
+    "neutralFooter": "Factual and verified information from Open Encounters. Does not use public ratings or automatic penalties."
+  },
+  "reminders": {
+    "reminder_24h_title": "Reminder: encounter is tomorrow",
+    "reminder_24h_body": "You have an encounter tomorrow. Check details or let them know if you cannot attend.",
+    "reminder_2h_title": "Reminder: your encounter starts in 2 hours",
+    "reminder_2h_body": "Your encounter begins in 2 hours. Check directions or access instructions.",
+    "generic_push_title": "Encounter reminder",
+    "generic_push_24h_body": "You have a scheduled encounter tomorrow. Open the app to view details.",
+    "generic_push_2h_body": "Your encounter starts in 2 hours. Open the app to view location and instructions.",
+    "withdraw_action": "I cannot attend",
+    "view_details_action": "View encounter details"
   }
 }

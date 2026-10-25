@@ -741,18 +741,29 @@
     "error_submitting_clarification": "Erro ao enviar o esclarecimento"
   },
   "trajectory": {
-      "title": "Minha Trajetória em Encontros Abertos",
-      "sampleEstablished": "3 ou mais experiências",
-      "samplePreliminary": "1 ou 2 experiências",
-      "sampleNeutral": "Sem experiências registradas",
-      "asHost": "Como Anfitrião",
-      "hostOrganized": "Encontros organizados",
-      "hostClosedOnTime": "Encerramentos no prazo",
-      "hostGuestsReceived": "Participantes recebidos",
-      "asParticipant": "Como Participante",
-      "partConfirmed": "Encontros confirmados",
-      "partCorroborated": "Presenças comprovadas",
-      "partReconfirmed": "Reconfirmações mantidas",
-      "neutralFooter": "Informação factual e verificada de Encontros Abertos. Não utiliza avaliações públicas nem penalidades automáticas."
+    "title": "Minha Trajetória em Encontros Abertos",
+    "sampleEstablished": "3 ou mais experiências",
+    "samplePreliminary": "1 ou 2 experiências",
+    "sampleNeutral": "Sem experiências registradas",
+    "asHost": "Como Anfitrião",
+    "hostOrganized": "Encontros organizados",
+    "hostClosedOnTime": "Encerramentos no prazo",
+    "hostGuestsReceived": "Participantes recebidos",
+    "asParticipant": "Como Participante",
+    "partConfirmed": "Encontros confirmados",
+    "partCorroborated": "Presenças comprovadas",
+    "partReconfirmed": "Reconfirmações mantidas",
+    "neutralFooter": "Informação factual e verificada de Encontros Abertos. Não utiliza avaliações públicas nem penalidades automáticas."
+  },
+  "reminders": {
+    "reminder_24h_title": "Lembrete: o encontro é amanhã",
+    "reminder_24h_body": "Você tem um encontro amanhã. Confira os detalhes ou avise com antecedência se não puder comparecer.",
+    "reminder_2h_title": "Lembrete: seu encontro começa em 2 horas",
+    "reminder_2h_body": "Seu encontro começa em 2 horas. Verifique como chegar ou as instruções de acesso.",
+    "generic_push_title": "Lembrete de encontro",
+    "generic_push_24h_body": "Você tem um encontro agendado para amanhã. Abra o app para ver detalhes.",
+    "generic_push_2h_body": "Seu encontro começa em 2 horas. Abra o app para ver o local e instruções.",
+    "withdraw_action": "Avisar que não vou",
+    "view_details_action": "Ver detalhes do encontro"
   }
 }

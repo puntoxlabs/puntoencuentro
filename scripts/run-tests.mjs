@@ -219,6 +219,9 @@ try {
   await server.ssrLoadModule('./scripts/test-open-encounters-factual-trajectory.ts');
   console.log('✅ Mini-sprint D: Base factual y trayectoria en Encuentros Abiertos tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-open-encounters-reminders.ts');
+  console.log('✅ Mini-sprint E: Recordatorios 24 h / 2 h y prevención de inasistencias tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
