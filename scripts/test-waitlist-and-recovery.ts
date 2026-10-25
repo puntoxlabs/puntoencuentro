@@ -247,6 +247,11 @@ describe('Mini-Sprint B: Lista de espera, prioridad FIFO, reservas temporales y 
       GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon, service_role, postgres;
       GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon, service_role, postgres;
     `);
+
+    // 3. Ejecutar la migración correctiva del Hotfix Mini-Sprint B
+    const hotfixPath = path.join(__dirname, '../supabase/migrations/20261024230000_hotfix_waitlist_concurrency_and_discovery_v1.sql');
+    const hotfixSql = fs.readFileSync(hotfixPath, 'utf8');
+    await db.exec(hotfixSql);
   });
 
   const createEncounterFixture = async (opts: {
@@ -811,7 +816,8 @@ describe('Mini-Sprint B: Lista de espera, prioridad FIFO, reservas temporales y 
     await setAuth(candB);
     await db.query(`SELECT public.unirse_lista_espera_encuentro_abierto('${encId}'::uuid, 'Candidato B', NULL, 1);`);
 
-    // Ejecución de mantenimiento periódico de expiraciones
+    // Ejecución de mantenimiento periódico de expiraciones (contexto interno/pg_cron)
+    await setAuth(null);
     const expRes = await db.query(`
       SELECT public.procesar_expiraciones_lista_espera_seguro() AS r;
     `);
@@ -834,5 +840,141 @@ describe('Mini-Sprint B: Lista de espera, prioridad FIFO, reservas temporales y 
       WHERE recipient_user_id = '${candA}' AND notification_type = 'waitlist_offer_expired';
     `);
     assert.ok(notifA.rows.length >= 1);
+  });
+
+  test('25. Hotfix P0: Orden canónico de locks y concurrencia de operaciones cruzadas (aceptar y retirarse)', async () => {
+    const encId = '00000000-0000-0000-0001-000000000012';
+    await createEncounterFixture({ id: encId, maxParticipants: 2 });
+
+    // candA tiene oferta activa
+    await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, seat_count, estado, is_waitlist, waitlist_expires_at)
+      VALUES ('${encId}', '${candA}', 'Candidato A', 1, 'waitlist_offered', true, now() + INTERVAL '1 hour');
+    `);
+    const reqARes = await db.query(`SELECT id FROM public.solicitudes_encuentro_abierto WHERE encuentro_id = '${encId}' AND usuario_id = '${candA}';`);
+    const reqAId = (reqARes.rows[0] as any).id;
+
+    // candB está en cola waitlist_waiting
+    await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, seat_count, estado, is_waitlist)
+      VALUES ('${encId}', '${candB}', 'Candidato B', 1, 'waitlist_waiting', true);
+    `);
+    const reqBRes = await db.query(`SELECT id FROM public.solicitudes_encuentro_abierto WHERE encuentro_id = '${encId}' AND usuario_id = '${candB}';`);
+    const reqBId = (reqBRes.rows[0] as any).id;
+
+    // Simulación de operaciones concurrentes cruzadas
+    await setAuth(candA);
+    const acceptP = db.query(`SELECT public.responder_oferta_lista_espera_seguro('${reqAId}'::uuid, true) AS r;`);
+
+    await setAuth(candB);
+    const withdrawP = db.query(`SELECT public.retirarse_lista_espera_seguro('${reqBId}'::uuid) AS r;`);
+
+    const [acceptRes, withdrawRes] = await Promise.all([acceptP, withdrawP]);
+    const acceptR = (acceptRes.rows[0] as any).r;
+    const withdrawR = (withdrawRes.rows[0] as any).r;
+
+    assert.equal(acceptR.ok, true);
+    assert.equal(acceptR.status, 'waitlist_confirmed');
+    assert.equal(withdrawR.ok, true);
+    assert.equal(withdrawR.status, 'withdrawn');
+  });
+
+  test('26. Hotfix P1: Endurecimiento de funciones internas (rechaza ejecución directa de authenticated)', async () => {
+    await setAuth(candA); // Rol 'authenticated'
+
+    const directCall = await db.query(`
+      SELECT public.procesar_expiraciones_lista_espera_seguro() AS r;
+    `);
+    const r = (directCall.rows[0] as any).r;
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'forbidden');
+
+    // Contexto interno (sin JWT role authenticated)
+    await setAuth(null);
+    const internalCall = await db.query(`
+      SELECT public.procesar_expiraciones_lista_espera_seguro() AS r;
+    `);
+    const ir = (internalCall.rows[0] as any).r;
+    assert.equal(ir.ok, true);
+  });
+
+  test('27. Hotfix P1: Desacople de vencimientos en inscripciones cerradas (limpia ofertas pero no promueve)', async () => {
+    const encId = '00000000-0000-0000-0001-000000000013';
+    // Encuentro con inscripciones cerradas
+    await createEncounterFixture({ id: encId, maxParticipants: 2, inscriptionsClosed: true });
+
+    // candA tiene oferta vencida
+    await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, seat_count, estado, is_waitlist, waitlist_expires_at)
+      VALUES ('${encId}', '${candA}', 'Candidato A', 1, 'waitlist_offered', true, now() - INTERVAL '5 minutes');
+    `);
+
+    // candB está en espera
+    await db.query(`
+      INSERT INTO public.solicitudes_encuentro_abierto (encuentro_id, usuario_id, nombre_solicitante, seat_count, estado, is_waitlist)
+      VALUES ('${encId}', '${candB}', 'Candidato B', 1, 'waitlist_waiting', true);
+    `);
+
+    // Invocación interna de evaluación
+    const evalRes = await db.query(`
+      SELECT public.evaluar_y_promover_lista_espera('${encId}'::uuid) AS r;
+    `);
+    const evalR = (evalRes.rows[0] as any).r;
+
+    // Debe haber limpiado la oferta vencida (Paso A) y detenido la promoción (Paso B)
+    assert.equal(evalR.ok, true);
+    assert.equal(evalR.expired_count, 1);
+    assert.equal(evalR.promoted_count, 0);
+    assert.equal(evalR.reason, 'inscriptions_not_admitted');
+
+    // candA pasó a expired
+    const candACheck = await db.query(`SELECT estado FROM public.solicitudes_encuentro_abierto WHERE encuentro_id = '${encId}' AND usuario_id = '${candA}';`);
+    assert.equal((candACheck.rows[0] as any).estado, 'waitlist_expired');
+
+    // candB sigue en espera (NO promovido)
+    const candBCheck = await db.query(`SELECT estado FROM public.solicitudes_encuentro_abierto WHERE encuentro_id = '${encId}' AND usuario_id = '${candB}';`);
+    assert.equal((candBCheck.rows[0] as any).estado, 'waitlist_waiting');
+  });
+
+  test('28. Hotfix P0: Restauración de invariantes Discovery (exclusión pasados, modalidad virtual geográfica, orden ascendente y límite 50)', async () => {
+    await setAuth(null);
+
+    const pastEncId = '00000000-0000-0000-0001-000000000014';
+    const futurePresencialId = '00000000-0000-0000-0001-000000000015';
+    const futureVirtualId = '00000000-0000-0000-0001-000000000016';
+
+    // 1. Encuentro pasado (no debe aparecer)
+    await createEncounterFixture({ id: pastEncId, maxParticipants: 5, fechaOffsetDays: -2 });
+
+    // 2. Encuentro futuro presencial en Güemes (fecha +5 días)
+    await createEncounterFixture({ id: futurePresencialId, maxParticipants: 5, fechaOffsetDays: 5 });
+    await db.query(`UPDATE public.encuentros SET locality_id = 'guemes', modalidad = 'presencial' WHERE id = '${futurePresencialId}';`);
+
+    // 3. Encuentro futuro virtual en Palermo (fecha +3 días)
+    await createEncounterFixture({ id: futureVirtualId, maxParticipants: 5, fechaOffsetDays: 3 });
+    await db.query(`UPDATE public.encuentros SET locality_id = 'palermo', modalidad = 'virtual' WHERE id = '${futureVirtualId}';`);
+
+    // Consulta con filtro geográfico p_locality_ids = ['guemes']
+    const discRes = await db.query(`
+      SELECT public.get_discovery_encuentros_abiertos(ARRAY['guemes'], false) AS r;
+    `);
+    const discList = (discRes.rows[0] as any).r as any[];
+
+    // a) El pasado NO debe aparecer
+    assert.ok(!discList.some(e => e.id === pastEncId), 'Encuentro pasado no debe figurar en Discovery');
+
+    // b) El presencial de Güemes SÍ debe aparecer
+    assert.ok(discList.some(e => e.id === futurePresencialId), 'Encuentro presencial de Güemes debe figurar');
+
+    // c) El virtual de Palermo SÍ debe aparecer (excepción virtual)
+    assert.ok(discList.some(e => e.id === futureVirtualId), 'Encuentro virtual debe figurar independientemente de la localidad solicitada');
+
+    // d) Orden cronológico: el virtual (+3 días) debe aparecer antes que el presencial (+5 días)
+    const idxVirtual = discList.findIndex(e => e.id === futureVirtualId);
+    const idxPresencial = discList.findIndex(e => e.id === futurePresencialId);
+    assert.ok(idxVirtual < idxPresencial, 'Discovery debe ordenar cronológicamente de forma ascendente (más próximos primero)');
+
+    // e) Límite determinista de 50 registros
+    assert.ok(discList.length <= 50, 'Discovery debe tener límite máximo de 50');
   });
 });

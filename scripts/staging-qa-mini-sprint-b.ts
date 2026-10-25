@@ -553,7 +553,7 @@ async function runStagingFunctionalSuite() {
     // =========================================================================
     // ESCENARIO 12: Integridad de notificaciones y ausencia de duplicados
     // =========================================================================
-    console.log('\n[Escenario 12/12] Integridad de notificaciones e idempotencia...');
+    console.log('\n[Escenario 12/16] Integridad de notificaciones e idempotencia...');
     const { data: notifsCandA } = await admin
       .from('inbox_notifications')
       .select('notification_type, dedup_key')
@@ -565,8 +565,215 @@ async function runStagingFunctionalSuite() {
     assert.equal(dedupKeys.length, uniqueKeys.size, 'No deben existir dedup_keys duplicadas en inbox');
     console.log(`  ✔ ${notifsCandA.length} notificaciones auditadas sin duplicación.`);
 
+    // =========================================================================
+    // ESCENARIO 13: Hotfix P0 — Concurrencia y orden de locks canónico en Staging
+    // =========================================================================
+    console.log('\n[Escenario 13/16] Hotfix P0 — Concurrencia y orden de locks canónico en Staging...');
+    const encHotfix = await createFixtureEncounter(2);
+
+    // candA con oferta activa
+    const { data: solAHotfix } = await admin
+      .from('solicitudes_encuentro_abierto')
+      .insert({
+        encuentro_id: encHotfix,
+        usuario_id: candA.id,
+        nombre_solicitante: 'Candidato A',
+        seat_count: 1,
+        estado: 'waitlist_offered',
+        is_waitlist: true,
+        waitlist_offered_at: new Date().toISOString(),
+        waitlist_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+      })
+      .select('id')
+      .single();
+
+    // candB en cola
+    const { data: solBHotfix } = await admin
+      .from('solicitudes_encuentro_abierto')
+      .insert({
+        encuentro_id: encHotfix,
+        usuario_id: candB.id,
+        nombre_solicitante: 'Candidato B',
+        seat_count: 1,
+        estado: 'waitlist_waiting',
+        is_waitlist: true,
+      })
+      .select('id')
+      .single();
+
+    // Ejecutar operaciones cruzadas simultáneamente
+    const [resAccept, resWithdraw] = await Promise.all([
+      candA.client.rpc('responder_oferta_lista_espera_seguro', { p_request_id: solAHotfix.id, p_acepta: true }),
+      candB.client.rpc('retirarse_lista_espera_seguro', { p_request_id: solBHotfix.id }),
+    ]);
+
+    assert.equal(resAccept.data?.ok, true, 'candA debe aceptar sin deadlock');
+    assert.equal(resAccept.data?.status, 'waitlist_confirmed');
+    assert.equal(resWithdraw.data?.ok, true, 'candB debe retirarse sin deadlock');
+    assert.equal(resWithdraw.data?.status, 'withdrawn');
+    console.log(`  ✔ Operaciones concurrentes cruzadas (aceptar + retirar) ejecutadas exitosamente sin deadlock.`);
+
+    // =========================================================================
+    // ESCENARIO 14: Hotfix P1 — Endurecimiento de funciones internas en Staging
+    // =========================================================================
+    console.log('\n[Escenario 14/16] Hotfix P1 — Endurecimiento de funciones internas...');
+    const { data: userEvalData, error: userEvalErr } = await candA.client.rpc('evaluar_y_promover_lista_espera', {
+      p_encuentro_id: encHotfix,
+    });
+    assert.ok(userEvalErr !== null || userEvalData?.ok === false, 'Cliente authenticated no debe poder ejecutar evaluar_y_promover_lista_espera directamente');
+
+    const { data: userExpData, error: userExpErr } = await candA.client.rpc('procesar_expiraciones_lista_espera_seguro');
+    assert.ok(userExpErr !== null || userExpData?.ok === false, 'Cliente authenticated no debe poder ejecutar procesar_expiraciones_lista_espera_seguro directamente');
+
+    // service_role sí debe poder
+    const { data: adminEvalData, error: adminEvalErr } = await admin.rpc('evaluar_y_promover_lista_espera', {
+      p_encuentro_id: encHotfix,
+    });
+    assert.equal(adminEvalErr, null, 'service_role debe tener acceso legítimo');
+    assert.equal(adminEvalData?.ok, true);
+    console.log(`  ✔ Funciones internas protegidas contra clientes web y accesibles para service_role.`);
+
+    // =========================================================================
+    // ESCENARIO 15: Hotfix P1 — Desacople de vencimientos en inscripciones cerradas
+    // =========================================================================
+    console.log('\n[Escenario 15/16] Hotfix P1 — Desacople de vencimientos en inscripciones cerradas...');
+    const encClosed = await createFixtureEncounter(2);
+    // Cerrar inscripciones
+    await admin.from('encuentros').update({ inscriptions_closed: true }).eq('id', encClosed);
+
+    // candA con oferta ya expirada
+    await admin.from('solicitudes_encuentro_abierto').insert({
+      encuentro_id: encClosed,
+      usuario_id: candA.id,
+      nombre_solicitante: 'Candidato A',
+      seat_count: 1,
+      estado: 'waitlist_offered',
+      is_waitlist: true,
+      waitlist_offered_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+      waitlist_expires_at: new Date(Date.now() - 600 * 1000).toISOString(),
+    });
+
+    // candC en cola
+    await admin.from('solicitudes_encuentro_abierto').insert({
+      encuentro_id: encClosed,
+      usuario_id: candC.id,
+      nombre_solicitante: 'Candidato C',
+      seat_count: 1,
+      estado: 'waitlist_waiting',
+      is_waitlist: true,
+    });
+
+    // Ejecutar evaluación interna
+    const { data: evalClosedRes, error: evalClosedErr } = await admin.rpc('evaluar_y_promover_lista_espera', {
+      p_encuentro_id: encClosed,
+    });
+    assert.equal(evalClosedErr, null);
+    assert.equal(evalClosedRes?.ok, true);
+    assert.equal(evalClosedRes?.expired_count, 1, 'Debe haber expirado la oferta de candA');
+    assert.equal(evalClosedRes?.promoted_count, 0, 'No debe promover a candC con inscripciones cerradas');
+
+    // candA debe ser waitlist_expired
+    const { data: solACheck } = await admin
+      .from('solicitudes_encuentro_abierto')
+      .select('estado')
+      .eq('encuentro_id', encClosed)
+      .eq('usuario_id', candA.id)
+      .single();
+    assert.equal(solACheck?.estado, 'waitlist_expired');
+
+    // candC debe permanecer en waitlist_waiting
+    const { data: solCCheck } = await admin
+      .from('solicitudes_encuentro_abierto')
+      .select('estado')
+      .eq('encuentro_id', encClosed)
+      .eq('usuario_id', candC.id)
+      .single();
+    assert.equal(solCCheck?.estado, 'waitlist_waiting');
+    console.log(`  ✔ Paso A (limpieza) ejecutado con inscripciones cerradas y Paso B detenido correctamente.`);
+
+    // =========================================================================
+    // ESCENARIO 16: Hotfix P0 — Invariantes de Discovery en Staging
+    // =========================================================================
+    console.log('\n[Escenario 16/16] Hotfix P0 — Invariantes de Discovery en Staging...');
+    // 1. Encuentro pasado (fecha ayer)
+    const yesterday = new Date(Date.now() - 24 * 3600 * 1000).toISOString().split('T')[0];
+    const { data: encPast, error: encPastErr } = await admin
+      .from('encuentros')
+      .insert({
+        host_id: host.id,
+        titulo: 'Encuentro Pasado QA',
+        open_public_title: 'Encuentro Pasado QA',
+        fecha: yesterday,
+        hora: '10:00:00',
+        duration_minutes: 120,
+        modalidad: 'presencial',
+        tipo_invitacion: 'individual',
+        locality_id: 'guemes',
+        open_public_zone: 'Güemes / Playa Grande',
+        max_participants: 5,
+        min_participants: 1,
+        is_open: true,
+        opened_at: new Date().toISOString(),
+        estado: 'activo',
+        moderation_status: 'approved',
+      })
+      .select('id')
+      .single();
+    if (encPastErr) throw new Error(`Fallo creación encPast: ${encPastErr.message}`);
+    createdEncounterIds.push(encPast.id);
+
+    // 2. Encuentro virtual futuro (modalidad virtual requiere locality_id = NULL y open_public_zone = 'Virtual')
+    const futureDate = new Date(Date.now() + 48 * 3600 * 1000).toISOString().split('T')[0];
+    const { data: encVirt, error: encVirtErr } = await admin
+      .from('encuentros')
+      .insert({
+        host_id: host.id,
+        titulo: 'Encuentro Virtual QA',
+        open_public_title: 'Encuentro Virtual QA',
+        fecha: futureDate,
+        hora: '20:00:00',
+        duration_minutes: 120,
+        modalidad: 'virtual',
+        tipo_invitacion: 'individual',
+        locality_id: null,
+        open_public_zone: 'Virtual',
+        link_virtual: 'https://meet.google.com/qa-test',
+        max_participants: 5,
+        min_participants: 1,
+        is_open: true,
+        opened_at: new Date().toISOString(),
+        estado: 'activo',
+        moderation_status: 'approved',
+      })
+      .select('id')
+      .single();
+    if (encVirtErr) throw new Error(`Fallo creación encVirt: ${encVirtErr.message}`);
+    createdEncounterIds.push(encVirt.id);
+
+    // Consultar Discovery con filtro geográfico p_locality_ids = ['guemes']
+    const { data: discResult, error: discErr } = await candC.client.rpc('get_discovery_encuentros_abiertos', {
+      p_locality_ids: ['guemes'],
+      p_only_available: false,
+    });
+    assert.equal(discErr, null, 'Discovery debe responder exitosamente');
+    const discArray = Array.isArray(discResult) ? discResult : [];
+
+    // a) Encuentro pasado NO debe figurar
+    assert.ok(!discArray.some((e: any) => e.id === encPast?.id), 'Encuentro pasado no debe figurar en Discovery');
+
+    // b) Encuentro virtual SÍ debe figurar aunque tenga locality_id = palermo
+    assert.ok(discArray.some((e: any) => e.id === encVirt?.id), 'Encuentro virtual debe figurar independientemente del filtro de localidad');
+
+    // c) Orden ascendente por fecha/hora
+    for (let i = 0; i < discArray.length - 1; i++) {
+      if (discArray[i].fecha && discArray[i + 1].fecha) {
+        assert.ok(discArray[i].fecha <= discArray[i + 1].fecha, 'Discovery debe mantener orden ascendente por fecha');
+      }
+    }
+    console.log(`  ✔ Invariantes de Discovery (exclusión pasados, excepción virtual y orden ascendente) validadas.`);
+
     console.log('\n================================================================');
-    console.log('✅ TODOS LOS 12 ESCENARIOS REMOTOS EN STAGING SUPERADOS EXITOSAMENTE');
+    console.log('✅ TODOS LOS 16 ESCENARIOS REMOTOS EN STAGING SUPERADOS EXITOSAMENTE');
     console.log('================================================================\n');
   } finally {
     // Limpieza estricta de fixtures en Staging
