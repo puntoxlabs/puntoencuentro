@@ -86,6 +86,11 @@ export const AccessGate: React.FC<AccessGateProps> = ({ children }) => {
         boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
         textAlign: 'center'
       }}>
+        <img
+          src="/brand/isotipo.svg"
+          alt="PuntoEncuentro"
+          style={{ width: 64, height: 64, margin: '0 auto 16px auto', display: 'block' }}
+        />
         <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-on-surface, #0F1322)', marginBottom: '8px' }}>
           PuntoEncuentro
         </h1>

@@ -122,7 +122,11 @@ export const InfoSheet: React.FC<InfoSheetProps> = ({
             </div>
             <div className="pe-sheet-version-container">
               <div className="pe-sheet-version-icon-box">
-                <span style={{ fontSize: 32 }}>📍</span>
+                <img
+                  src="/brand/isotipo.svg"
+                  alt="PuntoEncuentro"
+                  style={{ width: 44, height: 44, borderRadius: '50%', display: 'block' }}
+                />
               </div>
               <h3 className="pe-sheet-version-title">PuntoEncuentro</h3>
               <p className="pe-sheet-version-subtitle">Versión Beta</p>

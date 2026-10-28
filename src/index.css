@@ -104,3 +104,16 @@ p {
   color: var(--color-on-surface-variant);
   font-weight: 500;
 }
+
+/* Accesibilidad: ocultamiento visual manteniendo lectura para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

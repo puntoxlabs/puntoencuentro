@@ -483,8 +483,8 @@ describe('Mini-sprint P0: Blindaje de Notificaciones Críticas y Prioridad Web P
 
       const notificationOptions: Record<string, any> = {
         body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
+        icon: '/icons/notification-icon-color-192.png',
+        badge: '/icons/notification-badge-96.png',
         data: {},
       };
 

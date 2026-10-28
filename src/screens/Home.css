@@ -437,6 +437,21 @@
   user-select: none;
 }
 
+.home-header-logo-img {
+  height: 32px;
+  width: auto;
+  max-width: 175px;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .home-header-logo-img {
+    height: 28px;
+    max-width: 155px;
+  }
+}
+
 .home-header-logo-text {
   font-size: 1.25rem;
   font-weight: 800;

@@ -1774,8 +1774,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}`}
     >
       <header className="home-header">
-        <div className="home-header-brand" onClick={handleTap}>
-          <span className="home-header-logo-text">PuntoEncuentro</span>
+        <div className="home-header-brand" onClick={handleTap} aria-label="PuntoEncuentro">
+          <img
+            src="/brand/logo-header.svg"
+            alt="PuntoEncuentro"
+            className="home-header-logo-img"
+            width="170"
+            height="34"
+          />
+          <span className="home-header-logo-text sr-only">PuntoEncuentro</span>
         </div>
         <div className="home-header-actions">
           {/* Campana de notificaciones (solo cuentas permanentes) */}

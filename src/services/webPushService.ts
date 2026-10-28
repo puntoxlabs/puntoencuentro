@@ -387,8 +387,8 @@ export function createWebPushService(deps: WebPushDeps) {
       if (typeof reg.showNotification === 'function') {
         await reg.showNotification('PuntoEncuentro', {
           body: 'Notificación de prueba: así se presentarán los avisos importantes.',
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
+          icon: '/icons/notification-icon-color-192.png',
+          badge: '/icons/notification-badge-96.png',
           tag: 'pe-test-notification',
           renotify: true,
         });
