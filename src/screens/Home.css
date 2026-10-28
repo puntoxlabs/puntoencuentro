@@ -435,20 +435,21 @@
   gap: 6px;
   cursor: pointer;
   user-select: none;
+  min-width: 0;
 }
 
 .home-header-logo-img {
-  height: 32px;
+  height: 36px;
   width: auto;
-  max-width: 250px;
+  max-width: 275px;
   object-fit: contain;
   display: block;
 }
 
 @media (max-width: 480px) {
   .home-header-logo-img {
-    height: 25px;
-    max-width: min(200px, 58vw);
+    height: 28px;
+    max-width: min(216px, calc(100vw - 168px));
   }
 }
 
@@ -547,6 +548,7 @@
   align-items: center;
   gap: 8px;
   position: relative;
+  flex-shrink: 0;
 }
 
 #home-personal-activity-section,
