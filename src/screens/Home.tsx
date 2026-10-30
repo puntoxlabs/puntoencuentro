@@ -1779,7 +1779,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             src="/brand/logo-header.svg"
             alt="PuntoEncuentro"
             className="home-header-logo-img"
-            width="215"
+            width="175"
             height="36"
           />
           <span className="home-header-logo-text sr-only">PuntoEncuentro</span>

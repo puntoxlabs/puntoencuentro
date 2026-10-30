@@ -1,0 +1,228 @@
+{
+  "marca": "PuntoEncuentro",
+  "identidad": "Restauración Original · Isotipo Variante 06 y Tipografía Figtree",
+  "fecha": "2026-10-30T01:11:37.551Z",
+  "repositorio": "puntoxlabs/puntoencuentro",
+  "rama": "staging",
+  "commit_base": "91ef3f9316fd190a8d3e447527a8d5bb647022da",
+  "backup_tag": "brand-pre-restauracion-original-20261029-91ef3f9",
+  "backup_branch": "backup/brand-pre-restauracion-original-91ef3f9",
+  "backup_zip_sha256": "0028c11726510f63f233098f6cfae96d941f7a2d7965d03015f9d7a1ff6620f4",
+  "especificaciones": {
+    "isotipo": {
+      "circulo": "#19345C",
+      "letra_e": "#FFFFFF",
+      "variante": "06 original humanista",
+      "svg_viewbox": "0 0 272 272"
+    },
+    "tipografia": {
+      "nombre": "Figtree",
+      "pesos": {
+        "punto": "SemiBold 600 (#19345C)",
+        "encuentro": "Medium 500 (#0D9488)",
+        "lema": "Medium 500 (#64748B)"
+      },
+      "fuente_vectorizada": true,
+      "dependencia_fuentes_cliente": false
+    },
+    "logo_header": {
+      "viewbox": "0 0 621 128",
+      "aspect_ratio": "4.8516:1",
+      "desktop_render": "174x36 px",
+      "mobile_render": "135x28 px"
+    }
+  },
+  "total_archivos_graficos": 38,
+  "archivos": [
+    {
+      "archivo": "public/brand/isotipo-navy.svg",
+      "tamano_bytes": 2403,
+      "sha256": "c9be0e97063b11a6a3afdad1295edd35783dad2040f1273626c95c68a3374e97"
+    },
+    {
+      "archivo": "public/brand/isotipo.svg",
+      "tamano_bytes": 2403,
+      "sha256": "c9be0e97063b11a6a3afdad1295edd35783dad2040f1273626c95c68a3374e97"
+    },
+    {
+      "archivo": "public/brand/isotipo-inverso.svg",
+      "tamano_bytes": 2411,
+      "sha256": "5c1559e9e732ecf7bfb7ceefa769cce4de58ad79c6070c82b8be8b940fb72832"
+    },
+    {
+      "archivo": "public/brand/isotipo-maskable.svg",
+      "tamano_bytes": 2516,
+      "sha256": "18090f827aaa13ecc6e76b9d7ed829a1b5d5dad79dc186a85ad3187ebbb02ff5"
+    },
+    {
+      "archivo": "public/brand/isotipo-optico-mini.svg",
+      "tamano_bytes": 2371,
+      "sha256": "63b555d51214d16f310db9b0e8cbecbde95bec9e4c5f02eb0e7ca61e3177b82f"
+    },
+    {
+      "archivo": "public/brand/logo-header.svg",
+      "tamano_bytes": 9312,
+      "sha256": "b3e8a2952ad7132ea8669af045efacb1001a7e1c06eb45cbfef666186e7f8072"
+    },
+    {
+      "archivo": "public/brand/logo-horizontal.svg",
+      "tamano_bytes": 9312,
+      "sha256": "b3e8a2952ad7132ea8669af045efacb1001a7e1c06eb45cbfef666186e7f8072"
+    },
+    {
+      "archivo": "public/brand/logo-horizontal-sin-lema.svg",
+      "tamano_bytes": 9312,
+      "sha256": "b3e8a2952ad7132ea8669af045efacb1001a7e1c06eb45cbfef666186e7f8072"
+    },
+    {
+      "archivo": "public/brand/logo-horizontal-con-lema.svg",
+      "tamano_bytes": 20851,
+      "sha256": "b9dcb2efb59f1bb5e713474a363dcd408d327d81c7975efe2ced27fbc9887faa"
+    },
+    {
+      "archivo": "public/brand/logo-horizontal-inverso-sin-lema.svg",
+      "tamano_bytes": 9312,
+      "sha256": "c4fc639cea69e8692b10e5d94963d0018e3530251580ccb6a6ab315e6f0554f5"
+    },
+    {
+      "archivo": "public/brand/logo-horizontal-inverso-con-lema.svg",
+      "tamano_bytes": 20851,
+      "sha256": "ab6e7d84093bf0bde67d5aaa3f8c5f8127f2348913e4f736c630689544e82c7b"
+    },
+    {
+      "archivo": "public/brand/logo-sobre-fondo-oscuro.svg",
+      "tamano_bytes": 9312,
+      "sha256": "c4fc639cea69e8692b10e5d94963d0018e3530251580ccb6a6ab315e6f0554f5"
+    },
+    {
+      "archivo": "public/brand/logo-monocromo-blanco.svg",
+      "tamano_bytes": 9312,
+      "sha256": "fa5df9294cd8e2b2d6592640ac2b32dbe9d9384d79232f26d2cfb1ef3864100a"
+    },
+    {
+      "archivo": "public/brand/logo-monocromo-oscuro.svg",
+      "tamano_bytes": 9312,
+      "sha256": "0503c114aefbbdea4ddbf359234e3fc8475225fc79c1b996b34db0eee726b359"
+    },
+    {
+      "archivo": "public/brand/logo-vertical.svg",
+      "tamano_bytes": 9658,
+      "sha256": "3b0874952a35ba3cc5cb20b6651d5746ebffbebeef64dc9190b9b2ff236442a9"
+    },
+    {
+      "archivo": "public/brand/logo-vertical-con-lema.svg",
+      "tamano_bytes": 21430,
+      "sha256": "df523d159a7a87ae2ec55e615e7ba2dd935e80ee41b9db38b41535166268cb4f"
+    },
+    {
+      "archivo": "public/brand/logo-vertical-inverso-con-lema.svg",
+      "tamano_bytes": 21429,
+      "sha256": "0201a4ff533c03eaba9cbc7db5731781f95885c319710dad5ebc5544e7db1351"
+    },
+    {
+      "archivo": "public/brand/og.png",
+      "tamano_bytes": 26358,
+      "sha256": "3c787ee8cd105b77254e405d423a9a753a355885f1bc8fc41cb478cca80eddd4"
+    },
+    {
+      "archivo": "public/brand/twitter-card.png",
+      "tamano_bytes": 26099,
+      "sha256": "9564e2bada92a77ed132e988a88da4709302a5195de76199f59ba50a3983bffb"
+    },
+    {
+      "archivo": "public/brand/social-square-1080.png",
+      "tamano_bytes": 34290,
+      "sha256": "fd0648923385f9e5816c46b14198dd18de07edcc5df2499a1be92621611f4be3"
+    },
+    {
+      "archivo": "public/favicon.svg",
+      "tamano_bytes": 2403,
+      "sha256": "c9be0e97063b11a6a3afdad1295edd35783dad2040f1273626c95c68a3374e97"
+    },
+    {
+      "archivo": "public/favicon.ico",
+      "tamano_bytes": 3978,
+      "sha256": "3b48d463b384a330d37f33dc21197644de6f0c8da7b7ff1eb7d43c6c7b9ef27c"
+    },
+    {
+      "archivo": "public/favicon-16x16.png",
+      "tamano_bytes": 666,
+      "sha256": "34a6ad0d502c859b1417f2866f9e9ca9840bf66f90bbdd6bdaaf634db3e71d56"
+    },
+    {
+      "archivo": "public/favicon-32x32.png",
+      "tamano_bytes": 1320,
+      "sha256": "78d07509097ea2e97e71811ec7a9c8c15a35c161b8634c72ae8dad085eb8f505"
+    },
+    {
+      "archivo": "public/apple-touch-icon.png",
+      "tamano_bytes": 3897,
+      "sha256": "1a3527bba78939fb9449770fa3323d0102711ce2ac7fc1f66caf3f8c49d40582"
+    },
+    {
+      "archivo": "public/icons/apple-touch-icon.png",
+      "tamano_bytes": 3897,
+      "sha256": "1a3527bba78939fb9449770fa3323d0102711ce2ac7fc1f66caf3f8c49d40582"
+    },
+    {
+      "archivo": "public/icons/icon-192.png",
+      "tamano_bytes": 7556,
+      "sha256": "4fe04d780e129b6b37dfb916f73f997e3473984f1a87e45ac136332f7ceace07"
+    },
+    {
+      "archivo": "public/icons/icon-512.png",
+      "tamano_bytes": 12674,
+      "sha256": "dd93d9cb3a0a9cb2c5b026da7bfa40f7beb3f205d2dbb7c0f3f25edfdfecaee0"
+    },
+    {
+      "archivo": "public/icons/icon-maskable-192.png",
+      "tamano_bytes": 3092,
+      "sha256": "47f8ead2dd5f1c73904ce2bc0b88b669f2bb5bf7b05471929d305947bc714bf0"
+    },
+    {
+      "archivo": "public/icons/icon-maskable-512.png",
+      "tamano_bytes": 9412,
+      "sha256": "5182430c82e33e210f8aee900b7a993598f03b7cc5582b7af1779ed542712c44"
+    },
+    {
+      "archivo": "public/icons/notification-icon-color-192.png",
+      "tamano_bytes": 7556,
+      "sha256": "4fe04d780e129b6b37dfb916f73f997e3473984f1a87e45ac136332f7ceace07"
+    },
+    {
+      "archivo": "public/icons/notification-icon-192.png",
+      "tamano_bytes": 7556,
+      "sha256": "4fe04d780e129b6b37dfb916f73f997e3473984f1a87e45ac136332f7ceace07"
+    },
+    {
+      "archivo": "public/icons/notification-badge-48.png",
+      "tamano_bytes": 817,
+      "sha256": "8b38e6e4aa7c3f5ce54795d78df977ab5a478edad15f15e59a6e4f8dd07c2851"
+    },
+    {
+      "archivo": "public/icons/notification-badge-96.png",
+      "tamano_bytes": 1553,
+      "sha256": "f90b45c000e887a2149d9f2fcfbbd377a67dbc63deea9734480312350edf26a8"
+    },
+    {
+      "archivo": "public/icons/notification-badge-white.svg",
+      "tamano_bytes": 2303,
+      "sha256": "ee2a3877f9cab16d00cac29f047c0db1cbe436fd38a3de73358e3d286b47d4d1"
+    },
+    {
+      "archivo": "public/icons/notification-glyph-white.svg",
+      "tamano_bytes": 2303,
+      "sha256": "ee2a3877f9cab16d00cac29f047c0db1cbe436fd38a3de73358e3d286b47d4d1"
+    },
+    {
+      "archivo": "public/images/og-share.png",
+      "tamano_bytes": 26358,
+      "sha256": "3c787ee8cd105b77254e405d423a9a753a355885f1bc8fc41cb478cca80eddd4"
+    },
+    {
+      "archivo": "public/images/twitter-card.png",
+      "tamano_bytes": 26099,
+      "sha256": "9564e2bada92a77ed132e988a88da4709302a5195de76199f59ba50a3983bffb"
+    }
+  ]
+}
