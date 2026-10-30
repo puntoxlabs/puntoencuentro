@@ -438,6 +438,12 @@
   min-width: 0;
 }
 
+.home-header-logo-picture {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .home-header-logo-img {
   height: 36px;
   width: auto;
@@ -448,8 +454,9 @@
 
 @media (max-width: 480px) {
   .home-header-logo-img {
-    height: 28px;
-    max-width: min(216px, calc(100vw - 168px));
+    width: 165px;
+    height: auto;
+    max-width: min(165px, calc(100vw - 170px));
   }
 }
 

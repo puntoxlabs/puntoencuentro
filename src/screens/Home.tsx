@@ -1775,13 +1775,16 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     >
       <header className="home-header">
         <div className="home-header-brand" onClick={handleTap} aria-label="PuntoEncuentro">
-          <img
-            src="/brand/logo-header.svg"
-            alt="PuntoEncuentro"
-            className="home-header-logo-img"
-            width="175"
-            height="36"
-          />
+          <picture className="home-header-logo-picture">
+            <source media="(max-width: 480px)" srcSet="/brand/logo-header-mobile.svg" width="165" height="30" />
+            <img
+              src="/brand/logo-header.svg"
+              alt="PuntoEncuentro"
+              className="home-header-logo-img"
+              width="175"
+              height="36"
+            />
+          </picture>
           <span className="home-header-logo-text sr-only">PuntoEncuentro</span>
         </div>
         <div className="home-header-actions">
