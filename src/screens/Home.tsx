@@ -2045,6 +2045,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             onClearHighlight={handleClearHighlight}
             refreshTrigger={discoveryRefreshTrigger}
             externalAvisameTrigger={externalAvisameTrigger}
+            onSelectIdea={(prompt) => {
+              setHomeIntent(prompt);
+              const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
+              if (textarea) {
+                textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                textarea.focus();
+              }
+            }}
             onFocusIntentInput={() => {
               const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
               if (textarea) {

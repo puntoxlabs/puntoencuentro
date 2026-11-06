@@ -702,14 +702,19 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(html.includes('Configurar zonas'), 'Botón Configurar zonas');
     });
 
-    test('N. Estado vacío sin encuentros renderiza mensaje y CTA Abrir un encuentro', () => {
+    test('N. Estado vacío sin encuentros renderiza experiencia inspiradora y CTA Abrir un encuentro', () => {
       const html = renderToString(React.createElement(HomeOpenEncounters, {
         encounters: [],
         noZonesConfigured: false,
       }));
 
-      assert.ok(html.includes('No hay encuentros abiertos ahora en tus zonas'), 'Mensaje vacío');
-      assert.ok(html.includes('¿Ya tenés un plan y te falta gente?'), 'Prompt para crear oferta');
+      assert.ok(html.includes('Los próximos encuentros empiezan con una idea'), 'Título inspirador');
+      assert.ok(html.includes('Todavía no hay encuentros abiertos en tu zona'), 'Subtítulo inspirador');
+      assert.ok(html.includes('Ideas para organizar'), 'Indicación inequívoca');
+      assert.ok(html.includes('Salir a caminar'), 'Tarjeta inspiradora 1');
+      assert.ok(html.includes('Compartir unos mates'), 'Tarjeta inspiradora 2');
+      assert.ok(html.includes('Café y charla'), 'Tarjeta inspiradora 3');
+      assert.ok(html.includes('Juegos de mesa'), 'Tarjeta inspiradora 4');
       assert.ok(html.includes('Abrir un encuentro'), 'CTA para abrir encuentro');
     });
 

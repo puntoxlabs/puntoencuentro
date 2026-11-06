@@ -361,6 +361,47 @@
   margin-top: 6px;
 }
 
+/* Loading State */
+.pe-discovery-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.25rem 1.25rem;
+  background-color: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  gap: 10px;
+  text-align: center;
+}
+
+.pe-discovery-loading-spinner {
+  color: var(--color-primary, #059669);
+  animation: pe-spin 1s linear infinite;
+}
+
+.pe-discovery-loading-text {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+@keyframes pe-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-discovery-loading-spinner {
+    animation: none;
+  }
+}
+
 /* Selector Segmentado de Discovery */
 .pe-discovery-tabs {
   display: inline-flex;

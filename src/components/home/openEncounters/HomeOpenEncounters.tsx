@@ -13,6 +13,7 @@ import { ZoneSelectorModal } from './ZoneSelectorModal';
 import { PublicIntencionCard } from '../discovery/PublicIntencionCard';
 import { AvisameSheet } from '../alerts/AvisameSheet';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
+import { HomeInspirationalEmptyState, INSPIRATIONAL_IDEAS, type InspirationalIdea } from './HomeInspirationalEmptyState';
 import { openEncountersService } from '@/services/openEncountersService';
 import {
   useUnifiedDiscovery,
@@ -26,6 +27,7 @@ export const PENDING_INTENTION_INTEREST_KEY = 'puntoencuentro_pending_intention_
 export const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
 export { PENDING_AVISAME_DRAFT_KEY };
 export { OTHER_ZONES_SUGGESTION_THRESHOLD, MAX_OTHER_ZONE_SUGGESTIONS };
+export { HomeInspirationalEmptyState, INSPIRATIONAL_IDEAS, type InspirationalIdea };
 
 export type DiscoveryTab = 'todo' | 'encuentros' | 'intenciones';
 
@@ -41,6 +43,10 @@ export interface HomeOpenEncountersProps {
   onSeeAll?: () => void;
   /** Callback para enfocar y hacer scroll suave al input de intención existente en Home */
   onFocusIntentInput?: () => void;
+  /** Callback para precargar una intención al seleccionar una idea inspiradora */
+  onSelectIdea?: (prompt: string) => void;
+  /** Estado de carga explícito (opcional) */
+  isLoading?: boolean;
   /**
    * Forzar modo demo o modo real explícitamente.
    * Si no se define, se permite fallback a demo sólo en rutas /preview.
@@ -93,6 +99,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onSeeAll,
   isDemoMode,
   onFocusIntentInput,
+  onSelectIdea,
+  isLoading: propLoading,
   intentionsTitle,
   isV2Variant = false,
   highlightEncounterIds,
@@ -478,7 +486,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
   };
 
-  const handleFocusIntent = () => {
+  const handleFocusIntent = useCallback(() => {
     if (onFocusIntentInput) {
       onFocusIntentInput();
     } else {
@@ -488,7 +496,23 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         textarea.focus();
       }
     }
-  };
+  }, [onFocusIntentInput]);
+
+  const handleInspirationalSelect = useCallback(
+    (idea: InspirationalIdea) => {
+      if (onSelectIdea) {
+        onSelectIdea(idea.prompt);
+      } else {
+        const textarea = document.querySelector<HTMLTextAreaElement>('textarea[data-testid="home-intent-textarea"]');
+        if (textarea) {
+          textarea.value = idea.prompt;
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+      handleFocusIntent();
+    },
+    [onSelectIdea, handleFocusIntent]
+  );
 
   useEffect(() => {
     isDetailOpenRef.current = isDetailOpen;
@@ -806,6 +830,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
 
   // Renderizado del bloque de Encuentros
   const renderEncountersGroup = () => {
+    // Estado E: Error de red, RPC o servidor
     if (encountersError && !propEncounters) {
       return (
         <div className="pe-discovery-notice pe-discovery-notice--warning" role="alert">
@@ -817,6 +842,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
+    // Estado D1: No hay zonas configuradas explícitamente
     if (noZonesConfigured) {
       return (
         <div className="pe-discovery-empty">
@@ -836,35 +862,57 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    if (displayedEncounters.length === 0) {
+    // Estado F: Datos aún cargando
+    const isFetching = propLoading !== undefined ? propLoading : (propEncounters === undefined && hookLoading);
+    if (isFetching) {
+      return (
+        <div className="pe-discovery-loading" aria-live="polite" aria-busy="true">
+          <RefreshCw className="pe-discovery-loading-spinner" size={20} aria-hidden="true" />
+          <p className="pe-discovery-loading-text">Buscando encuentros en tus zonas…</p>
+        </div>
+      );
+    }
+
+    // Estado D2: Sin zonas tras finalizar carga
+    if (propEncounters === undefined && userZones.length === 0 && effectiveZones.length === 0) {
       return (
         <div className="pe-discovery-empty">
           <p className="pe-discovery-empty-title">
-            {onlyAvailableFilter
-              ? t('open_encounters.empty_only_available', {
-                  defaultValue: 'No hay encuentros con lugares disponibles ahora.',
-                })
-              : t('open_encounters.empty_title', {
-                  defaultValue: 'No hay encuentros abiertos ahora en tus zonas.',
-                })}
+            {t('open_encounters.no_zones_title', {
+              defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
+            })}
+          </p>
+          <button
+            type="button"
+            className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
+            onClick={handleOpenZoneModal}
+          >
+            {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
+          </button>
+        </div>
+      );
+    }
+
+    // Estado C: Hay encuentros reales, pero el filtro «Solo disponibles» devuelve cero
+    if (visibleEncounters.length > 0 && onlyAvailableFilter && displayedEncounters.length === 0) {
+      return (
+        <div className="pe-discovery-empty">
+          <p className="pe-discovery-empty-title">
+            {t('open_encounters.empty_only_available', {
+              defaultValue: 'No hay encuentros con lugares disponibles ahora.',
+            })}
           </p>
           <p className="pe-discovery-empty-desc">
-            {onlyAvailableFilter
-              ? 'Podés desactivar el filtro para ver todos los encuentros o abrir tu propio plan.'
-              : t('open_encounters.empty_prompt', {
-                  defaultValue: '¿Ya tenés un plan y te falta gente?',
-                })}
+            Podés desactivar el filtro para ver todos los encuentros o abrir tu propio plan.
           </p>
           <div className="pe-discovery-empty-actions">
-            {onlyAvailableFilter ? (
-              <button
-                type="button"
-                className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
-                onClick={() => setOnlyAvailableFilter(false)}
-              >
-                Ver todos los encuentros
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
+              onClick={() => setOnlyAvailableFilter(false)}
+            >
+              Ver todos los encuentros
+            </button>
             <button
               type="button"
               className="pe-discovery-empty-btn pe-discovery-empty-btn--primary"
@@ -883,6 +931,18 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             </button>
           </div>
         </div>
+      );
+    }
+
+    // Estado A: Cero encuentros reales en la zona seleccionada
+    if (visibleEncounters.length === 0) {
+      return (
+        <HomeInspirationalEmptyState
+          onSelectIdea={handleInspirationalSelect}
+          onOpenCreate={onOpenCreate}
+          onOpenAvisame={() => handleOpenAvisame('create')}
+          onConfigureZones={handleOpenZoneModal}
+        />
       );
     }
 
