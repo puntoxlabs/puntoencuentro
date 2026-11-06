@@ -161,6 +161,40 @@ export const openEncountersService = {
    */
   async getEncuentroAbiertoById(encounterId: string): Promise<OpenEncounterSummary | null> {
     try {
+      // 1. Consulta pública autorizada por UUID (sin límite de 50)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('get_encuentro_abierto_publico', {
+        p_encuentro_id: encounterId,
+      });
+
+      if (!rpcErr && (rpcData as any)?.ok && (rpcData as any)?.data) {
+        const item = (rpcData as any).data;
+        return {
+          id: item.id,
+          title: item.title,
+          emoji: item.emoji,
+          activityType: item.activity_type,
+          startsAt: item.starts_at,
+          dateLabel: item.date_label,
+          approximateZone: item.approximate_zone,
+          localityId: item.locality_id,
+          openSlots: Number(item.open_slots ?? 0),
+          confirmedCount: Number(item.confirmed_seats ?? item.confirmed_count ?? 0),
+          confirmedSeats: Number(item.confirmed_seats ?? item.confirmed_count ?? 0),
+          language: item.language || 'es',
+          description: item.description,
+          hostName: item.host_name,
+          hostId: item.host_id,
+          allowMultiSeatRequests: Boolean(item.allow_multi_seat_requests),
+          maxSeatsPerRequest: Number(item.max_seats_per_request ?? 1),
+          minSeatsPerRequest: Number(item.min_seats_per_request ?? 1),
+          isHost: Boolean(item.is_host),
+          minParticipants: item.min_participants ?? null,
+          realizationStatus: item.realization_status || 'pending',
+          inscriptionsClosed: Boolean(item.inscriptions_closed),
+        };
+      }
+
+      // 2. Fallback a Discovery general
       const res = await this.getDiscoveryEncuentrosWithStatus();
       if (res.ok && Array.isArray(res.data)) {
         const found = res.data.find((e) => e.id === encounterId);
@@ -169,8 +203,8 @@ export const openEncountersService = {
         }
       }
 
-      // Microcheck C: Fallback para deep links cuando el usuario está autorizado
-      // (ej. el usuario es Host o participante aprobado, o el encuentro está cerrado/completo para Discovery)
+      // 3. Fallback para deep links cuando el usuario está autorizado
+      // (ej. el usuario es Host o participante aprobado)
       const authRes = await this.getEncuentroParticipanteAutorizado(encounterId);
       if (authRes && authRes.ok && authRes.id) {
         const timePart = authRes.hora ? authRes.hora.substring(0, 5) : '';

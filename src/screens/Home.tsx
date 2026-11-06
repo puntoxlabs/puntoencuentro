@@ -623,22 +623,31 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const encounterId = params.get('open_encounter') || params.get('open_detail');
+    const pathMatch = location.pathname.match(/^\/e\/([^/?#]+)/i);
+    const encounterId = pathMatch ? pathMatch[1] : (params.get('open_encounter') || params.get('open_detail'));
     if (!encounterId) return;
 
     if (lastProcessedEncounterIdRef.current === encounterId) return;
     lastProcessedEncounterIdRef.current = encounterId;
+
+    // Helper para limpiar la URL preservando otros posibles parámetros
+    const cleanUrl = () => {
+      if (pathMatch) {
+        navigate('/', { replace: true });
+      } else {
+        params.delete('open_encounter');
+        params.delete('open_detail');
+        const cleanSearch = params.toString();
+        navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+      }
+    };
 
     // 1. Validar UUID/formato (RFC 4122)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(encounterId)) {
       console.warn('[Home] ID de encuentro abierto inválido en deep link:', encounterId);
       setDeepLinkNotice('El enlace de encuentro no tiene un formato válido.');
-      // Limpiar parámetro de la URL sin recargar
-      params.delete('open_encounter');
-      params.delete('open_detail');
-      const cleanSearch = params.toString();
-      navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+      cleanUrl();
       return;
     }
 
@@ -658,20 +667,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           setDeepLinkNotice('El encuentro solicitado ya no está disponible o no contás con autorización para ver sus detalles.');
         }
 
-        // 5. Limpiar open_encounter y open_detail de la URL mediante navegación replace
-        params.delete('open_encounter');
-        params.delete('open_detail');
-        const cleanSearch = params.toString();
-        navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+        // 5. Limpiar URL mediante navegación replace
+        cleanUrl();
       })
       .catch((err) => {
         if (!isMounted) return;
         console.error('[Home] Error cargando encuentro abierto desde deep link:', err);
         setDeepLinkNotice('No se pudo cargar el encuentro solicitado.');
-        params.delete('open_encounter');
-        params.delete('open_detail');
-        const cleanSearch = params.toString();
-        navigate(cleanSearch ? `${location.pathname}?${cleanSearch}` : location.pathname, { replace: true });
+        cleanUrl();
       });
 
     return () => {

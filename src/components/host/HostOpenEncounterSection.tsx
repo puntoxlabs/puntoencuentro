@@ -12,6 +12,7 @@ import {
   Flag,
   AlertCircle,
   Edit2,
+  Share2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterRequest } from '@/components/home/openEncounters/types';
@@ -22,6 +23,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isEncuentroPasado } from '@/lib/formatDate';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { OpenEncounterPublishModal } from './OpenEncounterPublishModal';
+import { OpenEncounterShareModal } from './OpenEncounterShareModal';
+import { OpenEncounterPostPublishModal } from './OpenEncounterPostPublishModal';
+import type { OpenEncounterShareData } from '@/lib/shareHelper';
 import { ApplicantTrustSignals } from './ApplicantTrustSignals';
 import { ReportRequestModal } from './ReportRequestModal';
 import { ContextualBlockAction } from '@/components/trust/ContextualBlockAction';
@@ -67,6 +71,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   } | null>(null);
   const [reportedSolicitudIds, setReportedSolicitudIds] = useState<Set<string>>(new Set());
   const [postEditNotice, setPostEditNotice] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isPostPublishModalOpen, setIsPostPublishModalOpen] = useState(false);
 
   const [isEditingMin, setIsEditingMin] = useState(false);
   const [newMinVal, setNewMinVal] = useState<string>(encuentro?.min_participants ? String(encuentro.min_participants) : '');
@@ -228,8 +234,10 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     ? encuentro.available_slots
     : Math.max(0, maxParticipants - confirmedSeats);
 
-  const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string }) => {
-    if (res?.moderation_status === 'review_pending') {
+  const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string; is_open?: boolean }) => {
+    if (res?.ok && (res?.moderation_status === 'approved' || res?.is_open)) {
+      setIsPostPublishModalOpen(true);
+    } else if (res?.moderation_status === 'review_pending') {
       setPostEditNotice(
         t('open_encounters.post_edit_review_notice', {
           defaultValue: 'Guardamos los cambios. La publicación se está revisando nuevamente.',
@@ -238,6 +246,16 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       setTimeout(() => setPostEditNotice(null), 8000);
     }
     onRefresh();
+  };
+
+  const shareData: OpenEncounterShareData = {
+    id: encuentro?.id || '',
+    title: encuentro?.open_public_title || encuentro?.titulo || 'Encuentro',
+    dateLabel: encuentro?.fecha
+      ? `${encuentro.fecha}${encuentro.hora ? ` · ${encuentro.hora.substring(0, 5)}` : ''}`
+      : undefined,
+    approximateZone: encuentro?.open_public_zone || (encuentro?.modalidad === 'virtual' ? 'Online' : undefined),
+    description: encuentro?.open_description || encuentro?.descripcion || '',
   };
 
   const loadSolicitudes = useCallback(async () => {
@@ -427,6 +445,19 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           loading={loginLoading}
           action="open_encounter"
         />
+
+        <OpenEncounterShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          encounter={shareData}
+        />
+
+        <OpenEncounterPostPublishModal
+          isOpen={isPostPublishModalOpen}
+          onClose={() => setIsPostPublishModalOpen(false)}
+          onShare={() => setIsShareModalOpen(true)}
+          encounter={shareData}
+        />
       </div>
     );
   }
@@ -470,6 +501,17 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         <div className="pe-host-open-card__actions-row">
           {isOpen && (
             <>
+              {encuentro?.moderation_status === 'approved' && !isPast && (
+                <button
+                  type="button"
+                  className="pe-host-open-card__action-btn pe-host-open-card__action-btn--primary"
+                  onClick={() => setIsShareModalOpen(true)}
+                  title="Difundir encuentro en redes o contactos"
+                >
+                  <Share2 size={13} aria-hidden="true" />
+                  <span>{t('open_encounters.action_share', { defaultValue: 'Difundir encuentro' })}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="pe-host-open-card__action-btn"
@@ -1011,6 +1053,19 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           }}
         />
       )}
+
+      <OpenEncounterShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        encounter={shareData}
+      />
+
+      <OpenEncounterPostPublishModal
+        isOpen={isPostPublishModalOpen}
+        onClose={() => setIsPostPublishModalOpen(false)}
+        onShare={() => setIsShareModalOpen(true)}
+        encounter={shareData}
+      />
     </div>
   );
 };

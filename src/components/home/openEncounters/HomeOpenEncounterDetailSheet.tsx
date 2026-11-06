@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle, DoorClosed } from 'lucide-react';
+import { X, Calendar, MapPin, Users, Info, CheckCircle2, Clock, XCircle, ArrowRight, Flag, Video, AlertCircle, DoorClosed, Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { OpenEncounterSummary, EncuentroParticipanteAutorizado, EstadoListaEspera, SolicitudEstado } from './types';
@@ -11,6 +11,7 @@ import { getEncuentroHost } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginRequiredSheet } from '@/components/auth/LoginRequiredSheet';
 import { ReportPublicEncounterModal } from './ReportPublicEncounterModal';
+import { OpenEncounterShareModal } from '@/components/host/OpenEncounterShareModal';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { AddToCalendarButton } from '@/components/calendar/AddToCalendarButton';
 import type { PublicContentReportReason } from '@/types/trust';
@@ -89,6 +90,7 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
 
   const [showOpenPushPrompt, setShowOpenPushPrompt] = useState(false);
   const [showOpenGuideModal, setShowOpenGuideModal] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     if (authorizedDetail?.reconfirmation_status) {
@@ -727,15 +729,26 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
               {authorizedDetail?.open_public_title || encounter.title}
             </h2>
           </div>
-          <button
-            ref={closeBtnRef}
-            type="button"
-            className="pe-detail-sheet__close-btn"
-            onClick={onClose}
-            aria-label="Cerrar detalle"
-          >
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              className="pe-detail-sheet__share-btn"
+              onClick={() => setIsShareModalOpen(true)}
+              aria-label="Compartir este encuentro"
+              title="Compartir este encuentro"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              ref={closeBtnRef}
+              type="button"
+              className="pe-detail-sheet__close-btn"
+              onClick={onClose}
+              aria-label="Cerrar detalle"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Banner Demo de Lanzamiento (solo para demo) */}
@@ -1562,6 +1575,20 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
           onClose={() => setShowOpenGuideModal(false)}
           platform={getPushPlatform()}
           userId={userId}
+        />
+      )}
+
+      {encounter && (
+        <OpenEncounterShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          encounter={{
+            id: encounter.id,
+            title: authorizedDetail?.open_public_title || encounter.title || 'Encuentro',
+            dateLabel: encounter.dateLabel,
+            approximateZone: encounter.approximateZone,
+            description: encounter.description,
+          }}
         />
       )}
     </>

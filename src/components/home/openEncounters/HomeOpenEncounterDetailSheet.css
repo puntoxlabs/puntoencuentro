@@ -86,6 +86,26 @@
   letter-spacing: -0.02em;
 }
 
+.pe-detail-sheet__share-btn {
+  background: rgba(15, 23, 42, 0.05);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pe-detail-sheet__share-btn:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+}
+
 .pe-detail-sheet__close-btn {
   background: rgba(15, 23, 42, 0.05);
   border: none;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, MapPin, Users, AlertCircle, Video, Edit2, Check, Lock } from 'lucide-react';
+import { X, Sparkles, MapPin, Users, AlertCircle, Video, Edit2, Check, Lock, Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Localidad } from '@/components/home/openEncounters/types';
 import { DEFAULT_LOCALIDADES } from '@/constants/localidades';
@@ -318,6 +318,20 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
             </span>
           </div>
         )}
+
+        {/* Banner explicativo de difusión y alcance comunitario */}
+        <div className="pe-publish-reach-banner" role="region" aria-label="Beneficios de difusión">
+          <div className="pe-publish-reach-banner__header">
+            <Share2 size={16} className="pe-publish-reach-banner__icon" aria-hidden="true" />
+            <span className="pe-publish-reach-banner__title">¿Querés que más personas se sumen?</span>
+          </div>
+          <p className="pe-publish-reach-banner__text">
+            Aunque ya hayas compartido este encuentro con tu grupo, al abrirlo a la comunidad también vas a poder difundirlo en otros grupos, entre tus contactos o en redes sociales para llegar a más gente.
+          </p>
+          <p className="pe-publish-reach-banner__subtext">
+            Las nuevas personas podrán conocer la propuesta y solicitar sumarse. Vos seguís decidiendo a quién aceptar.
+          </p>
+        </div>
 
         {/* Sección de Ubicación Privada con Opción de Editar */}
         <div className={`pe-publish-private-loc ${!hasPrivateLocation ? 'pe-publish-private-loc--missing' : ''}`}>
