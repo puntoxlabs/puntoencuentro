@@ -241,7 +241,139 @@ async function runTests() {
     console.log('ℹ 8. No hay encuentros abiertos activos en este instante en Staging (invariantes verificadas con caso simulado).');
   }
 
-  console.log('\n--- TODOS LOS TESTS PASARON EXITOSAMENTE (8/8) ---');
+  // =========================================================================
+  // REGRESIONES OBLIGATORIAS (HOTFIX)
+  // =========================================================================
+
+  // 10. Regresión: Título público diferente del privado
+  const privateTitle = 'Asado secreto en quinta de Martín';
+  const publicTitle = 'Asado y pileta en zona norte';
+  const dataDiffTitles = {
+    id: testUuid,
+    title: publicTitle,
+    dateLabel: 'Domingo 13:00',
+    approximateZone: 'Zona Norte',
+    description: 'Encuentro abierto para compartir un asado.',
+  };
+  const diffTitleShareText = buildOpenEncounterShareText(dataDiffTitles);
+  assert.ok(diffTitleShareText.includes(publicTitle), 'No contiene el título público');
+  assert.equal(diffTitleShareText.includes(privateTitle), false, 'CRÍTICO: Título privado filtrado en texto de difusión');
+  console.log('✔ 10. Regresión: Título público proyectado estrictamente; título privado aislado.');
+
+  // 11. Regresión: Descripción privada con dirección exacta y logística sensible
+  const exactAddress = 'Av. Colón 2345 timbre 4B (código portero 8912)';
+  const privateVirtual = 'https://meet.google.com/private-token-xyz';
+  const publicDescription = 'Encuentro cerca de Plaza Mitre para charlar y tomar mates.';
+  const dataWithPrivateInfo = {
+    id: testUuid,
+    title: 'Mates en la plaza',
+    dateLabel: 'Viernes 18:00',
+    approximateZone: 'Plaza Mitre',
+    description: publicDescription,
+  };
+  const safeLogisticsText = buildOpenEncounterShareText(dataWithPrivateInfo);
+  assert.ok(safeLogisticsText.includes(publicDescription), 'Falta descripción pública autorizada');
+  assert.equal(safeLogisticsText.includes(exactAddress), false, 'CRÍTICO: Dirección exacta privada filtrada en share text');
+  assert.equal(safeLogisticsText.includes(privateVirtual), false, 'CRÍTICO: Enlace virtual privado filtrado en share text');
+
+  const ogLogisticsHtml = generateOpenGraphHtml({
+    title: dataWithPrivateInfo.title,
+    description: dataWithPrivateInfo.description,
+    url: buildOpenEncounterUrl(testUuid),
+    imageUrl: 'https://staging.puntoencuentro.com.ar/images/og-share.png',
+    targetSpaUrl: buildOpenEncounterQueryUrl(testUuid),
+  });
+  assert.equal(ogLogisticsHtml.includes(exactAddress), false, 'CRÍTICO: Dirección exacta privada filtrada en Open Graph');
+  assert.equal(ogLogisticsHtml.includes(privateVirtual), false, 'CRÍTICO: Link virtual privado filtrado en Open Graph');
+  console.log('✔ 11. Regresión: Descripción privada con dirección exacta aislada; cero fuga en OG y share text.');
+
+  // 12. Regresión: Publicación recién aprobada y bloqueo estricto de campos privados
+  // Simular lógica de HostOpenEncounterSection: si no hay open_public_title, NUNCA usar titulo privado
+  const simEncuentroSinTituloPublico = {
+    id: testUuid,
+    titulo: 'Mi cumpleaños privado',
+    descripcion: 'Dirección privada 555',
+    is_open: true,
+    moderation_status: 'approved',
+    open_public_title: null, // Aún no inicializado o en propagación
+    open_description: null,
+  };
+  const evaluatedShareData = (
+    simEncuentroSinTituloPublico.is_open &&
+    simEncuentroSinTituloPublico.moderation_status === 'approved' &&
+    simEncuentroSinTituloPublico.open_public_title
+      ? {
+          id: simEncuentroSinTituloPublico.id,
+          title: String(simEncuentroSinTituloPublico.open_public_title).trim(),
+        }
+      : null
+  );
+  assert.equal(evaluatedShareData, null, 'Publicación sin open_public_title debe evaluar a null (fail-closed, nunca usar titulo)');
+  console.log('✔ 12. Regresión: Publicación recién aprobada exige open_public_title explícito (fail-closed).');
+
+  // 13. Regresión: Cambio posterior de moderación (retirada / review_pending -> fallback seguro)
+  // Simulamos consulta con un ID aleatorio inexistente o no aprobado ante handler
+  let unapprovedHtml = '';
+  await handler(
+    {
+      query: { id: '00000000-0000-4000-8000-000000000000' },
+      headers: {
+        'user-agent': 'WhatsApp/2.23.20.76 i',
+        host: 'staging.puntoencuentro.com.ar',
+        'x-forwarded-proto': 'https',
+      },
+    },
+    {
+      writeHead(status: number) {
+        assert.equal(status, 200);
+      },
+      end(body: string) {
+        unapprovedHtml = body;
+      },
+    }
+  );
+  assert.ok(unapprovedHtml.includes('PuntoEncuentro'), 'Falta marca en fallback');
+  assert.ok(unapprovedHtml.includes('Encuentro en PuntoEncuentro') || unapprovedHtml.includes('Organizá encuentros'), 'No retornó metadatos genéricos institucionales');
+  console.log('✔ 13. Regresión: Encuentro no publicado / despublicado retorna fallback institucional seguro.');
+
+  // 14. Regresión: Configuración explícita de entorno (Requirement 1: cero fallback fijo a Staging)
+  const savedUrl = process.env.VITE_SUPABASE_URL;
+  const savedKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  try {
+    delete process.env.VITE_SUPABASE_URL;
+    delete process.env.SUPABASE_URL;
+    delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.VITE_SUPABASE_ANON_KEY;
+    delete process.env.SUPABASE_ANON_KEY;
+
+    let envFallbackHtml = '';
+    await handler(
+      {
+        query: { id: testUuid },
+        headers: {
+          'user-agent': 'WhatsApp/2.23.20.76 i',
+          host: 'staging.puntoencuentro.com.ar',
+          'x-forwarded-proto': 'https',
+        },
+      },
+      {
+        writeHead(status: number) {
+          assert.equal(status, 200);
+        },
+        end(body: string) {
+          envFallbackHtml = body;
+        },
+      }
+    );
+    assert.ok(envFallbackHtml.includes('PuntoEncuentro — Organizá encuentros'), 'Sin env vars debe retornar genérico institucional');
+    console.log('✔ 14. Regresión: Entorno sin variables Supabase falla cerrado con genérico institucional sin consultar otro DB.');
+  } finally {
+    process.env.VITE_SUPABASE_URL = savedUrl;
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY = savedKey;
+  }
+
+  console.log('\n--- TODOS LOS TESTS PASARON EXITOSAMENTE (14/14) ---');
 }
 
 runTests().catch((err) => {

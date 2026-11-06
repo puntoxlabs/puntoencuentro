@@ -326,7 +326,7 @@ export const OpenEncounterPublishModal: React.FC<OpenEncounterPublishModalProps>
             <span className="pe-publish-reach-banner__title">¿Querés que más personas se sumen?</span>
           </div>
           <p className="pe-publish-reach-banner__text">
-            Aunque ya hayas compartido este encuentro con tu grupo, al abrirlo a la comunidad también vas a poder difundirlo en otros grupos, entre tus contactos o en redes sociales para llegar a más gente.
+            Si ya compartiste este encuentro con tu grupo, ahora también podés difundirlo entre más personas, otros grupos o en tus redes sociales para sumar participantes.
           </p>
           <p className="pe-publish-reach-banner__subtext">
             Las nuevas personas podrán conocer la propuesta y solicitar sumarse. Vos seguís decidiendo a quién aceptar.

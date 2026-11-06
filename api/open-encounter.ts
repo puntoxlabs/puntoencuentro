@@ -147,7 +147,7 @@ export default async function handler(req: any, res: any) {
   try {
     const supabaseUrl =
       process.env.VITE_SUPABASE_URL ||
-      'https://wougfhfwqgmxhgvjqoua.supabase.co';
+      process.env.SUPABASE_URL;
 
     const supabaseAnonKey =
       process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -155,7 +155,36 @@ export default async function handler(req: any, res: any) {
       process.env.VITE_SUPABASE_ANON_KEY ||
       process.env.SUPABASE_ANON_KEY;
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    // Validación estricta y explícita del entorno Supabase correspondiente
+    let isValidUrl = false;
+    try {
+      if (supabaseUrl && typeof supabaseUrl === 'string') {
+        const parsed = new URL(supabaseUrl);
+        isValidUrl = parsed.protocol === 'https:' || parsed.protocol === 'http:';
+      }
+    } catch {
+      isValidUrl = false;
+    }
+
+    if (!isValidUrl || !supabaseAnonKey || typeof supabaseAnonKey !== 'string' || !supabaseAnonKey.trim()) {
+      console.warn('[open-encounter] Configuración de Supabase ausente o inconsistente en el entorno. Fallando de forma segura con previsualización institucional.');
+      const safeHtml = generateOpenGraphHtml({
+        title: 'PuntoEncuentro — Organizá encuentros y compartí momentos',
+        description: 'Coordiná fechas, invitá a tu grupo y descubrí planes de forma privada y sin vueltas.',
+        url: canonicalUrl,
+        imageUrl: defaultImageUrl,
+        targetSpaUrl,
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=60',
+      });
+      res.end(safeHtml);
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl!, supabaseAnonKey, {
       auth: { persistSession: false },
     });
 

@@ -73,6 +73,8 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
   const [postEditNotice, setPostEditNotice] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isPostPublishModalOpen, setIsPostPublishModalOpen] = useState(false);
+  const [verifiedPublicShareData, setVerifiedPublicShareData] = useState<OpenEncounterShareData | null>(null);
+  const [fetchingShareData, setFetchingShareData] = useState(false);
 
   const [isEditingMin, setIsEditingMin] = useState(false);
   const [newMinVal, setNewMinVal] = useState<string>(encuentro?.min_participants ? String(encuentro.min_participants) : '');
@@ -234,9 +236,44 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
     ? encuentro.available_slots
     : Math.max(0, maxParticipants - confirmedSeats);
 
-  const handlePublished = (res?: { ok: boolean; moderation_status?: string; message?: string; is_open?: boolean }) => {
+  const fetchVerifiedPublicData = useCallback(async (): Promise<OpenEncounterShareData | null> => {
+    if (!encuentro?.id) return null;
+    try {
+      // Consulta get_encuentro_abierto_publico: valida is_open = true, moderation_status = 'approved',
+      // vigencia y bloqueo bilateral. Devuelve null si no está aprobado o es privado.
+      const publicEnc = await openEncountersService.getEncuentroAbiertoById(encuentro.id);
+      if (publicEnc && publicEnc.title && publicEnc.title.trim()) {
+        const verified: OpenEncounterShareData = {
+          id: publicEnc.id,
+          title: publicEnc.title.trim(),
+          dateLabel: publicEnc.dateLabel,
+          approximateZone: publicEnc.approximateZone,
+          description: publicEnc.description ? publicEnc.description.trim() : undefined,
+        };
+        setVerifiedPublicShareData(verified);
+        return verified;
+      }
+    } catch (err) {
+      console.warn('[HostOpenEncounterSection] Error obteniendo datos públicos autorizados:', err);
+    }
+    return null;
+  }, [encuentro?.id]);
+
+  const handlePublished = async (res?: { ok: boolean; moderation_status?: string; message?: string; is_open?: boolean }) => {
+    onRefresh();
+
     if (res?.ok && (res?.moderation_status === 'approved' || res?.is_open)) {
-      setIsPostPublishModalOpen(true);
+      setFetchingShareData(true);
+      try {
+        const verified = await fetchVerifiedPublicData();
+        if (verified) {
+          setIsPostPublishModalOpen(true);
+        } else {
+          console.info('[HostOpenEncounterSection] Publicación recién aprobada: datos públicos aún no propagados o pendientes.');
+        }
+      } finally {
+        setFetchingShareData(false);
+      }
     } else if (res?.moderation_status === 'review_pending') {
       setPostEditNotice(
         t('open_encounters.post_edit_review_notice', {
@@ -245,18 +282,51 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
       );
       setTimeout(() => setPostEditNotice(null), 8000);
     }
-    onRefresh();
   };
 
-  const shareData: OpenEncounterShareData = {
-    id: encuentro?.id || '',
-    title: encuentro?.open_public_title || encuentro?.titulo || 'Encuentro',
-    dateLabel: encuentro?.fecha
-      ? `${encuentro.fecha}${encuentro.hora ? ` · ${encuentro.hora.substring(0, 5)}` : ''}`
-      : undefined,
-    approximateZone: encuentro?.open_public_zone || (encuentro?.modalidad === 'virtual' ? 'Online' : undefined),
-    description: encuentro?.open_description || encuentro?.descripcion || '',
+  const handleOpenShare = async () => {
+    if (verifiedPublicShareData && verifiedPublicShareData.id === encuentro?.id) {
+      setIsShareModalOpen(true);
+      return;
+    }
+    setFetchingShareData(true);
+    try {
+      const verified = await fetchVerifiedPublicData();
+      if (verified) {
+        setIsShareModalOpen(true);
+      } else {
+        alert(t('open_encounters.share_not_available', {
+          defaultValue: 'La publicación aún no está aprobada o disponible públicamente para difusión.',
+        }));
+      }
+    } finally {
+      setFetchingShareData(false);
+    }
   };
+
+  // Invariante de Privacidad P0: NUNCA usar titulo o descripcion privados como fallback
+  const activeShareData: OpenEncounterShareData | null = verifiedPublicShareData || (
+    isOpen && encuentro?.moderation_status === 'approved' && encuentro?.open_public_title
+      ? {
+          id: encuentro.id,
+          title: String(encuentro.open_public_title).trim(),
+          dateLabel: encuentro.fecha
+            ? `${encuentro.fecha}${encuentro.hora ? ` · ${encuentro.hora.substring(0, 5)}` : ''}`
+            : undefined,
+          approximateZone: encuentro.open_public_zone || (encuentro.modalidad === 'virtual' ? 'Online' : undefined),
+          description: encuentro.open_description ? String(encuentro.open_description).trim() : undefined,
+        }
+      : null
+  );
+
+  // Invalida inmediatamente datos de difusión si el encuentro deja de estar aprobado o abierto
+  useEffect(() => {
+    if (!isOpen || encuentro?.moderation_status !== 'approved') {
+      setVerifiedPublicShareData(null);
+      setIsShareModalOpen(false);
+      setIsPostPublishModalOpen(false);
+    }
+  }, [isOpen, encuentro?.moderation_status]);
 
   const loadSolicitudes = useCallback(async () => {
     if (!encuentro?.id || !hostId) return;
@@ -446,18 +516,22 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
           action="open_encounter"
         />
 
-        <OpenEncounterShareModal
-          isOpen={isShareModalOpen}
-          onClose={() => setIsShareModalOpen(false)}
-          encounter={shareData}
-        />
+        {activeShareData && (
+          <>
+            <OpenEncounterShareModal
+              isOpen={isShareModalOpen}
+              onClose={() => setIsShareModalOpen(false)}
+              encounter={activeShareData}
+            />
 
-        <OpenEncounterPostPublishModal
-          isOpen={isPostPublishModalOpen}
-          onClose={() => setIsPostPublishModalOpen(false)}
-          onShare={() => setIsShareModalOpen(true)}
-          encounter={shareData}
-        />
+            <OpenEncounterPostPublishModal
+              isOpen={isPostPublishModalOpen}
+              onClose={() => setIsPostPublishModalOpen(false)}
+              onShare={() => setIsShareModalOpen(true)}
+              encounter={activeShareData}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -505,11 +579,12 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
                 <button
                   type="button"
                   className="pe-host-open-card__action-btn pe-host-open-card__action-btn--primary"
-                  onClick={() => setIsShareModalOpen(true)}
+                  onClick={handleOpenShare}
+                  disabled={fetchingShareData}
                   title="Difundir encuentro en redes o contactos"
                 >
                   <Share2 size={13} aria-hidden="true" />
-                  <span>{t('open_encounters.action_share', { defaultValue: 'Difundir encuentro' })}</span>
+                  <span>{fetchingShareData ? 'Cargando…' : t('open_encounters.action_share', { defaultValue: 'Difundir encuentro' })}</span>
                 </button>
               )}
               <button
@@ -1054,18 +1129,22 @@ export const HostOpenEncounterSection: React.FC<HostOpenEncounterSectionProps> =
         />
       )}
 
-      <OpenEncounterShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        encounter={shareData}
-      />
+      {activeShareData && (
+        <>
+          <OpenEncounterShareModal
+            isOpen={isShareModalOpen}
+            onClose={() => setIsShareModalOpen(false)}
+            encounter={activeShareData}
+          />
 
-      <OpenEncounterPostPublishModal
-        isOpen={isPostPublishModalOpen}
-        onClose={() => setIsPostPublishModalOpen(false)}
-        onShare={() => setIsShareModalOpen(true)}
-        encounter={shareData}
-      />
+          <OpenEncounterPostPublishModal
+            isOpen={isPostPublishModalOpen}
+            onClose={() => setIsPostPublishModalOpen(false)}
+            onShare={() => setIsShareModalOpen(true)}
+            encounter={activeShareData}
+          />
+        </>
+      )}
     </div>
   );
 };
