@@ -130,6 +130,7 @@ export interface EnvSource {
   VERCEL_GIT_COMMIT_REF?: string;
   VERCEL_URL?: string;
   VERCEL_BRANCH_URL?: string;
+  VERCEL_PROJECT_PRODUCTION_URL?: string;
   NODE_ENV?: string;
 }
 
@@ -185,6 +186,7 @@ function readDefaultEnvSource(): EnvSource {
     VERCEL_GIT_COMMIT_REF: procEnv?.VERCEL_GIT_COMMIT_REF,
     VERCEL_URL: procEnv?.VERCEL_URL,
     VERCEL_BRANCH_URL: procEnv?.VERCEL_BRANCH_URL,
+    VERCEL_PROJECT_PRODUCTION_URL: procEnv?.VERCEL_PROJECT_PRODUCTION_URL,
     NODE_ENV: procEnv?.NODE_ENV,
   };
 }
@@ -548,6 +550,68 @@ export interface ResolveDomainConfigOptions {
   runtimeBrowserOrigin?: string;
 }
 
+/**
+ * Obtiene el origen explícito efectivo para el entorno activo.
+ *
+ * En despliegues efímeros de Preview en Vercel (ramas de PR distintas de `staging`),
+ * los proyectos suelen heredar `VITE_APP_URL` desde una variable transversal
+ * ("Production, Preview, Development" = dominio de Producción) mientras que `staging`
+ * define su propio override por rama. En `preview`, si no hay `PUBLIC_APP_ORIGIN`
+ * explícito y `VITE_APP_URL` apunta al dominio de Producción, se ignora esa herencia
+ * para que Preview utilice su propio origen efímero (`VERCEL_BRANCH_URL` / `VERCEL_URL`)
+ * sin fallar el build ni emitir enlaces apuntando a Producción.
+ * (Cualquier valor malformado o con esquema inseguro sigue propagándose para fallar cerrado).
+ */
+function resolveEffectiveConfiguredOrigin(
+  env: EnvSource,
+  environment: AppEnvironment
+): string {
+  const publicAppOrigin = (env.PUBLIC_APP_ORIGIN || '').trim();
+  if (publicAppOrigin) {
+    return publicAppOrigin;
+  }
+
+  const viteAppUrl = (env.VITE_APP_URL || '').trim();
+  if (!viteAppUrl) {
+    return '';
+  }
+
+  if (environment === 'preview') {
+    try {
+      const normalizedCandidate = normalizeAppOrigin(viteAppUrl, { requireHttps: true });
+      const candidateHost = new URL(normalizedCandidate).hostname.toLowerCase();
+      const defaultProdHost = new URL(DEFAULT_PRODUCTION_ORIGIN).hostname.toLowerCase();
+
+      let vercelProdHost = '';
+      if (env.VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
+        const rawVercelProd = env.VERCEL_PROJECT_PRODUCTION_URL.trim();
+        const withScheme =
+          rawVercelProd.startsWith('https://') || rawVercelProd.startsWith('http://')
+            ? rawVercelProd
+            : `https://${rawVercelProd}`;
+        try {
+          vercelProdHost = new URL(
+            normalizeAppOrigin(withScheme, { requireHttps: true })
+          ).hostname.toLowerCase();
+        } catch {
+          vercelProdHost = '';
+        }
+      }
+
+      if (
+        candidateHost === defaultProdHost ||
+        (vercelProdHost && candidateHost === vercelProdHost)
+      ) {
+        return '';
+      }
+    } catch {
+      // No ignorar URLs malformadas o con esquemas inseguros: deben fallar cerrado en strict=true
+    }
+  }
+
+  return viteAppUrl;
+}
+
 export function resolveDomainConfig(options: ResolveDomainConfigOptions = {}): DomainConfig {
   const env = options.env ?? readDefaultEnvSource();
   const environment = resolveAppEnvironment(env);
@@ -556,7 +620,7 @@ export function resolveDomainConfig(options: ResolveDomainConfigOptions = {}): D
     options.requireExplicitOrigin ??
     env.VITE_REQUIRE_EXPLICIT_APP_URL?.trim().toLowerCase() === 'true';
 
-  const configuredRawOrigin = (env.PUBLIC_APP_ORIGIN || env.VITE_APP_URL || '').trim();
+  const configuredRawOrigin = resolveEffectiveConfiguredOrigin(env, environment);
   const configuredStagingRaw = (env.PUBLIC_STAGING_ORIGIN || '').trim();
 
   const stagingOrigin = configuredStagingRaw
@@ -814,9 +878,9 @@ export function resolveServerCanonicalOrigin(params: {
   env?: EnvSource;
 }): ServerOriginResolution {
   const env = params.env ?? readDefaultEnvSource();
-  const explicitOriginRaw = (env.PUBLIC_APP_ORIGIN || env.VITE_APP_URL || '').trim();
-  const hasExplicitEnv = Boolean(env.VITE_APP_ENV?.trim());
   const config = resolveDomainConfig({ env, strict: false });
+  const explicitOriginRaw = resolveEffectiveConfiguredOrigin(env, config.environment);
+  const hasExplicitEnv = Boolean(env.VITE_APP_ENV?.trim());
 
   const rawHostHeader =
     extractFirstHeaderValue(params.headers?.['x-forwarded-host']) ||

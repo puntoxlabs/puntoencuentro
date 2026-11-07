@@ -722,7 +722,82 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
       'Intento de cierre prematuro de </script> neutralizado'
     );
 
-    console.log('✔ 11. Despliegues Preview en Vercel (VERCEL_URL/VERCEL_BRANCH_URL) y escapado JS OG verificados.');
+    // Caso real de topología Vercel (dpl_8vUaWgPPFrmZego7u2oFmrnCkTHr):
+    // En ramas PR de Preview distintas de `staging`, Vercel inyecta la variable transversal
+    // `VITE_APP_URL=https://puntoencuentro.com.ar` ("Production, Preview, Development").
+    // El build estricto, el cliente y el serverless deben ignorar esa herencia productiva
+    // y resolver el origen efímero de Preview sin fallar ni apuntar enlaces a Producción.
+    const inheritedProdViteUrlPreviewEnv = {
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'chore/domain-migration-readiness',
+      VITE_APP_URL: 'https://puntoencuentro.com.ar',
+      VERCEL_BRANCH_URL:
+        'puntoencuentro-git-chore-dom-a1b2c3-puntoxlabs-projects.vercel.app',
+      VERCEL_URL: 'puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'puntoencuentro.com.ar',
+    };
+
+    const previewInheritedBuildCfg = validateBuildDomainConfig(inheritedProdViteUrlPreviewEnv);
+    assert.equal(previewInheritedBuildCfg.environment, 'preview');
+    assert.equal(
+      previewInheritedBuildCfg.canonicalOrigin,
+      'https://puntoencuentro-git-chore-dom-a1b2c3-puntoxlabs-projects.vercel.app'
+    );
+
+    const previewInheritedBrowserCfg = resolveDomainConfig({
+      env: inheritedProdViteUrlPreviewEnv,
+      runtimeBrowserOrigin: 'https://puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app',
+    });
+    assert.equal(
+      previewInheritedBrowserCfg.canonicalOrigin,
+      'https://puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app'
+    );
+
+    const previewInheritedServerRes = resolveServerCanonicalOrigin({
+      headers: { host: 'puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app' },
+      env: inheritedProdViteUrlPreviewEnv,
+    });
+    assert.equal(previewInheritedServerRes.isTrustedRequestHost, true);
+    assert.equal(
+      previewInheritedServerRes.canonicalOrigin,
+      'https://puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app'
+    );
+
+    // También cubre futura migración a Dominio B vía VERCEL_PROJECT_PRODUCTION_URL
+    const futureBrandInheritedPreviewCfg = validateBuildDomainConfig({
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'feat/nueva-funcionalidad',
+      VITE_APP_URL: 'https://encuentros-nuevamarca.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'encuentros-nuevamarca.app',
+      VERCEL_BRANCH_URL: 'nuevamarca-git-feat-nueva-a1b2c3-puntoxlabs-projects.vercel.app',
+    });
+    assert.equal(
+      futureBrandInheritedPreviewCfg.canonicalOrigin,
+      'https://nuevamarca-git-feat-nueva-a1b2c3-puntoxlabs-projects.vercel.app'
+    );
+
+    // Seguridad preservada: esquemas inseguros o PUBLIC_APP_ORIGIN productivo explícito en Preview siguen fallando cerrado
+    assert.throws(
+      () =>
+        validateBuildDomainConfig({
+          VERCEL_ENV: 'preview',
+          VERCEL_GIT_COMMIT_REF: 'feat/test',
+          VITE_APP_URL: 'http://puntoencuentro.com.ar',
+        }),
+      (err: unknown) => err instanceof DomainConfigError && err.code === 'insecure_origin_scheme'
+    );
+    assert.throws(
+      () =>
+        validateBuildDomainConfig({
+          VERCEL_ENV: 'preview',
+          VERCEL_GIT_COMMIT_REF: 'feat/test',
+          PUBLIC_APP_ORIGIN: 'https://puntoencuentro.com.ar',
+        }),
+      (err: unknown) =>
+        err instanceof DomainConfigError && err.code === 'cross_environment_origin_mismatch'
+    );
+
+    console.log('✔ 11. Despliegues Preview en Vercel (VERCEL_URL/VERCEL_BRANCH_URL y herencia transversal) y escapado JS OG verificados.');
   }
 
   console.log('=== DOMAIN MIGRATION READINESS SUITE: 11/11 BLOQUES APROBADOS ===\n');

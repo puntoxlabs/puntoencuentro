@@ -135,6 +135,8 @@ export default defineConfig(({ mode, command }) => {
     VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? fileEnv.VERCEL_GIT_COMMIT_REF,
     VERCEL_URL: process.env.VERCEL_URL ?? fileEnv.VERCEL_URL,
     VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL ?? fileEnv.VERCEL_BRANCH_URL,
+    VERCEL_PROJECT_PRODUCTION_URL:
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ?? fileEnv.VERCEL_PROJECT_PRODUCTION_URL,
     NODE_ENV: process.env.NODE_ENV,
   };
 
