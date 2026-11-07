@@ -151,7 +151,9 @@ Estas tablas no admiten alta desde sesiones anónimas y, para un usuario con Goo
 - **`anonymous_transfer_tickets`:** **Inmutable en snapshots** (`source_user_id_snapshot`, `target_user_id_snapshot`, `resources_transferred`); actúa además como registro de retiro definitivo (`status = 'completed'`) de `v_source_user_id`.
 - **`encuentro_post_event_closure_audit`, `asistencia_controversia_auditoria`, `public_content_moderation_audit`, `domain_events_outbox`, `app_usage_events`:** **Dejar intactos**.
 
-### 2.3 Reglas Deterministas de Resolución de Conflictos (Garantía de Cero Pérdidas Silenciosas)
+### 2.3 Reglas Deterministas de Resolución de Conflictos (Garantía de Cero Pérdidas Silenciosas Sujeta a Verificación Adversarial)
+
+> **Nota metodológica de seguridad:** Las reglas y ordenamientos definidos a continuación constituyen el diseño determinista para resolver colisiones. No obstante, **la garantía de "cero pérdidas silenciosas" y "cero corrupción de estados" no se asume por construcción teórica**: es una hipótesis de diseño que debe ser demostrada empíricamente mediante pruebas adversariales de alta contienda (`ADV-10`, `ADV-11`, `ADV-12`, `ADV-13`) tanto en arnés local como en Supabase Staging antes de certificar el motor.
 
 Cuando `v_source_user_id` y `v_target_user_id` coinciden en un mismo encuentro o clave única (por ejemplo, el usuario abrió primero un link en `Dominio B` y luego ejecutó el rescate desde `Dominio A`), rigen estas reglas deterministas obligatorias:
 
@@ -205,16 +207,17 @@ Cuando `v_source_user_id` y `v_target_user_id` coinciden en un mismo encuentro o
 - **Funcionamiento:**
   1. En `Dominio A`, el usuario con sesión anónima (o invitado cuyos tokens locales acaban de materializarse en una sesión anónima vía `ensureHostSession()` + `vincular_tokens_participante_lote_seguro`) solicita trasladar sus recursos sin crear cuenta Google.
   2. Se abre `https://<Dominio-B>/migrate-receive` mediante `window.open`. `Dominio B` asegura primero su propia sesión limpia (`uid_B`, vía `ensureHostSession()` o cuenta Google activa), genera un `bridge_nonce` de 128 bits y responde `postMessage({ type: 'PE_BRIDGE_READY', bridge_nonce, target_user_id: uid_B })` restringido a `event.origin` exacto.
-  3. `Dominio A` verifica `event.origin === PUBLIC_APP_ORIGIN` e invoca `create_domain_migration_ticket_seguro('cross_origin_bridge', uid_B)`, emitiendo un secreto CSPRNG de 256 bits **asociado en servidor a `intended_target_user_id = uid_B`** (`TTL = 5 minutos`, almacenado solo como `SHA-256`). **No se exporta jamás el JWT ni el `refresh_token` de `Dominio A`.** (Si `window.opener` no está disponible, opera el modo manual segregado `'cross_origin_manual'` con `TTL = 3 minutos` de §4.4).
-  4. `Dominio A` envía `{ type: 'PE_BRIDGE_CODE', ticket_token, bridge_nonce }` restringido a `PUBLIC_APP_ORIGIN` exacto, y `Dominio B` invoca `claim_domain_migration_ticket_seguro(ticket_token)`.
-  5. PostgreSQL verifica posesión de `uid_B` (`auth.uid() = intended_target_user_id`), hash, TTL, bloqueo `FOR UPDATE` y rate-limit, transfiere atómicamente los recursos con `_transfer_anonymous_resources_internal` y **retira permanentemente para escrituras futuras** a `Anónimo A` (§4.2).
+  3. `Dominio A` verifica `event.origin === PUBLIC_APP_ORIGIN` e invoca `create_domain_migration_ticket_seguro('cross_origin_bridge', uid_B)`, emitiendo un secreto CSPRNG de 256 bits **asociado en servidor a `intended_target_user_id = uid_B`** (`TTL = 5 minutos`, almacenado solo como `SHA-256`). **No se exporta jamás el JWT ni el `refresh_token` de `Dominio A`.**
+  4. Si `window.opener` no está disponible o el handshake falla (timeout 2,5 s), opera el modo manual segregado `'cross_origin_manual'` (§4.4) siempre que su feature flag independiente `ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK` esté activo. Se aclara explícitamente que el modo manual es un **mecanismo bearer (al portador) de alto privilegio con riesgo residual mayor**, por lo que opera con TTL hiper-acotado de **3 minutos** y puede deshabilitarse independientemente.
+  5. `Dominio A` envía `{ type: 'PE_BRIDGE_CODE', ticket_token, bridge_nonce }` restringido a `PUBLIC_APP_ORIGIN` exacto, y `Dominio B` invoca `claim_domain_migration_ticket_seguro(ticket_token)`.
+  6. PostgreSQL verifica posesión de `uid_B` (`auth.uid() = intended_target_user_id`), hash, TTL, bloqueo `FOR UPDATE` y rate-limit, transfiere atómicamente los recursos con `_transfer_anonymous_resources_internal` y **retira permanentemente para escrituras futuras** a `Anónimo A` (§4.2).
 - **¿Ofrece seguridad suficiente?** **Sí.** En el canal cross-origin automático, el código ni siquiera es una credencial al portador (*bearer*): solo `uid_B` autenticado por su JWT en `Dominio B` puede canjearlo. Por lo tanto, **conforme al Principio de Producto #4, NO se justifica imponer Google obligatoriamente.**
 
 ### 3.3 Comparación Multicriterio
 
 | Dimensión | Estrategia 1: `Anónimo A → Google → Dominio B` | Estrategia 2: `Anónimo A → Anónimo B` (Puente sin registro) |
 | :--- | :--- | :--- |
-| **Seguridad criptográfica** | **Muy alta.** En su variante *same-origin* no cruza dominios; usa OAuth estándar + `anonymous_transfer_tickets`. | **Muy alta (equivalente en backend).** Sin transporte de JWTs; secreto de 256 bits `SHA-256`, atado a `intended_target_user_id = uid_B` en el flujo automático, TTL `5 min` (`3 min` en modo manual), single-use `FOR UPDATE` y rate-limit fail-closed. |
+| **Seguridad criptográfica** | **Muy alta.** En su variante *same-origin* no cruza dominios; usa OAuth estándar + `anonymous_transfer_tickets`. | **Muy alta en automático; media-alta en manual.** Flujo automático atado a `intended_target_user_id = uid_B` (cero bearer, anti-intercepción). Flujo manual es bearer de alto privilegio mitigado por TTL 3 min y flag independiente de apagado. |
 | **Experiencia de usuario (UX)** | Ideal para quien desea respaldo permanente y multidispositivo; fricción alta para quien eligió usar la app sin registrarse. | **Óptima para usuarios sin registro:** 1 clic («Llevar mis encuentros al nuevo sitio») con traspaso automático entre pestañas en ~2 segundos, o llave manual si abre en otro navegador. |
 | **Complejidad técnica** | **Baja.** Reutiliza casi todo `AuthContext.tsx` y las RPCs actuales. | **Media y acotada.** Reutiliza la misma tabla y motor SQL; añade rutas `/auth/domain-bridge` y `/migrate-receive`, congelamiento post-migración y corrección de `Home.tsx` línea 1130. |
 | **Recuperación ante errores / cancelación** | Si cancela OAuth en `Dominio A`, la sesión anónima sigue intacta. Si pierde el dispositivo tras el login, recupera todo con Google. | Si cierra la pestaña antes del canje, `Dominio A` conserva todos sus recursos intactos. Si pierde definitivamente el dispositivo/navegador sin haber vinculado Google, aplica el límite criptográfico de §4.5. |
@@ -265,11 +268,11 @@ Se adopta la **Arquitectura Dual Unificada** sobre **una sola tabla de tickets (
 
 2. **Serialización determinista de operaciones concurrentes durante el canje:**
    - **Problema a evitar:** Si una pestaña abierta en `Dominio A` ejecuta una escritura (ej. `crear_encuentro_seguro` o `publicar_mensaje_encuentro_seguro`) en el mismo milisegundo en que `Dominio B` ejecuta el canje bajo `READ COMMITTED`, una carrera no serializada podría abortar por post-condición o dejar una fila nueva rezagada bajo `v_source_user_id`.
-   - **Mecanismo de exclusión mutua sin deadlocks:**
+   - **Mecanismo de exclusión mutua anti-deadlock (Sujeto a verificación adversarial):**
      - Se define la llave canónica de lock transaccional por identidad: `pg_advisory_xact_lock(hashtext('pe_identity_mutation:' || <user_id>::text))`.
-     - En el canje (`_transfer_anonymous_resources_internal`), se adquieren los advisory locks de `LEAST(p_source_user_id, p_target_user_id)` y luego `GREATEST(p_source_user_id, p_target_user_id)` (orden lexicográfico estricto que **elimina cualquier posibilidad de deadlock**), seguidos de `SELECT ... FOR NO KEY UPDATE` en `auth.users` y `SELECT ... FOR UPDATE` ordenado por `id` en `encuentros`, `participantes` y `solicitudes_encuentro_abierto` del alcance afectado.
+     - En el canje (`_transfer_anonymous_resources_internal`), se adquieren los advisory locks de `LEAST(p_source_user_id, p_target_user_id)` y luego `GREATEST(p_source_user_id, p_target_user_id)` (orden lexicográfico canónico diseñado para prevenir deadlocks). **Importante:** La afirmación de ausencia de deadlocks se formula como una propiedad de diseño que debe ser demostrada mediante pruebas adversariales concurrentes (`ADV-18`) bajo contienda extrema en base de datos real.
      - Toda operación de escritura originada por una sesión anónima (`is_anonymous = true`) adquiere `pg_advisory_xact_lock(hashtext('pe_identity_mutation:' || auth.uid()::text))` y **re-evalúa inmediatamente después del lock** `IF public.is_retired_anonymous_source(auth.uid()) THEN RETURN {'ok': false, 'error': 'anonymous_session_already_migrated'}`.
-     - **Resultado garantizado en ambos órdenes de llegada:**
+     - **Resultado esperado en ambos órdenes de llegada:**
        - Si la escritura de `Dominio A` tomó el lock primero: inserta el recurso, hace `COMMIT`, y el canje en espera lo absorbe e incluye íntegro en la transferencia hacia `Dominio B`.
        - Si el canje de `Dominio B` tomó el lock primero: transfiere todos los recursos, marca el ticket `'completed'` (retirando a `v_source_user_id`), hace `COMMIT`, y la escritura en espera despierta viendo `is_retired_anonymous_source = true`, abortando limpiamente con `'anonymous_session_already_migrated'` y **cero recursos abandonados**.
 
@@ -278,12 +281,18 @@ Dado que el canje de un ticket reasigna la titularidad completa (`host_id`, part
 
 1. **Prueba de posesión en la emisión:** Solo ejecutable por un JWT válido de Supabase (`auth.uid() IS NOT NULL`), con `is_anonymous = true` y `is_retired_anonymous_source(auth.uid()) = false`. Ningún parámetro cliente puede indicar el usuario origen.
 2. **Asociación explícita al destinatario (`intended_target_user_id` — Mitigación anti-Bearer):**
-   - **`flow_mode = 'cross_origin_bridge'` (flujo primario automático):** Exige `intended_target_user_id UUID NOT NULL` en `anonymous_transfer_tickets` (recibido desde `Dominio B` durante `PE_BRIDGE_READY`). En el canje, PostgreSQL exige `auth.uid() = v_ticket.intended_target_user_id` (`'ticket_target_mismatch'`). Aunque un tercero capturara el código en memoria, **no puede canjearlo sin poseer además el JWT de `uid_B`**.
+   - **`flow_mode = 'cross_origin_bridge'` (flujo primario automático):** Exige `intended_target_user_id UUID NOT NULL` en `anonymous_transfer_tickets` (recibido desde `Dominio B` durante `PE_BRIDGE_READY`). En el canje, PostgreSQL exige `auth.uid() = v_ticket.intended_target_user_id` (`'ticket_target_mismatch'`). Aunque un tercero capturara el código en tránsito o memoria, **no puede canjearlo sin poseer además el JWT de `uid_B`**.
    - **`flow_mode = 'oauth_upgrade'` (mismo origen):** Exige que el destinatario sea una cuenta permanente autenticada (`is_anonymous = false`) y no cruza orígenes.
-   - **`flow_mode = 'cross_origin_manual'` (fallback exclusivo sin `window.opener`):** Cuando el aislamiento entre navegadores/WebViews impide conocer `uid_B` de antemano (`intended_target_user_id IS NULL`), se compensa reduciendo el TTL a **3 minutos (`180 s`)**, exigiendo ingreso en `<input type="password">` y revocando el ticket ante anomalías.
-3. **Consumo único y quemado ante intentos inválidos:**
+   - **`flow_mode = 'cross_origin_manual'` (mecanismo bearer de fallback exclusivo):**  
+     - **Análisis de riesgo residual:** Al no estar atado a `intended_target_user_id` (porque el aislamiento entre navegadores/dispositivos impide conocer `uid_B` antes de abrir), este modo es un **secreto al portador (bearer) de alto privilegio**. Si el código es interceptado o expuesto (portapapeles comprometido, espionaje visual de pantalla, envío descuidado por mensajería), cualquier sesión en `Dominio B` podría canjearlo mientras esté vigente.
+     - **Controles adicionales de mitigación:**
+       1. **TTL hiper-acotado:** Solo **3 minutos (`180 s`)**.
+       2. **Bandera de apagado independiente:** Se incorpora la variable `ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK` (por defecto `false` o desacoplada de `ENABLE_DOMAIN_MIGRATION_BRIDGE`), permitiendo desactivar completamente este fallback manual en producción sin afectar el puente automático atado a `intended_target_user_id`.
+       3. **Exclusividad:** Máximo 1 ticket manual pendiente por emisor; input protegido `type="password"` y advertencias de no compartir.
+3. **Consumo único, protección anti-DoS y penalización del atacante:**
    - Transición atómica única `pending → completed` bajo `SELECT ... FOR UPDATE`.
-   - Columna `failed_claim_attempts INT NOT NULL DEFAULT 0`: si un ticket válido en formato recibe un intento con destinatario o rol inválido (`'ticket_target_mismatch'` o `'permanent_account_required'`), incrementa `failed_claim_attempts` (en transacción autónoma o retorno sin `RAISE`) y al llegar a `3` fallos pasa automáticamente a `status = 'revoked'`.
+   - **Prevención de DoS por terceros en `ticket_target_mismatch`:** Si un tercero (`uid_Evil`) intenta canjear un ticket que está atado a `intended_target_user_id = uid_B`, la RPC retorna `'ticket_target_mismatch'`. **Este fallo NO incrementa ningún contador de revocación sobre el ticket de la víctima ni lo invalida.** Revocar el ticket ante un intento ajeno permitiría que un atacante anule maliciosamente la migración de usuarios legítimos mediante denegación de servicio (DoS).  
+   En su lugar, el intento fallido consume y penaliza exclusivamente el rate-limit del atacante (`check_rate_limit_internal('claim_migration_ticket', '')`), bloqueando el `auth.uid()` atacante (`'rate_limit_exceeded'`) y dejando el ticket de la víctima 100% intacto y canjeable por `uid_B` dentro de su ventana de vigencia.
 4. **Expiración corta diferenciada por exposición (TTL estricto server-side):**
    - `cross_origin_manual`: **3 minutos**.
    - `cross_origin_bridge`: **5 minutos**.
@@ -292,15 +301,15 @@ Dado que el canje de un ticket reasigna la titularidad completa (`host_id`, part
    - Emisión (`create_migration_ticket`): máx. `6` cada 15 min por `auth.uid()` emisor.
    - Canje (`claim_migration_ticket`): máx. `5` cada 15 min por `auth.uid()` receptor, evaluado **antes** de buscar `token_hash` (impide fuerza bruta u oráculos de existencia; si el subsistema de rate-limit fallara, aborta cerrado `'rate_limit_unavailable'`).
    - Vinculación previa de tokens (`link_guest_tokens_batch`): máx. `10` lotes cada 15 min por `auth.uid()`.
-6. **Recuperación determinista ante fallos:**
-   - Fallo antes del `COMMIT`: rollback completo de PostgreSQL; los recursos permanecen intactos en `Dominio A` y el usuario puede revocar y emitir un nuevo ticket.
-   - Corte de red después del `COMMIT`: `confirmar_migracion_dominio_completada_seguro(p_ticket_token)` verifica `status = 'completed' AND target_user_id_snapshot = auth.uid()`, recuperando la confirmación de éxito sin re-ejecutar mutaciones.
+6. **Diferenciación estricta: Rollback Funcional vs. Reversión de Titularidades:**
+   - **Rollback de funcionalidad (Feature Flag / Permisos):** Desactivar `VITE_ENABLE_DOMAIN_MIGRATION_BRIDGE=false` en frontend o revocar permisos `EXECUTE` sobre las RPCs interrumpe de inmediato (< 1 min) la emisión y canje de nuevos tickets sin tocar la base de datos de producción.
+   - **Reversión de titularidades ya transferidas (NO automática):** Una vez que una transacción de canje confirmó su `COMMIT`, la reasignación de titularidad (`encuentros.host_id = uid_B`, `participantes.user_id = uid_B`, etc.) es una **mutación de estado permanente** en PostgreSQL. **Apagar el feature flag NO revierte automáticamente la propiedad de los datos hacia `uid_A`.** Si se requiriera deshacer una migración ya completada, deberá ejecutarse una intervención deliberada (migración SQL correctiva aditiva o un flujo inverso autorizado de `uid_B` hacia `uid_A`). El diseño no debe prometer reversibilidad automática de los datos transferidos.
 
 ### 4.4 Especificación del Protocolo Cross-Origin y Fallback Manual Segregado
-Cuando `window.opener` es `null` o el handshake `PE_BRIDGE_READY` no responde en **2.500 ms** (ej. WebViews de Instagram/WhatsApp o cambio manual de navegador):
+Cuando `window.opener` es `null` o el handshake `PE_BRIDGE_READY` no responde en **2.500 ms** (ej. WebViews de Instagram/WhatsApp o cambio manual de navegador), y **siempre que `ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK = true`**:
 1. `Dominio A` revoca cualquier ticket previo pendiente e invoca `create_domain_migration_ticket_seguro('cross_origin_manual', NULL)` (`TTL = 3 minutos`).
 2. Muestra cuenta regresiva (`03:00`), botón **«Copiar llave temporal y abrir nuevo sitio»**, advertencia explícita (*«Esta llave da acceso a tus encuentros. No la envíes por chat ni la compartas; vence en 3 minutos»*) y botón **«Cancelar llave»**.
-3. En `Dominio B` (`/migrate-receive`), el usuario pega la llave en `<input type="password" autocomplete="one-time-code" spellcheck="false">`, enviándose solo por HTTPS POST JSON y borrándose inmediatamente del estado React.
+3. En `Dominio B` (`/migrate-receive`), el usuario pega la llave en `<input type="password" autocomplete="one-time-code" spellcheck="false">`, enviándose solo por HTTPS POST JSON y borrándose inmediatamente del estado React. Si el feature flag manual estuviera apagado, la UI indica al usuario que utilice un navegador con soporte de pestañas o inicie sesión con Google.
 
 ```mermaid
 sequenceDiagram
@@ -364,7 +373,6 @@ Para reducir al mínimo este escenario en el mundo real, se establece una **estr
        ADD COLUMN IF NOT EXISTS flow_mode TEXT NOT NULL DEFAULT 'oauth_upgrade'
            CHECK (flow_mode IN ('oauth_upgrade', 'cross_origin_bridge', 'cross_origin_manual')),
        ADD COLUMN IF NOT EXISTS intended_target_user_id UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
-       ADD COLUMN IF NOT EXISTS failed_claim_attempts INT NOT NULL DEFAULT 0 CHECK (failed_claim_attempts >= 0),
        ADD CONSTRAINT check_bridge_requires_intended_target
            CHECK (flow_mode <> 'cross_origin_bridge' OR intended_target_user_id IS NOT NULL);
 
@@ -374,6 +382,7 @@ Para reducir al mínimo este escenario en el mundo real, se establece una **estr
    ```
    - **Helper server-side de congelamiento post-migración:** `public.is_retired_anonymous_source(p_user_id UUID) RETURNS BOOLEAN` (`SECURITY DEFINER SET search_path = ''`, consulta `EXISTS (SELECT 1 FROM public.anonymous_transfer_tickets WHERE source_user_id_snapshot = p_user_id AND status = 'completed')`).
    - **Compatibilidad y repetibilidad `A → B → C`:** Los flujos OAuth actuales operan con `flow_mode = 'oauth_upgrade'` sin cambios. En `A → B → C`, `uid_A` queda retirada (`status = 'completed'`), mientras que `uid_B` (`target_user_id_snapshot`) nace limpia (`is_retired_anonymous_source(uid_B) = false`) y puede actuar como `source` en la futura migración `uid_B → uid_C`.
+   - **Protección anti-DoS por diseño:** No se añaden contadores de fallo en la fila del ticket. Cualquier intento fallido (`'ticket_target_mismatch'`, `'ticket_not_found'`, etc.) penaliza exclusivamente el bucket de rate-limit de la identidad invocante (`auth.uid()`), imposibilitando que un tercero agote o revoque el ticket del usuario legítimo.
 
 2. **Políticas de Rate Limiting en `public.rate_limit_policies`:**
    | `action` | `max_requests` | `window_seconds` | Propósito de Seguridad |
@@ -426,9 +435,9 @@ Para reducir al mínimo este escenario en el mundo real, se establece una **estr
   2. Normaliza guiones/espacios visuales y valida `^[0-9a-f]{64}$` (`'invalid_token_format'`); luego evalúa `check_rate_limit_internal('claim_migration_ticket', '')` fail-closed (`'rate_limit_exceeded'`).
   3. `SELECT * INTO v_ticket FROM public.anonymous_transfer_tickets WHERE token_hash = sha256(v_clean_token) FOR UPDATE`.
   4. Valida existencia (`'ticket_not_found'`), no usado (`'ticket_already_used'`), no revocado (`'ticket_revoked'`) y `expires_at > now()` (`'ticket_expired'`, persistiendo `status = 'expired'`).
-  5. **Asociación al destinatario y rol:**
-     - Si `v_ticket.intended_target_user_id IS NOT NULL AND v_ticket.intended_target_user_id <> v_target_user_id` → incrementa `failed_claim_attempts` (revocando si `>= 3`) y retorna `'ticket_target_mismatch'`.
-     - Si `v_ticket.flow_mode = 'oauth_upgrade' AND v_target_is_anon = true` → incrementa `failed_claim_attempts` (revocando si `>= 3`) y retorna `'permanent_account_required'`.
+  5. **Asociación al destinatario y rol (sin DoS por terceros):**
+     - Si `v_ticket.intended_target_user_id IS NOT NULL AND v_ticket.intended_target_user_id <> v_target_user_id` → retorna inmediatamente `pg_catalog.json_build_object('ok', false, 'error', 'ticket_target_mismatch')`. El ticket permanece intacto y la penalización recae únicamente sobre el rate-limit del invocante.
+     - Si `v_ticket.flow_mode = 'oauth_upgrade' AND v_target_is_anon = true` → retorna `pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required')`.
   6. Verifica en `auth.users` que `v_source_user_id` exista, siga siendo `is_anonymous = true` (`'source_no_longer_anonymous'`), no esté ya retirada (`'source_already_migrated'`) y `<> v_target_user_id` (`'cannot_transfer_to_same_user'`).
   7. Ejecuta `v_summary := public._transfer_anonymous_resources_internal(v_source_user_id, v_target_user_id)` y marca el ticket `status = 'completed'`, `used_at = now()`, `target_user_id = v_target_user_id`, `target_user_id_snapshot = v_target_user_id`, `resources_transferred = v_summary` (lo que activa inmediatamente `is_retired_anonymous_source(v_source_user_id) = true`).
 - **Respuesta JSON:** `{ "ok": true, "target_is_anonymous": true, "resources_transferred": { ... } }`.

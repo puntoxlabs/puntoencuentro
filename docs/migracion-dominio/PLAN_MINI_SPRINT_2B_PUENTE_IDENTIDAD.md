@@ -7,7 +7,11 @@
 
 ## 1. Matriz de Pruebas Adversariales y de Integridad (Entregable 6)
 
-Cada caso deberá automatizarse en motor PGlite local (cero red) y, para los casos marcados `[Staging/Cross-Origin]`, verificarse además contra dos orígenes reales y Supabase Staging (`wougfhfwqgmxhgvjqoua`).
+> **Principio de validación empírica y alcance de herramientas:**  
+> - **PGlite como herramienta complementaria local:** PGlite en memoria es un arnés rápido y hermético para pruebas unitarias de funciones SQL durante el desarrollo. Sin embargo, **aprobar PGlite no certifica por sí solo la seguridad del motor**. PGlite presenta diferencias sutiles con el entorno gestionado de Supabase (esquema `auth.users`, claims de GoTrue, extensiones reales y concurrencia bajo pooling). Por ende, **las pruebas de integración en Supabase Staging (`wougfhfwqgmxhgvjqoua`) son obligatorias y de carácter autoritativo**.  
+> - **Garantías de ausencia de deadlocks y pérdida cero:** Las afirmaciones de ordenamiento lexicográfico de locks y deduplicación de entidades son principios de diseño que **deben ser demostrados empíricamente** mediante las pruebas adversariales concurrentes (`ADV-10`, `ADV-11`, `ADV-12`, `ADV-18`) bajo contienda extrema, no asumidos como verdades teóricas previas.
+
+Cada caso deberá automatizarse en la suite local y, para los casos marcados `[Staging/Cross-Origin]`, verificarse obligatoriamente contra dos orígenes reales y Supabase Staging (`wougfhfwqgmxhgvjqoua`).
 
 | ID | Categoría | Escenario / Ataque Simulado | Resultado Esperado Obligatorio |
 | :--- | :--- | :--- | :--- |
@@ -17,7 +21,7 @@ Cada caso deberá automatizarse en motor PGlite local (cero red) y, para los cas
 | **ADV-04** | Expiración estricta (TTL) | Emitir ticket `cross_origin_bridge` (TTL 5 min), avanzar reloj / esperar expiración e intentar canjear. | Retorna `'ticket_expired'`, el ticket pasa a `status = 'expired'` y 0 filas de negocio cambian de dueño. |
 | **ADV-05** | Revocación previa al canje | Emitir ticket en `Dominio A`, ejecutar `revoke_my_pending_transfer_ticket()` y luego enviar ese código desde `Dominio B`. | Retorna `'ticket_revoked'` y `Anónimo A` conserva el 100% de sus recursos. |
 | **ADV-06** | Escalada sobre cuenta permanente | Un usuario con cuenta Google (`is_anonymous = false`) intenta emitir ticket o un atacante intenta reclamar un ticket cuyo `source` ya hizo upgrade a permanente. | Emisión rechazada con `'anonymous_user_required'`; canje rechazado con `'source_no_longer_anonymous'`. |
-| **ADV-07** | Aislamiento `flow_mode` | Emitir ticket con `flow_mode = 'oauth_upgrade'` e intentar canjearlo desde una sesión anónima (`is_anonymous = true`) usando `claim_domain_migration_ticket_seguro`. | Rechazado con `'permanent_account_required'`; al 3° fallo el ticket pasa automáticamente a `status = 'revoked'`. |
+| **ADV-07** | Aislamiento `flow_mode` | Emitir ticket con `flow_mode = 'oauth_upgrade'` e intentar canjearlo desde una sesión anónima (`is_anonymous = true`) usando `claim_domain_migration_ticket_seguro`. | Rechazado con `'permanent_account_required'`. Solo `flow_mode = 'cross_origin_bridge'` o `'cross_origin_manual'` admite destino anónimo. |
 | **ADV-08** | Suplantación `postMessage` | `[Staging/Cross-Origin]` Página en origen no autorizado (`http://localhost:5999` o subdominio engañoso) envía `PE_BRIDGE_READY` a `Dominio A` o `PE_BRIDGE_CODE` a `Dominio B` (o con `bridge_nonce` inválido). | Mensaje descartado silenciosamente; `Dominio A` jamás entrega el secreto y `Dominio B` jamás invoca la RPC. |
 | **ADV-09** | Open Redirect & URL Leak | Pasar `?next=https://evil.com` o `//evil.com` a `/migrate-receive` o `/auth/domain-bridge`; inspeccionar URLs, `history` y `app_usage_events`. | Redirección cae de forma segura a `'/'`; ningún token ni código de 64 chars aparece jamás en `location.search`, `location.hash` ni tablas de telemetría. |
 | **ADV-10** | Cascada `mensajes_encuentro` | `Anónimo A` y `Target B` participan en el mismo encuentro externo; `Anónimo A` publicó mensajes (`autor_participante_id = part_A`) y destacó uno (como co-actor/host en otro). Al fusionar hacia `part_B`, se borra `part_A`. | Cero mensajes eliminados: conservan `autor_participante_id = part_B` (no `NULL`), `autor_user_id = uid_B`, `destacado_por = uid_B` y `es_mio = true` en `listar_mensajes_encuentro_seguro`. |
@@ -28,17 +32,18 @@ Cada caso deberá automatizarse en motor PGlite local (cero red) y, para los cas
 | **ADV-15** | Caída de red post-commit e idempotencia | El canje hace `COMMIT` en PostgreSQL pero el cliente simula pérdida de respuesta HTTP y llama a `confirmar_migracion_dominio_completada_seguro(code)`. | Retorna `{ ok: true, already_completed: true }` para `uid_B` (incluso siendo anónimo en `cross_origin_bridge` / `cross_origin_manual`), mientras que cualquier `uid_C` tercero recibe `'transfer_not_confirmed'`. |
 | **ADV-16** | Cadena completa `A → B → C` | `Anónimo A` migra a `Anónimo B`, crea un encuentro nuevo en `B`, y luego migra `Anónimo B → Anónimo C` (y finalmente a Google). | `uid_C` (y luego Google) conserva los encuentros creados en `A` y en `B`; ningún `rate_limit_buckets` histórico de `uid_A` o `uid_B` fue reseteado. |
 | **ADV-17** | Congelamiento de escrituras post-migración en `Dominio A` | Tras completar el canje `A → B`, la sesión `Anónimo A` intenta ejecutar `crear_encuentro_seguro`, `vincular_usuario_participante_seguro`, `vincular_tokens_participante_lote_seguro`, `submit_coverage_request`, `INSERT` en `usuario_localidades` / `custom_invitation_templates` o emitir otro ticket. | **100% rechazado** con `'anonymous_session_already_migrated'` (o bloqueo RLS equivalente). Cero recursos nuevos o abandonados bajo `uid_A`. |
-| **ADV-18** | Operaciones concurrentes durante el canje | `[Staging/Cross-Origin]` `Promise.all` entre una escritura activa en `Dominio A` (`crear_encuentro_seguro` por `uid_A`) y el canje en `Dominio B` (`claim_domain_migration_ticket_seguro` hacia `uid_B`). | Serialización limpia por `pg_advisory_xact_lock('pe_identity_mutation:' || ...)`: o bien el nuevo encuentro entra íntegro en la transferencia hacia `uid_B`, o bien es rechazado con `'anonymous_session_already_migrated'`. Jamás queda un encuentro huérfano en `uid_A` ni falla una post-condición. |
-| **ADV-19** | Asociación estricta al destinatario (`intended_target_user_id`) | Emitir ticket `cross_origin_bridge` vinculado a `intended_target_user_id = uid_B`; otra sesión `uid_Evil` intercepta el secreto e intenta canjearlo antes que `uid_B`. | Rechazado con `'ticket_target_mismatch'` sin transferir nada; si `uid_B` canjea antes del 3° fallo ajeno obtiene éxito (`>= 3` fallos revocan el ticket por defensa activa). |
-| **ADV-20** | TTL reducido de fallback manual (`cross_origin_manual`) | Emitir ticket `cross_origin_manual` (`intended_target_user_id IS NULL`) y probar canje a los `181` segundos (3m 01s), e intentar emitir `cross_origin_bridge` con `intended_target_user_id = NULL`. | El manual expira exactamente a los 3 minutos (`'ticket_expired'`); `cross_origin_bridge` sin destinatario es rechazado con `'intended_target_required'` (y constraint `check_bridge_requires_intended_target`). |
+| **ADV-18** | Operaciones concurrentes durante el canje y verificación anti-deadlock | `[Staging/Cross-Origin]` `Promise.all` bajo contienda masiva entre escrituras activas en `Dominio A` (`crear_encuentro_seguro` por `uid_A`) y el canje en `Dominio B` (`claim_domain_migration_ticket_seguro` hacia `uid_B`). | **Cero deadlocks (`40P01`) y cero recursos huérfanos:** la serialización ordenada `pe_identity_mutation` (`LEAST` → `GREATEST`) garantiza que el nuevo encuentro entra íntegro en la transferencia o es rechazado limpiamente con `'anonymous_session_already_migrated'`. |
+| **ADV-19** | Asociación estricta al destinatario y protección anti-DoS | Emitir ticket `cross_origin_bridge` vinculado a `intended_target_user_id = uid_B`; una sesión atacante `uid_Evil` intenta canjearlo N veces antes que `uid_B`. | Cada intento de `uid_Evil` es rechazado con `'ticket_target_mismatch'` y consume la cuota de `uid_Evil` hasta bloquearlo (`'rate_limit_exceeded'`). **El ticket de la víctima permanece intacto** y `uid_B` puede canjearlo con éxito total posteriormente (demostrando ausencia de DoS por terceros). |
+| **ADV-20** | TTL reducido y desactivación independiente del modo manual | 1) Probar canje de `cross_origin_manual` a los `181` s (3m 01s) → `'ticket_expired'`. 2) Con `ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK=false`, intentar emitir `cross_origin_manual` → rechazado con `'manual_migration_disabled'`. | Se confirma que el fallback manual opera como bearer de 3 minutos y puede apagarse selectivamente en producción sin alterar el puente automático. |
 
 ### 1.1 Criterios Formales de Aceptación para Cerrar el Mini-Sprint 2B
-1. 100% de los casos `ADV-01` a `ADV-20` en verde en suite automatizada local (PGlite) + suite existente `scripts/test-domain-migration-readiness.ts` sin regresiones.
+1. 100% de los casos `ADV-01` a `ADV-20` en verde en suite local y validados en suite de integración en Supabase Staging (`wougfhfwqgmxhgvjqoua`), más suite existente `scripts/test-domain-migration-readiness.ts` sin regresiones.
 2. `npx tsc -b` y `npm run build` limpios sin errores ni warnings de tipos.
 3. Cero exposición de JWTs, `refresh_token` o códigos de 64 caracteres en query strings, fragmentos `#`, encabezados `Referer`, consola de producción o tablas de telemetría.
 4. Congelamiento total verificado de sesiones anónimas retiradas (`is_retired_anonymous_source = true`) y asociación obligatoria `intended_target_user_id` en el flujo automático `cross_origin_bridge`.
-5. Feature flags del puente **desactivados por defecto** (`false`), garantizando impacto visual y funcional **cero** en Producción.
-6. Validación real contra Supabase Staging (`wougfhfwqgmxhgvjqoua`) entre dos orígenes distintos, seguida de limpieza verificada con conteo `0` de residuos en tablas de negocio, tickets, rate-limit de prueba y telemetría.
+5. Comprensión explícita de reversibilidad: el feature flag permite rollback funcional inmediato (< 1 min) para detener nuevas operaciones, pero **no revierte automáticamente las titularidades de datos ya transferidas**, las cuales constituyen transacciones confirmadas permanentes.
+6. Feature flags del puente **desactivados por defecto** (`false`), garantizando impacto visual y funcional **cero** en Producción.
+7. Validación real contra Supabase Staging (`wougfhfwqgmxhgvjqoua`) entre dos orígenes distintos, seguida de limpieza verificada con conteo `0` de residuos en tablas de negocio, tickets, rate-limit de prueba y telemetría.
 
 ---
 
@@ -47,11 +52,13 @@ Cada caso deberá automatizarse en motor PGlite local (cero red) y, para los cas
 ### Tarea 2B.1 — Migración SQL Aditiva y Análisis de Reversibilidad
 - **Archivo a crear (solo en 2B):** `supabase/migrations/<timestamp>_domain_identity_bridge_v1.sql`.
 - **Contenido:**
-  1. Extender `public.anonymous_transfer_tickets` con `flow_mode` (`'oauth_upgrade' | 'cross_origin_bridge' | 'cross_origin_manual'`), `intended_target_user_id UUID NULL`, `failed_claim_attempts INT NOT NULL DEFAULT 0`, `check_bridge_requires_intended_target` e índice `idx_anonymous_transfer_source_completed`.
+  1. Extender `public.anonymous_transfer_tickets` con `flow_mode` (`'oauth_upgrade' | 'cross_origin_bridge' | 'cross_origin_manual'`), `intended_target_user_id UUID NULL`, `check_bridge_requires_intended_target` e índice `idx_anonymous_transfer_source_completed`.
   2. Crear helper `public.is_retired_anonymous_source(UUID)` y políticas en `public.rate_limit_policies`: `'create_migration_ticket'`, `'claim_migration_ticket'`, `'link_guest_tokens_batch'`.
-- **Análisis de reversibilidad y rollback SQL:**
-  - Todas las columnas nuevas poseen valores por defecto compatibles con las RPCs existentes (`flow_mode = 'oauth_upgrade'`, `intended_target_user_id = NULL`, `failed_claim_attempts = 0`).
-  - **Rollback operativo inmediato (< 1 min, sin migración destructiva):** Desactivar `VITE_ENABLE_DOMAIN_MIGRATION_BRIDGE=false` y/o revocar ejecución sobre `create_domain_migration_ticket_seguro` y `claim_domain_migration_ticket_seguro`. Ningún dato ya transferido se pierde porque pertenece legítimamente al `auth.uid()` destino.
+  3. Protección anti-DoS: no se persisten contadores de fallo en el ticket; los fallos de terceros (`ticket_target_mismatch`) se cobran exclusivamente en la cuota de la identidad invocante en `public.rate_limit_buckets`.
+- **Análisis de reversibilidad y distinción entre rollback funcional y reversión de datos:**
+  - Todas las columnas nuevas poseen valores por defecto compatibles con las RPCs existentes (`flow_mode = 'oauth_upgrade'`, `intended_target_user_id = NULL`).
+  - **Rollback funcional operativo (< 1 min, sin migración destructiva):** Desactivar `VITE_ENABLE_DOMAIN_MIGRATION_BRIDGE=false` y/o revocar ejecución sobre `create_domain_migration_ticket_seguro` y `claim_domain_migration_ticket_seguro` suspende de inmediato la capacidad de migrar sin requerir migraciones destructivas hacia atrás.
+  - **Reversión de titularidades transferidas:** Se enfatiza que **el apagado del flag no revierte automáticamente las titularidades ya transferidas**. Cada canje completado es una transacción PostgreSQL confirmada (`COMMIT`) y definitiva. Revertir una transferencia ya realizada exigiría una acción compensatoria deliberada (re-transferencia explícita `uid_B → uid_A`), no existiendo reversión mágica o pasiva.
 
 ### Tarea 2B.2 — RPCs `SECURITY DEFINER`, Motor Unificado, Congelamiento Post-Migración y Locks
 1. Crear `public._transfer_anonymous_resources_internal(UUID, UUID)` con serialización ordenada `pe_identity_mutation` (`LEAST` → `GREATEST`), las reglas deterministas de resolución de conflictos sin pérdida de [`MIGRACION_IDENTIDAD_DISENO.md`](./MIGRACION_IDENTIDAD_DISENO.md) §2.3, post-condiciones `A..L` y `REVOKE ALL FROM PUBLIC, anon, authenticated`.
@@ -67,20 +74,24 @@ Cada caso deberá automatizarse en motor PGlite local (cero red) y, para los cas
    - En `src/services/encuentrosService.ts`: eliminar el método muerto `linkAnonymousEncuentros` (`transferir_encuentros_anonimos_seguro`).
 2. **Servicio del puente (`src/services/domainMigrationBridgeService.ts`):**
    - Pre-sincronización previa a emitir llave: sincronizar `puntoencuentro_zones_v1` si aplica, materializar sesión anónima si `user === null && localTokens.length > 0` y llamar `vincular_tokens_participante_lote_seguro`.
-   - Handshake `postMessage` con asociación al destinatario (`PE_BRIDGE_READY` entrega `uid_B` + `bridge_nonce` de 128 bits → `Dominio A` emite ticket `cross_origin_bridge` atado a `uid_B`), validación estricta de orígenes (`PUBLIC_APP_ORIGIN` y `LEGACY_APP_ORIGINS` desde `src/config/domainConfig.ts`), fallback manual `cross_origin_manual` (TTL 3 min) tras 2.500 ms sin `opener`, bloqueo de escrituras locales cuando `already_migrated = true` (**sin** ejecutar `signOut()` en `Dominio A`) y confirmación idempotente ante corte de red.
+   - Handshake `postMessage` con asociación al destinatario (`PE_BRIDGE_READY` entrega `uid_B` + `bridge_nonce` de 128 bits → `Dominio A` emite ticket `cross_origin_bridge` atado a `uid_B`), validación estricta de orígenes (`PUBLIC_APP_ORIGIN` y `LEGACY_APP_ORIGINS` desde `src/config/domainConfig.ts`).
+   - Fallback manual `cross_origin_manual` segregado (TTL hiper-acotado de 3 min) como mecanismo bearer de alto privilegio tras 2.500 ms sin `opener`, gobernable mediante su propio feature flag independiente.
+   - Bloqueo de escrituras locales cuando `already_migrated = true` (**sin** ejecutar `signOut()` en `Dominio A`) y confirmación idempotente ante corte de red.
 3. **Rutas y listas blancas:**
    - Rutas `/auth/domain-bridge` (emisora) y `/migrate-receive` (receptora) protegidas tras el feature flag.
    - Añadir `/auth/domain-bridge` y `/migrate-receive` en `STATIC_ALLOWED_POST_AUTH_ROUTES` (`src/hooks/usePostAuthRedirect.ts`) y en normalización de rutas de `src/services/appUsageTelemetry.ts` / `feedbackService.ts` (garantizando cero captura de parámetros).
    - Configurar cabeceras `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none'` para `/auth/domain-bridge` y `/migrate-receive` en `vercel.json`.
 
-### Tarea 2B.4 — Feature Flags Desactivados por Defecto
+### Tarea 2B.4 — Feature Flags Desactivados por Defecto y Gobernanza Independiente
 - En `src/config/domainConfig.ts` / `src/config/features.ts`:
   - `ENABLE_DOMAIN_MIGRATION_BRIDGE`: leído de `VITE_ENABLE_DOMAIN_MIGRATION_BRIDGE === 'true'`, **por defecto `false`**.
-  - Mientras esté en `false`: no se muestra ningún banner de mudanza y las rutas del puente redirigen limpiamente a `'/'` (salvo en los entornos de prueba donde se active explícitamente la variable).
+  - `ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK`: leído de `VITE_ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK === 'true'`, **por defecto `false`**. Permite habilitar o deshabilitar de forma independiente el fallback manual bearer (al portador) de alto privilegio sin afectar el puente automático atado a destinatario.
+  - Mientras estén en `false`: no se muestra ningún banner ni opción de mudanza y las rutas del puente redirigen limpiamente a `'/'` (salvo en los entornos de prueba donde se active explícitamente la variable).
   - `ENABLE_LEGACY_DOMAIN_REDIRECT` permanece en **`false`**.
 
-### Tarea 2B.5 — Suite Automatizada Local (PGlite)
-- Crear `scripts/test-domain-identity-bridge.ts` ejecutando sobre PGlite en memoria todas las migraciones reales hasta la nueva migración de 2B y probando de punta a punta `ADV-01` a `ADV-20` (incluyendo concurrencia durante el canje, congelamiento de sesión retirada, asociación al destinatario, límites de intentos, cascadas de mensajes/disponibilidades/controversias, waitlist y cadena `uid_A → uid_B → uid_C`).
+### Tarea 2B.5 — Suite Automatizada Local Complementaria (PGlite)
+- Crear `scripts/test-domain-identity-bridge.ts` ejecutando sobre PGlite en memoria todas las migraciones reales hasta la nueva migración de 2B y probando de punta a punta `ADV-01` a `ADV-20` (incluyendo contienda masiva y anti-deadlock durante el canje, congelamiento de sesión retirada, asociación al destinatario, protección anti-DoS en `ticket_target_mismatch`, cascadas de mensajes/disponibilidades/controversias, waitlist y cadena `uid_A → uid_B → uid_C`).
+- **Compuerta de completitud:** PGlite valida la lógica SQL en aislamiento local; ninguna tarea se considera cerrada sin superar posteriormente las pruebas de integración en Supabase Staging (`Tarea 2B.7`).
 
 ### Tarea 2B.6 — Pruebas Reales Cross-Origin SIN Necesitar el Nuevo Dominio Definitivo
 Para validar el aislamiento real del navegador (`localStorage` separado, `window.open`, `postMessage`, `event.origin` y fallback manual) **hoy mismo, antes de que exista el nuevo nombre o dominio**:
