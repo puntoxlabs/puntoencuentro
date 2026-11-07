@@ -49,6 +49,8 @@ Todas las rutas preservan su estructura exacta entre Dominio A, Dominio B y un e
 | `/?open_encounter=:uuid` | Deep link SPA de encuentro abierto | `buildOpenEncounterQueryUrl(id)` | Público (UUID); reescrito a `/api/open-encounter` solo para User-Agents de bots |
 | `/meet/:id` | Panel de administración del organizador | `buildHostEncounterUrl(id)` | Requiere titularidad `host_id = auth.uid()` en RPC |
 | `/share/:id` | Redirección interna hacia `/meet/:id?share=1` | Navegación interna React Router | Requiere titularidad `host_id = auth.uid()` |
+| `/auth/domain-bridge` | Emisor del puente de identidad en dominio histórico (2B) | Uso interno de transición (`LEGACY_REDIRECT_EXEMPT_PATHS`) | Sin secretos en URL; protegido por feature flag y anti-framing |
+| `/migrate-receive` | Receptor del puente de identidad en dominio vigente (2B) | Uso interno de transición (`MIGRACION_IDENTIDAD_DISENO.md`) | Transporte exclusivo `postMessage` con origen exacto o POST HTTPS |
 
 ---
 
