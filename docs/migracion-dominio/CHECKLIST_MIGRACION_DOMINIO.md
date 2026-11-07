@@ -34,16 +34,17 @@ Utilizar esta lista de control en cada migración (`Dominio A → B` o `Dominio 
 - [ ] `[Requiere autorización]` Replicar alta de *Redirect URLs* y posterior cambio de *Site URL* en Supabase **Producción** (`aurbicjwftjhwryhyjiq`).
 
 ## 4. Usuarios Anónimos y Puente de Identidad
-- [x] `[Implementado]` Claves de `localStorage` existentes (`puntoencuentro_host_id`, `participated_tokens`, `encuentros_general`, `puntoencuentro_meet_hosts`) preservadas intactas.
+- [x] `[Implementado]` Claves de `localStorage` existentes preservadas intactas en su origen.
 - [x] `[Implementado]` Validación estricta de rutas post-login (`isValidPostAuthRedirect`), incluyendo `/e/:id` y `/?open_encounter=:uuid`.
-- [ ] `[Diseñado - pendiente]` Implementar y auditar seguridad del flujo de transición/rescate de usuarios anónimos y revinculación de tokens locales según `MIGRACION_IDENTIDAD_DISENO.md`.
-- [ ] `[Diseñado - pendiente]` Añadir migración aditiva para incluir `encuentro_mensajes` (`autor_user_id`, `destacado_por`) en la transferencia de recursos anónimos en Staging primero.
+- [x] `[Implementado]` Auditoría de seguridad y diseño definitivo del puente dual (`Anónimo → Google` y `Anónimo A → Anónimo B`), recorridos UX y matriz adversarial completados en Mini-Sprint 2A (`MIGRACION_IDENTIDAD_DISENO.md`, `RECORRIDOS_UX_RECUPERACION_DOMINIO.md`, `PLAN_MINI_SPRINT_2B_PUENTE_IDENTIDAD.md`).
+- [ ] `[Diseñado - pendiente]` Ejecutar Mini-Sprint 2B: migración aditiva del motor unificado en Staging primero (asociación al destinatario `intended_target_user_id`, congelamiento post-migración `is_retired_anonymous_source`, serialización concurrente y cobertura sin pérdidas de `mensajes_encuentro`, `encuentros_contacto_whatsapp`, `participante_disponibilidades`, `solicitudes_encuentro_abierto` waitlist, `asistencia_controversias`, `coverage_requests` e `inbox_notifications`).
+- [ ] `[Diseñado - pendiente]` Ejecutar Mini-Sprint 2B en frontend (bajo feature flag `false` por defecto): colector completo de tokens locales (`participated_tokens`, `puntoencuentro_guest_token_by_public_*`, `puntoencuentro_coordination_guest_token_by_public_*`), carga de participaciones en `Home.tsx` para sesiones anónimas, bloqueo de altas en sesiones ya migradas y rutas `/auth/domain-bridge` + `/migrate-receive`.
 
 ## 5. Enlaces, Redirecciones y Open Graph Social
 - [x] `[Implementado]` `api/open-encounter.ts` valida estrictamente el origen canónico e ignora encabezados `Host` / `X-Forwarded-Host` no autorizados.
 - [x] `[Implementado]` `resolveLegacyDomainRedirect` preparado para redirección directa N→1 sin cadenas (`Dominio A → C`, `Dominio B → C`) con exenciones OAuth/PKCE, puente y Service Worker.
 - [ ] `[Requiere validación externa]` Probar vista previa real de `/e/:uuid` en WhatsApp (iOS/Android/Web), Telegram y validadores Open Graph sobre `staging.<nuevo-dominio>`, verificando cero exposición de `lugar_texto` o `link_virtual`.
-- [ ] `[Requiere autorización]` Activar redirección `302` primero y `308` únicamente tras superar el período de estabilización y rescate.
+- [ ] `[Requiere autorización]` Cumplir compuertas de convivencia preventiva (`PLAN_CAMBIO_DOMINIO.md`: >= 30 días dual interactivo + `0` encuentros futuros anónimos sin migrar), activar `302` selectivo primero y `308` únicamente cuando el rescate diario sea residual durante 14 días.
 
 ## 6. PWA y Web Push
 - [x] `[Implementado]` `public/sw.js` opera sin caché de red (`fetch` ausente), limpia cachés previas en `activate` y navega exclusivamente a `/?notifications=1` en `self.location.origin`.
