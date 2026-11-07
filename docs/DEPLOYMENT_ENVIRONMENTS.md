@@ -122,12 +122,18 @@ El repositorio solo versiona `.env.example`. Los secretos reales nunca se commit
 ### En Vercel:
 - **Environment: Production (rama main):**
   - `VITE_SUPABASE_URL`: URL de Supabase Producción
-  - `VITE_SUPABASE_ANON_KEY`: Anon key de Supabase Producción
+  - `VITE_SUPABASE_ANON_KEY` / `VITE_SUPABASE_PUBLISHABLE_KEY`: Publishable/Anon key de Supabase Producción
   - `VITE_APP_ENV`: `production`
+  - `VITE_APP_URL`: `https://puntoencuentro.com.ar` (origen canónico público para enlaces y Open Graph)
+  - `PUBLIC_APP_ORIGIN`: `https://puntoencuentro.com.ar` (validación server-side de origen canónico en `api/`)
 - **Environment: Preview (rama staging):**
   - `VITE_SUPABASE_URL`: URL de Supabase Staging
-  - `VITE_SUPABASE_ANON_KEY`: Anon key de Supabase Staging
+  - `VITE_SUPABASE_ANON_KEY` / `VITE_SUPABASE_PUBLISHABLE_KEY`: Publishable/Anon key de Supabase Staging
   - `VITE_APP_ENV`: `staging`
+  - `VITE_APP_URL`: `https://staging.puntoencuentro.com.ar`
+  - `PUBLIC_APP_ORIGIN`: `https://staging.puntoencuentro.com.ar`
+
+> **Documentación de arquitectura y migración reutilizable de dominio:** ver directorio [`docs/migracion-dominio/`](./migracion-dominio/ARQUITECTURA_DOMINIOS.md) (`AUDITORIA_DOMINIO.md`, `ARQUITECTURA_DOMINIOS.md`, `MIGRACION_IDENTIDAD_DISENO.md`, `PLAN_CAMBIO_DOMINIO.md`, `CHECKLIST_MIGRACION_DOMINIO.md` y `PLAN_ROLLBACK_DOMINIO.md`).
 
 ### En Local:
 Crear archivo `.env.local` (ignorado por Git):

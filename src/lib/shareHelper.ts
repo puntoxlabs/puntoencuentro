@@ -1,3 +1,10 @@
+import {
+  buildPublicAppUrl,
+  getBrandConfig,
+  getCanonicalAppOrigin,
+  type EnvSource,
+} from '../config/domainConfig.js';
+
 export function isMobileShareEnvironment(): boolean {
   if (typeof navigator === 'undefined' || !navigator.userAgent) return false;
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -11,34 +18,71 @@ export function isValidUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
 }
 
-export function getBaseAppUrl(): string {
-  const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? (import.meta.env.VITE_APP_URL as string) : '';
-  const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-  const base = envUrl || origin || 'https://puntoencuentro.com.ar';
-  return base.endsWith('/') ? base.slice(0, -1) : base;
+/**
+ * Retorna el origen canónico público sin barra final.
+ * Delega en la configuración centralizada de dominio para garantizar que enlaces nuevos
+ * nunca hereden dominios legados ni barras dobles.
+ */
+export function getBaseAppUrl(envOverride?: EnvSource): string {
+  return getCanonicalAppOrigin(envOverride);
 }
 
-export function buildGeneralInvitationUrl(publicToken: unknown, dateMode?: 'fixed' | 'coordination' | null): string | null {
+/**
+ * Enlace de invitación grupal general (/join/:public_token o /coordination/join/:token).
+ */
+export function buildGeneralInvitationUrl(
+  publicToken: unknown,
+  dateMode?: 'fixed' | 'coordination' | null,
+  envOverride?: EnvSource
+): string | null {
   if (!isValidPublicToken(publicToken)) return null;
-  const cleanBaseUrl = getBaseAppUrl();
   const basePath = dateMode === 'coordination' ? '/coordination/join/' : '/join/';
-  return `${cleanBaseUrl}${basePath}${encodeURIComponent(publicToken.trim())}`;
+  return buildPublicAppUrl(`${basePath}${encodeURIComponent(publicToken.trim())}`, {
+    env: envOverride,
+  });
+}
+
+/**
+ * Enlace de invitación individual (/invite/:token o /coordination/invite/:token).
+ */
+export function buildIndividualInvitationUrl(
+  token: unknown,
+  dateMode?: 'fixed' | 'coordination' | null,
+  envOverride?: EnvSource
+): string | null {
+  if (!isValidPublicToken(token)) return null;
+  const basePath = dateMode === 'coordination' ? '/coordination/invite/' : '/invite/';
+  return buildPublicAppUrl(`${basePath}${encodeURIComponent(token.trim())}`, {
+    env: envOverride,
+  });
+}
+
+/**
+ * Enlace de administración del anfitrión (/meet/:id).
+ */
+export function buildHostEncounterUrl(encounterId: unknown, envOverride?: EnvSource): string | null {
+  if (!isValidPublicToken(encounterId)) return null;
+  return buildPublicAppUrl(`/meet/${encodeURIComponent(encounterId.trim())}`, {
+    env: envOverride,
+  });
 }
 
 /**
  * Enlace público canónico de difusión de Encuentros Abiertos (/e/:uuid).
  */
-export function buildOpenEncounterUrl(encounterId: string): string {
-  const cleanBaseUrl = getBaseAppUrl();
-  return `${cleanBaseUrl}/e/${encodeURIComponent(encounterId.trim())}`;
+export function buildOpenEncounterUrl(encounterId: string, envOverride?: EnvSource): string {
+  return buildPublicAppUrl(`/e/${encodeURIComponent(encounterId.trim())}`, {
+    env: envOverride,
+  });
 }
 
 /**
  * Enlace de compatibilidad profunda con query param (/?open_encounter=:uuid).
  */
-export function buildOpenEncounterQueryUrl(encounterId: string): string {
-  const cleanBaseUrl = getBaseAppUrl();
-  return `${cleanBaseUrl}/?open_encounter=${encodeURIComponent(encounterId.trim())}`;
+export function buildOpenEncounterQueryUrl(encounterId: string, envOverride?: EnvSource): string {
+  return buildPublicAppUrl(`/?open_encounter=${encodeURIComponent(encounterId.trim())}`, {
+    env: envOverride,
+  });
 }
 
 export interface OpenEncounterShareData {
@@ -57,8 +101,9 @@ export function buildOpenEncounterShareText(
   data: OpenEncounterShareData,
   urlOverride?: string
 ): string {
+  const brand = getBrandConfig();
   const url = urlOverride || buildOpenEncounterUrl(data.id);
-  const title = (data.title || 'Encuentro en PuntoEncuentro').trim();
+  const title = (data.title || brand.openEncounterFallbackTitle).trim();
 
   const details: string[] = [];
   if (data.approximateZone && data.approximateZone.trim()) {

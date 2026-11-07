@@ -63,6 +63,7 @@ import { QAGate } from '@/components/qa/QAGate';
 import InternalModerationScreen from '@/screens/InternalModeration/index';
 import { ModerationGate } from '@/components/moderation/ModerationGate';
 
+import { resolveAppEnvironment } from '@/config/domainConfig';
 import { CriticalCancellationModal } from '@/components/notifications/CriticalCancellationModal';
 import { TransferClaimBanner } from '@/components/auth/TransferClaimBanner';
 
@@ -70,11 +71,16 @@ const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
   React.useEffect(() => {
-    const isStaging =
-      (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging') ||
-      (typeof window !== 'undefined' && window.location.hostname.includes('staging'));
+    const currentEnv = resolveAppEnvironment();
+    const isStagingOrPreview =
+      currentEnv === 'staging' ||
+      currentEnv === 'preview' ||
+      (typeof __APP_ENV__ !== 'undefined' && (__APP_ENV__ === 'staging' || __APP_ENV__ === 'preview')) ||
+      (typeof window !== 'undefined' &&
+        (window.location.hostname.includes('staging') ||
+          window.location.hostname.endsWith('.vercel.app')));
 
-    if (isStaging) {
+    if (isStagingOrPreview) {
       let meta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
       if (!meta) {
         meta = document.createElement('meta');

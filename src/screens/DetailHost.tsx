@@ -49,7 +49,12 @@ import { getDefaultInvitationTemplate, getThemeFromTemplate } from '@/lib/invita
 import { useWizardStore } from '@/store/wizardStore';
 import { getHostAlias, setHostAlias } from '@/lib/hostAliasStorage';
 import { formatCount } from '@/lib/formatCount';
-import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
+import {
+  isMobileShareEnvironment,
+  buildGeneralInvitationUrl,
+  buildIndividualInvitationUrl,
+  buildHostEncounterUrl,
+} from '@/lib/shareHelper';
 import { appUsageTelemetry } from '@/services/appUsageTelemetry';
 import { HostOpenEncounterSection } from '@/components/host/HostOpenEncounterSection';
 import { HostInternalInvitationsSection } from '@/components/host/HostInternalInvitationsSection';
@@ -662,10 +667,10 @@ const DetailHost: React.FC = () => {
 
   const handleShareNewEncuentro = async () => {
     if (!encuentro || !fromCancelled) return;
-    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const newLink = encuentro.public_token
-      ? `${baseUrl}/join/${encuentro.public_token}`
-      : `${baseUrl}/meet/${encuentro.id}`;
+      ? buildGeneralInvitationUrl(encuentro.public_token)
+      : buildHostEncounterUrl(encuentro.id);
+    if (!newLink) return;
 
 
     const alias = getHostAlias();
@@ -912,8 +917,8 @@ const DetailHost: React.FC = () => {
 
   const handleShareLink = async (token: string, partId: string, guestName?: string) => {
     if (!token || !encuentro) return;
-    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-    const shareUrl = `${baseUrl}/invite/${token}`;
+    const shareUrl = buildIndividualInvitationUrl(token);
+    if (!shareUrl) return;
 
     const { fechaStr, horaStr } = formatFechaHoraWhatsApp(encuentro.fecha, encuentro.hora);
     const alias = getHostAlias();

@@ -63,11 +63,11 @@ export function isValidPostAuthRedirect(path: unknown): boolean {
   }
 
   // 4.1. Manejo de query params: por defecto se rechazan para evitar fuga o inyección de tokens en URL,
-  // permitiendo exclusivamente ?open_encounter=<uuid> para la ruta segura /solicitudes
+  // permitiendo exclusivamente ?open_encounter=<uuid> para las rutas seguras / y /solicitudes
   let pathWithoutQuery = path;
   if (path.includes('?')) {
     const [base, query] = path.split('?');
-    if (base === '/solicitudes' && query) {
+    if ((base === '/' || base === '/solicitudes') && query) {
       const match = query.match(/^open_encounter=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
       if (match) {
         pathWithoutQuery = base;
@@ -85,6 +85,10 @@ export function isValidPostAuthRedirect(path: unknown): boolean {
   }
 
   // 6. Validación estricta por familia de rutas dinámicas
+
+  // /e/:id (encuentro abierto público por UUID)
+  const openEncMatch = path.match(/^\/e\/([^/]+)$/);
+  if (openEncMatch && UUID_REGEX.test(openEncMatch[1])) return true;
 
   // /meet/:id
   const meetMatch = path.match(/^\/meet\/([^/]+)$/);

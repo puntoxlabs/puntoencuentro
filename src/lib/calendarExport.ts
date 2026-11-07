@@ -4,6 +4,8 @@
  * Zona horaria canónica de PuntoEncuentro: America/Argentina/Buenos_Aires (ART, UTC-3).
  */
 
+import { getBrandConfig } from '../config/domainConfig.js';
+
 export interface CalendarEncounterData {
   id: string;
   titulo: string;
@@ -225,14 +227,15 @@ export function generateIcsContent(
   const now = new Date();
   const dtStamp = `${now.getUTCFullYear()}${pad2(now.getUTCMonth() + 1)}${pad2(now.getUTCDate())}T${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}Z`;
 
-  const uid = `pe-${encounter.id || 'draft'}@puntoencuentro.com.ar`;
+  const brand = getBrandConfig();
+  const uid = `pe-${encounter.id || 'draft'}@${brand.calendarUidNamespace}`;
 
   // Descripción y sanitización
   let descriptionText = '';
   if (encounter.descripcion && encounter.descripcion.trim()) {
     descriptionText = `${encounter.descripcion.trim()}\n\n`;
   }
-  descriptionText += 'Encuentro organizado en PuntoEncuentro.';
+  descriptionText += `Encuentro organizado en ${brand.brandName}.`;
 
   // Ubicación respetando privacidad
   let locationText = '';
@@ -257,7 +260,7 @@ export function generateIcsContent(
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//PuntoEncuentro//Calendario v1.0//ES',
+    `PRODID:-//${brand.brandName}//Calendario v1.0//ES`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     // Bloque VTIMEZONE para America/Argentina/Buenos_Aires (UTC-3 permanente sin horario de verano)
