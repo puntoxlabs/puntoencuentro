@@ -17,7 +17,10 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
+import { build as viteBuild, type Plugin as VitePlugin } from 'vite';
 import {
   DEFAULT_PRODUCTION_ORIGIN,
   DEFAULT_STAGING_ORIGIN,
@@ -58,6 +61,214 @@ import openEncounterHandler, { generateOpenGraphHtml } from '../api/open-encount
 const SAMPLE_UUID = 'a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d';
 const SAMPLE_PUBLIC_TOKEN = 'tok_pub_987654321_AbCdEf';
 const SAMPLE_PRIVATE_TOKEN = 'd9b2d63d-a233-4123-847a-763889a00111';
+
+interface BrowserBundleBuildArtifact {
+  indexHtml: string;
+  bundleCode: string;
+}
+
+interface BrowserRuntimeEvaluation {
+  hasNodeProcess: boolean;
+  canonicalOrigin: string;
+  environment: string;
+  legacyOrigins: string[];
+  brandName: string;
+  generalInviteUrl: string;
+  individualInviteUrl: string;
+  openEncounterUrl: string;
+  openEncounterQueryUrl: string;
+}
+
+const VIRTUAL_BROWSER_PROBE_ID = '\0pe-browser-domain-probe-entry';
+
+/**
+ * Compila un bundle real de cliente e `index.html` invocando el `vite.config.ts` productivo
+ * en memoria (`write: false`), con reemplazo real de `import.meta.env.*` y `define` de Vite.
+ * Aísla las variables del proceso durante el build y las restaura íntegramente al finalizar.
+ */
+async function buildRealClientArtifactForEnv(
+  buildEnv: Record<string, string | undefined>
+): Promise<BrowserBundleBuildArtifact> {
+  const trackedKeys = new Set<string>([
+    'NODE_ENV',
+    'VITE_IGNORE_LOCAL_ENV_FILES',
+    'VITE_APP_ENV',
+    'VITE_APP_URL',
+    'VITE_APP_BRAND_NAME',
+    'VITE_APP_SHORT_NAME',
+    'VITE_PUBLIC_SUPPORT_EMAIL',
+    'VITE_APP_TWITTER_SITE',
+    'VITE_REQUIRE_EXPLICIT_APP_URL',
+    'PUBLIC_APP_ORIGIN',
+    'PUBLIC_STAGING_ORIGIN',
+    'LEGACY_APP_ORIGINS',
+    'ENABLE_LEGACY_DOMAIN_REDIRECT',
+    'APP_BRAND_NAME',
+    'APP_SHORT_NAME',
+    'PUBLIC_SUPPORT_EMAIL',
+    'APP_TWITTER_SITE',
+    'VERCEL_ENV',
+    'VERCEL_GIT_COMMIT_REF',
+    'VERCEL_URL',
+    'VERCEL_BRANCH_URL',
+    'VERCEL_PROJECT_PRODUCTION_URL',
+    ...Object.keys(buildEnv),
+  ]);
+
+  const savedEnv = new Map<string, string | undefined>();
+  for (const key of trackedKeys) {
+    savedEnv.set(key, process.env[key]);
+  }
+
+  const emptyEnvDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pe-vite-env-'));
+
+  const probePlugin: VitePlugin = {
+    name: 'pe-test-browser-probe-entry',
+    enforce: 'pre',
+    resolveId(source) {
+      if (source === '/src/main.tsx' || source.endsWith('/src/main.tsx')) {
+        return VIRTUAL_BROWSER_PROBE_ID;
+      }
+      return null;
+    },
+    load(id) {
+      if (id !== VIRTUAL_BROWSER_PROBE_ID) return null;
+      const domainCfgPath = path.resolve('src/config/domainConfig.ts').replace(/\\/g, '/');
+      const shareHelperPath = path.resolve('src/lib/shareHelper.ts').replace(/\\/g, '/');
+      return `
+        import { getCanonicalAppOrigin, resolveDomainConfig, getBrandConfig } from '${domainCfgPath}';
+        import {
+          buildGeneralInvitationUrl,
+          buildIndividualInvitationUrl,
+          buildOpenEncounterUrl,
+          buildOpenEncounterQueryUrl,
+        } from '${shareHelperPath}';
+
+        globalThis.__RUN_PE_BROWSER_PROBE__ = (pubToken, privToken, encId) => {
+          const cfg = resolveDomainConfig({
+            runtimeBrowserOrigin: globalThis.window?.location?.origin,
+          });
+          return {
+            hasNodeProcess: typeof globalThis.process !== 'undefined',
+            canonicalOrigin: getCanonicalAppOrigin(),
+            environment: cfg.environment,
+            legacyOrigins: [...cfg.legacyOrigins],
+            brandName: getBrandConfig().brandName,
+            generalInviteUrl: buildGeneralInvitationUrl(pubToken, 'fixed'),
+            individualInviteUrl: buildIndividualInvitationUrl(privToken, 'fixed'),
+            openEncounterUrl: buildOpenEncounterUrl(encId),
+            openEncounterQueryUrl: buildOpenEncounterQueryUrl(encId),
+          };
+        };
+      `;
+    },
+  };
+
+  try {
+    for (const key of trackedKeys) {
+      delete process.env[key];
+    }
+    process.env.NODE_ENV = 'production';
+    process.env.VITE_IGNORE_LOCAL_ENV_FILES = 'true';
+    for (const [key, val] of Object.entries(buildEnv)) {
+      if (val !== undefined) {
+        process.env[key] = val;
+      }
+    }
+
+    const buildResult = await viteBuild({
+      configFile: path.resolve('vite.config.ts'),
+      envDir: emptyEnvDir,
+      logLevel: 'silent',
+      plugins: [probePlugin],
+      build: {
+        write: false,
+        modulePreload: false,
+      },
+    });
+
+    const outputs = Array.isArray(buildResult) ? buildResult : [buildResult];
+    let indexHtml = '';
+    let bundleCode = '';
+
+    for (const out of outputs) {
+      if ('output' in out) {
+        for (const item of out.output) {
+          if (item.type === 'asset' && item.fileName === 'index.html') {
+            indexHtml = typeof item.source === 'string' ? item.source : Buffer.from(item.source).toString('utf8');
+          } else if (item.type === 'chunk' && item.isEntry) {
+            bundleCode = item.code;
+          }
+        }
+      }
+    }
+
+    assert.ok(indexHtml.length > 0, 'Vite build debe emitir index.html transformado en memoria');
+    assert.ok(bundleCode.length > 0, 'Vite build debe emitir el bundle JS de cliente en memoria');
+
+    return { indexHtml, bundleCode };
+  } finally {
+    for (const [key, val] of savedEnv.entries()) {
+      if (val === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = val;
+      }
+    }
+    fs.rmSync(emptyEnvDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Ejecuta el bundle compilado por Vite dentro de un contexto aislado `node:vm` que reproduce
+ * fielmente el navegador: `process` no existe (`undefined`) y solo están disponibles APIs Web
+ * estándar (`window.location`, `URL`, `URLSearchParams`).
+ */
+function evaluateClientBundleInBrowserVm(
+  bundleCode: string,
+  browserLocationOrigin: string
+): BrowserRuntimeEvaluation {
+  const parsedLoc = new URL(browserLocationOrigin);
+  const sandbox: Record<string, unknown> = {
+    window: {
+      location: {
+        origin: parsedLoc.origin,
+        href: parsedLoc.href,
+        protocol: parsedLoc.protocol,
+        host: parsedLoc.host,
+        hostname: parsedLoc.hostname,
+        pathname: parsedLoc.pathname,
+        search: '',
+        hash: '',
+      },
+    },
+    URL,
+    URLSearchParams,
+    console,
+  };
+  sandbox.globalThis = sandbox;
+  sandbox.self = sandbox.window;
+
+  const context = vm.createContext(sandbox);
+  vm.runInContext(bundleCode, context, { filename: 'vite-client-bundle.js' });
+
+  const runner = sandbox.__RUN_PE_BROWSER_PROBE__ as (
+    pubToken: string,
+    privToken: string,
+    encId: string
+  ) => BrowserRuntimeEvaluation;
+  assert.equal(typeof runner, 'function', 'El bundle compilado debe exponer la sonda de ejecución cliente');
+
+  const result = JSON.parse(
+    JSON.stringify(runner(SAMPLE_PUBLIC_TOKEN, SAMPLE_PRIVATE_TOKEN, SAMPLE_UUID))
+  ) as BrowserRuntimeEvaluation;
+  assert.equal(
+    result.hasNodeProcess,
+    false,
+    'La prueba de navegador debe ejecutarse sin `process` de Node (typeof process === "undefined")'
+  );
+  return result;
+}
 
 async function runDomainMigrationReadinessTests(): Promise<void> {
   console.log('\n=== TEST SUITE: DOMAIN MIGRATION READINESS & SECURITY ===');
@@ -663,7 +874,8 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     );
 
     // En api/open-encounter.ts sobre Preview: acepta ambos hosts asignados por Vercel,
-    // pero rechaza otro proyecto .vercel.app de un tercero (ej. puntoencuentro-git-evil.vercel.app)
+    // proyectando siempre el canonicalOrigin único del build (coherente con dist/index.html)
+    // y manteniendo spaRedirectOrigin en el host confiable consultado; rechaza .vercel.app ajenos.
     const serverHashRes = resolveServerCanonicalOrigin({
       headers: { host: 'nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app' },
       env: previewEnv,
@@ -671,6 +883,10 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     assert.equal(serverHashRes.isTrustedRequestHost, true);
     assert.equal(
       serverHashRes.canonicalOrigin,
+      'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app'
+    );
+    assert.equal(
+      serverHashRes.spaRedirectOrigin,
       'https://nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app'
     );
 
@@ -681,6 +897,10 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     assert.equal(serverForgedVercelTenant.isTrustedRequestHost, false);
     assert.equal(
       serverForgedVercelTenant.canonicalOrigin,
+      'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app'
+    );
+    assert.equal(
+      serverForgedVercelTenant.spaRedirectOrigin,
       'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app'
     );
 
@@ -760,6 +980,10 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     assert.equal(previewInheritedServerRes.isTrustedRequestHost, true);
     assert.equal(
       previewInheritedServerRes.canonicalOrigin,
+      'https://puntoencuentro-git-chore-dom-a1b2c3-puntoxlabs-projects.vercel.app'
+    );
+    assert.equal(
+      previewInheritedServerRes.spaRedirectOrigin,
       'https://puntoencuentro-8vuawgppfrmz-puntoxlabs-projects.vercel.app'
     );
 
@@ -800,7 +1024,349 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     console.log('✔ 11. Despliegues Preview en Vercel (VERCEL_URL/VERCEL_BRANCH_URL y herencia transversal) y escapado JS OG verificados.');
   }
 
-  console.log('=== DOMAIN MIGRATION READINESS SUITE: 11/11 BLOQUES APROBADOS ===\n');
+  // -------------------------------------------------------------------------
+  // 12. Reproducción real del bundle de navegador (sin `process.env` de Node),
+  //     coherencia HTML estático vs api/open-encounter.ts y ciclo Dominio A -> B -> C
+  // -------------------------------------------------------------------------
+  {
+    // 12.1 Escenario exacto Dominio B (`https://nuevamarca.app`):
+    // - Producción usa `https://nuevamarca.app` (`VERCEL_PROJECT_PRODUCTION_URL=nuevamarca.app`).
+    // - Vercel Preview hereda `VITE_APP_URL=https://nuevamarca.app`.
+    // - `VERCEL_PROJECT_PRODUCTION_URL` existe en build y serverless, pero NO existe `process.env` en navegador.
+    // - `__APP_ENV__="preview"` y el navegador ejecuta en `https://preview-ejemplo.vercel.app`.
+    const domainBPreviewEnv = {
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'feat/rebrand-dominio-b',
+      VITE_APP_URL: 'https://nuevamarca.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'nuevamarca.app',
+      VERCEL_BRANCH_URL: 'preview-ejemplo.vercel.app',
+      VERCEL_URL: 'nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app',
+      // Verificar además que secretos exclusivos de servidor jamás se filtren a `__PUBLIC_DOMAIN_BUILD_ENV__`
+      SUPABASE_STAGING_SECRET_KEY: 'SENTINEL_DO_NOT_INLINE_SECRET_999',
+    };
+
+    const domainBPreviewArtifact = await buildRealClientArtifactForEnv(domainBPreviewEnv);
+    assert.equal(
+      domainBPreviewArtifact.bundleCode.includes('SENTINEL_DO_NOT_INLINE_SECRET_999'),
+      false,
+      'CRÍTICO: Secretos de servidor jamás deben inyectarse al bundle público del navegador'
+    );
+
+    // Evaluación en VM pura de navegador sobre URL de rama (`https://preview-ejemplo.vercel.app`)
+    const browserOnBranch = evaluateClientBundleInBrowserVm(
+      domainBPreviewArtifact.bundleCode,
+      'https://preview-ejemplo.vercel.app'
+    );
+    assert.equal(browserOnBranch.environment, 'preview');
+    assert.equal(
+      browserOnBranch.canonicalOrigin,
+      'https://preview-ejemplo.vercel.app',
+      'El frontend de Preview NO debe emitir la URL productiva heredada (https://nuevamarca.app)'
+    );
+    assert.equal(
+      browserOnBranch.generalInviteUrl,
+      `https://preview-ejemplo.vercel.app/join/${SAMPLE_PUBLIC_TOKEN}`
+    );
+    assert.equal(
+      browserOnBranch.individualInviteUrl,
+      `https://preview-ejemplo.vercel.app/invite/${SAMPLE_PRIVATE_TOKEN}`
+    );
+    assert.equal(
+      browserOnBranch.openEncounterUrl,
+      `https://preview-ejemplo.vercel.app/e/${SAMPLE_UUID}`
+    );
+    assert.equal(
+      browserOnBranch.openEncounterQueryUrl,
+      `https://preview-ejemplo.vercel.app/?open_encounter=${SAMPLE_UUID}`
+    );
+
+    // Evaluación del mismo bundle en navegador sobre la URL inmutable (`VERCEL_URL`) y sobre un alias PR `.vercel.app`
+    const browserOnImmutable = evaluateClientBundleInBrowserVm(
+      domainBPreviewArtifact.bundleCode,
+      'https://nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app'
+    );
+    assert.equal(
+      browserOnImmutable.canonicalOrigin,
+      'https://nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app'
+    );
+
+    const browserOnPrAlias = evaluateClientBundleInBrowserVm(
+      domainBPreviewArtifact.bundleCode,
+      'https://nuevamarca-pr-42-puntoxlabs.vercel.app'
+    );
+    assert.equal(
+      browserOnPrAlias.canonicalOrigin,
+      'https://nuevamarca-pr-42-puntoxlabs.vercel.app'
+    );
+
+    // 12.2 Coherencia de URLs canónicas entre HTML estático (`dist/index.html`) y `api/open-encounter.ts`
+    // cuando un mismo despliegue Preview se consulta por URL de rama y por URL inmutable:
+    assert.ok(
+      domainBPreviewArtifact.indexHtml.includes(
+        '<meta property="og:url" content="https://preview-ejemplo.vercel.app/" />'
+      ),
+      'HTML estático debe proyectar el origen canónico de la rama de Preview en og:url'
+    );
+    assert.ok(
+      domainBPreviewArtifact.indexHtml.includes(
+        '<link rel="canonical" href="https://preview-ejemplo.vercel.app/" />'
+      ),
+      'HTML estático debe proyectar el origen canónico de la rama de Preview en rel=canonical'
+    );
+    assert.ok(
+      domainBPreviewArtifact.indexHtml.includes(
+        '<meta property="og:image" content="https://preview-ejemplo.vercel.app/images/og-share.png" />'
+      ),
+      'HTML estático debe proyectar og:image sobre el origen canónico de Preview'
+    );
+
+    // Ejecutar handler real de `api/open-encounter.ts` bajo las mismas variables de entorno de Preview
+    const savedServerEnv = new Map<string, string | undefined>();
+    const serverKeys = [
+      'VITE_APP_ENV',
+      'VITE_APP_URL',
+      'PUBLIC_APP_ORIGIN',
+      'VERCEL_ENV',
+      'VERCEL_GIT_COMMIT_REF',
+      'VERCEL_BRANCH_URL',
+      'VERCEL_URL',
+      'VERCEL_PROJECT_PRODUCTION_URL',
+      'VITE_SUPABASE_URL',
+      'SUPABASE_URL',
+      'VITE_SUPABASE_PUBLISHABLE_KEY',
+    ];
+    for (const k of serverKeys) savedServerEnv.set(k, process.env[k]);
+
+    try {
+      for (const k of serverKeys) delete process.env[k];
+      process.env.VERCEL_ENV = 'preview';
+      process.env.VERCEL_GIT_COMMIT_REF = 'feat/rebrand-dominio-b';
+      process.env.VITE_APP_URL = 'https://nuevamarca.app';
+      process.env.VERCEL_PROJECT_PRODUCTION_URL = 'nuevamarca.app';
+      process.env.VERCEL_BRANCH_URL = 'preview-ejemplo.vercel.app';
+      process.env.VERCEL_URL = 'nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app';
+
+      // Crawler en URL de rama vs Crawler en URL inmutable -> idéntica URL canónica y og:image que dist/index.html
+      let botBranchHtml = '';
+      await openEncounterHandler(
+        {
+          query: { id: SAMPLE_UUID },
+          headers: {
+            'user-agent': 'WhatsApp/2.24.1 i',
+            host: 'preview-ejemplo.vercel.app',
+          },
+        },
+        {
+          writeHead(code: number) {
+            assert.equal(code, 200);
+          },
+          end(body: string) {
+            botBranchHtml = body;
+          },
+        }
+      );
+
+      let botImmutableHtml = '';
+      await openEncounterHandler(
+        {
+          query: { id: SAMPLE_UUID },
+          headers: {
+            'user-agent': 'WhatsApp/2.24.1 i',
+            host: 'nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app',
+          },
+        },
+        {
+          writeHead(code: number) {
+            assert.equal(code, 200);
+          },
+          end(body: string) {
+            botImmutableHtml = body;
+          },
+        }
+      );
+
+      const expectedCanonicalEncounterUrl = `https://preview-ejemplo.vercel.app/e/${SAMPLE_UUID}`;
+      const expectedCanonicalOgImage = 'https://preview-ejemplo.vercel.app/images/og-share.png';
+
+      for (const [label, html] of [
+        ['URL de rama', botBranchHtml],
+        ['URL inmutable', botImmutableHtml],
+      ] as const) {
+        assert.ok(
+          html.includes(`<meta property="og:url" content="${expectedCanonicalEncounterUrl}" />`),
+          `og:url incoherente en ${label}`
+        );
+        assert.ok(
+          html.includes(`<link rel="canonical" href="${expectedCanonicalEncounterUrl}" />`),
+          `rel=canonical incoherente en ${label}`
+        );
+        assert.ok(
+          html.includes(`<meta property="og:image" content="${expectedCanonicalOgImage}" />`),
+          `og:image incoherente en ${label}`
+        );
+        assert.equal(
+          html.includes('nuevamarca.app'),
+          false,
+          `No debe filtrarse el dominio productivo heredado en ${label}`
+        );
+      }
+
+      // Navegador humano en URL de rama vs URL inmutable -> 302 permanece en el subdominio confiable visitado
+      let branch302 = '';
+      await openEncounterHandler(
+        {
+          query: { id: SAMPLE_UUID },
+          headers: {
+            'user-agent': 'Mozilla/5.0 Chrome/130.0',
+            host: 'preview-ejemplo.vercel.app',
+          },
+        },
+        {
+          writeHead(code: number, hdrs: Record<string, string>) {
+            assert.equal(code, 302);
+            branch302 = hdrs.Location || '';
+          },
+          end() {},
+        }
+      );
+      assert.equal(branch302, `https://preview-ejemplo.vercel.app/?open_encounter=${SAMPLE_UUID}`);
+
+      let immutable302 = '';
+      await openEncounterHandler(
+        {
+          query: { id: SAMPLE_UUID },
+          headers: {
+            'user-agent': 'Mozilla/5.0 Chrome/130.0',
+            host: 'nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app',
+          },
+        },
+        {
+          writeHead(code: number, hdrs: Record<string, string>) {
+            assert.equal(code, 302);
+            immutable302 = hdrs.Location || '';
+          },
+          end() {},
+        }
+      );
+      assert.equal(
+        immutable302,
+        `https://nuevamarca-9f8e7d6c5-puntoxlabs.vercel.app/?open_encounter=${SAMPLE_UUID}`
+      );
+    } finally {
+      for (const [k, v] of savedServerEnv.entries()) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+
+    // 12.3 Escenario futuro Dominio B -> Dominio C (`https://nuevamarca.app` -> `https://marcac.app`) en navegador real:
+    // Cubre TANTO herencia de `VITE_APP_URL=https://marcac.app` (Dominio C activo) COMO herencia rezagada de
+    // `VITE_APP_URL=https://nuevamarca.app` (Dominio B en `LEGACY_APP_ORIGINS`) durante la transición a Dominio C.
+    const domainCPreviewInheritedActive = await buildRealClientArtifactForEnv({
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'feat/migracion-dominio-c',
+      VITE_APP_URL: 'https://marcac.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+      LEGACY_APP_ORIGINS: 'https://puntoencuentro.com.ar,https://nuevamarca.app',
+      VERCEL_BRANCH_URL: 'marcac-git-feat-puntoxlabs.vercel.app',
+    });
+    const evalDomainCActive = evaluateClientBundleInBrowserVm(
+      domainCPreviewInheritedActive.bundleCode,
+      'https://marcac-git-feat-puntoxlabs.vercel.app'
+    );
+    assert.equal(evalDomainCActive.canonicalOrigin, 'https://marcac-git-feat-puntoxlabs.vercel.app');
+    assert.equal(
+      evalDomainCActive.generalInviteUrl,
+      `https://marcac-git-feat-puntoxlabs.vercel.app/join/${SAMPLE_PUBLIC_TOKEN}`
+    );
+
+    const domainCPreviewStaleDomainB = await buildRealClientArtifactForEnv({
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'feat/migracion-dominio-c',
+      VITE_APP_URL: 'https://nuevamarca.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+      LEGACY_APP_ORIGINS: 'https://puntoencuentro.com.ar,https://nuevamarca.app',
+      VERCEL_BRANCH_URL: 'marcac-git-feat-puntoxlabs.vercel.app',
+    });
+    const evalDomainCStaleB = evaluateClientBundleInBrowserVm(
+      domainCPreviewStaleDomainB.bundleCode,
+      'https://marcac-git-feat-puntoxlabs.vercel.app'
+    );
+    assert.equal(evalDomainCStaleB.canonicalOrigin, 'https://marcac-git-feat-puntoxlabs.vercel.app');
+
+    // Producción sobre Dominio C en navegador real (incluso si un usuario entra por alias antiguo Dominio B)
+    const domainCProdArtifact = await buildRealClientArtifactForEnv({
+      VERCEL_ENV: 'production',
+      VERCEL_GIT_COMMIT_REF: 'main',
+      VITE_APP_URL: 'https://marcac.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+      LEGACY_APP_ORIGINS: 'https://puntoencuentro.com.ar,https://nuevamarca.app',
+      APP_BRAND_NAME: 'MarcaC',
+    });
+    const evalDomainCProd = evaluateClientBundleInBrowserVm(
+      domainCProdArtifact.bundleCode,
+      'https://nuevamarca.app'
+    );
+    assert.equal(evalDomainCProd.environment, 'production');
+    assert.equal(evalDomainCProd.canonicalOrigin, 'https://marcac.app');
+    assert.deepEqual(evalDomainCProd.legacyOrigins, [
+      'https://puntoencuentro.com.ar',
+      'https://nuevamarca.app',
+    ]);
+    assert.equal(evalDomainCProd.brandName, 'MarcaC');
+    assert.equal(
+      evalDomainCProd.openEncounterUrl,
+      `https://marcac.app/e/${SAMPLE_UUID}`
+    );
+
+    // 12.4 Preservación de overrides legítimos de Staging y Preview + bloqueo de cruce Staging/Producción en Dominio B/C:
+    const stagingOverrideArtifact = await buildRealClientArtifactForEnv({
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'staging',
+      VITE_APP_ENV: 'staging',
+      VITE_APP_URL: 'https://staging.marcac.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+      LEGACY_APP_ORIGINS: 'https://puntoencuentro.com.ar,https://nuevamarca.app',
+    });
+    const evalStagingOverride = evaluateClientBundleInBrowserVm(
+      stagingOverrideArtifact.bundleCode,
+      'https://staging.marcac.app'
+    );
+    assert.equal(evalStagingOverride.environment, 'staging');
+    assert.equal(evalStagingOverride.canonicalOrigin, 'https://staging.marcac.app');
+
+    const customPreviewOverrideArtifact = await buildRealClientArtifactForEnv({
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'feat/custom-qa-domain',
+      VITE_APP_URL: 'https://qa-preview.marcac.app',
+      VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+      VERCEL_BRANCH_URL: 'marcac-git-feat-puntoxlabs.vercel.app',
+    });
+    const evalCustomPreviewOverride = evaluateClientBundleInBrowserVm(
+      customPreviewOverrideArtifact.bundleCode,
+      'https://marcac-git-feat-puntoxlabs.vercel.app'
+    );
+    assert.equal(evalCustomPreviewOverride.environment, 'preview');
+    assert.equal(evalCustomPreviewOverride.canonicalOrigin, 'https://qa-preview.marcac.app');
+
+    // Si Staging hereda accidentalmente el nuevo dominio productivo (Dominio B o C), falla cerrado en build
+    assert.throws(
+      () =>
+        validateBuildDomainConfig({
+          VITE_APP_ENV: 'staging',
+          VITE_APP_URL: 'https://marcac.app',
+          VERCEL_PROJECT_PRODUCTION_URL: 'marcac.app',
+        }),
+      (err: unknown) =>
+        err instanceof DomainConfigError && err.code === 'cross_environment_origin_mismatch'
+    );
+
+    console.log(
+      '✔ 12. Bundle real de navegador (sin process.env), coherencia HTML estático vs api/open-encounter.ts y transición Dominio A -> B -> C verificados.'
+    );
+  }
+
+  console.log('=== DOMAIN MIGRATION READINESS SUITE: 12/12 BLOQUES APROBADOS ===\n');
 }
 
 await runDomainMigrationReadinessTests();

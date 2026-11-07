@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { execSync } from 'child_process'
 import {
+  extractPublicDomainBuildEnv,
   extractTrustedVercelPreviewOrigins,
   resolveAppEnvironment,
   validateBuildDomainConfig,
@@ -111,7 +112,10 @@ function createCanonicalHtmlMetadataPlugin(
 
 // https://vite.dev/config/
 export default defineConfig(({ mode, command }) => {
-  const fileEnv = loadEnv(mode, process.cwd(), '');
+  const fileEnv =
+    process.env.VITE_IGNORE_LOCAL_ENV_FILES === 'true'
+      ? ({} as Record<string, string>)
+      : loadEnv(mode, process.cwd(), '');
   const mergedEnv: EnvSource = {
     VITE_APP_ENV: process.env.VITE_APP_ENV ?? fileEnv.VITE_APP_ENV,
     VITE_APP_URL: process.env.VITE_APP_URL ?? fileEnv.VITE_APP_URL,
@@ -153,6 +157,7 @@ export default defineConfig(({ mode, command }) => {
 
   const trustedPreviewOrigins =
     appEnv === 'preview' ? extractTrustedVercelPreviewOrigins(mergedEnv, false) : [];
+  const publicDomainBuildEnv = extractPublicDomainBuildEnv(mergedEnv);
 
   return {
     plugins: [
@@ -174,6 +179,7 @@ export default defineConfig(({ mode, command }) => {
       __APP_ENV__: JSON.stringify(appEnv),
       __GIT_COMMIT__: JSON.stringify(getGitCommit()),
       __VERCEL_PREVIEW_ORIGINS__: JSON.stringify(trustedPreviewOrigins),
+      __PUBLIC_DOMAIN_BUILD_ENV__: JSON.stringify(publicDomainBuildEnv),
     },
   };
 })

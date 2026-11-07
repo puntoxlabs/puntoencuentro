@@ -124,10 +124,15 @@ export default async function handler(req: any, res: any) {
   const userAgent = req.headers?.['user-agent'] || '';
 
   // Resolución segura de origen canónico (rechaza encabezados Host/X-Forwarded-Host no autorizados)
-  const { canonicalOrigin: origin, brand } = resolveServerCanonicalOrigin({
+  const {
+    canonicalOrigin: origin,
+    spaRedirectOrigin,
+    brand,
+  } = resolveServerCanonicalOrigin({
     headers: req.headers,
     env: process.env,
   });
+  const interactiveOrigin = spaRedirectOrigin || origin;
 
   // Si no es un bot ni lector de enlaces, redirigir al flujo interactivo de la SPA
   const isBot = isCrawler(userAgent);
@@ -135,9 +140,12 @@ export default async function handler(req: any, res: any) {
   const cleanId = typeof rawIdCandidate === 'string' ? rawIdCandidate.trim() : '';
   const isValid = UUID_REGEX.test(cleanId);
 
-  // URL canónica del recurso derivada exclusivamente del origen validado
+  // URL canónica oficial del recurso derivada del origen canónico único del entorno
+  // (coherente con dist/index.html tanto en URL de rama como en URL inmutable de Preview)
   const canonicalUrl = isValid ? `${origin}/e/${cleanId}` : origin;
-  const targetSpaUrl = isValid ? `${origin}/?open_encounter=${cleanId}` : `${origin}/`;
+  const targetSpaUrl = isValid
+    ? `${interactiveOrigin}/?open_encounter=${cleanId}`
+    : `${interactiveOrigin}/`;
   const defaultImageUrl = `${origin}${brand.socialImagePath}`;
 
   if (!isBot) {
@@ -159,7 +167,7 @@ export default async function handler(req: any, res: any) {
       siteName: brand.brandName,
       ctaLabel: brand.openEncounterCtaLabel,
       twitterSite: brand.twitterSiteHandle,
-      targetSpaUrl: origin,
+      targetSpaUrl: interactiveOrigin,
     });
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
