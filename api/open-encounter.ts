@@ -67,6 +67,7 @@ export function generateOpenGraphHtml(params: {
   const safeCtaLabel = escapeHtml(ctaLabelRaw);
   const safeTwitterSite = escapeHtml(twitterSiteRaw);
   const safeSpaUrl = escapeHtml(params.targetSpaUrl);
+  const safeJsSpaUrl = JSON.stringify(params.targetSpaUrl).replace(/</g, '\\u003c');
 
   const twitterSiteMeta = safeTwitterSite
     ? `\n  <meta name="twitter:site" content="${safeTwitterSite}" />`
@@ -110,7 +111,7 @@ export function generateOpenGraphHtml(params: {
     </a>
   </div>
   <script>
-    window.location.replace("${safeSpaUrl}");
+    window.location.replace(${safeJsSpaUrl});
   </script>
 </body>
 </html>`;
@@ -119,6 +120,7 @@ export function generateOpenGraphHtml(params: {
 export default async function handler(req: any, res: any) {
   // Extraer ID de query o de params
   const rawId = req.query?.id || req.query?.open_encounter;
+  const rawIdCandidate = Array.isArray(rawId) ? rawId[0] : rawId;
   const userAgent = req.headers?.['user-agent'] || '';
 
   // Resolución segura de origen canónico (rechaza encabezados Host/X-Forwarded-Host no autorizados)
@@ -130,7 +132,7 @@ export default async function handler(req: any, res: any) {
   // Si no es un bot ni lector de enlaces, redirigir al flujo interactivo de la SPA
   const isBot = isCrawler(userAgent);
 
-  const cleanId = typeof rawId === 'string' ? rawId.trim() : '';
+  const cleanId = typeof rawIdCandidate === 'string' ? rawIdCandidate.trim() : '';
   const isValid = UUID_REGEX.test(cleanId);
 
   // URL canónica del recurso derivada exclusivamente del origen validado

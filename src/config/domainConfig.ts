@@ -61,8 +61,12 @@ export const DEFAULT_LEGACY_ORIGINS: readonly string[] = Object.freeze([]);
  */
 export const PERSISTENT_CALENDAR_UID_NAMESPACE = 'puntoencuentro.com.ar';
 
-/** Patrón autorizado para despliegues efímeros de preview en Vercel (solo cuando env === 'preview'). */
-const VERCEL_PREVIEW_HOST_REGEX = /^puntoencuentro(?:-git-[a-z0-9-]+)?\.vercel\.app$/i;
+/**
+ * Patrón de respaldo para despliegues efímeros de preview en Vercel (solo cuando env === 'preview'
+ * y el runtime no inyectó VERCEL_URL / VERCEL_BRANCH_URL). Admite tanto URLs de rama (-git-...)
+ * como URLs inmutables de despliegue (<proyecto>-<hash>-<equipo>.vercel.app).
+ */
+const VERCEL_PREVIEW_HOST_REGEX = /^puntoencuentro(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 
 const LOCALHOST_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -124,6 +128,8 @@ export interface EnvSource {
   APP_TWITTER_SITE?: string;
   VERCEL_ENV?: string;
   VERCEL_GIT_COMMIT_REF?: string;
+  VERCEL_URL?: string;
+  VERCEL_BRANCH_URL?: string;
   NODE_ENV?: string;
 }
 
@@ -132,6 +138,7 @@ export interface EnvSource {
 // ============================================================================
 
 declare const __APP_ENV__: string | undefined;
+declare const __VERCEL_PREVIEW_ORIGINS__: readonly string[] | undefined;
 
 function readDefaultEnvSource(): EnvSource {
   const procEnv: Record<string, string | undefined> | undefined =
@@ -176,6 +183,8 @@ function readDefaultEnvSource(): EnvSource {
     APP_TWITTER_SITE: procEnv?.APP_TWITTER_SITE,
     VERCEL_ENV: procEnv?.VERCEL_ENV,
     VERCEL_GIT_COMMIT_REF: procEnv?.VERCEL_GIT_COMMIT_REF,
+    VERCEL_URL: procEnv?.VERCEL_URL,
+    VERCEL_BRANCH_URL: procEnv?.VERCEL_BRANCH_URL,
     NODE_ENV: procEnv?.NODE_ENV,
   };
 }
@@ -396,6 +405,62 @@ export function validateOriginForEnvironment(
   }
 }
 
+/**
+ * Extrae y normaliza los orígenes de Preview asignados por la plataforma Vercel
+ * (VERCEL_BRANCH_URL y VERCEL_URL) exclusivamente cuando el entorno es 'preview'.
+ * Rechaza cualquier valor que no sea un dominio válido bajo .vercel.app con HTTPS.
+ */
+export function extractTrustedVercelPreviewOrigins(
+  env: EnvSource,
+  includeInjectedBuildOrigins = false
+): string[] {
+  const rawCandidates: Array<string | undefined> = [env.VERCEL_BRANCH_URL, env.VERCEL_URL];
+
+  if (
+    includeInjectedBuildOrigins &&
+    typeof __VERCEL_PREVIEW_ORIGINS__ !== 'undefined' &&
+    Array.isArray(__VERCEL_PREVIEW_ORIGINS__)
+  ) {
+    for (const item of __VERCEL_PREVIEW_ORIGINS__) {
+      if (typeof item === 'string') rawCandidates.push(item);
+    }
+  }
+
+  const origins: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of rawCandidates) {
+    if (!raw || typeof raw !== 'string') continue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+
+    const withScheme =
+      trimmed.startsWith('https://') || trimmed.startsWith('http://')
+        ? trimmed
+        : `https://${trimmed}`;
+
+    try {
+      const normalized = normalizeAppOrigin(withScheme, { requireHttps: true });
+      const hostname = new URL(normalized).hostname.toLowerCase();
+      if (
+        hostname.endsWith('.vercel.app') &&
+        hostname !== 'vercel.app' &&
+        isValidPublicDomainHostname(hostname)
+      ) {
+        const lower = normalized.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          origins.push(normalized);
+        }
+      }
+    } catch {
+      // Ignorar valores malformados
+    }
+  }
+
+  return origins;
+}
+
 export function parseLegacyOrigins(
   rawLegacyOrigins: string | undefined,
   activeOriginsToExclude: readonly string[] = []
@@ -498,6 +563,14 @@ export function resolveDomainConfig(options: ResolveDomainConfigOptions = {}): D
     ? normalizeAppOrigin(configuredStagingRaw, { requireHttps: true })
     : DEFAULT_STAGING_ORIGIN;
 
+  const trustedPreviewOrigins =
+    environment === 'preview'
+      ? extractTrustedVercelPreviewOrigins(env, options.env === undefined)
+      : [];
+  const trustedPreviewHosts = new Set(
+    trustedPreviewOrigins.map((o) => new URL(o).host.toLowerCase())
+  );
+
   const defaultOriginForEnv = (): string => {
     if (environment === 'production') return DEFAULT_PRODUCTION_ORIGIN;
     if (environment === 'staging') return stagingOrigin;
@@ -506,13 +579,22 @@ export function resolveDomainConfig(options: ResolveDomainConfigOptions = {}): D
       if (browserOrigin) {
         try {
           const norm = normalizeAppOrigin(browserOrigin, { requireHttps: true });
-          const host = new URL(norm).hostname.toLowerCase();
-          if (VERCEL_PREVIEW_HOST_REGEX.test(host) || host === new URL(stagingOrigin).hostname.toLowerCase()) {
+          const host = new URL(norm).host.toLowerCase();
+          const hostname = new URL(norm).hostname.toLowerCase();
+          const stgHostLower = new URL(stagingOrigin).host.toLowerCase();
+          if (
+            trustedPreviewHosts.has(host) ||
+            host === stgHostLower ||
+            (trustedPreviewHosts.size === 0 && VERCEL_PREVIEW_HOST_REGEX.test(hostname))
+          ) {
             return norm;
           }
         } catch {
           // Ignorar origen no confiable
         }
+      }
+      if (trustedPreviewOrigins.length > 0) {
+        return trustedPreviewOrigins[0];
       }
       return stagingOrigin;
     }
@@ -585,7 +667,12 @@ export function resolveDomainConfig(options: ResolveDomainConfigOptions = {}): D
   const stgHost = new URL(stagingOrigin).host.toLowerCase();
 
   const legacyHosts = new Set(legacyOrigins.map((o) => new URL(o).host.toLowerCase()));
-  const trustedActiveHosts = new Set<string>([canonicalHost, prodHost, stgHost]);
+  const trustedActiveHosts = new Set<string>([
+    canonicalHost,
+    prodHost,
+    stgHost,
+    ...trustedPreviewHosts,
+  ]);
 
   const legacyRedirectEnabled =
     env.ENABLE_LEGACY_DOMAIN_REDIRECT?.trim().toLowerCase() === 'true';
@@ -798,13 +885,32 @@ export function resolveServerCanonicalOrigin(params: {
       };
     }
 
-    if (config.environment === 'preview' && VERCEL_PREVIEW_HOST_REGEX.test(parsedHostname)) {
-      return {
-        canonicalOrigin: `https://${parsedHostname}`,
-        isTrustedRequestHost: true,
-        isLegacyRequestHost: false,
-        brand: config.brand,
-      };
+    if (config.environment === 'preview') {
+      const trustedPreviewOrigins = extractTrustedVercelPreviewOrigins(
+        env,
+        params.env === undefined
+      );
+      const trustedPreviewHosts = new Set(
+        trustedPreviewOrigins.map((o) => new URL(o).host.toLowerCase())
+      );
+
+      if (trustedPreviewHosts.size > 0) {
+        if (trustedPreviewHosts.has(parsedHost)) {
+          return {
+            canonicalOrigin: `https://${parsedHostname}`,
+            isTrustedRequestHost: true,
+            isLegacyRequestHost: false,
+            brand: config.brand,
+          };
+        }
+      } else if (VERCEL_PREVIEW_HOST_REGEX.test(parsedHostname)) {
+        return {
+          canonicalOrigin: `https://${parsedHostname}`,
+          isTrustedRequestHost: true,
+          isLegacyRequestHost: false,
+          brand: config.brand,
+        };
+      }
     }
 
     if (
@@ -823,7 +929,9 @@ export function resolveServerCanonicalOrigin(params: {
 
   // 3. Host ausente o NO autorizado -> Fail-closed al origen público registrado del entorno
   const safeFallbackOrigin =
-    config.environment === 'staging' ? config.stagingOrigin : config.productionOrigin;
+    config.environment === 'staging' || config.environment === 'preview'
+      ? config.canonicalOrigin
+      : config.productionOrigin;
 
   return {
     canonicalOrigin: safeFallbackOrigin,

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { execSync } from 'child_process'
 import {
+  extractTrustedVercelPreviewOrigins,
   resolveAppEnvironment,
   validateBuildDomainConfig,
   type DomainConfig,
@@ -28,13 +29,19 @@ function escapeHtmlAttr(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function createCanonicalHtmlMetadataPlugin(domainCfg: DomainConfig): Plugin {
+function createCanonicalHtmlMetadataPlugin(
+  domainCfg: DomainConfig,
+  options: { useProductionOriginForStaticHtml?: boolean } = {}
+): Plugin {
   return {
     name: 'pe-canonical-html-metadata',
     transformIndexHtml(html) {
-      const { canonicalOrigin, brand } = domainCfg;
-      const canonicalRootUrl = `${canonicalOrigin}/`;
-      const socialImageUrl = `${canonicalOrigin}${brand.socialImagePath}`;
+      const { brand } = domainCfg;
+      const effectiveHtmlOrigin = options.useProductionOriginForStaticHtml
+        ? domainCfg.productionOrigin
+        : domainCfg.canonicalOrigin;
+      const canonicalRootUrl = `${effectiveHtmlOrigin}/`;
+      const socialImageUrl = `${effectiveHtmlOrigin}${brand.socialImagePath}`;
 
       let output = html
         .replace(
@@ -126,10 +133,15 @@ export default defineConfig(({ mode, command }) => {
     APP_TWITTER_SITE: process.env.APP_TWITTER_SITE ?? fileEnv.APP_TWITTER_SITE,
     VERCEL_ENV: process.env.VERCEL_ENV ?? fileEnv.VERCEL_ENV,
     VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF ?? fileEnv.VERCEL_GIT_COMMIT_REF,
+    VERCEL_URL: process.env.VERCEL_URL ?? fileEnv.VERCEL_URL,
+    VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL ?? fileEnv.VERCEL_BRANCH_URL,
     NODE_ENV: process.env.NODE_ENV,
   };
 
   const appEnv = resolveAppEnvironment(mergedEnv);
+  const hasExplicitPublicOrigin = Boolean(
+    (mergedEnv.PUBLIC_APP_ORIGIN || mergedEnv.VITE_APP_URL || '').trim()
+  );
 
   // En `vite build`, validamos de modo fail-closed cualquier configuración de dominio provista
   const domainCfg =
@@ -137,8 +149,17 @@ export default defineConfig(({ mode, command }) => {
       ? validateBuildDomainConfig({ ...mergedEnv, VITE_APP_ENV: appEnv })
       : validateBuildDomainConfig({ ...mergedEnv, VITE_APP_ENV: appEnv }, { requireExplicitOrigin: false });
 
+  const trustedPreviewOrigins =
+    appEnv === 'preview' ? extractTrustedVercelPreviewOrigins(mergedEnv, false) : [];
+
   return {
-    plugins: [react(), createCanonicalHtmlMetadataPlugin(domainCfg)],
+    plugins: [
+      react(),
+      createCanonicalHtmlMetadataPlugin(domainCfg, {
+        useProductionOriginForStaticHtml:
+          command === 'build' && domainCfg.environment === 'development' && !hasExplicitPublicOrigin,
+      }),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
@@ -150,6 +171,7 @@ export default defineConfig(({ mode, command }) => {
       ),
       __APP_ENV__: JSON.stringify(appEnv),
       __GIT_COMMIT__: JSON.stringify(getGitCommit()),
+      __VERCEL_PREVIEW_ORIGINS__: JSON.stringify(trustedPreviewOrigins),
     },
   };
 })

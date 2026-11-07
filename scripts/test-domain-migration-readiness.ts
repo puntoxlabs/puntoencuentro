@@ -24,6 +24,7 @@ import {
   DomainConfigError,
   PERSISTENT_CALENDAR_UID_NAMESPACE,
   buildPublicAppUrl,
+  extractTrustedVercelPreviewOrigins,
   isValidRouteInvitationToken,
   isValidRouteUuid,
   normalizeAppOrigin,
@@ -626,7 +627,105 @@ async function runDomainMigrationReadinessTests(): Promise<void> {
     console.log('✔ 10. Claves de almacenamiento local, UID .ics, manifest y vercel.json conservados sin cambios destructivos.');
   }
 
-  console.log('=== DOMAIN MIGRATION READINESS SUITE: 10/10 BLOQUES APROBADOS ===\n');
+  // -------------------------------------------------------------------------
+  // 11. Despliegues Preview en Vercel (VERCEL_URL / VERCEL_BRANCH_URL) y JS Escaping OG
+  // -------------------------------------------------------------------------
+  {
+    const previewEnv = {
+      VERCEL_ENV: 'preview',
+      VERCEL_GIT_COMMIT_REF: 'chore/domain-migration-readiness',
+      VERCEL_BRANCH_URL: 'nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app',
+      VERCEL_URL: 'nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app',
+    };
+
+    const extracted = extractTrustedVercelPreviewOrigins(previewEnv);
+    assert.deepEqual(extracted, [
+      'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app',
+      'https://nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app',
+    ]);
+
+    // En build de Preview sin VITE_APP_URL explícita, adopta el origen oficial de la rama
+    const previewBuildCfg = resolveDomainConfig({ env: previewEnv, strict: true });
+    assert.equal(previewBuildCfg.environment, 'preview');
+    assert.equal(
+      previewBuildCfg.canonicalOrigin,
+      'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app'
+    );
+
+    // En navegador sobre la URL inmutable con hash (<proyecto>-<hash>-<equipo>.vercel.app), conserva ese origen
+    const previewHashBrowserCfg = resolveDomainConfig({
+      env: previewEnv,
+      runtimeBrowserOrigin: 'https://nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app',
+    });
+    assert.equal(
+      previewHashBrowserCfg.canonicalOrigin,
+      'https://nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app'
+    );
+
+    // En api/open-encounter.ts sobre Preview: acepta ambos hosts asignados por Vercel,
+    // pero rechaza otro proyecto .vercel.app de un tercero (ej. puntoencuentro-git-evil.vercel.app)
+    const serverHashRes = resolveServerCanonicalOrigin({
+      headers: { host: 'nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app' },
+      env: previewEnv,
+    });
+    assert.equal(serverHashRes.isTrustedRequestHost, true);
+    assert.equal(
+      serverHashRes.canonicalOrigin,
+      'https://nueva-marca-9f8e7d6c5-puntoxlabs.vercel.app'
+    );
+
+    const serverForgedVercelTenant = resolveServerCanonicalOrigin({
+      headers: { host: 'puntoencuentro-git-evil-attacker.vercel.app' },
+      env: previewEnv,
+    });
+    assert.equal(serverForgedVercelTenant.isTrustedRequestHost, false);
+    assert.equal(
+      serverForgedVercelTenant.canonicalOrigin,
+      'https://nueva-marca-git-chore-domain-migration-puntoxlabs.vercel.app'
+    );
+
+    // Verificar que en Producción las variables VERCEL_URL jamás alteren el dominio canónico
+    const prodWithVercelUrl = resolveDomainConfig({
+      env: {
+        VERCEL_ENV: 'production',
+        VERCEL_GIT_COMMIT_REF: 'main',
+        VERCEL_URL: 'puntoencuentro-prodhash-puntoxlabs.vercel.app',
+      },
+      strict: true,
+    });
+    assert.equal(prodWithVercelUrl.canonicalOrigin, DEFAULT_PRODUCTION_ORIGIN);
+
+    // Verificar serialización JS segura en generateOpenGraphHtml (<script> context)
+    const ogWithMultiParams = generateOpenGraphHtml({
+      title: 'Encuentro Seguro',
+      description: 'Desc',
+      url: `https://puntoencuentro.com.ar/e/${SAMPLE_UUID}`,
+      imageUrl: 'https://puntoencuentro.com.ar/images/og-share.png',
+      targetSpaUrl: `https://puntoencuentro.com.ar/?open_encounter=${SAMPLE_UUID}&ref=1`,
+    });
+    assert.ok(
+      ogWithMultiParams.includes(
+        `window.location.replace("https://puntoencuentro.com.ar/?open_encounter=${SAMPLE_UUID}&ref=1");`
+      ),
+      'El bloque <script> no debe corromper & como &amp; en URLs válidas'
+    );
+
+    const ogScriptBreakoutAttempt = generateOpenGraphHtml({
+      title: 'Test',
+      description: 'Test',
+      url: 'https://puntoencuentro.com.ar',
+      imageUrl: 'https://puntoencuentro.com.ar/images/og-share.png',
+      targetSpaUrl: 'https://puntoencuentro.com.ar/</script><script>alert(1)</script>',
+    });
+    assert.ok(
+      !ogScriptBreakoutAttempt.includes('</script><script>alert(1)'),
+      'Intento de cierre prematuro de </script> neutralizado'
+    );
+
+    console.log('✔ 11. Despliegues Preview en Vercel (VERCEL_URL/VERCEL_BRANCH_URL) y escapado JS OG verificados.');
+  }
+
+  console.log('=== DOMAIN MIGRATION READINESS SUITE: 11/11 BLOQUES APROBADOS ===\n');
 }
 
 await runDomainMigrationReadinessTests();

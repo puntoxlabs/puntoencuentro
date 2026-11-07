@@ -22,3 +22,4 @@ interface ImportMetaEnv {
 declare const __APP_VERSION__: string;
 declare const __APP_ENV__: string;
 declare const __GIT_COMMIT__: string;
+declare const __VERCEL_PREVIEW_ORIGINS__: readonly string[];
