@@ -225,6 +225,9 @@ try {
   await server.ssrLoadModule('./scripts/test-home-inspirational-discovery-ux.tsx');
   console.log('✅ Mini-sprint UX: Discovery inspirador sin encuentros tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-domain-migration-readiness.ts');
+  console.log('✅ Domain Migration Readiness: Canonical URLs, host allowlist, N->1 redirects & security tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
