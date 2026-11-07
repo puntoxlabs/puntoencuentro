@@ -9,13 +9,19 @@
  *   public.get_encuentro_abierto_publico.
  * - Cero exposición de datos logísticos privados (lugar_texto, link_virtual, tokens, invitados).
  * - Verificación estricta de formato UUID RFC 4122.
+ * - Validación estricta de origen canónico (resolveServerCanonicalOrigin): jamás genera
+ *   og:url, link[rel=canonical] ni redirecciones 302 a partir de encabezados Host arbitrarios.
  * - Escapado HTML exhaustivo para prevenir inyecciones XSS en metadatos.
  * - Si el encuentro no existe, está cancelado, en revisión o cerrado, retorna
- *   metadatos genéricos institucionales seguros de PuntoEncuentro.
+ *   metadatos genéricos institucionales seguros de la marca configurada.
  * - Redirige a usuarios normales (navegadores) a la experiencia interactiva de la SPA.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  resolveBrandConfig,
+  resolveServerCanonicalOrigin,
+} from '../src/config/domainConfig.js';
 
 // Lista exhaustiva de identificadores de rastreadores y lectores de vista previa social
 const BOT_USER_AGENTS_REGEX =
@@ -44,14 +50,27 @@ export function generateOpenGraphHtml(params: {
   url: string;
   imageUrl: string;
   siteName?: string;
+  ctaLabel?: string;
+  twitterSite?: string;
   targetSpaUrl: string;
 }): string {
+  const defaultBrand = resolveBrandConfig();
+  const siteNameRaw = params.siteName || defaultBrand.brandName;
+  const ctaLabelRaw = params.ctaLabel || `Ver encuentro en ${siteNameRaw}`;
+  const twitterSiteRaw = params.twitterSite || defaultBrand.twitterSiteHandle;
+
   const safeTitle = escapeHtml(params.title);
   const safeDesc = escapeHtml(params.description);
   const safeUrl = escapeHtml(params.url);
   const safeImage = escapeHtml(params.imageUrl);
-  const safeSiteName = escapeHtml(params.siteName || 'PuntoEncuentro');
+  const safeSiteName = escapeHtml(siteNameRaw);
+  const safeCtaLabel = escapeHtml(ctaLabelRaw);
+  const safeTwitterSite = escapeHtml(twitterSiteRaw);
   const safeSpaUrl = escapeHtml(params.targetSpaUrl);
+
+  const twitterSiteMeta = safeTwitterSite
+    ? `\n  <meta name="twitter:site" content="${safeTwitterSite}" />`
+    : '';
 
   return `<!doctype html>
 <html lang="es">
@@ -75,8 +94,7 @@ export function generateOpenGraphHtml(params: {
   <meta property="og:image:alt" content="${safeTitle}" />
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@puntoencuentro" />
+  <meta name="twitter:card" content="summary_large_image" />${twitterSiteMeta}
   <meta name="twitter:title" content="${safeTitle}" />
   <meta name="twitter:description" content="${safeDesc}" />
   <meta name="twitter:image" content="${safeImage}" />
@@ -88,7 +106,7 @@ export function generateOpenGraphHtml(params: {
     <h1 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #0f172a;">${safeTitle}</h1>
     <p style="font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom: 1.5rem;">${safeDesc}</p>
     <a href="${safeSpaUrl}" style="display: inline-block; background: #19345C; color: #ffffff; text-decoration: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; font-size: 0.95rem;">
-      Ver encuentro en PuntoEncuentro
+      ${safeCtaLabel}
     </a>
   </div>
   <script>
@@ -103,9 +121,11 @@ export default async function handler(req: any, res: any) {
   const rawId = req.query?.id || req.query?.open_encounter;
   const userAgent = req.headers?.['user-agent'] || '';
 
-  const host = req.headers?.['x-forwarded-host'] || req.headers?.['host'] || 'puntoencuentro.com.ar';
-  const proto = req.headers?.['x-forwarded-proto'] || 'https';
-  const origin = `${proto}://${host}`;
+  // Resolución segura de origen canónico (rechaza encabezados Host/X-Forwarded-Host no autorizados)
+  const { canonicalOrigin: origin, brand } = resolveServerCanonicalOrigin({
+    headers: req.headers,
+    env: process.env,
+  });
 
   // Si no es un bot ni lector de enlaces, redirigir al flujo interactivo de la SPA
   const isBot = isCrawler(userAgent);
@@ -113,10 +133,10 @@ export default async function handler(req: any, res: any) {
   const cleanId = typeof rawId === 'string' ? rawId.trim() : '';
   const isValid = UUID_REGEX.test(cleanId);
 
-  // URL canónica del recurso
+  // URL canónica del recurso derivada exclusivamente del origen validado
   const canonicalUrl = isValid ? `${origin}/e/${cleanId}` : origin;
   const targetSpaUrl = isValid ? `${origin}/?open_encounter=${cleanId}` : `${origin}/`;
-  const defaultImageUrl = `${origin}/images/og-share.png`;
+  const defaultImageUrl = `${origin}${brand.socialImagePath}`;
 
   if (!isBot) {
     res.writeHead(302, {
@@ -130,10 +150,13 @@ export default async function handler(req: any, res: any) {
   // Si el UUID no es válido, retornar tarjeta genérica
   if (!isValid) {
     const genericHtml = generateOpenGraphHtml({
-      title: 'PuntoEncuentro — Organizá encuentros y compartí momentos',
-      description: 'Coordiná fechas, invitá a tu grupo y descubrí planes de forma privada y sin vueltas.',
+      title: brand.socialTitle,
+      description: brand.socialDescription,
       url: origin,
       imageUrl: defaultImageUrl,
+      siteName: brand.brandName,
+      ctaLabel: brand.openEncounterCtaLabel,
+      twitterSite: brand.twitterSiteHandle,
       targetSpaUrl: origin,
     });
     res.writeHead(200, {
@@ -169,10 +192,13 @@ export default async function handler(req: any, res: any) {
     if (!isValidUrl || !supabaseAnonKey || typeof supabaseAnonKey !== 'string' || !supabaseAnonKey.trim()) {
       console.warn('[open-encounter] Configuración de Supabase ausente o inconsistente en el entorno. Fallando de forma segura con previsualización institucional.');
       const safeHtml = generateOpenGraphHtml({
-        title: 'PuntoEncuentro — Organizá encuentros y compartí momentos',
-        description: 'Coordiná fechas, invitá a tu grupo y descubrí planes de forma privada y sin vueltas.',
+        title: brand.socialTitle,
+        description: brand.socialDescription,
         url: canonicalUrl,
         imageUrl: defaultImageUrl,
+        siteName: brand.brandName,
+        ctaLabel: brand.openEncounterCtaLabel,
+        twitterSite: brand.twitterSiteHandle,
         targetSpaUrl,
       });
 
@@ -196,10 +222,13 @@ export default async function handler(req: any, res: any) {
     if (error || !(rpcRes as any)?.ok || !(rpcRes as any)?.data) {
       // Si no existe, no está aprobado o está cancelado: fallback seguro genérico
       const fallbackHtml = generateOpenGraphHtml({
-        title: 'Encuentro en PuntoEncuentro',
-        description: 'Conocé propuestas y sumate a encuentros de forma simple y cuidada.',
+        title: brand.openEncounterFallbackTitle,
+        description: brand.openEncounterFallbackDescription,
         url: canonicalUrl,
         imageUrl: defaultImageUrl,
+        siteName: brand.brandName,
+        ctaLabel: brand.openEncounterCtaLabel,
+        twitterSite: brand.twitterSiteHandle,
         targetSpaUrl,
       });
 
@@ -212,7 +241,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const item = (rpcRes as any).data;
-    const title = item.title || 'Encuentro en PuntoEncuentro';
+    const title = item.title || brand.openEncounterFallbackTitle;
 
     const metaParts: string[] = [];
     if (item.approximate_zone && item.approximate_zone.trim()) {
@@ -234,6 +263,9 @@ export default async function handler(req: any, res: any) {
       description: finalDescription,
       url: canonicalUrl,
       imageUrl: defaultImageUrl,
+      siteName: brand.brandName,
+      ctaLabel: brand.openEncounterCtaLabel,
+      twitterSite: brand.twitterSiteHandle,
       targetSpaUrl,
     });
 
@@ -245,10 +277,13 @@ export default async function handler(req: any, res: any) {
   } catch (err) {
     console.error('[open-encounter] Error rendering social preview:', err);
     const safeHtml = generateOpenGraphHtml({
-      title: 'PuntoEncuentro — Organizá encuentros y compartí momentos',
-      description: 'Coordiná fechas, invitá a tu grupo y descubrí planes de forma privada y sin vueltas.',
+      title: brand.socialTitle,
+      description: brand.socialDescription,
       url: canonicalUrl,
       imageUrl: defaultImageUrl,
+      siteName: brand.brandName,
+      ctaLabel: brand.openEncounterCtaLabel,
+      twitterSite: brand.twitterSiteHandle,
       targetSpaUrl,
     });
 

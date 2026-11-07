@@ -41,9 +41,11 @@ export function normalizeRouteForFeedback(rawRoute?: string): string | null {
   }
 
   if (clean === '' || clean === '/') return '/';
+  if (clean === '/solicitudes') return '/solicitudes';
   if (clean === '/create') return '/create';
   if (clean === '/create/ai') return '/create/ai';
   if (clean === '/create/coordination') return '/create/coordination';
+  if (/^\/e\/[^/]+$/.test(clean)) return '/e/:id';
   if (/^\/meet\/[^/]+$/.test(clean)) return '/meet/:id';
   if (/^\/coordination\/invite\/[^/]+$/.test(clean)) return '/coordination/invite/:token';
   if (/^\/coordination\/join\/[^/]+$/.test(clean)) return '/coordination/join/:token';

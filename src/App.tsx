@@ -63,6 +63,7 @@ import { QAGate } from '@/components/qa/QAGate';
 import InternalModerationScreen from '@/screens/InternalModeration/index';
 import { ModerationGate } from '@/components/moderation/ModerationGate';
 
+import { isNonProductionEnvironment } from '@/config/domainConfig';
 import { CriticalCancellationModal } from '@/components/notifications/CriticalCancellationModal';
 import { TransferClaimBanner } from '@/components/auth/TransferClaimBanner';
 
@@ -70,11 +71,12 @@ const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
   React.useEffect(() => {
-    const isStaging =
-      (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'staging') ||
+    const isStagingOrPreview =
+      (typeof __APP_ENV__ !== 'undefined' && (__APP_ENV__ === 'staging' || __APP_ENV__ === 'preview')) ||
+      (isNonProductionEnvironment() && typeof window !== 'undefined' && window.location.hostname !== 'localhost') ||
       (typeof window !== 'undefined' && window.location.hostname.includes('staging'));
 
-    if (isStaging) {
+    if (isStagingOrPreview) {
       let meta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
       if (!meta) {
         meta = document.createElement('meta');

@@ -88,11 +88,17 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // 2. Validar credenciales VAPID
+  // 2. Validar credenciales VAPID y configuración pública de marca/contacto
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const publicSupportEmail = (
+    Deno.env.get("PUBLIC_SUPPORT_EMAIL") || "soporte@puntoencuentro.com.ar"
+  )
+    .trim()
+    .replace(/^mailto:/i, "");
   const vapidSubject =
-    Deno.env.get("VAPID_SUBJECT") || "mailto:soporte@puntoencuentro.com.ar";
+    Deno.env.get("VAPID_SUBJECT") || `mailto:${publicSupportEmail}`;
+  const configuredBrandTitle = Deno.env.get("APP_BRAND_NAME")?.trim();
 
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.error("[web-push-worker] VAPID credentials not configured in environment");
@@ -189,15 +195,20 @@ Deno.serve(async (req: Request) => {
     // Exclusivamente copy genérico y sin identificadores internos ni target_ids.
     // Para avisos críticos: omitimos "tag" para que no reemplace ni sea reemplazado.
     // Para avisos normales/informativos: usamos tag: "pe-notification" para evitar acumulación descontrolada.
+    const baseNeutralCopy = {
+      title: "PuntoEncuentro",
+      body: "Tenés una nueva notificación",
+    };
+    const effectiveTitle = configuredBrandTitle || baseNeutralCopy.title;
     const payloadObj: Record<string, unknown> = isCritical
       ? {
-          title: "PuntoEncuentro",
-          body: "Tenés una nueva notificación",
+          title: effectiveTitle,
+          body: baseNeutralCopy.body,
           urgency: "high",
         }
       : {
-          title: "PuntoEncuentro",
-          body: "Tenés una nueva notificación",
+          title: effectiveTitle,
+          body: baseNeutralCopy.body,
           tag: "pe-notification",
           urgency: "normal",
         };

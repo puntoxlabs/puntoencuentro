@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getHostId } from '@/lib/auth';
 import { getEncuentroHost, rememberEncuentroHost } from '@/lib/meetHostsStorage';
 import { getHostAlias } from '@/lib/hostAliasStorage';
-import { isMobileShareEnvironment } from '@/lib/shareHelper';
+import { isMobileShareEnvironment, buildGeneralInvitationUrl } from '@/lib/shareHelper';
 import './CancelSummary.css';
 
 const CancelSummary: React.FC = () => {
@@ -75,7 +75,8 @@ const CancelSummary: React.FC = () => {
   const handleShareCancel = async () => {
     if (!encuentro) return;
     try {
-      const shareUrl = `${window.location.origin}/join/${encuentro.public_token || encuentro.id}`;
+      const shareUrl = buildGeneralInvitationUrl(encuentro.public_token || encuentro.id);
+      if (!shareUrl) return;
       const alias = getHostAlias();
       const intro = alias ? `${alias} canceló el encuentro:` : 'Se canceló el encuentro:';
       const shareText = `${intro}\n\n*${encuentro.titulo}*\n\nTe aviso para que estés al tanto.\n\nVer estado:\n${shareUrl}`;
