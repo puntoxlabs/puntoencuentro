@@ -37,3 +37,6 @@ supabase/.branches/
 # QA evidence artifacts
 qa-evidence/
 
+evidence/e2e-bridge/
+evidence/
+recovery-manifest-staging-*.json
