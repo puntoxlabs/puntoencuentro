@@ -5,6 +5,8 @@ import { participantesService } from '@/services/participantesService';
 import { webPushService } from '@/services/webPushService';
 import { useContactsStore } from '@/store/contactsStore';
 import { useRepeatEncounterStore } from '@/store/repeatEncounterStore';
+import { collectAllLocalInvitationTokens } from '@/lib/participatedTokens';
+import { domainMigrationBridgeService } from '@/services/domainMigrationBridgeService';
 
 const RECENT_PARTICIPANT_KEY = 'pending_participant_invitation_token';
 const PENDING_OPEN_REQUEST_KEY = 'pending_open_request';
@@ -492,13 +494,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * - Si falla el canje post-auth: conserva el ticket recuperable en storage para evitar pérdida silenciosa.
    */
   const unifiedSignInWithGoogle = async (): Promise<GoogleSignInResult> => {
-    // 1. Usuario permanente: conservar sesión
-    if (user && !user.is_anonymous) {
+    // 1. Resolver usuario actual: estado React o sesión activa de Supabase
+    let activeUser = user;
+    if (!activeUser) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        activeUser = session?.user ?? null;
+      } catch {
+        activeUser = null;
+      }
+    }
+
+    // 2. Si el invitado no tiene sesión o es anónimo pero conserva tokens locales de invitación,
+    // pre-sincronizar y vincular participaciones antes de iniciar el upgrade OAuth.
+    const localTokens = collectAllLocalInvitationTokens();
+    if ((!activeUser || activeUser.is_anonymous) && localTokens.length > 0) {
+      const prep = await domainMigrationBridgeService.prepareSourceResources();
+      if (!prep.ok) {
+        console.error('[Auth] Abortando OAuth: falla al pre-sincronizar recursos locales:', prep.error);
+        return { ok: false, error: prep.error || 'prepare_resources_failed' };
+      }
+      if (!activeUser) {
+        const { data: { session } } = await supabase.auth.getSession();
+        activeUser = session?.user ?? null;
+      }
+    }
+
+    // 3. Usuario permanente: conservar sesión
+    if (activeUser && !activeUser.is_anonymous) {
       return { ok: true, alreadyLoggedIn: true };
     }
 
-    // 2. Usuario anónimo: evaluar recursos
-    if (user?.is_anonymous) {
+    // 4. Usuario anónimo: evaluar recursos
+    if (activeUser?.is_anonymous) {
       let upgradeState: AnonymousUpgradeState | null = null;
       try {
         upgradeState = await checkAnonymousUpgradeState();
@@ -531,7 +559,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 3. Iniciar OAuth directo a Google
+    // 5. Iniciar OAuth directo a Google
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

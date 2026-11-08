@@ -316,6 +316,103 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       assert.equal(res.error, 'anonymous_session_already_migrated');
       assert.equal(isLocalSessionRetired(userId), true, 'Debe marcarse como retirada');
     });
+
+    test('prepareSourceResources rechaza respuesta nula o sin campo ok explícito en RPC', async () => {
+      const token = 'aaaaaaaa-1111-4111-8111-111111111111';
+      saveParticipatedToken(token);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      // Caso 1: respuesta nula
+      (supabase as any).rpc = async () => ({ data: null, error: null });
+      const resNull = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(resNull.ok, false);
+      assert.equal(resNull.isComplete, false);
+
+      // Caso 2: respuesta sin ok === true
+      (supabase as any).rpc = async () => ({ data: { linked_count: 1 }, error: null });
+      const resNoOk = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(resNoOk.ok, false);
+      assert.equal(resNoOk.isComplete, false);
+    });
+
+    test('prepareSourceResources maneja skipped_count > 0 con hasUnrecoveredTokens: true sin bloquear', async () => {
+      const token1 = '11111111-1111-4111-8111-111111111111';
+      const token2 = '22222222-2222-4222-8222-222222222222';
+      saveParticipatedToken(token1);
+      saveParticipatedToken(token2);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          return {
+            data: {
+              ok: true,
+              linked_count: 1,
+              already_linked_count: 0,
+              skipped_count: 1,
+            },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, true, 'No debe bloquear el flujo ante tokens obsoletos');
+      assert.equal(res.totalTokens, 2);
+      assert.equal(res.linkedCount, 1);
+      assert.equal(res.skippedCount, 1);
+      assert.equal(res.hasUnrecoveredTokens, true, 'Debe marcar participaciones pendientes');
+      assert.equal(res.isComplete, false, 'No debe reportar completitud al 100%');
+    });
+
+    test('prepareSourceResources divide lotes superiores a 50 tokens (e.g. 75) en llamadas de 50', async () => {
+      const tokensCount = 75;
+      const batchesReceived: string[][] = [];
+
+      for (let i = 0; i < tokensCount; i++) {
+        const hex = i.toString(16).padStart(12, '0');
+        saveParticipatedToken(`99999999-9999-4999-8999-${hex}`);
+      }
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string, params: any) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          batchesReceived.push(params.p_tokens);
+          return {
+            data: {
+              ok: true,
+              linked_count: params.p_tokens.length,
+              already_linked_count: 0,
+              skipped_count: 0,
+            },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, true);
+      assert.equal(res.totalTokens, 75);
+      assert.equal(res.linkedCount, 75);
+      assert.equal(res.hasUnrecoveredTokens, false);
+      assert.equal(res.isComplete, true);
+
+      // Verificar que se dividió en 2 lotes (50 y 25) respetando LIMIT 50 de SQL
+      assert.equal(batchesReceived.length, 2, 'Debe llamar la RPC exactamente 2 veces');
+      assert.equal(batchesReceived[0].length, 50, 'El primer lote debe tener 50 tokens');
+      assert.equal(batchesReceived[1].length, 25, 'El segundo lote debe tener 25 tokens');
+    });
   });
 
   // =========================================================================
@@ -332,10 +429,70 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       assert.notEqual(n1, n2, 'Dos nonces generados no deben colisionar');
     });
 
-    test('isTrustedBridgeOrigin acepta orígenes válidos configurados', () => {
-      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar'), true);
+    test('isTrustedBridgeOrigin acepta orígenes válidos configurados por entorno', () => {
+      // Producción acepta su canónico oficial HTTPS
+      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar', { env: { VITE_APP_ENV: 'production' } }), true);
+      // Staging acepta su canónico oficial HTTPS
+      assert.equal(isTrustedBridgeOrigin('https://staging.puntoencuentro.com.ar', { env: { VITE_APP_ENV: 'staging' } }), true);
+      // Entorno local / pruebas acepta puertos duales autorizados
       assert.equal(isTrustedBridgeOrigin('http://localhost:5173'), true);
       assert.equal(isTrustedBridgeOrigin('http://127.0.0.1:5174'), true);
+    });
+
+    test('isTrustedBridgeOrigin rechaza preview ajeno (*.vercel.app no autorizado)', () => {
+      assert.equal(
+        isTrustedBridgeOrigin('https://malicious.vercel.app', { env: { VITE_APP_ENV: 'preview' } }),
+        false,
+        'Debe rechazar subdominios de Vercel ajenos al proyecto'
+      );
+      assert.equal(
+        isTrustedBridgeOrigin('https://attacker-preview.vercel.app', { env: { VITE_APP_ENV: 'preview' } }),
+        false
+      );
+    });
+
+    test('isTrustedBridgeOrigin acepta preview legítimo de puntoencuentro o inyectado por Vercel', () => {
+      assert.equal(
+        isTrustedBridgeOrigin('https://puntoencuentro-pr12.vercel.app', { env: { VITE_APP_ENV: 'preview' } }),
+        true
+      );
+      assert.equal(
+        isTrustedBridgeOrigin('https://custom-deploy.vercel.app', {
+          env: { VITE_APP_ENV: 'preview', VERCEL_URL: 'custom-deploy.vercel.app' },
+        }),
+        true
+      );
+    });
+
+    test('isTrustedBridgeOrigin rechaza confianza cruzada no configurada entre Producción y Staging', () => {
+      // Producción rechaza Staging por defecto
+      assert.equal(
+        isTrustedBridgeOrigin('https://staging.puntoencuentro.com.ar', { env: { VITE_APP_ENV: 'production' } }),
+        false,
+        'Producción nunca debe confiar en Staging sin target explícito'
+      );
+      // Producción rechaza localhost
+      assert.equal(
+        isTrustedBridgeOrigin('http://localhost:5173', { env: { VITE_APP_ENV: 'production' } }),
+        false,
+        'Producción nunca debe confiar en localhost'
+      );
+      // Staging rechaza Producción por defecto
+      assert.equal(
+        isTrustedBridgeOrigin('https://puntoencuentro.com.ar', { env: { VITE_APP_ENV: 'staging' } }),
+        false,
+        'Staging nunca debe confiar en Producción sin target explícito'
+      );
+      // Target explícito autoriza migración controlada
+      assert.equal(
+        isTrustedBridgeOrigin('https://staging.puntoencuentro.com.ar', {
+          env: {
+            VITE_APP_ENV: 'production',
+            VITE_MIGRATION_TARGET_ORIGIN: 'https://staging.puntoencuentro.com.ar',
+          },
+        }),
+        true
+      );
     });
 
     test('isTrustedBridgeOrigin rechaza adversarialmente http://localhost:5999 (puerto no autorizado)', () => {
@@ -579,6 +736,149 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       // Esperar microtarea de revocación
       await new Promise((r) => setTimeout(r, 10));
       assert.equal(revokedCalled, true, 'Debe invocar revoke_my_pending_transfer_ticket');
+    });
+
+    test('Carrera de cancelación durante emisión de ticket revoca en servidor y nunca envía PE_BRIDGE_CODE', async () => {
+      let resolveTicketRpc: ((val: any) => void) | null = null;
+      let revokeCalled = false;
+      const postMessagesSent: any[] = [];
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'create_domain_migration_ticket_seguro') {
+          return new Promise((resolve) => {
+            resolveTicketRpc = resolve;
+          });
+        }
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          revokeCalled = true;
+          return { data: { ok: true }, error: null };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      let registeredListener: ((e: MessageEvent) => void) | null = null;
+      (globalThis as any).window = {
+        location: { origin: 'http://localhost:5173' },
+        addEventListener: (_evt: string, fn: any) => {
+          registeredListener = fn;
+        },
+        removeEventListener: () => {},
+      };
+
+      const mockPopup = {
+        closed: false,
+        postMessage: (msg: any) => {
+          postMessagesSent.push(msg);
+        },
+      } as unknown as Window;
+
+      const bridge = domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow: mockPopup,
+        targetOrigin: 'http://127.0.0.1:5174',
+        onStateChange: () => {},
+        onError: () => {},
+      });
+
+      // Simular llegada de PE_BRIDGE_READY
+      assert.ok(registeredListener);
+      registeredListener!({
+        origin: 'http://127.0.0.1:5174',
+        source: mockPopup,
+        data: {
+          type: 'PE_BRIDGE_READY',
+          target_user_id: '22222222-2222-4222-8222-222222222222',
+          bridge_nonce: 'a'.repeat(32),
+        },
+      } as MessageEvent);
+
+      // Dar tiempo para que prepareSourceResources termine y entre a create_domain_migration_ticket_seguro
+      await new Promise((r) => setTimeout(r, 10));
+
+      // El usuario cancela la transferencia mientras la RPC del ticket está en vuelo
+      bridge.cancel();
+
+      // Ahora la RPC remota resuelve tardíamente
+      resolveTicketRpc!({
+        data: { ok: true, ticket_token: 't'.repeat(64) },
+        error: null,
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Debe revocar de inmediato el ticket tardío emitido
+      assert.equal(revokeCalled, true, 'Debe revocar el ticket emitido tras la cancelación');
+      // NUNCA debe entregar el código postMessage al popup
+      const codeMessages = postMessagesSent.filter((m) => m?.type === 'PE_BRIDGE_CODE');
+      assert.equal(codeMessages.length, 0, 'NUNCA debe enviar PE_BRIDGE_CODE tras cancelación');
+    });
+
+    test('Cancelación durante preparación aborta y nunca emite ticket', async () => {
+      let resolvePrepRpc: ((val: any) => void) | null = null;
+      let ticketEmitCalled = false;
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'set_user_localidades_seguro') {
+          return new Promise((resolve) => {
+            resolvePrepRpc = resolve;
+          });
+        }
+        if (fn === 'create_domain_migration_ticket_seguro') {
+          ticketEmitCalled = true;
+          return { data: { ok: true, ticket_token: 'x'.repeat(64) }, error: null };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      mockLocal.setItem('puntoencuentro_zones_v1', JSON.stringify(['loc-palermo']));
+
+      let registeredListener: ((e: MessageEvent) => void) | null = null;
+      (globalThis as any).window = {
+        location: { origin: 'http://localhost:5173' },
+        addEventListener: (_evt: string, fn: any) => {
+          registeredListener = fn;
+        },
+        removeEventListener: () => {},
+      };
+
+      const mockPopup = { closed: false, postMessage: () => {} } as unknown as Window;
+      const bridge = domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow: mockPopup,
+        targetOrigin: 'http://127.0.0.1:5174',
+        onStateChange: () => {},
+        onError: () => {},
+      });
+
+      // El usuario cancela de inmediato mientras sincroniza zonas
+      bridge.cancel();
+
+      // Resolver preparación tardía
+      if (resolvePrepRpc) {
+        resolvePrepRpc({ data: { ok: true }, error: null });
+      }
+
+      // Llega PE_BRIDGE_READY tardío
+      if (registeredListener) {
+        registeredListener({
+          origin: 'http://127.0.0.1:5174',
+          source: mockPopup,
+          data: {
+            type: 'PE_BRIDGE_READY',
+            target_user_id: '22222222-2222-4222-8222-222222222222',
+            bridge_nonce: 'b'.repeat(32),
+          },
+        } as MessageEvent);
+      }
+
+      await new Promise((r) => setTimeout(r, 20));
+      assert.equal(ticketEmitCalled, false, 'No debe emitir ticket si fue cancelado');
     });
   });
 
@@ -1029,6 +1329,92 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       if (fromB.shouldRedirect) {
         assert.equal(fromB.destinationUrl, 'https://dominio-c.com/meet/1234');
       }
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 13: ALTERNATIVA GOOGLE Y PARTICIPACIONES LOCALES DE INVITADOS
+  // =========================================================================
+  describe('13. Alternativa Google y Participaciones Locales de Invitados', () => {
+    test('Invitado sin sesión con tokens locales que elige Google pre-sincroniza antes de OAuth', async () => {
+      const guestToken = '77777777-7777-4777-8777-777777777777';
+      saveParticipatedToken(guestToken);
+
+      let ensureSessionCalled = false;
+      let linkedBatchTokens: string[] = [];
+
+      // Inicialmente el invitado no tiene sesión
+      let currentSession: any = null;
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: currentSession },
+      });
+
+      (supabase.auth as any).signInAnonymously = async () => {
+        ensureSessionCalled = true;
+        const fakeUser = { id: 'anon-guest-777', is_anonymous: true };
+        currentSession = { user: fakeUser, session: { user: fakeUser } };
+        return { data: { user: fakeUser, session: { user: fakeUser } }, error: null };
+      };
+
+      (supabase as any).rpc = async (fn: string, params: any) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          linkedBatchTokens = params.p_tokens;
+          return {
+            data: {
+              ok: true,
+              linked_count: 1,
+              already_linked_count: 0,
+              skipped_count: 0,
+            },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      // 1. Ejecutar presincronización que realiza el botón Google
+      const prepRes = await domainMigrationBridgeService.prepareSourceResources();
+
+      // Debe materializar la sesión anónima técnica
+      assert.equal(prepRes.ok, true);
+      assert.equal(ensureSessionCalled, true, 'Debe materializar sesión anónima técnica');
+      assert.equal(prepRes.linkedCount, 1);
+      assert.equal(linkedBatchTokens.includes(guestToken), true, 'Debe vincular el token de invitado');
+      assert.equal(prepRes.isComplete, true);
+      assert.equal(prepRes.hasUnrecoveredTokens, false);
+
+      // Los tokens locales se conservan intactos en el dispositivo
+      const storedTokens = collectAllLocalInvitationTokens();
+      assert.equal(storedTokens.includes(guestToken), true, 'Tokens deben conservarse hasta confirmación');
+    });
+
+    test('Fallo de presincronización en opción Google aborta el flujo fail-closed', async () => {
+      const guestToken = '88888888-8888-4888-8888-888888888888';
+      saveParticipatedToken(guestToken);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'anon-guest-888', is_anonymous: true } } },
+      });
+
+      // Simular falla de RPC de vinculación (ej. rate limit o error de base de datos)
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          return {
+            data: { ok: false, error: 'rate_limit_exceeded' },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const prepRes = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(prepRes.ok, false, 'Debe fallar cerrado');
+      assert.equal(prepRes.error, 'rate_limit_exceeded');
+
+      // Las participaciones no se pierden ni se borran
+      const storedTokens = collectAllLocalInvitationTokens();
+      assert.equal(storedTokens.includes(guestToken), true, 'No debe borrar tokens locales ante fallos');
     });
   });
 });

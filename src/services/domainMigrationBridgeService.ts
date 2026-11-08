@@ -52,10 +52,12 @@ export interface MigrationInventory {
 export interface PrepareResourcesResult {
   ok: boolean;
   error?: string;
-  linkedCount?: number;
-  alreadyLinkedCount?: number;
-  skippedCount?: number;
-  totalTokens?: number;
+  linkedCount: number;
+  alreadyLinkedCount: number;
+  skippedCount: number;
+  totalTokens: number;
+  hasUnrecoveredTokens: boolean;
+  isComplete: boolean;
 }
 
 export interface BridgeReadyMessage {
@@ -188,6 +190,8 @@ export function markLocalSessionRetired(userId?: string | null): void {
     /* fail-open */
   }
 }
+
+let globalHandshakeSequence = 0;
 
 export const domainMigrationBridgeService = {
   /**
@@ -400,13 +404,31 @@ export const domainMigrationBridgeService = {
         const hostSession = await ensureHostSession();
         session = { user: hostSession.user } as any;
       } catch (err: any) {
-        return { ok: false, error: err?.message || 'ensure_session_failed' };
+        return {
+          ok: false,
+          error: err?.message || 'ensure_session_failed',
+          linkedCount: 0,
+          alreadyLinkedCount: 0,
+          skippedCount: 0,
+          totalTokens: localTokens.length,
+          hasUnrecoveredTokens: false,
+          isComplete: false,
+        };
       }
     }
 
     if (!session?.user) {
       if (localTokens.length > 0) {
-        return { ok: false, error: 'authentication_required' };
+        return {
+          ok: false,
+          error: 'authentication_required',
+          linkedCount: 0,
+          alreadyLinkedCount: 0,
+          skippedCount: 0,
+          totalTokens: localTokens.length,
+          hasUnrecoveredTokens: false,
+          isComplete: false,
+        };
       }
       return {
         ok: true,
@@ -414,6 +436,8 @@ export const domainMigrationBridgeService = {
         linkedCount: 0,
         alreadyLinkedCount: 0,
         skippedCount: 0,
+        hasUnrecoveredTokens: false,
+        isComplete: true,
       };
     }
 
@@ -433,67 +457,126 @@ export const domainMigrationBridgeService = {
             );
 
             if (zoneError) {
-              return { ok: false, error: zoneError.message || 'set_localities_error' };
+              return {
+                ok: false,
+                error: zoneError.message || 'set_localities_error',
+                linkedCount: 0,
+                alreadyLinkedCount: 0,
+                skippedCount: 0,
+                totalTokens: localTokens.length,
+                hasUnrecoveredTokens: false,
+                isComplete: false,
+              };
             }
-            if (zoneData && (zoneData as any).ok === false) {
-              const err = (zoneData as any).error || 'set_localities_failed';
+            if (!zoneData || typeof zoneData !== 'object' || (zoneData as any).ok !== true) {
+              const err = (zoneData as any)?.error || 'set_localities_failed';
               if (err === 'anonymous_session_already_migrated') {
                 markLocalSessionRetired(session.user.id);
               }
-              return { ok: false, error: err };
+              return {
+                ok: false,
+                error: err,
+                linkedCount: 0,
+                alreadyLinkedCount: 0,
+                skippedCount: 0,
+                totalTokens: localTokens.length,
+                hasUnrecoveredTokens: false,
+                isComplete: false,
+              };
             }
           }
         }
       } catch (err: any) {
-        return { ok: false, error: err?.message || 'parse_zones_failed' };
+        return {
+          ok: false,
+          error: err?.message || 'parse_zones_failed',
+          linkedCount: 0,
+          alreadyLinkedCount: 0,
+          skippedCount: 0,
+          totalTokens: localTokens.length,
+          hasUnrecoveredTokens: false,
+          isComplete: false,
+        };
       }
     }
 
-    // 2. Pre-vincular lote de tokens de invitados locales
-    let linkedCount = 0;
-    let alreadyLinkedCount = 0;
-    let skippedCount = 0;
+    // 2. Pre-vincular lote de tokens de invitados locales (lotes de máximo 50 tokens por SQL LIMIT 50)
+    const TOKEN_BATCH_SIZE = 50;
+    let totalLinked = 0;
+    let totalAlreadyLinked = 0;
+    let totalSkipped = 0;
 
     if (localTokens.length > 0) {
       try {
-        const { data: linkData, error: linkError } = await supabase.rpc(
-          'vincular_tokens_participante_lote_seguro',
-          {
-            p_tokens: localTokens,
+        for (let i = 0; i < localTokens.length; i += TOKEN_BATCH_SIZE) {
+          const chunk = localTokens.slice(i, i + TOKEN_BATCH_SIZE);
+          const { data: linkData, error: linkError } = await supabase.rpc(
+            'vincular_tokens_participante_lote_seguro',
+            {
+              p_tokens: chunk,
+            }
+          );
+
+          if (linkError) {
+            return {
+              ok: false,
+              error: linkError.message || 'link_tokens_error',
+              linkedCount: totalLinked,
+              alreadyLinkedCount: totalAlreadyLinked,
+              skippedCount: totalSkipped,
+              totalTokens: localTokens.length,
+              hasUnrecoveredTokens: false,
+              isComplete: false,
+            };
           }
-        );
 
-        if (linkError) {
-          return { ok: false, error: linkError.message || 'link_tokens_error' };
-        }
-
-        if (!linkData || typeof linkData !== 'object') {
-          return { ok: false, error: 'invalid_rpc_response' };
-        }
-
-        const res = linkData as any;
-        if (res.ok === false) {
-          const err = res.error || 'link_tokens_failed';
-          if (err === 'anonymous_session_already_migrated') {
-            markLocalSessionRetired(session.user.id);
+          if (!linkData || typeof linkData !== 'object' || (linkData as any).ok !== true) {
+            const err = (linkData as any)?.error || 'link_tokens_failed';
+            if (err === 'anonymous_session_already_migrated') {
+              markLocalSessionRetired(session.user.id);
+            }
+            return {
+              ok: false,
+              error: err,
+              linkedCount: totalLinked,
+              alreadyLinkedCount: totalAlreadyLinked,
+              skippedCount: totalSkipped,
+              totalTokens: localTokens.length,
+              hasUnrecoveredTokens: false,
+              isComplete: false,
+            };
           }
-          return { ok: false, error: err };
-        }
 
-        linkedCount = Number(res.linked_count) || 0;
-        alreadyLinkedCount = Number(res.already_linked_count) || 0;
-        skippedCount = Number(res.skipped_count) || 0;
+          const res = linkData as any;
+          totalLinked += Number(res.linked_count) || 0;
+          totalAlreadyLinked += Number(res.already_linked_count) || 0;
+          totalSkipped += Number(res.skipped_count) || 0;
+        }
       } catch (err: any) {
-        return { ok: false, error: err?.message || 'link_tokens_exception' };
+        return {
+          ok: false,
+          error: err?.message || 'link_tokens_exception',
+          linkedCount: totalLinked,
+          alreadyLinkedCount: totalAlreadyLinked,
+          skippedCount: totalSkipped,
+          totalTokens: localTokens.length,
+          hasUnrecoveredTokens: false,
+          isComplete: false,
+        };
       }
     }
+
+    const hasUnrecoveredTokens = totalSkipped > 0;
+    const isComplete = totalSkipped === 0;
 
     return {
       ok: true,
       totalTokens: localTokens.length,
-      linkedCount,
-      alreadyLinkedCount,
-      skippedCount,
+      linkedCount: totalLinked,
+      alreadyLinkedCount: totalAlreadyLinked,
+      skippedCount: totalSkipped,
+      hasUnrecoveredTokens,
+      isComplete,
     };
   },
 
@@ -512,6 +595,7 @@ export const domainMigrationBridgeService = {
     onManualFallbackReady?: (manualToken: string, expiresAt: string) => void;
   }): { cancel: () => void } {
     let isCancelled = false;
+    const currentOpId = ++globalHandshakeSequence;
     let fallbackTimeoutId: any = null;
     let windowWatchdogId: any = null;
     let messageListener: ((evt: MessageEvent) => void) | null = null;
@@ -554,7 +638,16 @@ export const domainMigrationBridgeService = {
       options.onStateChange('manual_code_fallback');
 
       try {
+        const prep = await domainMigrationBridgeService.prepareSourceResources();
+        if (isCancelled || currentOpId !== globalHandshakeSequence) return;
+        if (!prep.ok) {
+          options.onError(prep.error || 'prepare_resources_failed');
+          return;
+        }
+
         await supabase.rpc('revoke_my_pending_transfer_ticket');
+        if (isCancelled || currentOpId !== globalHandshakeSequence) return;
+
         const { data, error } = await supabase.rpc(
           'create_domain_migration_ticket_seguro',
           {
@@ -562,6 +655,13 @@ export const domainMigrationBridgeService = {
             p_intended_target_user_id: null,
           }
         );
+
+        if (isCancelled || currentOpId !== globalHandshakeSequence) {
+          try {
+            await supabase.rpc('revoke_my_pending_transfer_ticket');
+          } catch {}
+          return;
+        }
 
         if (error) {
           options.onError(error.message);
@@ -575,6 +675,7 @@ export const domainMigrationBridgeService = {
           options.onError(res?.error || 'manual_ticket_failed');
         }
       } catch (err: any) {
+        if (isCancelled || currentOpId !== globalHandshakeSequence) return;
         options.onError(err?.message || 'manual_ticket_failed');
       }
     };
@@ -685,14 +786,16 @@ export const domainMigrationBridgeService = {
 
         // Esperar resolución de la sincronización antes de emitir tickets
         const prep = await prepPromise;
+        if (isCancelled || currentOpId !== globalHandshakeSequence || (popupWindow && popupWindow.closed)) {
+          return;
+        }
+
         if (!prep.ok) {
           transferStage = 'cancelled';
           cleanup();
           options.onError(prep.error || 'prepare_resources_failed');
           return;
         }
-
-        if (isCancelled) return;
 
         // Emitir ticket cross_origin_bridge atado al target específico
         try {
@@ -704,6 +807,18 @@ export const domainMigrationBridgeService = {
             }
           );
 
+          const ticketRes = ticketData as any;
+
+          // Verificación estricta post-await de cancelación o popup cerrado
+          if (isCancelled || currentOpId !== globalHandshakeSequence || (popupWindow && popupWindow.closed)) {
+            if (ticketRes?.ticket_token) {
+              try {
+                await supabase.rpc('revoke_my_pending_transfer_ticket');
+              } catch {}
+            }
+            return;
+          }
+
           if (ticketError) {
             transferStage = 'cancelled';
             cleanup();
@@ -711,7 +826,6 @@ export const domainMigrationBridgeService = {
             return;
           }
 
-          const ticketRes = ticketData as any;
           if (!ticketRes?.ok || !ticketRes.ticket_token) {
             transferStage = 'cancelled';
             cleanup();
@@ -730,6 +844,7 @@ export const domainMigrationBridgeService = {
 
           popupWindow?.postMessage(codeMessage, expectedTargetOrigin);
         } catch (err: any) {
+          if (isCancelled || currentOpId !== globalHandshakeSequence) return;
           transferStage = 'cancelled';
           cleanup();
           options.onError(err?.message || 'ticket_creation_failed');
@@ -770,6 +885,7 @@ export const domainMigrationBridgeService = {
       cancel: () => {
         isCancelled = true;
         transferStage = 'cancelled';
+        globalHandshakeSequence++;
         cleanup();
         void (async () => {
           try {
@@ -795,6 +911,11 @@ export const domainMigrationBridgeService = {
     }
 
     try {
+      const prep = await domainMigrationBridgeService.prepareSourceResources();
+      if (!prep.ok) {
+        return { ok: false, error: prep.error || 'prepare_resources_failed' };
+      }
+
       await supabase.rpc('revoke_my_pending_transfer_ticket');
       const { data, error } = await supabase.rpc(
         'create_domain_migration_ticket_seguro',

@@ -171,12 +171,27 @@ export const DomainBridgeSourceScreen: React.FC = () => {
     setState('ready_to_migrate');
   };
 
-  // Respaldar con Google
+  // Respaldar con Google (pre-sincroniza invitaciones locales antes de iniciar OAuth)
   const handleGoogleUpgrade = async () => {
     setIsGoogleLoading(true);
+    setErrorCode(null);
     try {
-      await signInWithGoogle();
+      const prep = await domainMigrationBridgeService.prepareSourceResources();
+      if (!prep.ok) {
+        setErrorCode(prep.error || 'prepare_resources_failed');
+        setState('error_recoverable');
+        setIsGoogleLoading(false);
+        return;
+      }
+      const res = await signInWithGoogle();
+      if (!res.ok && res.error) {
+        setErrorCode(res.error);
+        setState('error_recoverable');
+      }
     } catch {
+      setErrorCode('google_auth_failed');
+      setState('error_recoverable');
+    } finally {
       setIsGoogleLoading(false);
     }
   };
