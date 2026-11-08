@@ -51,6 +51,11 @@ import {
 import { isValidPostAuthRedirect } from '../src/hooks/usePostAuthRedirect';
 import { normalizeRouteForFeedback } from '../src/services/feedbackService';
 import { supabase } from '../src/lib/supabase';
+import {
+  runUnifiedSignInWithGoogle,
+  checkAnonymousUpgradeState,
+  createTransferTicket,
+} from '../src/contexts/AuthContext';
 
 // Mock simple de Web Storage en memoria para Node
 class MockStorage implements Storage {
@@ -731,10 +736,9 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
         onError: () => {},
       });
 
-      bridge.cancel();
+      const cancelRes = await bridge.cancel();
+      assert.equal(cancelRes?.ok, true);
       assert.equal(stateResult, 'ready_to_migrate');
-      // Esperar microtarea de revocación
-      await new Promise((r) => setTimeout(r, 10));
       assert.equal(revokedCalled, true, 'Debe invocar revoke_my_pending_transfer_ticket');
     });
 
@@ -1415,6 +1419,215 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       // Las participaciones no se pierden ni se borran
       const storedTokens = collectAllLocalInvitationTokens();
       assert.equal(storedTokens.includes(guestToken), true, 'No debe borrar tokens locales ante fallos');
+    });
+
+    test('Recorrido Google de punta a punta: invitado sin sesión con participaciones locales realiza upgrade sin fallar por render de React', async () => {
+      const guestToken = '77777777-7777-4777-8777-777777777777';
+      saveParticipatedToken(guestToken);
+
+      let ensureSessionCalled = false;
+      let linkedBatchTokens: string[] = [];
+      let inventoryQueried = false;
+      let transferTicketCreated = false;
+      let oauthStarted = false;
+      let currentSession: any = null;
+
+      // 1. Invitado sin sesión activa al inicio
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: currentSession },
+      });
+
+      (supabase.auth as any).signInAnonymously = async () => {
+        ensureSessionCalled = true;
+        const fakeUser = { id: 'anon-guest-full-flow-777', is_anonymous: true };
+        currentSession = { user: fakeUser, session: { user: fakeUser } };
+        return { data: { user: fakeUser, session: { user: fakeUser } }, error: null };
+      };
+
+      (supabase.auth as any).signInWithOAuth = async (params: any) => {
+        oauthStarted = true;
+        assert.equal(params?.provider, 'google');
+        return { data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/auth' }, error: null };
+      };
+
+      (supabase as any).rpc = async (fn: string, params: any) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          linkedBatchTokens = params.p_tokens;
+          return {
+            data: {
+              ok: true,
+              linked_count: 1,
+              already_linked_count: 0,
+              skipped_count: 0,
+            },
+            error: null,
+          };
+        }
+        if (fn === 'get_anonymous_upgrade_state') {
+          inventoryQueried = true;
+          return {
+            data: {
+              ok: true,
+              is_anonymous: true,
+              has_owned_encounters: false,
+              has_participant_links: true,
+              has_transferable_resources: true,
+            },
+            error: null,
+          };
+        }
+        if (fn === 'create_anonymous_transfer_ticket') {
+          transferTicketCreated = true;
+          return {
+            data: {
+              ok: true,
+              ticket_token: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              expires_at: new Date(Date.now() + 180000).toISOString(),
+            },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      // Simular que React no ha vuelto a renderizar (reactUser = null)
+      const res = await runUnifiedSignInWithGoogle({ reactUser: null });
+
+      // Verificaciones clave:
+      // - No debe abortar con inventory_check_failed
+      // - No debe abortar con anonymous_user_required
+      // - Debe completar ok: true y haber iniciado OAuth
+      assert.equal(res.ok, true, `El resultado debe ser exitoso: ${res.error}`);
+      assert.equal(ensureSessionCalled, true, 'Debe haber creado sesión anónima');
+      assert.equal(linkedBatchTokens.includes(guestToken), true, 'Debe haber vinculado participaciones locales');
+      assert.equal(inventoryQueried, true, 'Debe haber consultado inventario server-side');
+      assert.equal(transferTicketCreated, true, 'Debe haber emitido ticket de transferencia');
+      assert.equal(oauthStarted, true, 'Debe haber iniciado Google OAuth');
+
+      // Comprobar que el secret se guardó en sessionStorage
+      const savedTicket = (globalThis as any).window.sessionStorage.getItem('pe_pending_transfer_ticket');
+      assert.equal(savedTicket, '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+
+      // Tokens locales permanecen guardados en localStorage
+      const localStored = collectAllLocalInvitationTokens();
+      assert.equal(localStored.includes(guestToken), true);
+    });
+
+    test('Recuperación parcial: 4 tokens vinculados y 1 omitido comunica unrecoveredTokens y preserva local storage', async () => {
+      const tokens = [
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333',
+        '44444444-4444-4444-8444-444444444444',
+        '55555555-5555-4555-8555-555555555555',
+      ];
+      for (const t of tokens) {
+        saveParticipatedToken(t);
+      }
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'anon-partial-recovery-user', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          return {
+            data: {
+              ok: true,
+              linked_count: 4,
+              already_linked_count: 0,
+              skipped_count: 1,
+            },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const prepRes = await domainMigrationBridgeService.prepareSourceResources();
+
+      assert.equal(prepRes.ok, true);
+      assert.equal(prepRes.totalTokens, 5);
+      assert.equal(prepRes.linkedCount, 4);
+      assert.equal(prepRes.skippedCount, 1);
+      assert.equal(prepRes.hasUnrecoveredTokens, true, 'Debe indicar que hay tokens no recuperados');
+      assert.equal(prepRes.isComplete, false, 'No debe reportar recuperación completa');
+
+      // Todos los 5 tokens deben conservarse en localStorage sin borrado prematuro
+      const stored = collectAllLocalInvitationTokens();
+      assert.equal(stored.length, 5);
+      for (const t of tokens) {
+        assert.equal(stored.includes(t), true, `Token ${t} debe conservarse en almacenamiento local`);
+      }
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 14: COMPROBACIÓN EFECTIVA Y ESTRICTA DE CANCELACIÓN
+  // =========================================================================
+  describe('14. Comprobación Efectiva y Estricta de Cancelación', () => {
+    test('Error de PostgREST en revocación devuelve ok: false fail-closed (sin default true)', async () => {
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          return {
+            data: null,
+            error: { message: 'database_timeout', code: '57014' },
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.cancelPendingMigration();
+      assert.equal(res.ok, false, 'Debe fallar ante error de red o PostgREST');
+      assert.equal(res.error, 'database_timeout');
+    });
+
+    test('Rechazo funcional en revocación (data.ok === false) devuelve ok: false', async () => {
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          return {
+            data: { ok: false, error: 'ticket_already_claimed' },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.cancelPendingMigration();
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'ticket_already_claimed');
+    });
+
+    test('Respuesta nula o indeterminada devuelve ok: false y no éxito por defecto', async () => {
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          return {
+            data: null,
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.cancelPendingMigration();
+      assert.equal(res.ok, false, 'No debe usar ?? true ante data nula');
+      assert.equal(res.error, 'invalid_rpc_response');
+    });
+
+    test('Revocación exitosa confirmada devuelve ok: true y revokedCount verificado', async () => {
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          return {
+            data: { ok: true, revoked_count: 1 },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.cancelPendingMigration();
+      assert.equal(res.ok, true);
+      assert.equal(res.revokedCount, 1);
     });
   });
 });

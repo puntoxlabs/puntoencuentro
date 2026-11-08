@@ -60,6 +60,12 @@ export interface PrepareResourcesResult {
   isComplete: boolean;
 }
 
+export interface CancelMigrationResult {
+  ok: boolean;
+  revokedCount?: number;
+  error?: string;
+}
+
 export interface BridgeReadyMessage {
   type: 'PE_BRIDGE_READY';
   target_user_id: string;
@@ -133,6 +139,10 @@ export function getMigrationUserMessage(errorCode: string): string {
       return 'No pudimos verificar la autenticidad del sitio para la transferencia.';
     case 'bridge_nonce_mismatch':
       return 'La sesión de transferencia cambió. Iniciá el traslado nuevamente.';
+    case 'cancel_failed':
+    case 'revoke_failed':
+    case 'revoke_rpc_error':
+      return 'No se pudo confirmar la cancelación en el servidor. Por seguridad, volvé a intentar cancelar antes de generar una nueva llave.';
     default:
       return 'Ocurrió un inconveniente al conectar con el servidor. Tus encuentros no sufrieron ningún cambio.';
   }
@@ -593,7 +603,8 @@ export const domainMigrationBridgeService = {
     onStateChange: (state: BridgeSourceState) => void;
     onError: (errorCode: string, rawError?: any) => void;
     onManualFallbackReady?: (manualToken: string, expiresAt: string) => void;
-  }): { cancel: () => void } {
+    onResourcesPrepared?: (result: PrepareResourcesResult) => void;
+  }): { cancel: () => Promise<CancelMigrationResult> | void } {
     let isCancelled = false;
     const currentOpId = ++globalHandshakeSequence;
     let fallbackTimeoutId: any = null;
@@ -639,14 +650,19 @@ export const domainMigrationBridgeService = {
 
       try {
         const prep = await domainMigrationBridgeService.prepareSourceResources();
+        options.onResourcesPrepared?.(prep);
         if (isCancelled || currentOpId !== globalHandshakeSequence) return;
         if (!prep.ok) {
           options.onError(prep.error || 'prepare_resources_failed');
           return;
         }
 
-        await supabase.rpc('revoke_my_pending_transfer_ticket');
+        const revokeRes = await domainMigrationBridgeService.cancelPendingMigration();
         if (isCancelled || currentOpId !== globalHandshakeSequence) return;
+        if (!revokeRes.ok) {
+          options.onError(revokeRes.error || 'revoke_failed');
+          return;
+        }
 
         const { data, error } = await supabase.rpc(
           'create_domain_migration_ticket_seguro',
@@ -658,7 +674,7 @@ export const domainMigrationBridgeService = {
 
         if (isCancelled || currentOpId !== globalHandshakeSequence) {
           try {
-            await supabase.rpc('revoke_my_pending_transfer_ticket');
+            await domainMigrationBridgeService.cancelPendingMigration();
           } catch {}
           return;
         }
@@ -682,8 +698,11 @@ export const domainMigrationBridgeService = {
 
     options.onStateChange('awaiting_handshake');
 
-    // Iniciar pre-sincronización de recursos en paralelo
-    const prepPromise = domainMigrationBridgeService.prepareSourceResources();
+    // Iniciar pre-sincronización de recursos en paralelo y notificar al suscriptor
+    const prepPromise = domainMigrationBridgeService.prepareSourceResources().then((res) => {
+      options.onResourcesPrepared?.(res);
+      return res;
+    });
 
     // Resolver popup window (sincrónicamente provista o fallback si no está presente)
     let popupWindow: Window | null = options.popupWindow || null;
@@ -813,7 +832,7 @@ export const domainMigrationBridgeService = {
           if (isCancelled || currentOpId !== globalHandshakeSequence || (popupWindow && popupWindow.closed)) {
             if (ticketRes?.ticket_token) {
               try {
-                await supabase.rpc('revoke_my_pending_transfer_ticket');
+                await domainMigrationBridgeService.cancelPendingMigration();
               } catch {}
             }
             return;
@@ -882,17 +901,18 @@ export const domainMigrationBridgeService = {
     }
 
     return {
-      cancel: () => {
+      cancel: async (): Promise<CancelMigrationResult> => {
         isCancelled = true;
         transferStage = 'cancelled';
         globalHandshakeSequence++;
         cleanup();
-        void (async () => {
-          try {
-            await supabase.rpc('revoke_my_pending_transfer_ticket');
-          } catch {}
-        })();
-        options.onStateChange('ready_to_migrate');
+        const res = await domainMigrationBridgeService.cancelPendingMigration();
+        if (res.ok) {
+          options.onStateChange('ready_to_migrate');
+        } else {
+          options.onError(res.error || 'cancel_failed');
+        }
+        return res;
       },
     };
   },
@@ -905,6 +925,7 @@ export const domainMigrationBridgeService = {
     ticket_token?: string;
     expires_at?: string;
     error?: string;
+    prepSummary?: PrepareResourcesResult;
   }> {
     if (!domainMigrationBridgeService.isManualFallbackEnabled()) {
       return { ok: false, error: 'manual_migration_disabled' };
@@ -913,10 +934,14 @@ export const domainMigrationBridgeService = {
     try {
       const prep = await domainMigrationBridgeService.prepareSourceResources();
       if (!prep.ok) {
-        return { ok: false, error: prep.error || 'prepare_resources_failed' };
+        return { ok: false, error: prep.error || 'prepare_resources_failed', prepSummary: prep };
       }
 
-      await supabase.rpc('revoke_my_pending_transfer_ticket');
+      const revokeRes = await domainMigrationBridgeService.cancelPendingMigration();
+      if (!revokeRes.ok) {
+        return { ok: false, error: revokeRes.error || 'revoke_failed', prepSummary: prep };
+      }
+
       const { data, error } = await supabase.rpc(
         'create_domain_migration_ticket_seguro',
         {
@@ -924,13 +949,14 @@ export const domainMigrationBridgeService = {
           p_intended_target_user_id: null,
         }
       );
-      if (error) return { ok: false, error: error.message };
+      if (error) return { ok: false, error: error.message, prepSummary: prep };
       const res = data as any;
-      if (!res?.ok) return { ok: false, error: res?.error || 'unknown_error' };
+      if (!res?.ok) return { ok: false, error: res?.error || 'unknown_error', prepSummary: prep };
       return {
         ok: true,
         ticket_token: res.ticket_token,
         expires_at: res.expires_at,
+        prepSummary: prep,
       };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'unknown_error' };
@@ -938,14 +964,29 @@ export const domainMigrationBridgeService = {
   },
 
   /**
-   * Revoca cualquier ticket pendiente del usuario emisor.
+   * Revoca cualquier ticket pendiente del usuario emisor en el servidor.
+   * Valida estrictamente { data, error } y data.ok === true.
+   * Falla de modo cerrado si la respuesta es nula, hay error de PostgREST o error funcional.
    */
-  async cancelPendingMigration(): Promise<boolean> {
+  async cancelPendingMigration(): Promise<CancelMigrationResult> {
     try {
-      const { data } = await supabase.rpc('revoke_my_pending_transfer_ticket');
-      return (data as any)?.ok ?? true;
-    } catch {
-      return false;
+      const { data, error } = await supabase.rpc('revoke_my_pending_transfer_ticket');
+      if (error) {
+        return { ok: false, error: error.message || 'revoke_rpc_error' };
+      }
+      if (!data || typeof data !== 'object') {
+        return { ok: false, error: 'invalid_rpc_response' };
+      }
+      const res = data as any;
+      if (res.ok !== true) {
+        return { ok: false, error: res.error || 'revoke_failed' };
+      }
+      return {
+        ok: true,
+        revokedCount: Number(res.revoked_count) || 0,
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'cancel_exception' };
     }
   },
 

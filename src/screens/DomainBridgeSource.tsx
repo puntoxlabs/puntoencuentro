@@ -21,6 +21,8 @@ import {
   domainMigrationBridgeService,
   type BridgeSourceState,
   type MigrationInventory,
+  type PrepareResourcesResult,
+  type CancelMigrationResult,
   getMigrationUserMessage,
 } from '@/services/domainMigrationBridgeService';
 import {
@@ -44,6 +46,7 @@ export const DomainBridgeSourceScreen: React.FC = () => {
 
   const [state, setState] = useState<BridgeSourceState>('detecting_inventory');
   const [inventory, setInventory] = useState<MigrationInventory | null>(null);
+  const [prepSummary, setPrepSummary] = useState<PrepareResourcesResult | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState<string | null>(null);
   const [manualExpiresAt, setManualExpiresAt] = useState<string | null>(null);
@@ -51,7 +54,7 @@ export const DomainBridgeSourceScreen: React.FC = () => {
   const [copied, setCopied] = useState<boolean>(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
 
-  const bridgeSessionRef = useRef<{ cancel: () => void } | null>(null);
+  const bridgeSessionRef = useRef<{ cancel: () => Promise<CancelMigrationResult> | void } | null>(null);
 
   // Redirigir a Home si el feature flag está desactivado
   useEffect(() => {
@@ -113,6 +116,9 @@ export const DomainBridgeSourceScreen: React.FC = () => {
   const handleManualFallbackSwitch = async () => {
     setState('manual_code_fallback');
     const res = await domainMigrationBridgeService.createManualMigrationTicket();
+    if (res.prepSummary) {
+      setPrepSummary(res.prepSummary);
+    }
     if (res.ok && res.ticket_token && res.expires_at) {
       setManualToken(res.ticket_token);
       setManualExpiresAt(res.expires_at);
@@ -151,6 +157,7 @@ export const DomainBridgeSourceScreen: React.FC = () => {
       popupWindow,
       targetOrigin,
       onStateChange: (newState) => setState(newState),
+      onResourcesPrepared: (summary) => setPrepSummary(summary),
       onError: (errCode) => {
         setErrorCode(errCode);
         setState('error_recoverable');
@@ -165,9 +172,19 @@ export const DomainBridgeSourceScreen: React.FC = () => {
 
   // Cancelar traslado en curso
   const handleCancelTransfer = async () => {
-    bridgeSessionRef.current?.cancel();
+    const session = bridgeSessionRef.current;
     bridgeSessionRef.current = null;
-    await domainMigrationBridgeService.cancelPendingMigration();
+    let res: CancelMigrationResult;
+    if (session) {
+      res = (await session.cancel()) || { ok: false, error: 'cancel_failed' };
+    } else {
+      res = await domainMigrationBridgeService.cancelPendingMigration();
+    }
+    if (!res.ok) {
+      setErrorCode(res.error || 'cancel_failed');
+      setState('error_recoverable');
+      return;
+    }
     setState('ready_to_migrate');
   };
 
@@ -177,6 +194,7 @@ export const DomainBridgeSourceScreen: React.FC = () => {
     setErrorCode(null);
     try {
       const prep = await domainMigrationBridgeService.prepareSourceResources();
+      setPrepSummary(prep);
       if (!prep.ok) {
         setErrorCode(prep.error || 'prepare_resources_failed');
         setState('error_recoverable');
@@ -363,9 +381,41 @@ export const DomainBridgeSourceScreen: React.FC = () => {
                 Encontramos tus encuentros en este navegador
               </h2>
               <p style={{ color: '#475569', fontSize: '0.98rem', lineHeight: '1.5', margin: 0 }}>
-                Llevátelos a nuestra nueva dirección web en un solo paso, con todos tus participantes, respuestas y mensajes intactos.
+                {prepSummary?.hasUnrecoveredTokens
+                  ? 'Llevátelos a nuestra nueva dirección web. Tus encuentros activos e invitaciones válidas se trasladarán de forma segura.'
+                  : 'Llevátelos a nuestra nueva dirección web en un solo paso, con todos tus participantes, respuestas y mensajes.'}
               </p>
             </div>
+
+            {/* Aviso comprensible de participaciones no recuperadas si corresponde */}
+            {prepSummary?.hasUnrecoveredTokens && (
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: '12px',
+                  padding: '0.9rem 1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem',
+                  fontSize: '0.9rem',
+                  color: '#92400e',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                  <AlertCircle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
+                  <span>
+                    {prepSummary.skippedCount === 1
+                      ? '1 invitación anterior no pudo vincularse'
+                      : `${prepSummary.skippedCount} invitaciones anteriores no pudieron vincularse`}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: '1.45', color: '#78350f' }}>
+                  Tus encuentros activos y las invitaciones válidas se trasladarán normalmente.
+                  Las invitaciones no vinculadas se conservan en este navegador; si el encuentro sigue vigente, podés volver a ingresar abriendo su enlace original.
+                </p>
+              </div>
+            )}
 
             {/* Resumen del inventario */}
             <div
@@ -572,9 +622,36 @@ export const DomainBridgeSourceScreen: React.FC = () => {
               ¡Tus encuentros ya están en {targetHost}!
             </h2>
 
-            <p style={{ color: '#475569', fontSize: '0.98rem', lineHeight: '1.5', margin: 0, maxWidth: '420px' }}>
-              Este navegador anterior quedó cerrado para crear encuentros nuevos. Para seguir administrando tus encuentros o sumarte a otros, continuá directamente en nuestra nueva dirección.
-            </p>
+            {prepSummary?.hasUnrecoveredTokens ? (
+              <div
+                style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: '12px',
+                  padding: '1rem',
+                  maxWidth: '440px',
+                  textAlign: 'left',
+                  fontSize: '0.9rem',
+                  color: '#92400e',
+                  lineHeight: '1.45',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                  <AlertCircle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
+                  <span>Traslado completado</span>
+                </div>
+                Se trasladaron tus encuentros activos e invitaciones vinculadas ({prepSummary.linkedCount} procesadas).
+                {prepSummary.skippedCount > 0 && (
+                  <span>
+                    {' '}{prepSummary.skippedCount === 1 ? '1 invitación' : `${prepSummary.skippedCount} invitaciones`} no pudo vincularse automáticamente, pero se conserva en este dispositivo. Podés volver a abrirla desde el enlace original que recibiste.
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: '#475569', fontSize: '0.98rem', lineHeight: '1.5', margin: 0, maxWidth: '420px' }}>
+                Este navegador anterior quedó cerrado para crear encuentros nuevos. Para seguir administrando tus encuentros o sumarte a otros, continuá directamente en nuestra nueva dirección.
+              </p>
+            )}
 
             <Button
               variant="primary"

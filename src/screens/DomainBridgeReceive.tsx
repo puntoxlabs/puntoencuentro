@@ -307,7 +307,7 @@ export const DomainBridgeReceiveScreen: React.FC = () => {
             </h2>
 
             <p style={{ color: '#475569', fontSize: '1rem', lineHeight: '1.5', margin: 0, maxWidth: '400px' }}>
-              El traslado se completó con éxito. No perdiste ningún participante, respuesta ni mensaje.
+              Tus encuentros activos e invitaciones válidas ya están listos. Si alguna invitación anterior quedó sin trasladar, podés volver a acceder abriendo su enlace original.
             </p>
 
             <Button
