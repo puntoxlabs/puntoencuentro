@@ -11,6 +11,8 @@ export const STATIC_ALLOWED_POST_AUTH_ROUTES = new Set([
   '/create',
   '/create/coordination',
   '/create/ai',
+  '/auth/domain-bridge',
+  '/migrate-receive',
 ]);
 
 // Mantenido para retrocompatibilidad

@@ -18,6 +18,8 @@ import { getCelebrationTemplateConfig } from '@/lib/celebrationTemplates';
 import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import { appUsageTelemetry } from '@/services/appUsageTelemetry';
+import { saveParticipatedToken } from '@/lib/participatedTokens';
+import { participantesService } from '@/services/participantesService';
 import '../CoordinationGuest.css';
 
 type CoordinationPublicSuccess = Extract<CoordinationPublicReadResult, { ok: true }>;
@@ -72,6 +74,9 @@ export default function JoinCoordination() {
         try {
           const res = await encuentrosService.getCoordinacionParticipante(savedToken);
           if (res.ok && mounted) {
+            saveParticipatedToken(savedToken);
+            sessionStorage.setItem('pending_participant_invitation_token', savedToken);
+            participantesService.linkParticipantTokenToCurrentUser(savedToken).catch(() => {});
             navigate(`/coordination/invite/${savedToken}`, { replace: true });
             return;
           } else {
@@ -263,6 +268,9 @@ export default function JoinCoordination() {
       if (tokenToSave) {
         const key = `puntoencuentro_coordination_guest_token_by_public_${token}`;
         localStorage.setItem(key, tokenToSave);
+        saveParticipatedToken(tokenToSave);
+        sessionStorage.setItem('pending_participant_invitation_token', tokenToSave);
+        participantesService.linkParticipantTokenToCurrentUser(tokenToSave).catch(() => {});
       }
 
       // Navegamos pasando el token_invitacion

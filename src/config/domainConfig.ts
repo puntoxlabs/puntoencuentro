@@ -1290,3 +1290,78 @@ export function isValidRouteInvitationToken(token: unknown): token is string {
 export function isValidRouteUuid(id: unknown): id is string {
   return typeof id === 'string' && UUID_V4_OR_RFC_REGEX.test(id.trim());
 }
+
+/**
+ * Determina si el origen actual del navegador corresponde a un dominio histórico (saliente).
+ */
+export function isCurrentOriginLegacy(runtimeOrigin?: string): boolean {
+  const globalWin =
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { window?: { location?: { origin?: string } } }).window
+      : undefined;
+  const browserOrigin = runtimeOrigin || globalWin?.location?.origin;
+  if (!browserOrigin) return false;
+  try {
+    const config = resolveDomainConfig();
+    const host = new URL(browserOrigin).host.toLowerCase();
+    return config.legacyHosts.has(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Obtiene el origen de destino para la migración de identidad.
+ * Si el origen actual es legado, el destino es el origen canónico vigente.
+ */
+export function getTargetMigrationOrigin(runtimeOrigin?: string): string {
+  const config = resolveDomainConfig({ runtimeBrowserOrigin: runtimeOrigin });
+  const viteMetaEnv =
+    typeof import.meta !== 'undefined'
+      ? (import.meta as { env?: Record<string, string | undefined> }).env
+      : undefined;
+  const viteExplicitTarget = viteMetaEnv?.VITE_MIGRATION_TARGET_ORIGIN;
+  if (viteExplicitTarget && typeof viteExplicitTarget === 'string' && viteExplicitTarget.trim()) {
+    try {
+      return normalizeAppOrigin(viteExplicitTarget, {
+        requireHttps: config.environment !== 'development',
+      });
+    } catch {
+      // fallback
+    }
+  }
+  return config.canonicalOrigin;
+}
+
+/**
+ * Valida si un origen postMessage pertenece a la lista autorizada de migración
+ * (origen canónico, orígenes históricos registrados o hosts locales autorizados).
+ * Previene suplantación cross-origin (ADV-08).
+ */
+export function isTrustedBridgeOrigin(
+  origin: unknown,
+  options: { env?: EnvSource } = {}
+): boolean {
+  if (typeof origin !== 'string' || !origin.trim()) return false;
+  try {
+    const norm = normalizeAppOrigin(origin, { requireHttps: false });
+    const parsed = new URL(norm);
+    const host = parsed.host.toLowerCase();
+    const config = resolveDomainConfig({ env: options.env, strict: false });
+
+    if (new URL(config.canonicalOrigin).host.toLowerCase() === host) return true;
+    if (config.legacyHosts.has(host)) return true;
+    if (config.trustedActiveHosts.has(host)) return true;
+
+    if (
+      config.environment !== 'production' &&
+      LOCALHOST_HOSTS.has(parsed.hostname.toLowerCase())
+    ) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}

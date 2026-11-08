@@ -231,6 +231,9 @@ try {
   await server.ssrLoadModule('./scripts/test-domain-identity-bridge.ts');
   console.log('✅ Mini-sprint 2B-1: Domain identity bridge backend & ADV-01..ADV-20 tests executed successfully via Vite SSR loader.');
 
+  await server.ssrLoadModule('./scripts/test-domain-bridge-frontend.ts');
+  console.log('✅ Mini-sprint 2B-3: Domain identity bridge frontend & protocol tests executed successfully via Vite SSR loader.');
+
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);
