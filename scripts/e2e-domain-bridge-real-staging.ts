@@ -78,6 +78,9 @@ export interface ScenarioResult {
   detail: string;
 }
 
+export type PhaseStatus = 'APROBADA' | 'FALLIDA' | 'OMITIDA';
+export type Phase5Status = 'DIAGNOSTICO_PASIVO_COMPLETADO' | 'FALLIDA' | 'OMITIDA';
+
 export interface MiniSprint2B4Report {
   runId: string;
   gitSha: string;
@@ -85,12 +88,20 @@ export interface MiniSprint2B4Report {
   targetSupabase: string;
   startTime: string;
   endTime: string;
+  fase4Only: boolean;
+  fase0Status: PhaseStatus;
+  fase1Status: PhaseStatus;
+  fase2Status: PhaseStatus;
+  fase3Status: PhaseStatus;
+  fase4Status: PhaseStatus;
+  fase5Status: Phase5Status;
+  fase6Status: PhaseStatus;
   fase0Passed: boolean;
   fase1Passed: boolean;
   fase2Passed: boolean;
   fase3Passed: boolean;
   fase4Passed: boolean;
-  fase5Passed: boolean;
+  fase5Diagnosed: boolean;
   fase6Cleaned: boolean;
   latencies: LatencyMetrics;
   scenarios: ScenarioResult[];
@@ -138,12 +149,20 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     targetSupabase: STAGING_PROJECT_REF,
     startTime,
     endTime: '',
+    fase4Only,
+    fase0Status: 'FALLIDA',
+    fase1Status: 'FALLIDA',
+    fase2Status: fase4Only ? 'OMITIDA' : 'FALLIDA',
+    fase3Status: fase4Only ? 'OMITIDA' : 'FALLIDA',
+    fase4Status: 'FALLIDA',
+    fase5Status: 'FALLIDA',
+    fase6Status: 'FALLIDA',
     fase0Passed: false,
     fase1Passed: false,
     fase2Passed: false,
     fase3Passed: false,
     fase4Passed: false,
-    fase5Passed: false,
+    fase5Diagnosed: false,
     fase6Cleaned: false,
     latencies: {
       domainALoadMs: 0,
@@ -372,6 +391,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     assert.ok(fs.existsSync(emergScriptPath), 'El script de emergencia no existe');
     console.log('    Confirmado: Procedimiento de emergencia standalone verificado y listo.');
 
+    report.fase0Status = 'APROBADA';
     report.fase0Passed = true;
     console.log('=== FASE 0 APROBADA CON ÉXITO ===\n');
 
@@ -460,13 +480,16 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     await contextB.close();
 
     console.log('    Confirmado: localStorage y sesiones estrictamente aislados entre orígenes.');
+    report.fase1Status = 'APROBADA';
     report.fase1Passed = true;
     console.log('=== FASE 1 APROBADA CON ÉXITO ===\n');
 
     if (fase4Only) {
       console.log('--- FASE 2 & FASE 3 OMITIDAS: Modo aislado (--fase4-only activo, R1–R10 ya validados previamente) ---');
-      report.fase2Passed = true;
-      report.fase3Passed = true;
+      report.fase2Status = 'OMITIDA';
+      report.fase3Status = 'OMITIDA';
+      report.fase2Passed = false;
+      report.fase3Passed = false;
     } else {
       // =========================================================================
       // FASE 2: PRUEBA PRELIMINAR SIN CANJE (KILL SWITCHES APAGADOS)
@@ -549,6 +572,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     await pageF2A.close();
     await contextF2.close();
 
+    report.fase2Status = 'APROBADA';
     report.fase2Passed = true;
     console.log('=== FASE 2 APROBADA CON ÉXITO ===\n');
 
@@ -653,9 +677,11 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
       await pageR1A.waitForLoadState('domcontentloaded');
 
       // Esperar a que la pantalla detecte el inventario y muestre ready_to_migrate
-      await pageR1A.waitForFunction(() => document.body.innerText.includes('Encontramos tus encuentros') || document.body.innerText.includes('Llevar mis encuentros'), {
-        timeout: 10000,
-      });
+      await pageR1A.waitForFunction(
+        () => document.body.innerText.includes('Encontramos tus encuentros') || document.body.innerText.includes('Llevar mis encuentros'),
+        undefined,
+        { timeout: 10000 }
+      );
       await takeSafeScreenshot(pageR1A, 'r1-ready-to-migrate');
 
       // 4. Iniciar traslado automático haciendo clic en el botón principal
@@ -668,15 +694,19 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
       await takeSafeScreenshot(popupR1, 'r1-popup-receiving');
 
       // Esperar a que el popup complete la transferencia (texto "¡Tus encuentros ya están acá!" o estado completado)
-      await popupR1.waitForFunction(() => document.body.innerText.includes('ya están acá') || document.body.innerText.includes('completado'), {
-        timeout: 25000,
-      });
+      await popupR1.waitForFunction(
+        () => document.body.innerText.includes('ya están acá') || document.body.innerText.includes('completado'),
+        undefined,
+        { timeout: 25000 }
+      );
       await takeSafeScreenshot(popupR1, 'r1-popup-completed');
 
       // Esperar a que la pantalla origen muestre already_migrated
-      await pageR1A.waitForFunction(() => document.body.innerText.includes('ya están en') || document.body.innerText.includes('cerrado'), {
-        timeout: 25000,
-      });
+      await pageR1A.waitForFunction(
+        () => document.body.innerText.includes('ya están en') || document.body.innerText.includes('cerrado'),
+        undefined,
+        { timeout: 25000 }
+      );
       await takeSafeScreenshot(pageR1A, 'r1-source-already-migrated');
 
       r1SourceClient = clientA;
@@ -1145,6 +1175,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
       return `Encuentro transferido exitosamente en cadena A (${uidA.slice(0, 8)}) -> B (${uidB.slice(0, 8)}) -> C (${uidC.slice(0, 8)})`;
     });
 
+    report.fase3Status = 'APROBADA';
     report.fase3Passed = true;
     console.log('\n=== FASE 3 APROBADA CON ÉXITO: 10/10 RECORRIDOS SATISFACTORIOS ===\n');
 
@@ -1228,6 +1259,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
       () =>
         document.body.innerText.includes('Encontramos tus encuentros') ||
         document.body.innerText.includes('Llevar mis encuentros'),
+      undefined,
       { timeout: 15000 }
     );
     await takeSafeScreenshot(pageA, 'fase4-a-ready-to-migrate');
@@ -1245,17 +1277,17 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     await pageA.waitForFunction(
       () => {
         const divs = Array.from(document.querySelectorAll('div, pre, code, p, span'));
-        return divs.some((d) => /^[0-9a-f]{64}$/.test(d.innerText?.trim() || ''));
+        return divs.some((d) => /^[0-9a-f]{64}$/.test((d as HTMLElement).innerText?.trim() || ''));
       },
+      undefined,
       { timeout: 20000 }
     );
-    await takeSafeScreenshot(pageA, 'fase4-a-manual-code-generated');
 
     // Extraer la llave hexadecimal de 64 caracteres de la caja de código en la UI de Navegador A
     const tokenFromPageA = await pageA.evaluate(() => {
       const divs = Array.from(document.querySelectorAll('div, pre, code, p, span'));
       for (const d of divs) {
-        const text = d.innerText?.trim();
+        const text = (d as HTMLElement).innerText?.trim();
         if (text && /^[0-9a-f]{64}$/.test(text)) {
           return text;
         }
@@ -1266,6 +1298,18 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     assert.ok(tokenFromPageA, 'No se encontró la llave de 64 caracteres en el DOM de Navegador A');
     assert.equal(tokenFromPageA.length, 64, 'La llave manual debe tener exactamente 64 caracteres');
     assert.ok(/^[0-9a-f]{64}$/.test(tokenFromPageA), 'El formato debe ser hexadecimal en minúsculas');
+
+    // Sanitizar y anonimizar la llave en el DOM antes de capturar pantalla para evitar persistir secretos
+    await pageA.evaluate(() => {
+      const divs = Array.from(document.querySelectorAll('div, pre, code, p, span'));
+      for (const d of divs) {
+        const text = (d as HTMLElement).innerText?.trim();
+        if (text && /^[0-9a-f]{64}$/.test(text)) {
+          (d as HTMLElement).innerText = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+        }
+      }
+    });
+    await takeSafeScreenshot(pageA, 'fase4-a-manual-code-generated');
 
     const tokenHash = crypto.createHash('sha256').update(tokenFromPageA).digest('hex');
     trackTicketHash(tokenHash);
@@ -1326,6 +1370,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
       () =>
         document.body.innerText.includes('¡Tus encuentros ya están acá!') ||
         document.body.innerText.includes('Ver mis encuentros'),
+      undefined,
       { timeout: 15000 }
     );
     await takeSafeScreenshot(pageB, 'fase4-b-manual-completed');
@@ -1398,15 +1443,15 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     );
     console.log('    [CRITERIO 4 APROBADO] Sesión A retirada y bloqueada para nuevas mutaciones.');
 
-    // Criterio 5: El destinatario B puede consultar y administrar el encuentro transferido
+    // Criterio 5: El destinatario B puede consultar el encuentro con rol de anfitrión (lectura autorizada)
     const bManageRes = await clientB.rpc('get_detalle_host_seguro', {
       p_encuentro_id: encId,
       p_host_id: uidB,
     });
     const bManageData = typeof bManageRes.data === 'string' ? JSON.parse(bManageRes.data) : bManageRes.data;
-    assert.ok(bManageData && !bManageData.error, `Criterio 5 FALLIDO: Destinatario B no pudo administrar encuentro: ${bManageData?.error}`);
+    assert.ok(bManageData && !bManageData.error, `Criterio 5 FALLIDO: Destinatario B no pudo consultar el encuentro con rol de anfitrión: ${bManageData?.error}`);
     assert.equal(bManageData.id, encId, 'Criterio 5 FALLIDO: El ID devuelto no coincide con el encuentro');
-    console.log('    [CRITERIO 5 APROBADO] Destinatario B consultó y administró el encuentro vía get_detalle_host_seguro.');
+    console.log('    [CRITERIO 5 APROBADO] Destinatario B consultó el encuentro con rol/permisos de anfitrión (lectura autorizada vía get_detalle_host_seguro).');
 
     // Criterio 6: No hay consumo duplicado de ticket
     const replayClaimRes = await clientB.rpc('claim_domain_migration_ticket_seguro', {
@@ -1448,6 +1493,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     });
     manualSwitchActive = false;
 
+    report.fase4Status = 'APROBADA';
     report.fase4Passed = true;
     console.log('\n=== FASE 4 APROBADA CON ÉXITO: 7/7 CRITERIOS DE ACEPTACIÓN CUMPLIDOS ===\n');
 
@@ -1490,8 +1536,9 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
     console.log('   - Riesgo 2: Si el nuevo dominio no está en Redirect URLs de Supabase Auth, la autenticación enviará al usuario al dominio viejo.');
     console.log('   - [PENDIENTE DE CONFIGURACIÓN REMOTA] Verificar en el dashboard remoto de Supabase Auth si los dominios comerciales definitivos ya fueron incorporados en la allowlist.');
 
-    report.fase5Passed = true;
-    console.log('=== FASE 5 DIAGNÓSTICO COMPLETADO CON ÉXITO ===\n');
+    report.fase5Status = 'DIAGNOSTICO_PASIVO_COMPLETADO';
+    report.fase5Diagnosed = true;
+    console.log('=== FASE 5: DIAGNÓSTICO PASIVO COMPLETADO CON ÉXITO (OAuth E2E no ejecutado) ===\n');
 
   } catch (err: any) {
     report.errors.push(`Error crítico en ejecución: ${err?.message || String(err)}`);
@@ -1676,6 +1723,7 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
         console.log(`    Confirmado: Manifiesto temporal ${path.basename(manifestPath)} eliminado tras verificación de residuo cero.`);
       }
 
+      report.fase6Status = 'APROBADA';
       report.fase6Cleaned = true;
       console.log('    Confirmado: Residuo Cero verificado en 13 tablas e identidades Auth.');
     } catch (cleanErr: any) {
@@ -1705,13 +1753,14 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
 
     console.log('\n================================================================================');
     console.log('RESUMEN DE EJECUCIÓN MINI-SPRINT 2B-4');
-    console.log(`Fase 0 (Preflight de Seguridad): ${report.fase0Passed ? 'APROBADA' : 'FALLIDA'}`);
-    console.log(`Fase 1 (Preparación de Entornos): ${report.fase1Passed ? 'APROBADA' : 'FALLIDA'}`);
-    console.log(`Fase 2 (Prueba sin canje):       ${report.fase2Passed ? 'APROBADA' : 'FALLIDA'}`);
-    console.log(`Fase 3 (Transferencias reales):   ${report.fase3Passed ? 'APROBADA' : 'FALLIDA'} (${report.scenarios.filter((s) => s.passed).length}/10 escenarios)`);
-    console.log(`Fase 4 (Fallback manual):        ${report.fase4Passed ? 'APROBADA' : 'FALLIDA'}`);
-    console.log(`Fase 5 (Google OAuth):           ${report.fase5Passed ? 'APROBADA' : 'FALLIDA'}`);
-    console.log(`Fase 6 (Limpieza y Residuo Cero):${report.fase6Cleaned ? 'APROBADA' : 'FALLIDA'}`);
+    console.log(`Modo de ejecución:               ${report.fase4Only ? 'Aislado (--fase4-only)' : 'Completo (Fases 0 a 6)'}`);
+    console.log(`Fase 0 (Preflight de Seguridad): ${report.fase0Status}`);
+    console.log(`Fase 1 (Preparación de Entornos): ${report.fase1Status}`);
+    console.log(`Fase 2 (Prueba sin canje):       ${report.fase2Status}`);
+    console.log(`Fase 3 (Transferencias reales):   ${report.fase3Status}${report.fase3Status === 'APROBADA' ? ` (${report.scenarios.filter((s) => s.passed).length}/10 escenarios)` : ''}`);
+    console.log(`Fase 4 (Fallback manual):        ${report.fase4Status}`);
+    console.log(`Fase 5 (Google OAuth):           ${report.fase5Status === 'DIAGNOSTICO_PASIVO_COMPLETADO' ? 'DIAGNÓSTICO PASIVO COMPLETADO (OAuth E2E no ejecutado)' : report.fase5Status}`);
+    console.log(`Fase 6 (Limpieza y Residuo Cero):${report.fase6Status}`);
     console.log(`Kill Switches Finales:           bridge=${report.finalKillSwitchStatus.bridge}, manual=${report.finalKillSwitchStatus.manual}`);
     console.log('================================================================================\n');
 
@@ -1723,15 +1772,23 @@ export async function runDomainBridgeRealE2E(options: { fase4Only?: boolean } = 
 if (process.argv[1]?.endsWith('e2e-domain-bridge-real-staging.ts')) {
   runDomainBridgeRealE2E()
     .then((rep) => {
-      const allPassed =
-        rep.fase0Passed &&
-        rep.fase1Passed &&
-        rep.fase2Passed &&
-        rep.fase3Passed &&
-        rep.fase4Passed &&
-        rep.fase5Passed &&
-        rep.fase6Cleaned &&
-        rep.scenarios.every((s) => s.passed);
+      const allPassed = rep.fase4Only
+        ? rep.fase0Status === 'APROBADA' &&
+          rep.fase1Status === 'APROBADA' &&
+          rep.fase2Status === 'OMITIDA' &&
+          rep.fase3Status === 'OMITIDA' &&
+          rep.fase4Status === 'APROBADA' &&
+          rep.fase5Status === 'DIAGNOSTICO_PASIVO_COMPLETADO' &&
+          rep.fase6Status === 'APROBADA'
+        : rep.fase0Status === 'APROBADA' &&
+          rep.fase1Status === 'APROBADA' &&
+          rep.fase2Status === 'APROBADA' &&
+          rep.fase3Status === 'APROBADA' &&
+          rep.fase4Status === 'APROBADA' &&
+          rep.fase5Status === 'DIAGNOSTICO_PASIVO_COMPLETADO' &&
+          rep.fase6Status === 'APROBADA' &&
+          rep.scenarios.length === 10 &&
+          rep.scenarios.every((s) => s.passed);
 
       process.exit(allPassed ? 0 : 1);
     })
