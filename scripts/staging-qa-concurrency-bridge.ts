@@ -736,54 +736,85 @@ export async function runStagingConcurrencyQA(): Promise<StagingQAResult> {
     console.log(`Paso 3.3: Eliminando fixtures registrados (${trackedEncounterIds.length} encuentros, ${trackedUserIds.length} usuarios)...`);
     try {
       if (trackedEncounterIds.length > 0 || trackedUserIds.length > 0) {
-        // Mensajes
+        // Mensajes (ambos extremos)
         if (trackedEncounterIds.length > 0) {
-          await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
+          const { error: delMsgEncErr } = await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
+          if (delMsgEncErr) throw new Error(`Fallo eliminando mensajes_encuentro por encuentro_id: ${delMsgEncErr.message} (${delMsgEncErr.code})`);
         }
         if (trackedUserIds.length > 0) {
-          await adminClient.from('mensajes_encuentro').delete().in('autor_user_id', trackedUserIds);
+          const { error: delMsgUserErr } = await adminClient.from('mensajes_encuentro').delete().in('autor_user_id', trackedUserIds);
+          if (delMsgUserErr) throw new Error(`Fallo eliminando mensajes_encuentro por autor_user_id: ${delMsgUserErr.message} (${delMsgUserErr.code})`);
         }
 
-        // Participantes
+        // Participantes (ambos extremos)
         if (trackedEncounterIds.length > 0) {
-          await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
+          const { error: delPartEncErr } = await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
+          if (delPartEncErr) throw new Error(`Fallo eliminando participantes por encuentro_id: ${delPartEncErr.message} (${delPartEncErr.code})`);
         }
         if (trackedUserIds.length > 0) {
-          await adminClient.from('participantes').delete().in('user_id', trackedUserIds);
+          const { error: delPartUserErr } = await adminClient.from('participantes').delete().in('user_id', trackedUserIds);
+          if (delPartUserErr) throw new Error(`Fallo eliminando participantes por user_id: ${delPartUserErr.message} (${delPartUserErr.code})`);
         }
 
-        // Encuentros
+        // Encuentros (ambos extremos)
         if (trackedEncounterIds.length > 0) {
-          await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
+          const { error: delEncIdErr } = await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
+          if (delEncIdErr) throw new Error(`Fallo eliminando encuentros por id: ${delEncIdErr.message} (${delEncIdErr.code})`);
         }
         if (trackedUserIds.length > 0) {
-          await adminClient.from('encuentros').delete().in('host_id', trackedUserIds);
+          const { error: delEncHostErr } = await adminClient.from('encuentros').delete().in('host_id', trackedUserIds);
+          if (delEncHostErr) throw new Error(`Fallo eliminando encuentros por host_id: ${delEncHostErr.message} (${delEncHostErr.code})`);
         }
 
-        // Tickets (por source, target o intended_target)
+        // Tickets (por source, target, intended_target o hash)
         if (trackedUserIds.length > 0) {
-          await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
-          await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
-          await adminClient.from('anonymous_transfer_tickets').delete().in('intended_target_user_id', trackedUserIds);
+          const { error: delTicketSourceErr } = await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
+          if (delTicketSourceErr) throw new Error(`Fallo eliminando anonymous_transfer_tickets por source_user_id_snapshot: ${delTicketSourceErr.message} (${delTicketSourceErr.code})`);
+
+          const { error: delTicketTargetErr } = await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
+          if (delTicketTargetErr) throw new Error(`Fallo eliminando anonymous_transfer_tickets por target_user_id_snapshot: ${delTicketTargetErr.message} (${delTicketTargetErr.code})`);
+
+          const { error: delTicketIntendedErr } = await adminClient.from('anonymous_transfer_tickets').delete().in('intended_target_user_id', trackedUserIds);
+          if (delTicketIntendedErr) throw new Error(`Fallo eliminando anonymous_transfer_tickets por intended_target_user_id: ${delTicketIntendedErr.message} (${delTicketIntendedErr.code})`);
         }
         if (trackedTicketHashes.length > 0) {
-          await adminClient.from('anonymous_transfer_tickets').delete().in('token_hash', trackedTicketHashes);
+          const { error: delTicketHashErr } = await adminClient.from('anonymous_transfer_tickets').delete().in('token_hash', trackedTicketHashes);
+          if (delTicketHashErr) throw new Error(`Fallo eliminando anonymous_transfer_tickets por token_hash: ${delTicketHashErr.message} (${delTicketHashErr.code})`);
         }
 
         // Notificaciones y Rate limits
         if (trackedUserIds.length > 0) {
-          await adminClient.from('inbox_notifications').delete().in('recipient_user_id', trackedUserIds);
-          await adminClient.from('notification_delivery_outbox').delete().in('recipient_user_id', trackedUserIds);
-          await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
+          const { error: delInboxErr } = await adminClient.from('inbox_notifications').delete().in('recipient_user_id', trackedUserIds);
+          if (delInboxErr) throw new Error(`Fallo eliminando inbox_notifications: ${delInboxErr.message} (${delInboxErr.code})`);
+
+          const { error: delOutboxErr } = await adminClient.from('notification_delivery_outbox').delete().in('recipient_user_id', trackedUserIds);
+          if (delOutboxErr) throw new Error(`Fallo eliminando notification_delivery_outbox: ${delOutboxErr.message} (${delOutboxErr.code})`);
+
+          const { error: delRateErr } = await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
+          if (delRateErr) throw new Error(`Fallo eliminando rate_limit_buckets: ${delRateErr.message} (${delRateErr.code})`);
         }
 
-        // Eliminación de identidades en Auth
+        // Eliminación estricta y validación de identidades en Auth Admin
+        console.log(`  Eliminando ${trackedUserIds.length} identidades anónimas en GoTrue Auth Admin...`);
         for (const uid of trackedUserIds) {
           const { error: delUserErr } = await adminClient.auth.admin.deleteUser(uid);
-          if (delUserErr && !delUserErr.message.includes('User not found')) {
-            console.warn(`Advertencia al eliminar usuario auth ${uid}: ${delUserErr.message}`);
+          if (delUserErr) {
+            throw new Error(`auth.admin.deleteUser falló para ${uid}: ${delUserErr.message} (status: ${delUserErr.status})`);
           }
         }
+
+        // Verificación posterior obligatoria en Auth Admin de que los UUID ya no existen
+        console.log('  Verificando que las identidades eliminadas no existen en Auth Admin (getUserById)...');
+        for (const uid of trackedUserIds) {
+          const { data: checkUserData, error: checkUserErr } = await adminClient.auth.admin.getUserById(uid);
+          if (checkUserData?.user) {
+            throw new Error(`Verificación posterior fallida: el usuario Auth ${uid} aún existe tras deleteUser`);
+          }
+          if (checkUserErr && !checkUserErr.message.toLowerCase().includes('not found') && checkUserErr.status !== 404) {
+            throw new Error(`Error inesperado consultando usuario Auth ${uid}: ${checkUserErr.message}`);
+          }
+        }
+        console.log('  Verificación Auth Admin completada: 0 usuarios remanentes en GoTrue.');
       }
 
       // 3.4 Verificación Estricta de Residuo Cero
