@@ -34,6 +34,7 @@ import {
   getStagingPublishableKey,
   getStagingSecretKey,
 } from './lib/environment-guard.ts';
+import { computeManifestSignature } from './emergency-bridge-killswitch-reset.ts';
 
 const STAGING_URL = 'https://wougfhfwqgmxhgvjqoua.supabase.co';
 
@@ -168,12 +169,20 @@ export async function runDomainBridgeRealE2E(): Promise<MiniSprint2B4Report> {
   const manifestPath = path.resolve(process.cwd(), `recovery-manifest-staging-${runId}.json`);
 
   const saveManifest = () => {
+    const provenanceSignature = computeManifestSignature(
+      runId,
+      trackedUserIds,
+      trackedEncounterIds,
+      trackedTicketHashes,
+      adminKey
+    );
     const recoveryManifest = {
       runId,
       timestamp: new Date().toISOString(),
       trackedUserIds: [...trackedUserIds],
       trackedEncounterIds: [...trackedEncounterIds],
       trackedTicketHashes: [...trackedTicketHashes],
+      provenanceSignature,
     };
     fs.writeFileSync(manifestPath, JSON.stringify(recoveryManifest, null, 2), 'utf8');
   };

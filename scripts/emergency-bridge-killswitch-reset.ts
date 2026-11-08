@@ -14,6 +14,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import {
   assertStagingEnvironment,
@@ -104,6 +105,118 @@ export async function forceKillSwitchShutdown(adminClient: any): Promise<boolean
   return true;
 }
 
+export function computeManifestSignature(
+  runId: string,
+  userIds: string[],
+  encounterIds: string[],
+  ticketHashes: string[],
+  secretKey: string
+): string {
+  const sortedUsers = [...userIds].sort().join(',');
+  const sortedEncounters = [...encounterIds].sort().join(',');
+  const sortedTickets = [...ticketHashes].sort().join(',');
+  const message = `${runId}|${sortedUsers}|${sortedEncounters}|${sortedTickets}`;
+  return crypto.createHmac('sha256', secretKey).update(message).digest('hex');
+}
+
+export function verifyManifestProvenance(
+  content: any,
+  secretKey: string
+): { valid: boolean; error?: string } {
+  if (!content || typeof content !== 'object') {
+    return { valid: false, error: 'Contenido del manifiesto inválido (no es un objeto)' };
+  }
+  if (!content.runId || !RUN_ID_REGEX.test(content.runId)) {
+    return { valid: false, error: `runId inválido o ausente en manifiesto: "${content.runId}"` };
+  }
+  if (!content.provenanceSignature || typeof content.provenanceSignature !== 'string') {
+    return { valid: false, error: 'Falta la firma criptográfica de procedencia (provenanceSignature) generada por el runner' };
+  }
+
+  const userIds: string[] = (content.trackedUserIds || []).filter((id: string) => UUID_REGEX.test(id));
+  const encounterIds: string[] = (content.trackedEncounterIds || []).filter((id: string) => UUID_REGEX.test(id));
+  const ticketHashes: string[] = (content.trackedTicketHashes || []).filter((h: string) => /^[0-9a-f]{64}$/i.test(h));
+
+  const expectedSignature = computeManifestSignature(content.runId, userIds, encounterIds, ticketHashes, secretKey);
+  const sigBuffer = Buffer.from(content.provenanceSignature, 'hex');
+  const expBuffer = Buffer.from(expectedSignature, 'hex');
+
+  if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
+    return { valid: false, error: 'Firma criptográfica inválida (manifiesto adulterado o manipulado manualmente)' };
+  }
+
+  return { valid: true };
+}
+
+export async function verifyFixtureOwnership(
+  adminClient: any,
+  targetRunId: string,
+  userIds: string[],
+  encounterIds: string[]
+): Promise<{ authorized: boolean; error?: string }> {
+  // 1. Validar usuarios en Auth Admin: solo se autoriza la eliminación de usuarios anónimos o fixtures QA (@puntoencuentro.test)
+  for (const uid of userIds) {
+    const { data: uData, error: uErr } = await adminClient.auth.admin.getUserById(uid);
+    if (uErr) {
+      if (!uErr.message?.toLowerCase().includes('not found') && !uErr.message?.toLowerCase().includes('database error')) {
+        return { authorized: false, error: `Error verificando identidad de usuario ${uid}: ${uErr.message}` };
+      }
+      continue;
+    }
+    const user = uData?.user;
+    if (user) {
+      const isAnon = user.is_anonymous === true;
+      const isQaEmail = Boolean(
+        user.email &&
+        user.email.endsWith('@puntoencuentro.test') &&
+        user.email.startsWith('qa-')
+      );
+      if (!isAnon && !isQaEmail) {
+        return {
+          authorized: false,
+          error: `El usuario ${uid} es una cuenta real o no autorizada (email: ${user.email}). Pertenencia denegada; limpieza abortada para proteger identidades ajenas.`,
+        };
+      }
+    }
+  }
+
+  // 2. Validar encuentros en base de datos: verificar que pertenecen a los usuarios del run o poseen tags de procedencia
+  if (encounterIds.length > 0) {
+    const { data: encounters, error: encErr } = await adminClient
+      .from('encuentros')
+      .select('id, host_id, titulo, descripcion')
+      .in('id', encounterIds);
+
+    if (encErr) {
+      return { authorized: false, error: `Error consultando encuentros para verificación de procedencia: ${encErr.message}` };
+    }
+
+    for (const enc of encounters || []) {
+      const hostInRun = userIds.includes(enc.host_id);
+      const taggedWithRunId =
+        (enc.descripcion && enc.descripcion.includes(targetRunId)) ||
+        (enc.titulo && enc.titulo.includes(targetRunId));
+      const hasQaPrefix =
+        (enc.titulo && (enc.titulo.includes('Fixture') || enc.titulo.includes('E2E Bridge') || enc.titulo.includes('Manual Fallback') || enc.titulo.includes('Guest Token Test') || enc.titulo.includes('Chain A->B->C') || enc.titulo.includes('Messaging Perms') || enc.titulo.includes('R6 Fixture') || enc.titulo.includes('R7 Fixture') || enc.titulo.includes('R8 Fixture')));
+
+      if (!hostInRun && !taggedWithRunId) {
+        return {
+          authorized: false,
+          error: `El encuentro ${enc.id} ("${enc.titulo}") no pertenece a los usuarios del run (${enc.host_id}) ni está etiquetado con runId. Abortando limpieza de seguridad.`,
+        };
+      }
+      if (!hasQaPrefix && !taggedWithRunId) {
+        return {
+          authorized: false,
+          error: `El encuentro ${enc.id} no posee marcas de procedencia QA autorizadas. Abortando limpieza de seguridad.`,
+        };
+      }
+    }
+  }
+
+  return { authorized: true };
+}
+
 export async function cleanAuthorizedManifest(adminClient: any, targetRunId: string): Promise<boolean> {
   if (!RUN_ID_REGEX.test(targetRunId)) {
     console.error(`[ERROR] Formato de runId inválido: "${targetRunId}". Debe coincidir con ${RUN_ID_REGEX}`);
@@ -129,16 +242,33 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     return false;
   }
 
+  // 1. Verificación de Procedencia Criptográfica (Anti-manipulación manual)
+  const adminKey = getStagingSecretKey();
+  const provCheck = verifyManifestProvenance(content, adminKey);
+  if (!provCheck.valid) {
+    console.error(`[CRÍTICO DE SEGURIDAD] Rechazo de procedencia: ${provCheck.error}`);
+    console.error('El manifiesto NO será procesado ni eliminado para preservar la evidencia forense.');
+    return false;
+  }
+
   const userIds: string[] = (content.trackedUserIds || []).filter((id: string) => UUID_REGEX.test(id));
   const encounterIds: string[] = (content.trackedEncounterIds || []).filter((id: string) => UUID_REGEX.test(id));
   const ticketHashes: string[] = (content.trackedTicketHashes || []).filter((h: string) => /^[0-9a-f]{64}$/i.test(h));
 
+  // 2. Verificación de Pertenencia Estricta de Recursos contra DB antes de cualquier mutación
+  const ownCheck = await verifyFixtureOwnership(adminClient, targetRunId, userIds, encounterIds);
+  if (!ownCheck.authorized) {
+    console.error(`[CRÍTICO DE SEGURIDAD] Rechazo de pertenencia: ${ownCheck.error}`);
+    console.error('Abortando limpieza administrativa para prevenir eliminación accidental o maliciosa de recursos ajenos.');
+    return false;
+  }
+
   console.log(`--- Ejecutando limpieza auditada para runId: ${targetRunId} ---`);
-  console.log(`  UUIDs verificados: ${encounterIds.length} encuentros, ${userIds.length} usuarios, ${ticketHashes.length} tickets`);
+  console.log(`  Procedencia validada: ${encounterIds.length} encuentros, ${userIds.length} usuarios, ${ticketHashes.length} tickets`);
 
   const errors: string[] = [];
 
-  // Borrado de recursos de encuentros
+  // 3. Borrado controlado de recursos de encuentros
   if (encounterIds.length > 0) {
     const { error: partErr } = await adminClient.from('participantes').delete().in('encuentro_id', encounterIds);
     if (partErr) errors.push(`participantes(encuentro_id): ${partErr.message}`);
@@ -150,7 +280,7 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     if (encErr) errors.push(`encuentros(id): ${encErr.message}`);
   }
 
-  // Borrado de recursos de usuarios
+  // 4. Borrado controlado de recursos de usuarios
   if (userIds.length > 0) {
     const { error: pUserErr } = await adminClient.from('participantes').delete().in('user_id', userIds);
     if (pUserErr) errors.push(`participantes(user_id): ${pUserErr.message}`);
@@ -179,7 +309,7 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     const { error: tiErr } = await adminClient.from('anonymous_transfer_tickets').delete().in('intended_target_user_id', userIds);
     if (tiErr) errors.push(`tickets(intended): ${tiErr.message}`);
 
-    // Eliminación de identidades en Auth Admin con comprobación de error
+    // Eliminación de identidades en Auth Admin con comprobación estricta de error
     for (const uid of userIds) {
       const { error: delUserErr } = await adminClient.auth.admin.deleteUser(uid);
       if (delUserErr) {
@@ -193,22 +323,57 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     if (thErr) errors.push(`tickets(token_hash): ${thErr.message}`);
   }
 
-  // Verificación estricta de residuo cero antes de tocar el manifiesto
-  console.log('  Verificando residuo cero en base de datos...');
+  // 5. Verificación completa e independiente de residuo cero en TODAS las superficies modificadas
+  console.log('  Verificando exhaustivamente residuo cero en todas las superficies...');
   let residualCount = 0;
-  if (encounterIds.length > 0) {
-    const { count } = await adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', encounterIds);
-    residualCount += (count || 0);
+
+  const surfaceChecks = [
+    { name: 'encuentros (por id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', encounterIds), active: encounterIds.length > 0 },
+    { name: 'encuentros (por host_id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('host_id', userIds), active: userIds.length > 0 },
+    { name: 'participantes (por encuentro_id)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('encuentro_id', encounterIds), active: encounterIds.length > 0 },
+    { name: 'participantes (por user_id)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('user_id', userIds), active: userIds.length > 0 },
+    { name: 'mensajes_encuentro (por encuentro_id)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', encounterIds), active: encounterIds.length > 0 },
+    { name: 'mensajes_encuentro (por autor_user_id)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('autor_user_id', userIds), active: userIds.length > 0 },
+    { name: 'tickets (por source_user_id_snapshot)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', userIds), active: userIds.length > 0 },
+    { name: 'tickets (por target_user_id_snapshot)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('target_user_id_snapshot', userIds), active: userIds.length > 0 },
+    { name: 'tickets (por intended_target_user_id)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('intended_target_user_id', userIds), active: userIds.length > 0 },
+    { name: 'tickets (por token_hash)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('token_hash', ticketHashes), active: ticketHashes.length > 0 },
+    { name: 'inbox_notifications', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', userIds), active: userIds.length > 0 },
+    { name: 'notification_delivery_outbox', query: adminClient.from('notification_delivery_outbox').select('*', { count: 'exact', head: true }).in('recipient_user_id', userIds), active: userIds.length > 0 },
+    { name: 'rate_limit_buckets', query: adminClient.from('rate_limit_buckets').select('*', { count: 'exact', head: true }).in('user_id', userIds), active: userIds.length > 0 },
+  ];
+
+  for (const sc of surfaceChecks) {
+    if (!sc.active) continue;
+    const { count, error } = await sc.query;
+    if (error) {
+      errors.push(`Error en chequeo ${sc.name}: ${error.message}`);
+    } else if ((count || 0) > 0) {
+      residualCount += count!;
+      errors.push(`Residuo detectado en ${sc.name}: ${count} filas`);
+    }
   }
+
+  // Verificación de usuarios Auth eliminados
   if (userIds.length > 0) {
     for (const uid of userIds) {
-      const { data: uData } = await adminClient.auth.admin.getUserById(uid);
-      if (uData?.user) residualCount += 1;
+      const { data: uData, error: uErr } = await adminClient.auth.admin.getUserById(uid);
+      if (uErr) {
+        if (!uErr.message?.toLowerCase().includes('not found') && !uErr.message?.toLowerCase().includes('database error')) {
+          errors.push(`Error verificando borrado de usuario ${uid}: ${uErr.message}`);
+        }
+      } else if (uData?.user) {
+        residualCount += 1;
+        errors.push(`Usuario ${uid} aún existe en Auth Admin`);
+      }
     }
   }
 
   if (errors.length > 0 || residualCount > 0) {
     console.error(`[CRÍTICO] Limpieza incompleta: ${errors.length} errores, ${residualCount} residuos detectados.`);
+    for (const err of errors) {
+      console.error(`  - ${err}`);
+    }
     console.error('El manifiesto NO será eliminado para preservar trazabilidad de recuperación.');
     return false;
   }
