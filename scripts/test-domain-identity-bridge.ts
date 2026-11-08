@@ -151,7 +151,6 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
         token_invitacion UUID UNIQUE,
         estado TEXT NOT NULL DEFAULT 'pendiente',
         user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-        respondio_disponibilidad BOOLEAN DEFAULT false,
         reconfirmation_status TEXT,
         reconfirmed_at TIMESTAMPTZ,
         attendance_status TEXT,
@@ -495,10 +494,14 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
       GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
     `);
 
-    // 3. Ejecutar la migración SQL aditiva de Mini-Sprint 2B-1
+    // 3. Ejecutar la migración SQL aditiva de Mini-Sprint 2B-1 y su hotfix aditivo
     const migrationPath = path.resolve(process.cwd(), 'supabase/migrations/20261107120000_domain_identity_bridge_v1.sql');
     const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
     await db.exec(migrationSql);
+
+    const fixMigrationPath = path.resolve(process.cwd(), 'supabase/migrations/20261108163000_fix_transfer_anonymous_participantes_schema.sql');
+    const fixMigrationSql = fs.readFileSync(fixMigrationPath, 'utf-8');
+    await db.exec(fixMigrationSql);
   });
 
   beforeEach(async () => {
