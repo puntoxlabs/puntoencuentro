@@ -3,10 +3,14 @@
  * Mini-Sprint 2B-2: Puente de Identidad entre Dominios
  *
  * ====================================================================================
- * ¡ATENCIÓN! COMPUERTA DE SEGURIDAD OBLIGATORIA (Mini-Sprint 2B-1):
+ * ¡ATENCIÓN! COMPUERTA DE SEGURIDAD OBLIGATORIA:
  * Este runner está preparado EXCLUSIVAMENTE para la sesión remota de Staging (2B-2).
  * NO DEBE EJECUTARSE durante el Mini-Sprint 2B-1 ni mientras no se autorice la
  * aplicación de migraciones en Staging.
+ *
+ * Requiere:
+ *  - STAGING_BRIDGE_QA_AUTHORIZED === '1'
+ *  - STAGING_ENABLE_BRIDGE_KILL_SWITCH === '1'
  *
  * ESTRICTAMENTE PROHIBIDO CONTRA PRODUCCIÓN (aurbicjwftjhwryhyjiq).
  * Entorno autorizado único: Staging (wougfhfwqgmxhgvjqoua).
@@ -50,8 +54,11 @@ if (process.env.STAGING_BRIDGE_QA_AUTHORIZED !== '1') {
 }
 
 async function runStagingConcurrencyQA() {
+  const runId = `staging-qa-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+
   console.log('================================================================================');
   console.log('INICIANDO STAGING QA: CONCURRENCIA DE PUENTE DE IDENTIDAD (2B-2)');
+  console.log(`Run ID: ${runId}`);
   console.log(`Target Supabase URL: ${STAGING_URL} (Ref: ${STAGING_PROJECT_REF})`);
   console.log(`Protección anti-producción activa: Prohibido ${PRODUCTION_PROJECT_REF}`);
   console.log('================================================================================\n');
@@ -64,13 +71,16 @@ async function runStagingConcurrencyQA() {
   });
 
   // Preflight de Privilegios: Verificar que service_role tiene permisos efectivos
-  console.log('Paso 0: Preflight de privilegios administrativos y RLS...');
+  console.log('Paso 0: Preflight de privilegios administrativos y catálogo...');
   const privilegeChecks = [
     { table: 'anonymous_transfer_tickets', query: adminClient.from('anonymous_transfer_tickets').select('id', { head: true, count: 'exact' }) },
     { table: 'domain_migration_settings', query: adminClient.from('domain_migration_settings').select('setting_key', { head: true, count: 'exact' }) },
     { table: 'encuentros', query: adminClient.from('encuentros').select('id', { head: true, count: 'exact' }) },
+    { table: 'participantes', query: adminClient.from('participantes').select('id', { head: true, count: 'exact' }) },
     { table: 'mensajes_encuentro', query: adminClient.from('mensajes_encuentro').select('id', { head: true, count: 'exact' }) },
     { table: 'inbox_notifications', query: adminClient.from('inbox_notifications').select('id', { head: true, count: 'exact' }) },
+    { table: 'notification_delivery_outbox', query: adminClient.from('notification_delivery_outbox').select('id', { head: true, count: 'exact' }) },
+    { table: 'rate_limit_buckets', query: adminClient.from('rate_limit_buckets').select('action', { head: true, count: 'exact' }) },
   ];
 
   for (const check of privilegeChecks) {
@@ -115,8 +125,7 @@ async function runStagingConcurrencyQA() {
 
   const trackedUserIds: string[] = [];
   const trackedEncounterIds: string[] = [];
-  const trackedTicketTokens: string[] = [];
-  let testExecutionFailed = false;
+  const trackedTicketHashes: string[] = []; // Solo hashes SHA256 (CERO tokens en texto claro ni secretos)
 
   try {
     // 2. Crear clientes y sesiones anónimas reales vía GoTrue
@@ -177,8 +186,9 @@ async function runStagingConcurrencyQA() {
       throw new Error(`Fallo emisión ticket: ${JSON.stringify(ticketRes.error || ticketRes.data)}`);
     }
     const ticketToken = ticketRes.data.ticket_token;
-    trackedTicketTokens.push(ticketToken);
-    console.log(`  Ticket emitido. Token: ${ticketToken.slice(0, 10)}... (TTL: ${ticketRes.data.expires_in_seconds}s)`);
+    const ticketHash = crypto.createHash('sha256').update(ticketToken).digest('hex');
+    trackedTicketHashes.push(ticketHash);
+    console.log(`  Ticket emitido. SHA256: ${ticketHash.slice(0, 12)}... (TTL: ${ticketRes.data.expires_in_seconds}s)`);
 
     // 5. Barrera de Sincronización Promise para 4 workers simultáneos sobre PostgREST/HTTP
     console.log('Paso 4: Despachando 4 operaciones concurrentes simultáneas contra PostgREST...');
@@ -231,9 +241,6 @@ async function runStagingConcurrencyQA() {
 
     console.log('Paso 5: Analizando respuestas de cada worker...');
     for (const r of results) {
-      if (r.res.error && !['PGRST', '23', '40', '55'].some((prefix) => r.res.error.code?.startsWith(prefix))) {
-        // Loguear errores inesperados
-      }
       console.log(`  ${r.worker}:`, r.res.data || r.res.error);
     }
 
@@ -252,7 +259,7 @@ async function runStagingConcurrencyQA() {
     const { data: ticketDb, error: ticketDbErr } = await adminClient
       .from('anonymous_transfer_tickets')
       .select('status, used_at, target_user_id_snapshot')
-      .eq('token_hash', crypto.createHash('sha256').update(ticketToken).digest('hex'))
+      .eq('token_hash', ticketHash)
       .single();
 
     if (ticketDbErr || !ticketDb) {
@@ -308,62 +315,133 @@ async function runStagingConcurrencyQA() {
     console.log('  - Cero bypass de permisos o identidades.');
     console.log('  - Jerarquía de locks validada bajo PostgREST HTTP concurrent requests.');
     console.log('================================================================================\n');
-  } catch (err: any) {
-    testExecutionFailed = true;
-    throw err;
   } finally {
-    // 7. Restauración del Kill Switch y Limpieza Determinista con Residuo Cero
+    // 7. Restauración Garantizada del Kill Switch y Limpieza Determinista con Residuo Cero
     console.log('Paso 6: Restaurando estado de Kill Switch y ejecutando limpieza...');
+    let killSwitchFailed = false;
     let cleanupFailed = false;
     let cleanupError: any = null;
 
+    // 7.1 Restauración y Verificación Estricta del Kill Switch
     try {
-      // Restaurar estado anterior del kill switch
-      await adminClient.rpc('set_domain_migration_setting', {
+      const { error: restoreErr } = await adminClient.rpc('set_domain_migration_setting', {
         p_key: 'cross_origin_bridge_enabled',
         p_value: previousBridgeSetting,
       });
 
-      // Limpieza exhaustiva de fixtures
-      if (trackedEncounterIds.length > 0) {
-        const { error: msgErr } = await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
-        if (msgErr) throw msgErr;
-        const { error: partErr } = await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
-        if (partErr) throw partErr;
-        const { error: encErr } = await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
-        if (encErr) throw encErr;
+      if (restoreErr) {
+        console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
+        console.error(`[ALERTA CRÍTICA DE SEGURIDAD]: Fallo al invocar set_domain_migration_setting: ${restoreErr.message}`);
+        console.error(`PROCEDIMIENTO MANUAL DE EMERGENCIA INMEDIATO:`);
+        console.error(`  Ejecutar en el SQL Editor de Supabase Staging (${STAGING_PROJECT_REF}):`);
+        console.error(`  UPDATE public.domain_migration_settings SET setting_value = ${previousBridgeSetting}, updated_at = timezone('utc', now()) WHERE setting_key = 'cross_origin_bridge_enabled';`);
+        console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
+        killSwitchFailed = true;
       }
 
-      if (trackedUserIds.length > 0) {
-        const { error: t1Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
-        if (t1Err) throw t1Err;
-        const { error: t2Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
-        if (t2Err) throw t2Err;
-        const { error: rlErr } = await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
-        if (rlErr) throw rlErr;
-        // Columna real: recipient_user_id
-        const { error: notifErr } = await adminClient.from('inbox_notifications').delete().in('recipient_user_id', trackedUserIds);
-        if (notifErr) throw notifErr;
-        const { error: outboxErr } = await adminClient.from('notification_delivery_outbox').delete().in('recipient_user_id', trackedUserIds);
-        if (outboxErr) throw outboxErr;
+      // Consultar nuevamente la tabla y exigir coincidencia exacta
+      const { data: verifySetting, error: verifyErr } = await adminClient
+        .from('domain_migration_settings')
+        .select('setting_value')
+        .eq('setting_key', 'cross_origin_bridge_enabled')
+        .single();
 
+      if (verifyErr || !verifySetting || verifySetting.setting_value !== previousBridgeSetting) {
+        const actualVal = verifySetting?.setting_value;
+        console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
+        console.error(`[ALERTA CRÍTICA DE SEGURIDAD]: Discrepancia en restauración del kill switch!`);
+        console.error(`  Esperado: ${previousBridgeSetting} | Actual en DB: ${actualVal} | Error: ${verifyErr?.message}`);
+        console.error(`PROCEDIMIENTO MANUAL DE EMERGENCIA INMEDIATO:`);
+        console.error(`  Ejecutar en el SQL Editor de Supabase Staging (${STAGING_PROJECT_REF}):`);
+        console.error(`  UPDATE public.domain_migration_settings SET setting_value = ${previousBridgeSetting}, updated_at = timezone('utc', now()) WHERE setting_key = 'cross_origin_bridge_enabled';`);
+        console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
+        killSwitchFailed = true;
+      } else {
+        console.log(`  Kill switch restaurado y verificado con éxito: cross_origin_bridge_enabled === ${previousBridgeSetting}`);
+      }
+    } catch (ksErr: any) {
+      console.error(`[ALERTA CRÍTICA]: Excepción restaurando kill switch: ${ksErr?.message}`);
+      killSwitchFailed = true;
+    }
+
+    // 7.2 Limpieza Integral de Ambos Extremos de Relaciones
+    try {
+      if (trackedEncounterIds.length > 0 || trackedUserIds.length > 0) {
+        // Mensajes (ambos extremos)
+        if (trackedEncounterIds.length > 0) {
+          const { error } = await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
+          if (error) throw error;
+        }
+        if (trackedUserIds.length > 0) {
+          const { error } = await adminClient.from('mensajes_encuentro').delete().in('autor_user_id', trackedUserIds);
+          if (error) throw error;
+        }
+
+        // Participantes (ambos extremos)
+        if (trackedEncounterIds.length > 0) {
+          const { error } = await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
+          if (error) throw error;
+        }
+        if (trackedUserIds.length > 0) {
+          const { error } = await adminClient.from('participantes').delete().in('user_id', trackedUserIds);
+          if (error) throw error;
+        }
+
+        // Encuentros (ambos extremos)
+        if (trackedEncounterIds.length > 0) {
+          const { error } = await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
+          if (error) throw error;
+        }
+        if (trackedUserIds.length > 0) {
+          const { error } = await adminClient.from('encuentros').delete().in('host_id', trackedUserIds);
+          if (error) throw error;
+        }
+
+        // Tickets (ambos extremos de la transferencia)
+        if (trackedUserIds.length > 0) {
+          const { error: t1Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
+          if (t1Err) throw t1Err;
+          const { error: t2Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
+          if (t2Err) throw t2Err;
+        }
+
+        // Notificaciones y Outbox
+        if (trackedUserIds.length > 0) {
+          const { error: notifErr } = await adminClient.from('inbox_notifications').delete().in('recipient_user_id', trackedUserIds);
+          if (notifErr) throw notifErr;
+          const { error: outboxErr } = await adminClient.from('notification_delivery_outbox').delete().in('recipient_user_id', trackedUserIds);
+          if (outboxErr) throw outboxErr;
+          const { error: rlErr } = await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
+          if (rlErr) throw rlErr;
+        }
+
+        // Eliminación de identidades en Auth y comprobación del resultado
         for (const uid of trackedUserIds) {
-          await adminClient.auth.admin.deleteUser(uid);
+          const { error: deleteUserErr } = await adminClient.auth.admin.deleteUser(uid);
+          if (deleteUserErr && !deleteUserErr.message.includes('User not found')) {
+            throw new Error(`auth.admin.deleteUser falló para ${uid}: ${deleteUserErr.message}`);
+          }
         }
       }
 
-      // Verificación estricta de residuo cero (prohibido asumir count === null como 0)
-      const residueTables = [
-        { name: 'encuentros', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', trackedEncounterIds) },
-        { name: 'tickets', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', trackedUserIds) },
-        { name: 'mensajes', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
-        { name: 'notificaciones', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
+      // 7.3 Verificación Estricta de Residuo Cero en Ambos Extremos
+      const residueChecks = [
+        { name: 'encuentros (por id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', trackedEncounterIds) },
+        { name: 'encuentros (por host_id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('host_id', trackedUserIds) },
+        { name: 'tickets (por source)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', trackedUserIds) },
+        { name: 'tickets (por target)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('target_user_id_snapshot', trackedUserIds) },
+        { name: 'mensajes (por encuentro)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
+        { name: 'mensajes (por autor)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('autor_user_id', trackedUserIds) },
+        { name: 'participantes (por encuentro)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
+        { name: 'notificaciones (recipient)', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
+        { name: 'outbox (recipient)', query: adminClient.from('notification_delivery_outbox').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
+        { name: 'rate_limits (user_id)', query: adminClient.from('rate_limit_buckets').select('*', { count: 'exact', head: true }).in('user_id', trackedUserIds) },
       ];
 
-      for (const t of residueTables) {
+      for (const t of residueChecks) {
         const { count, error } = await t.query;
         if (error) {
-          throw new Error(`Error al verificar residuo en ${t.name}: ${error.message}`);
+          throw new Error(`Error verificando residuo en ${t.name}: ${error.message} (${error.code})`);
         }
         if (count === null || count === undefined) {
           throw new Error(`Residuo indeterminado en ${t.name}: count retornó null/undefined.`);
@@ -371,28 +449,34 @@ async function runStagingConcurrencyQA() {
         assert.equal(count, 0, `Residuo en ${t.name} debe ser estrictamente 0, encontrado: ${count}`);
       }
 
-      console.log('  Limpieza verificada: 0 registros residuales en Staging.');
-    } catch (cleanupErr: any) {
+      console.log('  Limpieza verificada: 0 registros residuales en todas las tablas y relaciones.');
+    } catch (err: any) {
       cleanupFailed = true;
-      cleanupError = cleanupErr;
+      cleanupError = err;
 
-      // Preservar manifiesto de recuperación segura en disco
-      const manifest = {
+      // Manifiesto Seguro SIN SECRETOS (exclusivamente UUIDs, hashes SHA256 y runId)
+      const secureManifest = {
+        run_id: runId,
         timestamp: new Date().toISOString(),
         status: 'CLEANUP_FAILED',
-        error: cleanupErr?.message || String(cleanupErr),
+        error: cleanupError?.message || String(cleanupError),
         trackedUserIds,
         trackedEncounterIds,
-        trackedTicketTokens,
+        trackedTicketHashes, // Solo hashes SHA256 (CERO códigos en texto claro)
       };
-      const manifestPath = path.resolve(process.cwd(), `recovery-manifest-staging-concurrency-${Date.now()}.json`);
+
+      const manifestPath = path.resolve(process.cwd(), `recovery-manifest-staging-${runId}.json`);
       try {
-        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
-        console.error(`\n[CRITICAL ERROR] Limpieza en Staging falló.`);
-        console.error(`Manifiesto de IDs para remediación segura guardado en: ${manifestPath}\n`);
+        fs.writeFileSync(manifestPath, JSON.stringify(secureManifest, null, 2), 'utf8');
+        console.error(`\n[CRITICAL ERROR] Limpieza en Staging incompleta o indeterminada.`);
+        console.error(`Manifiesto seguro de IDs guardado en: ${manifestPath}\n`);
       } catch (writeErr) {
-        console.error(`Error guardando manifiesto:`, writeErr);
+        console.error('Error escribiendo manifiesto seguro:', writeErr);
       }
+    }
+
+    if (killSwitchFailed) {
+      throw new Error('[ALERTA CRÍTICA]: Falló la verificación de restauración del kill switch. Revisar logs para procedimiento manual.');
     }
 
     if (cleanupFailed) {

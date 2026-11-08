@@ -113,15 +113,17 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
       connectionTimeoutMillis: 5000,
     });
 
+    const runId = `local-harness-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+
     // Identificadores únicos dinámicos por ejecución para garantizar aislamiento absoluto
     const uid_Source = crypto.randomUUID();
     const uid_Target = crypto.randomUUID();
     const encId = crypto.randomUUID();
 
-    // Registro de identificadores para verificación determinista de residuo cero
+    // Registro de identificadores para verificación determinista de residuo cero (sin secretos)
     const trackedUserIds = [uid_Source, uid_Target];
     const trackedEncounterIds = [encId];
-    const trackedTicketTokens: string[] = [];
+    const trackedTicketHashes: string[] = []; // Solo hashes SHA256 (CERO tokens en texto claro)
 
     const clientAdmin = await pool.connect();
     const client1 = await pool.connect();
@@ -167,7 +169,8 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
       `);
       const ticketToken = emisionRes.rows[0].r.ticket_token;
       assert.ok(ticketToken, 'El ticket de prueba debe ser emitido');
-      trackedTicketTokens.push(ticketToken);
+      const ticketHash = crypto.createHash('sha256').update(ticketToken).digest('hex');
+      trackedTicketHashes.push(ticketHash);
 
       // 3. Preparación de claims por worker previo a la barrera
       await client1.query(`SELECT set_config('request.jwt.claim.sub', '${uid_Target}', false);`);
@@ -307,9 +310,10 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
         const encCheck = await clientAdmin.query(`SELECT host_id FROM public.encuentros WHERE id = '${encId}';`);
         assert.equal(encCheck.rows[0].host_id, uid_Source, 'El encuentro debe mantenerse en el host original Source');
 
-        // Si la re-emisión creó un nuevo ticket tras la revocación, registrar su token para limpieza
+        // Si la re-emisión creó un nuevo ticket tras la revocación, registrar su hash para auditoría
         if (createRes.ok && createRes.ticket_token) {
-          trackedTicketTokens.push(createRes.ticket_token);
+          const extraHash = crypto.createHash('sha256').update(createRes.ticket_token).digest('hex');
+          trackedTicketHashes.push(extraHash);
         }
       }
 
@@ -319,14 +323,14 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
       console.log(`  Estado terminal del ticket: ${finalStatus}. Cero inconsistencias.`);
       console.log('================================================================================');
     } finally {
-      // 7. Limpieza Determinista y Verificación de Residuo Cero
+      // 7. Limpieza Determinista y Verificación de Residuo Cero (Ambos extremos de relación)
       let cleanupFailed = false;
       let cleanupError: any = null;
       try {
         await clientAdmin.query(`
-          DELETE FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]);
-          DELETE FROM public.participantes WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]);
-          DELETE FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]);
+          DELETE FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR autor_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
+          DELETE FROM public.participantes WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
+          DELETE FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR host_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           DELETE FROM public.anonymous_transfer_tickets WHERE source_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]) OR target_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           DELETE FROM public.rate_limit_buckets WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           DELETE FROM public.inbox_notifications WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
@@ -338,8 +342,9 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
         // Comprobación exhaustiva de residuo cero (ningún count nulo ni asumido cero)
         const residueCheck = await clientAdmin.query(`
           SELECT
-            (SELECT COUNT(*) FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[])) AS enc_count,
-            (SELECT COUNT(*) FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[])) AS msg_count,
+            (SELECT COUNT(*) FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR host_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS enc_count,
+            (SELECT COUNT(*) FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR autor_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS msg_count,
+            (SELECT COUNT(*) FROM public.participantes WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]) OR user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS part_count,
             (SELECT COUNT(*) FROM public.anonymous_transfer_tickets WHERE source_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]) OR target_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS ticket_count,
             (SELECT COUNT(*) FROM public.rate_limit_buckets WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS rate_limit_count,
             (SELECT COUNT(*) FROM public.inbox_notifications WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS notif_count,
@@ -357,19 +362,20 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
         cleanupFailed = true;
         cleanupError = err;
         const manifest = {
+          run_id: runId,
           timestamp: new Date().toISOString(),
           status: 'CLEANUP_FAILED',
           error: err?.message || String(err),
           trackedUserIds,
           trackedEncounterIds,
-          trackedTicketTokens,
+          trackedTicketHashes, // Exclusivamente hashes SHA256 (CERO secretos)
         };
-        const manifestPath = path.resolve(process.cwd(), `recovery-manifest-local-harness-${Date.now()}.json`);
+        const manifestPath = path.resolve(process.cwd(), `recovery-manifest-local-${runId}.json`);
         try {
           fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
-          console.error(`[CRITICAL] Limpieza falló. Manifiesto de recuperación guardado en: ${manifestPath}`);
+          console.error(`[CRITICAL] Limpieza falló. Manifiesto seguro guardado en: ${manifestPath}`);
         } catch (writeErr) {
-          console.error(`[CRITICAL] Fallo al escribir manifiesto de recuperación:`, writeErr);
+          console.error(`[CRITICAL] Fallo al escribir manifiesto seguro:`, writeErr);
         }
       } finally {
         client1.release();
@@ -383,13 +389,6 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
       if (cleanupFailed) {
         throw new Error(`[EJECUTADO Y FALLIDO]: La limpieza o verificación de residuo cero falló: ${cleanupError?.message}`);
       }
-
-      client1.release();
-      client2.release();
-      client3.release();
-      client4.release();
-      clientAdmin.release();
-      await pool.end();
     }
   });
 });
