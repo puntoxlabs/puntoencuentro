@@ -119,6 +119,7 @@ export interface EnvSource {
   VITE_PUBLIC_SUPPORT_EMAIL?: string;
   VITE_APP_TWITTER_SITE?: string;
   VITE_REQUIRE_EXPLICIT_APP_URL?: string;
+  VITE_MIGRATION_TARGET_ORIGIN?: string;
   PUBLIC_APP_ORIGIN?: string;
   PUBLIC_STAGING_ORIGIN?: string;
   LEGACY_APP_ORIGINS?: string;
@@ -1289,4 +1290,166 @@ export function isValidRouteInvitationToken(token: unknown): token is string {
 /** Valida identificadores UUID de rutas (/e/:id, /meet/:id, /invitation/:id, /share/:id). */
 export function isValidRouteUuid(id: unknown): id is string {
   return typeof id === 'string' && UUID_V4_OR_RFC_REGEX.test(id.trim());
+}
+
+/**
+ * Determina si el origen actual del navegador corresponde a un dominio histórico (saliente).
+ */
+export function isCurrentOriginLegacy(runtimeOrigin?: string): boolean {
+  const globalWin =
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { window?: { location?: { origin?: string } } }).window
+      : undefined;
+  const browserOrigin = runtimeOrigin || globalWin?.location?.origin;
+  if (!browserOrigin) return false;
+  try {
+    const config = resolveDomainConfig();
+    const host = new URL(browserOrigin).host.toLowerCase();
+    return config.legacyHosts.has(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Obtiene el origen de destino para la migración de identidad.
+ * Si el origen actual es legado, el destino es el origen canónico vigente.
+ */
+export function getTargetMigrationOrigin(runtimeOrigin?: string): string {
+  const config = resolveDomainConfig({ runtimeBrowserOrigin: runtimeOrigin });
+  const viteMetaEnv =
+    typeof import.meta !== 'undefined'
+      ? (import.meta as { env?: Record<string, string | undefined> }).env
+      : undefined;
+  const viteExplicitTarget = viteMetaEnv?.VITE_MIGRATION_TARGET_ORIGIN;
+  if (viteExplicitTarget && typeof viteExplicitTarget === 'string' && viteExplicitTarget.trim()) {
+    try {
+      return normalizeAppOrigin(viteExplicitTarget, {
+        requireHttps: config.environment !== 'development',
+      });
+    } catch {
+      // fallback
+    }
+  }
+  return config.canonicalOrigin;
+}
+
+/**
+ * Orígenes locales explícitamente autorizados para desarrollo y pruebas del puente.
+ * NUNCA autorizar puertos arbitrarios (e.g. 5999) ni comodines localhost.
+ */
+export const AUTHORIZED_LOCAL_BRIDGE_ORIGINS: ReadonlySet<string> = Object.freeze(
+  new Set([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+  ])
+);
+
+/**
+ * Valida si un origen postMessage pertenece estrictamente a la lista autorizada de migración.
+ * Compara protocolo, hostname y puerto exactos (NUNCA solo host).
+ * Previene suplantación cross-origin (ADV-08).
+ */
+export function isTrustedBridgeOrigin(
+  origin: unknown,
+  options: { env?: EnvSource } = {}
+): boolean {
+  if (typeof origin !== 'string' || !origin.trim()) return false;
+  try {
+    const raw = origin.trim();
+    // Rechazar credenciales embebidas
+    if (raw.includes('@')) return false;
+
+    // Normalizar mediante URL estándar
+    const parsed = new URL(raw);
+
+    // No permitir rutas, queries ni fragmentos en un origen
+    if (parsed.pathname !== '' && parsed.pathname !== '/') return false;
+    if (parsed.search || parsed.hash) return false;
+
+    const candidateOrigin = parsed.origin.toLowerCase();
+    const config = resolveDomainConfig({ env: options.env, strict: false });
+
+    // Target explícito validado en opciones o entorno (e.g. VITE_MIGRATION_TARGET_ORIGIN)
+    const targetEnv =
+      options.env?.VITE_MIGRATION_TARGET_ORIGIN ||
+      (typeof import.meta !== 'undefined'
+        ? (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_MIGRATION_TARGET_ORIGIN
+        : undefined);
+    if (targetEnv && typeof targetEnv === 'string' && targetEnv.trim()) {
+      try {
+        const parsedTarget = new URL(targetEnv.trim()).origin.toLowerCase();
+        if (candidateOrigin === parsedTarget) {
+          if (config.environment !== 'development' && parsed.protocol !== 'https:') {
+            return false;
+          }
+          return true;
+        }
+      } catch {}
+    }
+
+    // 1. Origen canónico exacto del entorno actual (protocolo + hostname + puerto)
+    const canonicalOrigin = new URL(config.canonicalOrigin).origin.toLowerCase();
+    if (candidateOrigin === canonicalOrigin) {
+      if (config.environment !== 'development' && parsed.protocol !== 'https:') {
+        return false;
+      }
+      return true;
+    }
+
+    // 2. Orígenes históricos registrados exactos (dominio saliente del mismo entorno)
+    for (const legacy of config.legacyOrigins) {
+      const legacyOrigin = new URL(legacy).origin.toLowerCase();
+      if (candidateOrigin === legacyOrigin) {
+        if (config.environment !== 'development' && parsed.protocol !== 'https:') {
+          return false;
+        }
+        return true;
+      }
+    }
+
+    // 3. Orígenes locales autorizados para desarrollo y testing (solo fuera de producción)
+    if (config.environment !== 'production') {
+      if (AUTHORIZED_LOCAL_BRIDGE_ORIGINS.has(candidateOrigin)) {
+        return true;
+      }
+    }
+
+    // 4. Staging exacto en entorno de staging (HTTPS estricto)
+    if (config.environment === 'staging') {
+      const stagingOrigin = new URL(config.stagingOrigin).origin.toLowerCase();
+      if (candidateOrigin === stagingOrigin && parsed.protocol === 'https:') {
+        return true;
+      }
+    }
+
+    // 5. Entorno de Preview en Vercel:
+    // ÚNICAMENTE orígenes preview explícitamente autorizados del proyecto (VERCEL_PREVIEW_HOST_REGEX)
+    // NUNCA comodines genéricos ni dominios *.vercel.app de terceros
+    if (
+      config.environment === 'preview' &&
+      parsed.protocol === 'https:' &&
+      parsed.port === ''
+    ) {
+      // Validar si coincide con URLs inyectadas por Vercel para este despliegue/rama
+      if (options.env?.VERCEL_URL) {
+        const injectedDeployOrigin = `https://${options.env.VERCEL_URL.toLowerCase()}`;
+        if (candidateOrigin === injectedDeployOrigin) return true;
+      }
+      if (options.env?.VERCEL_BRANCH_URL) {
+        const injectedBranchOrigin = `https://${options.env.VERCEL_BRANCH_URL.toLowerCase()}`;
+        if (candidateOrigin === injectedBranchOrigin) return true;
+      }
+      // Validar patrón específico de puntoencuentro (<proyecto>-<hash>-<equipo>.vercel.app)
+      if (VERCEL_PREVIEW_HOST_REGEX.test(parsed.hostname)) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
 }

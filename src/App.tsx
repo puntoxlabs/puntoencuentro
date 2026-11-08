@@ -19,7 +19,9 @@ import InviteCoordination from '@/screens/InviteCoordination';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import { usePostAuthRedirect } from '@/hooks/usePostAuthRedirect';
-import { DATE_COORDINATION_ENABLED, AI_CREATION_ENABLED } from '@/config/features';
+import { DATE_COORDINATION_ENABLED, AI_CREATION_ENABLED, ENABLE_DOMAIN_MIGRATION_BRIDGE } from '@/config/features';
+import DomainBridgeSourceScreen from '@/screens/DomainBridgeSource';
+import DomainBridgeReceiveScreen from '@/screens/DomainBridgeReceive';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -52,6 +54,20 @@ const CoordinationFeatureGate: React.FC<{ children: React.ReactNode }> = ({ chil
         </div>
       </ScreenContainer>
     );
+  }
+  return <>{children}</>;
+};
+
+const DomainBridgeFeatureGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    if (!ENABLE_DOMAIN_MIGRATION_BRIDGE) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
+  if (!ENABLE_DOMAIN_MIGRATION_BRIDGE) {
+    return null;
   }
   return <>{children}</>;
 };
@@ -122,6 +138,22 @@ const AppRoutes: React.FC = () => {
       } />
       <Route path="/invitation/:id" element={<InternalInvitationGuest />} />
       <Route path="/cancel-summary/:id" element={<CancelSummary />} />
+      <Route
+        path="/auth/domain-bridge"
+        element={
+          <DomainBridgeFeatureGate>
+            <DomainBridgeSourceScreen />
+          </DomainBridgeFeatureGate>
+        }
+      />
+      <Route
+        path="/migrate-receive"
+        element={
+          <DomainBridgeFeatureGate>
+            <DomainBridgeReceiveScreen />
+          </DomainBridgeFeatureGate>
+        }
+      />
       <Route path="/internal/qa" element={<QAGate><InternalQAOverview /></QAGate>} />
       <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />
       <Route path="/internal/qa/sessions/:sessionId" element={<QAGate><QASessionDetail /></QAGate>} />

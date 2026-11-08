@@ -649,19 +649,6 @@ export const encuentrosService = {
     return list;
   },
 
-  async linkAnonymousEncuentros(anonId: string, userId: string) {
-    if (!anonId || !userId || anonId === userId) return;
-    if (import.meta.env.DEV) console.log(`[LINK] Transfiriendo encuentros de ${anonId} a ${userId}`);
-
-    const { data, error } = await supabase.rpc('transferir_encuentros_anonimos_seguro', {
-      p_anon_host_id: anonId,
-      p_user_id: userId
-    });
-    if (error) throw error;
-    const result = data as any;
-    if (!result?.ok) throw new Error(result?.error || 'transfer_failed');
-    return result;
-  },
 
   async updateEncuentro(id: string, campos: Partial<CreateEncuentroDTO>, hostId: string) {
     if (!hostId) throw new Error('host_id requerido para actualizar');

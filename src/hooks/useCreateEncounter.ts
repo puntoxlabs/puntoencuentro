@@ -2,6 +2,9 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { ensureHostSession } from '@/lib/ensureHostSession';
+import { isLocalSessionRetired } from '@/services/domainMigrationBridgeService';
+import { isCurrentOriginLegacy } from '@/config/domainConfig';
+import { ENABLE_DOMAIN_MIGRATION_BRIDGE } from '@/config/features';
 
 export const POST_AUTH_REDIRECT_KEY = 'post_auth_redirect';
 
@@ -18,6 +21,11 @@ export function useCreateEncounter() {
 
   const startFixedEncounter = () => {
     if (authLoading || creatingRef.current) return;
+
+    if (ENABLE_DOMAIN_MIGRATION_BRIDGE && isLocalSessionRetired(user?.id) && isCurrentOriginLegacy()) {
+      navigate('/auth/domain-bridge');
+      return;
+    }
 
     import('@/services/qaTelemetryService').then(({ qaTelemetryService }) => {
       qaTelemetryService.trackEvent({

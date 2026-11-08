@@ -18,6 +18,8 @@ import { getRomanticTemplateConfig } from '@/lib/romanticTemplates';
 import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
 import { GuestToHostCard } from '@/components/guest/GuestToHostCard';
 import { appUsageTelemetry } from '@/services/appUsageTelemetry';
+import { saveParticipatedToken } from '@/lib/participatedTokens';
+import { participantesService } from '@/services/participantesService';
 import '../CoordinationGuest.css';
 
 type CoordinationParticipantSuccess = Extract<CoordinationParticipantReadResult, { ok: true }>;
@@ -66,6 +68,9 @@ export default function InviteCoordination() {
         if (!res.ok) {
           setLoadErrorCode(res.error);
         } else {
+          saveParticipatedToken(token);
+          sessionStorage.setItem('pending_participant_invitation_token', token);
+          participantesService.linkParticipantTokenToCurrentUser(token).catch(() => {});
           setLoadErrorCode(null);
           setData(res);
 

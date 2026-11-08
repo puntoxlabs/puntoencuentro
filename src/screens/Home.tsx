@@ -42,7 +42,9 @@ import { themes } from '@/lib/themes';
 import type { ThemeId } from '@/lib/themes';
 import throttle from 'lodash/throttle';
 import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
-import { DATE_COORDINATION_ENABLED } from '@/config/features';
+import { DATE_COORDINATION_ENABLED, ENABLE_DOMAIN_MIGRATION_BRIDGE } from '@/config/features';
+import { isCurrentOriginLegacy, getTargetMigrationOrigin, getBrandConfig } from '@/config/domainConfig';
+import { isLocalSessionRetired } from '@/services/domainMigrationBridgeService';
 import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceSheet';
 import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
 import { AnonymousCoordinationWarningSheet } from '@/components/ui/AnonymousCoordinationWarningSheet';
@@ -978,6 +980,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
 
   const startNewEncounterWithIntent = async (text: string) => {
+    if (ENABLE_DOMAIN_MIGRATION_BRIDGE && isLocalSessionRetired(user?.id) && isCurrentOriginLegacy()) {
+      navigate('/auth/domain-bridge');
+      return;
+    }
     if (isSubmittingIntent) return;
     setIsSubmittingIntent(true);
     try {
@@ -1127,7 +1133,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       // Enviamos el UUID de la sesión solo por compatibilidad de la firma de la RPC.
       organized = await encuentrosService.getEncuentrosByHostIds([user.id]);
 
-      if (!user.is_anonymous) {
+      if (user?.id) {
         participated = await encuentrosService.getEncuentrosParticipados(user.id);
       }
 
@@ -1314,8 +1320,47 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         className={`${slideClass} home-scroll-container`}
       >
 
+        {/* Banner de Migración de Dominio */}
+        {ENABLE_DOMAIN_MIGRATION_BRIDGE && isCurrentOriginLegacy() && (
+          isLocalSessionRetired(user?.id) ? (
+            <div className="home-banner" style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981' }}>
+              <p className="home-banner-title" style={{ color: '#047857' }}>
+                Tus encuentros ya están en nuestra nueva dirección
+              </p>
+              <p className="home-banner-desc" style={{ color: '#065f46' }}>
+                Este navegador ya completó el traslado. Continuá directamente en {getBrandConfig().brandName} para no dejar nada atrás.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: 8 }}
+                onClick={() => { window.location.href = getTargetMigrationOrigin(); }}
+              >
+                Abrir {getBrandConfig().brandName}
+              </button>
+            </div>
+          ) : (
+            <div className="home-banner" style={{ backgroundColor: '#eff6ff', border: '1px solid #3b82f6' }}>
+              <p className="home-banner-title" style={{ color: '#1d4ed8' }}>
+                Nos estamos mudando a una nueva dirección
+              </p>
+              <p className="home-banner-desc" style={{ color: '#1e40af' }}>
+                Podés trasladar tus encuentros e invitaciones a nuestro nuevo sitio en un solo toque, sin necesidad de crear cuenta.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: 8 }}
+                onClick={() => navigate('/auth/domain-bridge')}
+              >
+                Trasladar mis encuentros
+              </button>
+            </div>
+          )
+        )}
+
         {/* Banner A: Usuario NO logueado + encuentros locales (Nudge Login) */}
-        {isAnonymousUser && (
+        {isAnonymousUser && !isLocalSessionRetired(user?.id) && (
           <div className="home-banner" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffca28' }}>
             <p className="home-banner-title" style={{ color: '#f57f17' }}>
               Protegé tu historial
@@ -1412,6 +1457,26 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               No hay encuentros anteriores
             </div>
           )
+        )}
+
+        {ENABLE_DOMAIN_MIGRATION_BRIDGE && !isCurrentOriginLegacy() && (
+          <div style={{ textAlign: 'center', margin: '1.5rem 0 0.5rem 0' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/migrate-receive')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#0284c7',
+                fontSize: '0.88rem',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: '0.25rem',
+              }}
+            >
+              ¿Tenías encuentros sin cuenta en el sitio anterior? Traelos acá
+            </button>
+          </div>
         )}
       </div>
     );

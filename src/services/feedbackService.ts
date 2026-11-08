@@ -45,6 +45,8 @@ export function normalizeRouteForFeedback(rawRoute?: string): string | null {
   if (clean === '/create') return '/create';
   if (clean === '/create/ai') return '/create/ai';
   if (clean === '/create/coordination') return '/create/coordination';
+  if (clean === '/auth/domain-bridge') return '/auth/domain-bridge';
+  if (clean === '/migrate-receive') return '/migrate-receive';
   if (/^\/e\/[^/]+$/.test(clean)) return '/e/:id';
   if (/^\/meet\/[^/]+$/.test(clean)) return '/meet/:id';
   if (/^\/coordination\/invite\/[^/]+$/.test(clean)) return '/coordination/invite/:token';
