@@ -15,6 +15,8 @@
 
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 import {
@@ -36,13 +38,13 @@ if (STAGING_URL.includes(PRODUCTION_PROJECT_REF)) {
   process.exit(1);
 }
 
-if (!process.env.STAGING_BRIDGE_QA_AUTHORIZED) {
+// COMPUERTA ESTRICTA: Exigir exactamente '1'
+if (process.env.STAGING_BRIDGE_QA_AUTHORIZED !== '1') {
   console.log('================================================================================');
   console.log('ESTADO DEL RUNNER: [PENDIENTE PARA MINI-SPRINT 2B-2]');
   console.log('  Este runner de Staging está completamente implementado y verificado en código.');
-  console.log('  Por mandato del Mini-Sprint 2B-1, NINGÚN script mutante remoto debe ejecutarse');
-  console.log('  hasta que la migración SQL sea formalmente autorizada y aplicada en Staging.');
-  console.log('  Para ejecutarlo en 2B-2, definir: STAGING_BRIDGE_QA_AUTHORIZED=1');
+  console.log('  Por mandato de seguridad, la ejecución remota requiere STAGING_BRIDGE_QA_AUTHORIZED === "1".');
+  console.log('  Cualquier otro valor impide completamente la ejecución.');
   console.log('================================================================================');
   process.exit(0);
 }
@@ -61,13 +63,64 @@ async function runStagingConcurrencyQA() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // Preflight de Privilegios: Verificar que service_role tiene permisos efectivos
+  console.log('Paso 0: Preflight de privilegios administrativos y RLS...');
+  const privilegeChecks = [
+    { table: 'anonymous_transfer_tickets', query: adminClient.from('anonymous_transfer_tickets').select('id', { head: true, count: 'exact' }) },
+    { table: 'domain_migration_settings', query: adminClient.from('domain_migration_settings').select('setting_key', { head: true, count: 'exact' }) },
+    { table: 'encuentros', query: adminClient.from('encuentros').select('id', { head: true, count: 'exact' }) },
+    { table: 'mensajes_encuentro', query: adminClient.from('mensajes_encuentro').select('id', { head: true, count: 'exact' }) },
+    { table: 'inbox_notifications', query: adminClient.from('inbox_notifications').select('id', { head: true, count: 'exact' }) },
+  ];
+
+  for (const check of privilegeChecks) {
+    const { error } = await check.query;
+    if (error) {
+      throw new Error(`[PREFLIGHT FALLIDO] service_role carece de permisos sobre '${check.table}': ${error.message} (${error.code})`);
+    }
+  }
+  console.log('  Privilegios de service_role validados.');
+
+  // Control estricto del Kill Switch: requiere autorización expresa
+  let previousBridgeSetting = false;
+  if (process.env.STAGING_ENABLE_BRIDGE_KILL_SWITCH !== '1') {
+    throw new Error(
+      '[KILL SWITCH GUARD]: El puente de identidad cross-origin está desactivado por defecto.\n' +
+      'Para habilitarlo temporalmente durante la prueba de concurrencia se requiere STAGING_ENABLE_BRIDGE_KILL_SWITCH === "1".\n' +
+      'El runner no modificará el estado del kill switch sin esta autorización explícita.'
+    );
+  }
+
+  // Leer estado anterior para restaurarlo determinísticamente en finally
+  const { data: initialSetting, error: settingReadErr } = await adminClient
+    .from('domain_migration_settings')
+    .select('setting_value')
+    .eq('setting_key', 'cross_origin_bridge_enabled')
+    .maybeSingle();
+
+  if (settingReadErr) {
+    throw new Error(`Error leyendo domain_migration_settings: ${settingReadErr.message}`);
+  }
+  previousBridgeSetting = initialSetting?.setting_value ?? false;
+
+  console.log(`  Estado previo de 'cross_origin_bridge_enabled': ${previousBridgeSetting}`);
+  console.log('  Activando temporalmente kill switch para la prueba con autorización explícita...');
+  const { error: setErr } = await adminClient.rpc('set_domain_migration_setting', {
+    p_key: 'cross_origin_bridge_enabled',
+    p_value: true,
+  });
+  if (setErr) {
+    throw new Error(`Fallo activando kill switch temporal: ${setErr.message}`);
+  }
+
   const trackedUserIds: string[] = [];
   const trackedEncounterIds: string[] = [];
   const trackedTicketTokens: string[] = [];
+  let testExecutionFailed = false;
 
   try {
     // 2. Crear clientes y sesiones anónimas reales vía GoTrue
-    console.log('Paso 1: Creando identidades anónimas de prueba en GoTrue Staging...');
+    console.log('\nPaso 1: Creando identidades anónimas de prueba en GoTrue Staging...');
     const sourceClient = createClient(STAGING_URL, publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
@@ -92,19 +145,21 @@ async function runStagingConcurrencyQA() {
     console.log(`  Source UID (anónimo): ${uid_Source}`);
     console.log(`  Target UID (anónimo): ${uid_Target}`);
 
-    // 3. Crear encuentro de prueba mediante la RPC productiva autenticada
-    console.log('Paso 2: Creando encuentro de prueba para Source...');
-    const encRes = await sourceClient.rpc('crear_encuentro_seguro', {
-      p_titulo: `Staging Concurrency QA ${crypto.randomUUID().slice(0, 8)}`,
-      p_descripcion: 'Encuentro para auditoría de concurrencia y carrera de transferencia',
-      p_fecha: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10),
-      p_hora: '21:00',
-      p_modalidad: 'presencial',
-      p_tipo_invitacion: 'link_general',
-      p_capacidad_maxima: 10,
-    });
+    // 3. Crear encuentro de prueba mediante la RPC productiva autenticada respetando firma (p_data jsonb)
+    console.log('Paso 2: Creando encuentro de prueba para Source mediante crear_encuentro_seguro(p_data)...');
+    const encPayload = {
+      titulo: `Staging Concurrency QA ${crypto.randomUUID().slice(0, 8)}`,
+      descripcion: 'Encuentro para auditoría de concurrencia y carrera de transferencia',
+      fecha: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10),
+      hora: '21:00',
+      modalidad: 'presencial',
+      tipo_invitacion: 'link_general',
+      post_event_active_minutes: 45,
+    };
 
-    if (!encRes.data?.id) {
+    const encRes = await sourceClient.rpc('crear_encuentro_seguro', { p_data: encPayload });
+
+    if (encRes.error || !encRes.data?.id) {
       throw new Error(`Fallo al crear encuentro: ${JSON.stringify(encRes.error || encRes.data)}`);
     }
     const encId = encRes.data.id;
@@ -118,7 +173,7 @@ async function runStagingConcurrencyQA() {
       p_intended_target_user_id: uid_Target,
     });
 
-    if (!ticketRes.data?.ok || !ticketRes.data?.ticket_token) {
+    if (ticketRes.error || !ticketRes.data?.ok || !ticketRes.data?.ticket_token) {
       throw new Error(`Fallo emisión ticket: ${JSON.stringify(ticketRes.error || ticketRes.data)}`);
     }
     const ticketToken = ticketRes.data.ticket_token;
@@ -175,15 +230,23 @@ async function runStagingConcurrencyQA() {
     const results = await Promise.all(workerPromises);
 
     console.log('Paso 5: Analizando respuestas de cada worker...');
+    for (const r of results) {
+      if (r.res.error && !['PGRST', '23', '40', '55'].some((prefix) => r.res.error.code?.startsWith(prefix))) {
+        // Loguear errores inesperados
+      }
+      console.log(`  ${r.worker}:`, r.res.data || r.res.error);
+    }
+
     const claimRes = results.find((r) => r.worker === 'claim')!.res;
     const createRes = results.find((r) => r.worker === 'create_ticket')!.res;
     const revokeRes = results.find((r) => r.worker === 'revoke')!.res;
     const msgRes = results.find((r) => r.worker === 'message')!.res;
 
-    console.log('  Claim Result:', claimRes.data || claimRes.error);
-    console.log('  Create Result:', createRes.data || createRes.error);
-    console.log('  Revoke Result:', revokeRes.data || revokeRes.error);
-    console.log('  Message Result:', msgRes.data || msgRes.error);
+    // Ningún error no controlado de red o PostgREST debe ser ignorado
+    assert.ok(!claimRes.error, `Error no controlado en Worker claim: ${claimRes.error?.message}`);
+    assert.ok(!createRes.error, `Error no controlado en Worker create_ticket: ${createRes.error?.message}`);
+    assert.ok(!revokeRes.error, `Error no controlado en Worker revoke: ${revokeRes.error?.message}`);
+    assert.ok(!msgRes.error, `Error no controlado en Worker message: ${msgRes.error?.message}`);
 
     // 6. Verificación de invariantes en Base de Datos vía Admin Client
     const { data: ticketDb, error: ticketDbErr } = await adminClient
@@ -217,6 +280,20 @@ async function runStagingConcurrencyQA() {
         ['transfer_ticket_already_pending', 'anonymous_session_already_migrated'].includes(createRes.data?.error),
         'Re-emisión debe fallar con error esperado'
       );
+
+      // Verificación de mensajería frente a retiro de identidad
+      if (msgRes.data?.ok === true) {
+        const { data: msgDb } = await adminClient
+          .from('mensajes_encuentro')
+          .select('autor_user_id')
+          .eq('encuentro_id', encId)
+          .single();
+        if (msgDb) {
+          assert.equal(msgDb.autor_user_id, uid_Target, 'Si el mensaje se publicó antes del canje, debe pertenecer a Target');
+        }
+      } else {
+        assert.equal(msgRes.data?.error, 'anonymous_session_already_migrated');
+      }
     } else {
       console.log('  -> PERMUTACIÓN B: La revocación ganó la carrera de concurrencia.');
       assert.equal(ticketDb.status, 'revoked', 'Ticket debe estar en status revoked');
@@ -231,44 +308,95 @@ async function runStagingConcurrencyQA() {
     console.log('  - Cero bypass de permisos o identidades.');
     console.log('  - Jerarquía de locks validada bajo PostgREST HTTP concurrent requests.');
     console.log('================================================================================\n');
+  } catch (err: any) {
+    testExecutionFailed = true;
+    throw err;
   } finally {
-    // 7. Limpieza Determinista y Verificación de Residuo Cero en Staging
-    console.log('Paso 6: Ejecutando limpieza exhaustiva y verificando residuo cero...');
+    // 7. Restauración del Kill Switch y Limpieza Determinista con Residuo Cero
+    console.log('Paso 6: Restaurando estado de Kill Switch y ejecutando limpieza...');
+    let cleanupFailed = false;
+    let cleanupError: any = null;
+
     try {
+      // Restaurar estado anterior del kill switch
+      await adminClient.rpc('set_domain_migration_setting', {
+        p_key: 'cross_origin_bridge_enabled',
+        p_value: previousBridgeSetting,
+      });
+
+      // Limpieza exhaustiva de fixtures
       if (trackedEncounterIds.length > 0) {
-        await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
-        await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
-        await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
+        const { error: msgErr } = await adminClient.from('mensajes_encuentro').delete().in('encuentro_id', trackedEncounterIds);
+        if (msgErr) throw msgErr;
+        const { error: partErr } = await adminClient.from('participantes').delete().in('encuentro_id', trackedEncounterIds);
+        if (partErr) throw partErr;
+        const { error: encErr } = await adminClient.from('encuentros').delete().in('id', trackedEncounterIds);
+        if (encErr) throw encErr;
       }
 
       if (trackedUserIds.length > 0) {
-        await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
-        await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
-        await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
-        await adminClient.from('inbox_notifications').delete().in('user_id', trackedUserIds);
-        await adminClient.from('notification_delivery_outbox').delete().in('user_id', trackedUserIds);
+        const { error: t1Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('source_user_id_snapshot', trackedUserIds);
+        if (t1Err) throw t1Err;
+        const { error: t2Err } = await adminClient.from('anonymous_transfer_tickets').delete().in('target_user_id_snapshot', trackedUserIds);
+        if (t2Err) throw t2Err;
+        const { error: rlErr } = await adminClient.from('rate_limit_buckets').delete().in('user_id', trackedUserIds);
+        if (rlErr) throw rlErr;
+        // Columna real: recipient_user_id
+        const { error: notifErr } = await adminClient.from('inbox_notifications').delete().in('recipient_user_id', trackedUserIds);
+        if (notifErr) throw notifErr;
+        const { error: outboxErr } = await adminClient.from('notification_delivery_outbox').delete().in('recipient_user_id', trackedUserIds);
+        if (outboxErr) throw outboxErr;
 
         for (const uid of trackedUserIds) {
           await adminClient.auth.admin.deleteUser(uid);
         }
       }
 
-      // Verificación de residuo cero
-      const { count: encCount } = await adminClient
-        .from('encuentros')
-        .select('*', { count: 'exact', head: true })
-        .in('id', trackedEncounterIds);
+      // Verificación estricta de residuo cero (prohibido asumir count === null como 0)
+      const residueTables = [
+        { name: 'encuentros', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', trackedEncounterIds) },
+        { name: 'tickets', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', trackedUserIds) },
+        { name: 'mensajes', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
+        { name: 'notificaciones', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
+      ];
 
-      const { count: ticketCount } = await adminClient
-        .from('anonymous_transfer_tickets')
-        .select('*', { count: 'exact', head: true })
-        .in('source_user_id_snapshot', trackedUserIds);
+      for (const t of residueTables) {
+        const { count, error } = await t.query;
+        if (error) {
+          throw new Error(`Error al verificar residuo en ${t.name}: ${error.message}`);
+        }
+        if (count === null || count === undefined) {
+          throw new Error(`Residuo indeterminado en ${t.name}: count retornó null/undefined.`);
+        }
+        assert.equal(count, 0, `Residuo en ${t.name} debe ser estrictamente 0, encontrado: ${count}`);
+      }
 
-      assert.equal(encCount || 0, 0, 'Residuo en encuentros debe ser 0');
-      assert.equal(ticketCount || 0, 0, 'Residuo en anonymous_transfer_tickets debe ser 0');
       console.log('  Limpieza verificada: 0 registros residuales en Staging.');
-    } catch (cleanupErr) {
-      console.error('  Error durante limpieza de fixtures en Staging:', cleanupErr);
+    } catch (cleanupErr: any) {
+      cleanupFailed = true;
+      cleanupError = cleanupErr;
+
+      // Preservar manifiesto de recuperación segura en disco
+      const manifest = {
+        timestamp: new Date().toISOString(),
+        status: 'CLEANUP_FAILED',
+        error: cleanupErr?.message || String(cleanupErr),
+        trackedUserIds,
+        trackedEncounterIds,
+        trackedTicketTokens,
+      };
+      const manifestPath = path.resolve(process.cwd(), `recovery-manifest-staging-concurrency-${Date.now()}.json`);
+      try {
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+        console.error(`\n[CRITICAL ERROR] Limpieza en Staging falló.`);
+        console.error(`Manifiesto de IDs para remediación segura guardado en: ${manifestPath}\n`);
+      } catch (writeErr) {
+        console.error(`Error guardando manifiesto:`, writeErr);
+      }
+    }
+
+    if (cleanupFailed) {
+      throw new Error(`[STAGING QA FALLIDO]: Fallo de limpieza o verificación de residuo cero: ${cleanupError?.message}`);
     }
   }
 }

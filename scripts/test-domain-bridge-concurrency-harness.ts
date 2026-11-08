@@ -33,9 +33,49 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Exclusivamente para PostgreSQL local. Prohibido conectar a bases remotas en 2B-1.
 const localPgUrl = process.env.LOCAL_POSTGRES_URL;
+
+const STAGING_REF = 'wougfhfwqgmxhgvjqoua';
+const PRODUCTION_REF = 'aurbicjwftjhwryhyjiq';
+
+/**
+ * Validador estricto de aislamiento local:
+ * Rechaza terminantemente cualquier host remoto o referencias a project refs
+ * de Producción o Staging antes de abrir conexiones o mutar datos.
+ */
+function assertStrictLocalPostgresUrl(rawUrl: string): void {
+  // 1. Prohibir explícitamente cualquier referencia a los proyectos de Supabase o cloud
+  if (
+    rawUrl.includes(STAGING_REF) ||
+    rawUrl.includes(PRODUCTION_REF) ||
+    rawUrl.includes('supabase.co') ||
+    rawUrl.includes('pooler.supabase.com')
+  ) {
+    throw new Error(
+      `[CRITICAL SECURITY GUARD]: LOCAL_POSTGRES_URL contiene referencias a Supabase remoto (${STAGING_REF} / ${PRODUCTION_REF}). Conexión remota prohibida.`
+    );
+  }
+
+  // 2. Parsear URL y verificar hostname
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch (err: any) {
+    throw new Error(`[CRITICAL SECURITY GUARD]: LOCAL_POSTGRES_URL no es una URL válida: ${err?.message}`);
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const allowedLocalHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+  if (!allowedLocalHosts.has(hostname)) {
+    throw new Error(
+      `[CRITICAL SECURITY GUARD]: Host '${hostname}' en LOCAL_POSTGRES_URL no es un host local permitido (${Array.from(allowedLocalHosts).join(', ')}). Conexión a bases remotas estrictamente prohibida en 2B-1.`
+    );
+  }
+}
 
 describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y Anti-Deadlock', () => {
   if (!localPgUrl) {
@@ -56,6 +96,9 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
   }
 
   test('EJECUTADO: Carrera simultánea de 4 conexiones independientes con barrera de sincronización', async () => {
+    // Validar aislamiento local antes de requerir librerías o abrir sockets
+    assertStrictLocalPostgresUrl(localPgUrl);
+
     let pgModule: any;
     try {
       pgModule = await import('pg');
@@ -245,9 +288,9 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
         // Verificación del worker de mensajería frente a la transferencia
         if (msgRes.ok === true) {
           // Si el mensaje se insertó antes del canje, la transferencia debió migrar su autoría a uid_Target
-          const msgCheck = await clientAdmin.query(`SELECT autor_id FROM public.mensajes_encuentro WHERE encuentro_id = '${encId}';`);
+          const msgCheck = await clientAdmin.query(`SELECT autor_user_id FROM public.mensajes_encuentro WHERE encuentro_id = '${encId}';`);
           if (msgCheck.rows.length > 0) {
-            assert.equal(msgCheck.rows[0].autor_id, uid_Target, 'Si el mensaje se publicó antes del canje, su autoría debe pertenecer a Target');
+            assert.equal(msgCheck.rows[0].autor_user_id, uid_Target, 'Si el mensaje se publicó antes del canje, su autoría debe pertenecer a Target');
           }
         } else {
           // Si el mensaje se intentó tras el canje, debió ser rechazado por retiro de identidad
@@ -277,6 +320,8 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
       console.log('================================================================================');
     } finally {
       // 7. Limpieza Determinista y Verificación de Residuo Cero
+      let cleanupFailed = false;
+      let cleanupError: any = null;
       try {
         await clientAdmin.query(`
           DELETE FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]);
@@ -284,31 +329,59 @@ describe('Mini-Sprint 2B-1: Arnés Multi-Conexión PostgreSQL de Concurrencia y 
           DELETE FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[]);
           DELETE FROM public.anonymous_transfer_tickets WHERE source_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]) OR target_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           DELETE FROM public.rate_limit_buckets WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
-          DELETE FROM public.inbox_notifications WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
-          DELETE FROM public.notification_delivery_outbox WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
+          DELETE FROM public.inbox_notifications WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
+          DELETE FROM public.notification_delivery_outbox WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           DELETE FROM auth.users WHERE id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]);
           SELECT public.set_domain_migration_setting('cross_origin_bridge_enabled', false);
         `);
 
-        // Comprobación exhaustiva de residuo cero
+        // Comprobación exhaustiva de residuo cero (ningún count nulo ni asumido cero)
         const residueCheck = await clientAdmin.query(`
           SELECT
             (SELECT COUNT(*) FROM public.encuentros WHERE id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[])) AS enc_count,
             (SELECT COUNT(*) FROM public.mensajes_encuentro WHERE encuentro_id = ANY(ARRAY['${trackedEncounterIds.join("','")}']::uuid[])) AS msg_count,
             (SELECT COUNT(*) FROM public.anonymous_transfer_tickets WHERE source_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[]) OR target_user_id_snapshot = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS ticket_count,
             (SELECT COUNT(*) FROM public.rate_limit_buckets WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS rate_limit_count,
-            (SELECT COUNT(*) FROM public.inbox_notifications WHERE user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS notif_count,
+            (SELECT COUNT(*) FROM public.inbox_notifications WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS notif_count,
+            (SELECT COUNT(*) FROM public.notification_delivery_outbox WHERE recipient_user_id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS outbox_count,
             (SELECT COUNT(*) FROM auth.users WHERE id = ANY(ARRAY['${trackedUserIds.join("','")}']::uuid[])) AS user_count;
         `);
-        const { enc_count, msg_count, ticket_count, rate_limit_count, notif_count, user_count } = residueCheck.rows[0];
-        assert.equal(Number(enc_count), 0, 'Residuo en encuentros debe ser 0');
-        assert.equal(Number(msg_count), 0, 'Residuo en mensajes debe ser 0');
-        assert.equal(Number(ticket_count), 0, 'Residuo en tickets debe ser 0');
-        assert.equal(Number(rate_limit_count), 0, 'Residuo en rate_limit_buckets debe ser 0');
-        assert.equal(Number(notif_count), 0, 'Residuo en inbox_notifications debe ser 0');
-        assert.equal(Number(user_count), 0, 'Residuo en auth.users debe ser 0');
-      } catch (cleanupErr) {
-        console.error('Error durante limpieza de fixtures:', cleanupErr);
+        const row = residueCheck.rows[0];
+        for (const [col, countVal] of Object.entries(row)) {
+          if (countVal === null || countVal === undefined) {
+            throw new Error(`Residuo indeterminado: ${col} retornó null/undefined (posible error SQL)`);
+          }
+          assert.equal(Number(countVal), 0, `Residuo en ${col} debe ser estrictamente 0, encontrado: ${countVal}`);
+        }
+      } catch (err: any) {
+        cleanupFailed = true;
+        cleanupError = err;
+        const manifest = {
+          timestamp: new Date().toISOString(),
+          status: 'CLEANUP_FAILED',
+          error: err?.message || String(err),
+          trackedUserIds,
+          trackedEncounterIds,
+          trackedTicketTokens,
+        };
+        const manifestPath = path.resolve(process.cwd(), `recovery-manifest-local-harness-${Date.now()}.json`);
+        try {
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+          console.error(`[CRITICAL] Limpieza falló. Manifiesto de recuperación guardado en: ${manifestPath}`);
+        } catch (writeErr) {
+          console.error(`[CRITICAL] Fallo al escribir manifiesto de recuperación:`, writeErr);
+        }
+      } finally {
+        client1.release();
+        client2.release();
+        client3.release();
+        client4.release();
+        clientAdmin.release();
+        await pool.end();
+      }
+
+      if (cleanupFailed) {
+        throw new Error(`[EJECUTADO Y FALLIDO]: La limpieza o verificación de residuo cero falló: ${cleanupError?.message}`);
       }
 
       client1.release();
