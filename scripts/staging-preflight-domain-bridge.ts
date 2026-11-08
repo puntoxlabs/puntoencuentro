@@ -255,15 +255,15 @@ export async function runReadOnlyPreflight(): Promise<{
         detalle: `Tabla existe pero faltan columnas base esperadas: ${missingCols.join(', ')}`,
       });
     } else {
-      // Fallback a consulta HEAD no mutante para verificar si la tabla existe en PostgreSQL
-      const { error: headErr } = await adminClient.from(t.name).select(t.cols[0], { head: true, count: 'exact' });
+      // Fallback a consulta no mutante de lectura limit(1)
+      const { error: headErr } = await adminClient.from(t.name).select(t.cols[0]).limit(1);
       if (!headErr) {
         items.push({
           fase: 'BASE_PREEXISTENTE',
-          categoria: 'Tabla Base (HEAD)',
+          categoria: 'Tabla Base (SELECT)',
           elemento: t.name,
           estado: 'OK_PREEXISTENTE',
-          detalle: `Accesible mediante SELECT HEAD administrativo de service_role.`,
+          detalle: `Accesible mediante SELECT de service_role.`,
         });
       } else {
         items.push({
@@ -343,11 +343,12 @@ export async function runReadOnlyPreflight(): Promise<{
 
   // 3.1 Tabla domain_migration_settings
   const hasSettingsInPaths = '/domain_migration_settings' in paths;
-  const { error: settingsHeadErr } = await adminClient
+  const { error: settingsErr } = await adminClient
     .from('domain_migration_settings')
-    .select('setting_key', { head: true, count: 'exact' });
+    .select('setting_key')
+    .limit(1);
 
-  if (!settingsHeadErr || hasSettingsInPaths) {
+  if (!settingsErr || hasSettingsInPaths) {
     items.push({
       fase: 'NUEVO_2B1',
       categoria: 'Tabla Nueva',
@@ -355,13 +356,18 @@ export async function runReadOnlyPreflight(): Promise<{
       estado: 'OK_MIGRADO',
       detalle: 'Tabla de configuración de migración desplegada y accesible.',
     });
-  } else if (settingsHeadErr?.code === '42P01' || settingsHeadErr?.message.includes('does not exist')) {
+  } else if (
+    settingsErr.code === 'PGRST205' ||
+    settingsErr.code === '42P01' ||
+    settingsErr.message.includes('Could not find') ||
+    settingsErr.message.includes('does not exist')
+  ) {
     items.push({
       fase: 'NUEVO_2B1',
       categoria: 'Tabla Nueva',
       elemento: 'domain_migration_settings',
       estado: 'PENDIENTE_MIGRACION',
-      detalle: 'Tabla no existe aún en Staging (código 42P01, esperado antes de migración 2B-1).',
+      detalle: 'Tabla no existe aún en Staging (PGRST205/42P01, esperado antes de migración 2B-1).',
     });
   } else {
     items.push({
@@ -369,7 +375,7 @@ export async function runReadOnlyPreflight(): Promise<{
       categoria: 'Tabla Nueva',
       elemento: 'domain_migration_settings',
       estado: 'NO_VERIFICABLE',
-      detalle: `Estado ambiguo de tabla: ${settingsHeadErr?.message || 'sin datos de catálogo'}`,
+      detalle: `Estado ambiguo de tabla: ${settingsErr.message} (${settingsErr.code})`,
     });
   }
 
@@ -388,26 +394,32 @@ export async function runReadOnlyPreflight(): Promise<{
       detalle: `Columnas nuevas de 2B-1 presentes en catálogo OpenAPI.`,
     });
   } else {
-    // Comprobar con HEAD si existen en PostgreSQL
-    const { error: colHeadErr } = await adminClient
+    // Comprobar con lectura GET limit 1 si existen en PostgreSQL
+    const { error: colErr } = await adminClient
       .from('anonymous_transfer_tickets')
-      .select('flow_mode, intended_target_user_id', { head: true });
+      .select('flow_mode, intended_target_user_id')
+      .limit(1);
 
-    if (!colHeadErr) {
+    if (!colErr) {
       items.push({
         fase: 'NUEVO_2B1',
         categoria: 'Columnas 2B-1',
         elemento: 'anonymous_transfer_tickets (flow_mode, intended_target_user_id)',
         estado: 'OK_MIGRADO',
-        detalle: `Columnas nuevas verificadas vía SELECT HEAD de service_role.`,
+        detalle: `Columnas nuevas verificadas vía SELECT de service_role.`,
       });
-    } else if (colHeadErr.code === '42703' || colHeadErr.message.includes('column') || colHeadErr.message.includes('does not exist')) {
+    } else if (
+      colErr.code === '42703' ||
+      colErr.code === 'PGRST204' ||
+      colErr.message.includes('column') ||
+      colErr.message.includes('does not exist')
+    ) {
       items.push({
         fase: 'NUEVO_2B1',
         categoria: 'Columnas 2B-1',
         elemento: 'anonymous_transfer_tickets (flow_mode, intended_target_user_id)',
         estado: 'PENDIENTE_MIGRACION',
-        detalle: `Columnas aún no creadas en tickets (esperado antes de aplicar migración 2B-1).`,
+        detalle: `Columnas aún no creadas en tickets (código 42703, esperado antes de aplicar migración 2B-1).`,
       });
     } else {
       items.push({
@@ -415,7 +427,7 @@ export async function runReadOnlyPreflight(): Promise<{
         categoria: 'Columnas 2B-1',
         elemento: 'anonymous_transfer_tickets (flow_mode, intended_target_user_id)',
         estado: 'NO_VERIFICABLE',
-        detalle: `Error al comprobar columnas: ${colHeadErr.message}`,
+        detalle: `Error al comprobar columnas: ${colErr.message} (${colErr.code})`,
       });
     }
   }
@@ -507,15 +519,15 @@ export async function runReadOnlyPreflight(): Promise<{
   const rlsTargetTables = ['domain_migration_settings', 'anonymous_transfer_tickets'];
 
   for (const tableName of rlsTargetTables) {
-    // Si la tabla aún no existe, registrar como PENDIENTE_MIGRACION
-    const isTableMissing = items.some((it) => it.elemento === tableName && it.estado === 'PENDIENTE_MIGRACION');
-    if (isTableMissing) {
+    // Si la tabla aún no existe en la base de datos (PENDIENTE_MIGRACION), registrar como PENDIENTE_MIGRACION
+    const isTablePending = items.some((it) => it.elemento === tableName && it.estado === 'PENDIENTE_MIGRACION');
+    if (isTablePending) {
       items.push({
         fase: 'SEGURIDAD_RLS',
         categoria: 'Permisos anon',
         elemento: tableName,
         estado: 'PENDIENTE_MIGRACION',
-        detalle: `Tabla no existe aún. La validación RLS se ejecutará tras la migración.`,
+        detalle: `Tabla pendiente de migración 2B-1. La validación RLS se ejecutará tras la migración.`,
       });
       continue;
     }
@@ -603,13 +615,21 @@ export async function runReadOnlyPreflight(): Promise<{
           : 'CONFIRMADO: Kill switch apagado por defecto (false). Puente contenido.',
       });
     }
-  } else {
+  } else if (settingsTableStatus === 'PENDIENTE_MIGRACION') {
     items.push({
       fase: 'KILL_SWITCH',
       categoria: 'Configuración Servidor',
       elemento: 'cross_origin_bridge_enabled',
       estado: 'PENDIENTE_MIGRACION',
       detalle: 'Tabla de settings ausente. El kill switch se sembrará en la migración 2B-1.',
+    });
+  } else {
+    items.push({
+      fase: 'KILL_SWITCH',
+      categoria: 'Configuración Servidor',
+      elemento: 'cross_origin_bridge_enabled',
+      estado: 'NO_VERIFICABLE',
+      detalle: 'Estado no verificable debido a inconsistencia previa en domain_migration_settings.',
     });
   }
 
