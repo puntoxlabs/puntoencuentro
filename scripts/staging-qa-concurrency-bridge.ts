@@ -306,14 +306,12 @@ export async function runStagingConcurrencyQA(): Promise<StagingQAResult> {
 
     // 1.5 Consultas habituales de encuentros, participantes y mensajería
     console.log('  1.5 Verificando contratos de lectura de encuentros y participantes...');
-    const { data: encFetch, error: encFetchErr } = await clientP1
-      .from('encuentros')
-      .select('id, titulo, estado')
-      .eq('id', encP1Id)
-      .single();
-    assert.ok(!encFetchErr && encFetch, `Error leyendo encuentro propio: ${encFetchErr?.message}`);
-    assert.equal(encFetch.titulo.startsWith('Fase 1 Pre-Bridge Test'), true);
-    console.log('      Contratos de consulta habitual verificados.');
+    const { data: encFetch, error: encFetchErr } = await clientP1.rpc('get_encuentros_host_seguro', {
+      p_host_ids: [uid_P1],
+    });
+    assert.ok(!encFetchErr && Array.isArray(encFetch) && encFetch.length > 0, `Error leyendo encuentro propio vía RPC: ${encFetchErr?.message}`);
+    assert.equal(encFetch[0].id, encP1Id);
+    console.log('      Contratos de consulta habitual verificados vía get_encuentros_host_seguro.');
 
     phase1Passed = true;
     console.log('\n>>> FASE 1 COMPLETADA CON ÉXITO: 5/5 comprobaciones aprobadas con switches apagados.\n');
