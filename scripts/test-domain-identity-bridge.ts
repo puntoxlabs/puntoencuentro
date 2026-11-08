@@ -1240,8 +1240,24 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     const resWrite = await db.query(`SELECT public.crear_encuentro_seguro('{"titulo":"Encuentro Tardío"}'::jsonb) AS r;`);
     assert.equal((resWrite.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
+    // Emisión legacy post-retiro: serialize con pe_identity_mutation y rechaza de forma determinista
+    const resLegacyTicket = await db.query(`SELECT public.create_anonymous_transfer_ticket() AS r;`);
+    assert.equal((resLegacyTicket.rows[0] as any).r.error, 'anonymous_session_already_migrated');
+
+    // Trigger de templates con bypass skip_template_limit: NUNCA elude el retiro de identidad
+    await db.query(`SELECT set_config('puntoencuentro.skip_template_limit', 'on', false);`);
+    await assert.rejects(async () => {
+      await db.query(`INSERT INTO public.custom_invitation_templates (user_id, name, image_path) VALUES ('${uid_A}', 'Bypass Ilegal', '/x.png');`);
+    }, /anonymous_session_already_migrated/);
+    await db.query(`SELECT set_config('puntoencuentro.skip_template_limit', 'off', false);`);
+
     const checkRemanente = await db.query(`SELECT COUNT(*) as c FROM public.encuentros WHERE host_id = '${uid_A}';`);
     assert.equal(Number((checkRemanente.rows[0] as any).c), 0, 'Cero encuentros huérfanos bajo uid_A');
+
+    // Sesión activa B: puede emitir ticket legacy legítimo
+    await setAuth(uid_B, true);
+    const resBToken = await db.query(`SELECT public.create_anonymous_transfer_ticket() AS r;`);
+    assert.equal((resBToken.rows[0] as any).r.ok, true, 'Sesión activa B debe poder emitir ticket legacy de upgrade');
   });
 
   // =========================================================================

@@ -1514,13 +1514,15 @@ BEGIN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'anonymous_user_required');
     END IF;
 
+    -- Level 1: Serialización transaccional estricta mediante namespace canónico pe_identity_mutation
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtext('pe_identity_mutation:' || v_user_id::text)
+    );
+
     -- Guardia obligatoria: rechazar si la sesión anónima ya fue retirada
     IF public.is_retired_anonymous_source(v_user_id) THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
     END IF;
-
-    -- Serialización transaccional estricta por source
-    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(v_user_id::text || '_transfer_ticket'));
 
     -- Verificación exhaustiva de recursos transferibles
     SELECT (
@@ -2382,18 +2384,20 @@ AS $$
 DECLARE
     v_active_count integer;
 BEGIN
-    IF pg_catalog.current_setting('puntoencuentro.skip_template_limit', true) = 'on' THEN
-        RETURN NEW;
-    END IF;
-
     -- Level 1: Serialización estricta con el motor de mutación de identidad
     PERFORM pg_catalog.pg_advisory_xact_lock(
         pg_catalog.hashtext('pe_identity_mutation:' || NEW.user_id::text)
     );
 
+    -- Guardia obligatoria de identidad retirada: NUNCA eludible por skip_template_limit
     IF public.is_retired_anonymous_source(NEW.user_id) THEN
         RAISE EXCEPTION 'anonymous_session_already_migrated'
             USING HINT = 'La sesión anónima ha sido transferida y retirada para nuevas operaciones.';
+    END IF;
+
+    -- El bypass del motor transaccional interno omite ÚNICAMENTE el tope cuantitativo de 3 plantillas activas
+    IF pg_catalog.current_setting('puntoencuentro.skip_template_limit', true) = 'on' THEN
+        RETURN NEW;
     END IF;
 
     IF NEW.is_active IS DISTINCT FROM true THEN
