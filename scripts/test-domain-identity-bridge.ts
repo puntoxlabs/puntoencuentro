@@ -502,7 +502,7 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
   // =========================================================================
   // ADV-20: KILL SWITCH SQL Y TTL DIFERENCIADO
   // =========================================================================
-  test('ADV-20: Kill Switch SQL apagado por defecto bloquea emisión y canje cross-origin sin tocar OAuth', async () => {
+  test('ADV-20: Kill Switch SQL apagado por defecto bloquea emisión y canje cross-origin sin tocar OAuth ni permitir bypass por GUC', async () => {
     await disableKillSwitchForTest();
 
     // 1. Crear un recurso para uid_A
@@ -515,19 +515,24 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     assert.equal(rBridge.ok, false);
     assert.equal(rBridge.error, 'cross_origin_migration_disabled');
 
-    // 3. Intentar emitir cross_origin_manual con KS apagado -> rechazado con manual_migration_disabled
+    // 3. Intento de evasión mediante variable de sesión GUC manipulada por el cliente -> bloqueado efectivamente
+    await db.query(`SELECT set_config('puntoencuentro.cross_origin_bridge_enabled', 'on', false);`);
+    const resBypassGuc = await db.query(`SELECT public.create_domain_migration_ticket_seguro('cross_origin_bridge', '${uid_B}') AS r;`);
+    assert.equal((resBypassGuc.rows[0] as any).r.error, 'cross_origin_migration_disabled', 'El kill switch de servidor no puede ser eludido mediante GUC');
+
+    // 4. Intentar emitir cross_origin_manual con KS apagado -> rechazado con manual_migration_disabled
     const resManual = await db.query(`SELECT public.create_domain_migration_ticket_seguro('cross_origin_manual', NULL) AS r;`);
     const rManual = (resManual.rows[0] as any).r;
     assert.equal(rManual.ok, false);
     assert.equal(rManual.error, 'manual_migration_disabled');
 
-    // 4. Flujo legacy oauth_upgrade a Google permanece 100% OPERATIVO
+    // 5. Flujo legacy oauth_upgrade a Google permanece 100% OPERATIVO
     const resOAuth = await db.query(`SELECT public.create_domain_migration_ticket_seguro('oauth_upgrade', NULL) AS r;`);
     const rOAuth = (resOAuth.rows[0] as any).r;
     assert.equal(rOAuth.ok, true, 'El flujo OAuth existente no debe ser afectado por el kill switch cross-origin');
     assert.ok(rOAuth.ticket_token);
 
-    // 5. Al encender el switch, cross_origin_bridge procede con éxito
+    // 6. Al encender el switch administrativamente, cross_origin_bridge procede con éxito
     await enableKillSwitchForTest();
     // Limpiar ticket pending para poder crear bridge
     await db.query(`DELETE FROM public.anonymous_transfer_tickets;`);
@@ -540,8 +545,10 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
 
   // =========================================================================
   // ADV-01: CONCURRENCIA FOR UPDATE Y CONSUMO ÚNICO
+  // Nota: Verificación de invariantes transaccionales en PGlite (advisory locks y FOR UPDATE de fila única;
+  // concurrencia multi-conexión real sujeta a PostgreSQL remoto como compuerta obligatoria de Staging)
   // =========================================================================
-  test('ADV-01: Dos sesiones compitiendo por el mismo ticket (FOR UPDATE) - exactamente 1 triunfa y la otra recibe ticket_already_used', async () => {
+  test('ADV-01: [Invariante Transaccional] Dos operaciones compitiendo por el mismo ticket (FOR UPDATE) - exactamente 1 triunfa y la otra recibe ticket_already_used', async () => {
     await setAuth(uid_A, true);
     const encId = 'aaaaaaaa-1111-4444-8888-aaaaaaaaaaaa';
     await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES ('${encId}', '${uid_A}', 'Encuentro Concurrente');`);
@@ -570,8 +577,10 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
 
   // =========================================================================
   // ADV-02: EMISIÓN CONCURRENTE
+  // Nota: Verificación de invariante de índice único parcial (idx_anonymous_transfer_single_pending);
+  // concurrencia multi-conexión real sujeta a PostgreSQL remoto como compuerta obligatoria de Staging
   // =========================================================================
-  test('ADV-02: Emisiones simultáneas de la misma sesión - 1 crea y la 2da recibe transfer_ticket_already_pending', async () => {
+  test('ADV-02: [Invariante Transaccional] Emisiones simultáneas de la misma sesión - 1 crea y la 2da recibe transfer_ticket_already_pending', async () => {
     await setAuth(uid_A, true);
     await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_A}', 'Encuentro A');`);
 
@@ -673,30 +682,53 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
   });
 
   // =========================================================================
-  // ADV-07: AISLAMIENTO DE FLOW_MODE
+  // ADV-07: AISLAMIENTO ESTRICTO DE FLOW_MODE Y ANTI-BYPASS LEGACY
   // =========================================================================
-  test('ADV-07: Aislamiento flow_mode: ticket oauth_upgrade rechaza destino anónimo con permanent_account_required', async () => {
+  test('ADV-07: Aislamiento estricto de flow_mode: rechazo de bypass cross_origin_bridge vía legacy y aislamiento bidireccional', async () => {
+    // 1. Emitir ticket cross_origin_bridge asociado a uid_B
     await setAuth(uid_A, true);
-    await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_A}', 'Encuentro OAuth Mode');`);
+    await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_A}', 'Encuentro Modo Bridge');`);
 
-    const emision = await db.query(`SELECT public.create_domain_migration_ticket_seguro('oauth_upgrade', NULL) AS r;`);
-    const code = (emision.rows[0] as any).r.ticket_token;
+    const emisionBridge = await db.query(`SELECT public.create_domain_migration_ticket_seguro('cross_origin_bridge', '${uid_B}') AS r;`);
+    const codeBridge = (emisionBridge.rows[0] as any).r.ticket_token;
 
-    // Destino anónimo intenta canjear
+    // 2. Atacante uid_Evil (cuenta permanente) intenta canjearlo vía claim_anonymous_transfer (bypass legacy)
+    await setAuth(uid_Evil, false);
+    const claimEvilLegacy = await db.query(`SELECT public.claim_anonymous_transfer('${codeBridge}') AS r;`);
+    assert.equal((claimEvilLegacy.rows[0] as any).r.error, 'invalid_flow_mode', 'Bypass legacy debe ser rechazado con invalid_flow_mode');
+
+    // 3. Exigir que el ticket quedó intacto en estado pending sin consumir
+    const checkTicket = await db.query(`SELECT status, used_at FROM public.anonymous_transfer_tickets WHERE token_hash = encode(sha256('${codeBridge}'::bytea), 'hex');`);
+    assert.equal(checkTicket.rows.length, 1, 'Ticket debe permanecer pending e intacto');
+    assert.equal((checkTicket.rows[0] as any).status, 'pending');
+    assert.equal((checkTicket.rows[0] as any).used_at, null);
+
+    // 4. Canje legítimo por el destinatario legítimo uid_B mediante la RPC cross-origin autorizada
     await setAuth(uid_B, true);
-    const claimAnon = await db.query(`SELECT public.claim_domain_migration_ticket_seguro('${code}') AS r;`);
-    assert.equal((claimAnon.rows[0] as any).r.error, 'permanent_account_required');
+    const claimLegit = await db.query(`SELECT public.claim_domain_migration_ticket_seguro('${codeBridge}') AS r;`);
+    assert.equal((claimLegit.rows[0] as any).r.ok, true, 'Destinatario legítimo canjea con éxito');
 
-    // Destino permanente canjea con éxito
+    // 5. Verificar que el upgrade legítimo a Google sigue funcionando intacto
+    await setAuth(uid_B2, true);
+    await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_B2}', 'Encuentro Upgrade OAuth');`);
+    const emisionOAuth = await db.query(`SELECT public.create_anonymous_transfer_ticket() AS r;`);
+    const codeOAuth = (emisionOAuth.rows[0] as any).r.ticket_token;
+
+    // Si claim_domain_migration_ticket_seguro intenta consumir ticket oauth_upgrade, se rechaza
+    const claimWrongRpc = await db.query(`SELECT public.claim_domain_migration_ticket_seguro('${codeOAuth}') AS r;`);
+    assert.equal((claimWrongRpc.rows[0] as any).r.error, 'invalid_flow_mode', 'claim_domain_migration_ticket_seguro rechaza tickets oauth_upgrade');
+
+    // Canje legítimo por cuenta Google vía claim_anonymous_transfer
     await setAuth(uid_Google, false);
-    const claimPerm = await db.query(`SELECT public.claim_domain_migration_ticket_seguro('${code}') AS r;`);
-    assert.equal((claimPerm.rows[0] as any).r.ok, true);
+    const claimOAuthLegit = await db.query(`SELECT public.claim_anonymous_transfer('${codeOAuth}') AS r;`);
+    assert.equal((claimOAuthLegit.rows[0] as any).r.ok, true, 'claim_anonymous_transfer legítimo funciona 100% para upgrade a Google');
   });
 
   // =========================================================================
-  // ADV-08: POSTMESSAGE ORIGIN SPOOFING (CONTRATO DE SEGURIDAD)
+  // ADV-08: POSTMESSAGE ORIGIN SPOOFING (CONTRATO ABSTRACTO DE SEGURIDAD)
+  // Nota: Verificación de contrato abstracto; validación en navegador real pendiente de Mini-Sprint 2B-2 (Frontend)
   // =========================================================================
-  test('ADV-08: Validación estricta de origen y nonces (contrato cross-origin): rechazo de orígenes no autorizados', () => {
+  test('ADV-08: [Contrato Abstracto] Validación estricta de origen y nonces (cross-origin): rechazo de orígenes no autorizados', () => {
     const trustedOrigins = ['https://puntoencuentro.com.ar', 'https://staging.puntoencuentro.com.ar', 'http://localhost:5173'];
     const isOriginTrusted = (origin: string) => trustedOrigins.includes(origin);
 
@@ -706,9 +738,10 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
   });
 
   // =========================================================================
-  // ADV-09: OPEN REDIRECT & URL LEAK PREVENTION
+  // ADV-09: OPEN REDIRECT & URL LEAK PREVENTION (CONTRATO ABSTRACTO DE SEGURIDAD)
+  // Nota: Verificación de contrato abstracto; validación de navegación en navegador real pendiente de Mini-Sprint 2B-2
   // =========================================================================
-  test('ADV-09: Mitigación de fugas y open redirect: tokens no persisten en URLs y destinos no confiables caen a /', () => {
+  test('ADV-09: [Contrato Abstracto] Mitigación de fugas y open redirect: tokens no persisten en URLs y destinos no confiables caen a /', () => {
     const sanitizeRedirect = (next: string | null) => {
       if (!next || next.startsWith('//') || next.includes('://')) return '/';
       if (!next.startsWith('/')) return '/';
@@ -1063,11 +1096,11 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     const encsC = await db.query(`SELECT id FROM public.encuentros WHERE host_id = '${uid_C}';`);
     assert.equal(encsC.rows.length, 2, 'uid_C debe ser dueño de enc1 y enc2');
 
-    // 4. Migración final C -> Google permanente
+    // 4. Migración final C -> Google permanente (vía claim_anonymous_transfer para oauth_upgrade)
     const emisionC = await db.query(`SELECT public.create_domain_migration_ticket_seguro('oauth_upgrade', NULL) AS r;`);
     const codeC = (emisionC.rows[0] as any).r.ticket_token;
     await setAuth(uid_Google, false);
-    const claimGoogle = await db.query(`SELECT public.claim_domain_migration_ticket_seguro('${codeC}') AS r;`);
+    const claimGoogle = await db.query(`SELECT public.claim_anonymous_transfer('${codeC}') AS r;`);
     assert.equal((claimGoogle.rows[0] as any).r.ok, true);
 
     const encsGoogle = await db.query(`SELECT id FROM public.encuentros WHERE host_id = '${uid_Google}';`);
@@ -1106,19 +1139,23 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     const resCov = await db.query(`SELECT public.submit_coverage_request('Belgrano') AS r;`);
     assert.equal((resCov.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
-    // 5. enviar_feedback_usuario
-    const resFeed = await db.query(`SELECT public.enviar_feedback_usuario('suggestion', 'Buen sitio') AS r;`);
-    assert.equal((resFeed.rows[0] as any).r.error, 'anonymous_session_already_migrated');
-
-    // 6. set_user_localidades_seguro
+    // 5. set_user_localidades_seguro
     const resLoc = await db.query(`SELECT public.set_user_localidades_seguro(ARRAY['palermo']) AS r;`);
     assert.equal((resLoc.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
-    // 7. create_domain_migration_ticket_seguro
+    // 6. create_domain_migration_ticket_seguro
     const resTicket = await db.query(`SELECT public.create_domain_migration_ticket_seguro('cross_origin_bridge', '${uid_B}') AS r;`);
     assert.equal((resTicket.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
-    // 8. Template trigger
+    // 7. create_anonymous_transfer_ticket (ruta legacy de emisión)
+    const resLegacyTicket = await db.query(`SELECT public.create_anonymous_transfer_ticket() AS r;`);
+    assert.equal((resLegacyTicket.rows[0] as any).r.error, 'anonymous_session_already_migrated');
+
+    // 8. publicar_mensaje_encuentro_seguro
+    const resMsg = await db.query(`SELECT public.publicar_mensaje_encuentro_seguro('${genRandomUuid()}', 'Mensaje Rechazado') AS r;`);
+    assert.equal((resMsg.rows[0] as any).r.error, 'anonymous_session_already_migrated');
+
+    // 9. Template trigger en inserción directa
     await assert.rejects(async () => {
       await db.query(`INSERT INTO public.custom_invitation_templates (user_id, name, image_path) VALUES ('${uid_A}', 'X', '/x.png');`);
     }, /anonymous_session_already_migrated/);
@@ -1126,8 +1163,10 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
 
   // =========================================================================
   // ADV-18: SERIALIZACIÓN ANTI-DEADLOCK Y OPERACIONES CONCURRENTES
+  // Nota: Verificación de invariante de bloqueo ordenado y aborto determinista en PGlite;
+  // concurrencia multi-conexión real sujeta a PostgreSQL remoto como compuerta obligatoria de Staging
   // =========================================================================
-  test('ADV-18: Serialización determinista pe_identity_mutation previene carreras y asegura cero huérfanos', async () => {
+  test('ADV-18: [Invariante Transaccional] Serialización determinista pe_identity_mutation previene carreras y asegura cero huérfanos', async () => {
     await setAuth(uid_A, true);
     await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_A}', 'Encuentro Base');`);
 

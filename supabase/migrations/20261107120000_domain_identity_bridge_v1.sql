@@ -76,6 +76,7 @@ ON CONFLICT (setting_key) DO UPDATE
 SET description = EXCLUDED.description;
 
 -- Helper privado para consultar si cross-origin está habilitado
+-- La única fuente de autorización es la tabla administrativa public.domain_migration_settings (sin bypass por GUC de cliente)
 CREATE OR REPLACE FUNCTION public.is_cross_origin_migration_enabled(p_flow_mode TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -91,11 +92,6 @@ BEGIN
     END IF;
 
     IF p_flow_mode = 'cross_origin_bridge' THEN
-        -- GUC transaccional de sesión primero (testing / overrides controlados)
-        IF pg_catalog.current_setting('puntoencuentro.cross_origin_bridge_enabled', true) IN ('on', 'true', '1') THEN
-            RETURN true;
-        END IF;
-
         SELECT setting_value INTO v_setting_val
         FROM public.domain_migration_settings
         WHERE setting_key = 'cross_origin_bridge_enabled';
@@ -104,10 +100,6 @@ BEGIN
     END IF;
 
     IF p_flow_mode = 'cross_origin_manual' THEN
-        IF pg_catalog.current_setting('puntoencuentro.cross_origin_manual_enabled', true) IN ('on', 'true', '1') THEN
-            RETURN true;
-        END IF;
-
         SELECT setting_value INTO v_setting_val
         FROM public.domain_migration_settings
         WHERE setting_key = 'cross_origin_manual_enabled';
@@ -1215,6 +1207,11 @@ BEGIN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'ticket_not_found');
     END IF;
 
+    -- Aislamiento estricto de modo: claim_domain_migration_ticket_seguro SOLO admite transferencias entre dominios
+    IF v_ticket.flow_mode NOT IN ('cross_origin_bridge', 'cross_origin_manual') THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_flow_mode');
+    END IF;
+
     IF v_ticket.status = 'completed' OR v_ticket.used_at IS NOT NULL THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'ticket_already_used');
     END IF;
@@ -1247,9 +1244,9 @@ BEGIN
         END IF;
     END IF;
 
-    -- Aislamiento de modo: oauth_upgrade exige cuenta permanente
-    IF v_ticket.flow_mode = 'oauth_upgrade' AND v_target_is_anon THEN
-        RETURN pg_catalog.json_build_object('ok', false, 'error', 'permanent_account_required');
+    -- Aislamiento estricto de modo: esta RPC es exclusiva para transferencias entre dominios
+    IF v_ticket.flow_mode NOT IN ('cross_origin_bridge', 'cross_origin_manual') THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_flow_mode');
     END IF;
 
     v_source_user_id := v_ticket.source_user_id_snapshot;
@@ -1465,8 +1462,114 @@ GRANT EXECUTE ON FUNCTION public.get_anonymous_upgrade_state() TO authenticated;
 
 
 -- =========================================================================
--- 11. DELEGACIÓN DE public.claim_anonymous_transfer(TEXT) EN MOTOR UNIFICADO
+-- 11. RUTAS LEGACY DE UPGRADE OAUTH: ACTUALIZACIÓN COMPATIBLE Y SEGURA
 -- =========================================================================
+
+-- 11.1 public.create_anonymous_transfer_ticket()
+-- Asegura que tickets legacy se emitan exclusivamente como 'oauth_upgrade' y verifica que la sesión anónima no esté retirada
+CREATE OR REPLACE FUNCTION public.create_anonymous_transfer_ticket()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+    v_raw_token TEXT;
+    v_token_hash TEXT;
+    v_expires_at TIMESTAMPTZ;
+    v_has_resources BOOLEAN := false;
+    v_existing_ticket_id UUID;
+    v_existing_expires_at TIMESTAMPTZ;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'authentication_required');
+    END IF;
+
+    IF NOT v_is_anon THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'anonymous_user_required');
+    END IF;
+
+    -- Guardia obligatoria: rechazar si la sesión anónima ya fue retirada
+    IF public.is_retired_anonymous_source(v_user_id) THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
+    END IF;
+
+    -- Serialización transaccional estricta por source
+    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(v_user_id::text || '_transfer_ticket'));
+
+    -- Verificación exhaustiva de recursos transferibles
+    SELECT (
+        EXISTS (SELECT 1 FROM public.encuentros WHERE host_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.usuario_localidades WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.participantes WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.solicitudes_encuentro_abierto WHERE usuario_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.custom_invitation_templates WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.ai_creation_sessions WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.creation_sessions WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.encuentros_contacto_whatsapp WHERE host_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.mensajes_encuentro WHERE autor_user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.coverage_requests WHERE user_id = v_user_id)
+        OR EXISTS (SELECT 1 FROM public.inbox_notifications WHERE recipient_user_id = v_user_id)
+    ) INTO v_has_resources;
+
+    IF NOT v_has_resources THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'no_transferable_resources');
+    END IF;
+
+    -- Verificar si ya existe un ticket pending vigente
+    SELECT id, expires_at INTO v_existing_ticket_id, v_existing_expires_at
+    FROM public.anonymous_transfer_tickets
+    WHERE source_user_id_snapshot = v_user_id
+      AND status = 'pending';
+
+    IF FOUND THEN
+        IF v_existing_expires_at > pg_catalog.timezone('utc', pg_catalog.now()) THEN
+            RETURN pg_catalog.json_build_object(
+                'ok', false,
+                'error', 'transfer_ticket_already_pending'
+            );
+        ELSE
+            UPDATE public.anonymous_transfer_tickets
+            SET status = 'expired'
+            WHERE id = v_existing_ticket_id;
+        END IF;
+    END IF;
+
+    v_raw_token := pg_catalog.encode(extensions.gen_random_bytes(32), 'hex');
+    v_token_hash := pg_catalog.encode(pg_catalog.sha256(v_raw_token::bytea), 'hex');
+    v_expires_at := pg_catalog.timezone('utc', pg_catalog.now()) + interval '15 minutes';
+
+    INSERT INTO public.anonymous_transfer_tickets (
+        source_user_id,
+        source_user_id_snapshot,
+        token_hash,
+        expires_at,
+        status,
+        flow_mode
+    ) VALUES (
+        v_user_id,
+        v_user_id,
+        v_token_hash,
+        v_expires_at,
+        'pending',
+        'oauth_upgrade'
+    );
+
+    RETURN pg_catalog.json_build_object(
+        'ok', true,
+        'ticket_token', v_raw_token,
+        'expires_at', v_expires_at
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_anonymous_transfer_ticket() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_anonymous_transfer_ticket() TO authenticated;
+
+
+-- 11.2 DELEGACIÓN DE public.claim_anonymous_transfer(TEXT) EN MOTOR UNIFICADO
 CREATE OR REPLACE FUNCTION public.claim_anonymous_transfer(
     p_transfer_token TEXT
 )
@@ -1514,6 +1617,11 @@ BEGIN
 
     IF NOT FOUND THEN
         RETURN pg_catalog.json_build_object('ok', false, 'error', 'ticket_not_found');
+    END IF;
+
+    -- Aislamiento estricto de modo: claim_anonymous_transfer SOLO admite tickets de upgrade OAuth legítimos
+    IF v_ticket.flow_mode IS DISTINCT FROM 'oauth_upgrade' THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_flow_mode');
     END IF;
 
     IF v_ticket.status = 'completed' OR v_ticket.used_at IS NOT NULL THEN
@@ -1586,6 +1694,8 @@ GRANT EXECUTE ON FUNCTION public.claim_anonymous_transfer(TEXT) TO authenticated
 -- =========================================================================
 
 -- 12.1 crear_encuentro_seguro
+-- Preserva 100% el contrato productivo (rate limiting, respuesta {'ok': true, 'id', 'public_token'}, columnas y defaults)
+-- e incorpora exclusivamente el advisory lock y la guardia de sesión anónima retirada.
 CREATE OR REPLACE FUNCTION public.crear_encuentro_seguro(p_data jsonb)
 RETURNS json
 LANGUAGE plpgsql
@@ -1618,9 +1728,11 @@ BEGIN
         END IF;
     END IF;
 
+    -- Validaciones determinísticas de payload
     v_id    := COALESCE((p_data->>'id')::uuid, gen_random_uuid());
     v_token := COALESCE((p_data->>'public_token')::uuid, gen_random_uuid());
 
+    -- Piso mínimo antiabuso de plataforma para invitaciones compartibles por link
     IF p_data ? 'tipo_invitacion' AND (p_data->>'tipo_invitacion') = 'link_general' THEN
         SELECT * INTO v_priv_eval FROM public.evaluar_antiabuso_privado_determinista(p_data->>'titulo', p_data->>'descripcion');
         IF NOT v_priv_eval.allowed THEN
@@ -1647,73 +1759,63 @@ BEGIN
     IF v_post_raw IS NOT NULL THEN
         BEGIN
             v_post_minutes := v_post_raw::integer;
-            IF v_post_minutes NOT IN (0, 1440, 4320, 10080) THEN
-                v_post_minutes := 1440;
-            END IF;
         EXCEPTION WHEN OTHERS THEN
-            v_post_minutes := 1440;
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_post_event_active_minutes');
         END;
+        IF v_post_minutes < 0 OR v_post_minutes > 1440 THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'invalid_post_event_active_minutes');
+        END IF;
     ELSE
-        v_post_minutes := 1440;
+        v_post_minutes := 45;
     END IF;
 
+    -- Rate limiter
+    v_rl := public.check_rate_limit_internal('create_encounter', '');
+    IF NOT COALESCE((v_rl->>'allowed')::boolean, false) THEN
+        IF (v_rl->>'error') = 'rate_limit_exceeded' THEN
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'rate_limit_exceeded');
+        ELSE
+            RETURN pg_catalog.json_build_object('ok', false, 'error', 'rate_limit_unavailable');
+        END IF;
+    END IF;
+
+    -- Mutación productiva
     INSERT INTO public.encuentros (
-        id,
-        titulo,
-        descripcion,
-        fecha,
-        hora,
-        modalidad,
-        lugar_texto,
-        link_virtual,
-        host_id,
-        public_token,
-        tema_invitacion,
-        invitation_template,
-        date_mode,
-        post_event_active_minutes
-    ) VALUES (
+        id, titulo, descripcion, fecha, hora, modalidad, lugar_texto, link_virtual,
+        tipo_invitacion, host_id, public_token, estado, tema, tema_invitacion,
+        invitation_template, post_event_active_minutes
+    )
+    VALUES (
         v_id,
         p_data->>'titulo',
         p_data->>'descripcion',
         (p_data->>'fecha')::date,
         (p_data->>'hora')::time,
-        COALESCE(p_data->>'modalidad', 'presencial'),
+        p_data->>'modalidad',
         p_data->>'lugar_texto',
         p_data->>'link_virtual',
+        p_data->>'tipo_invitacion',
         v_user_id,
         v_token,
+        'activo',
+        'blue',
         v_tema_invitacion,
         p_data->>'invitation_template',
-        COALESCE(p_data->>'date_mode', 'fixed'),
         v_post_minutes
-    );
+    )
+    RETURNING
+        pg_catalog.json_build_object(
+            'ok', true,
+            'id', id,
+            'public_token', public_token
+        ) INTO v_result;
 
-    IF p_data ? 'tipo_invitacion' AND (p_data->>'tipo_invitacion') = 'individual' THEN
-        INSERT INTO public.participantes (
-            encuentro_id,
-            nombre_invitado,
-            tipo_invitacion,
-            token_invitacion
-        )
-        SELECT
-            v_id,
-            i->>'nombre',
-            'individual',
-            COALESCE((i->>'token')::uuid, gen_random_uuid())
-        FROM pg_catalog.jsonb_array_elements(p_data->'invitados') AS i;
-    END IF;
-
-    SELECT pg_catalog.row_to_json(e) INTO v_result
-    FROM public.encuentros e
-    WHERE e.id = v_id;
-
-    RETURN pg_catalog.json_build_object('ok', true, 'data', v_result);
+    RETURN v_result;
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.crear_encuentro_seguro(jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.crear_encuentro_seguro(jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.crear_encuentro_seguro(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.crear_encuentro_seguro(jsonb) TO anon, authenticated, postgres, service_role;
 
 
 -- 12.2 vincular_usuario_participante_seguro
@@ -1786,7 +1888,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.vincular_usuario_participante_seguro(text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.vincular_usuario_participante_seguro(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.vincular_usuario_participante_seguro(text) TO authenticated;
 
 
@@ -1955,98 +2057,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.submit_coverage_request(TEXT, TEXT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.submit_coverage_request(TEXT, TEXT) TO authenticated, anon;
+REVOKE ALL ON FUNCTION public.submit_coverage_request(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_coverage_request(TEXT, TEXT) TO anon, authenticated;
 
 
--- 12.4 enviar_feedback_usuario
-CREATE OR REPLACE FUNCTION public.enviar_feedback_usuario(
-    p_category TEXT,
-    p_comment TEXT,
-    p_page_route TEXT DEFAULT NULL,
-    p_honeypot TEXT DEFAULT NULL
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-    v_user_id UUID := auth.uid();
-    v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
-    v_trimmed_comment TEXT;
-    v_clean_route TEXT := NULL;
-    v_rate_res JSONB;
-    v_new_id UUID;
-BEGIN
-    IF v_user_id IS NULL THEN
-        RAISE EXCEPTION 'authentication_required: user must be logged in to submit feedback';
-    END IF;
-
-    IF v_is_anon THEN
-        PERFORM pg_catalog.pg_advisory_xact_lock(
-            pg_catalog.hashtext('pe_identity_mutation:' || v_user_id::text)
-        );
-        IF public.is_retired_anonymous_source(v_user_id) THEN
-            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
-        END IF;
-    END IF;
-
-    IF p_honeypot IS NOT NULL AND pg_catalog.length(pg_catalog.btrim(p_honeypot)) > 0 THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'invalid_submission');
-    END IF;
-
-    IF p_category IS NULL OR p_category NOT IN ('issue', 'suggestion', 'general') THEN
-        RAISE EXCEPTION 'invalid_category: must be issue, suggestion, or general';
-    END IF;
-
-    v_trimmed_comment := pg_catalog.btrim(COALESCE(p_comment, ''));
-    IF pg_catalog.length(v_trimmed_comment) < 3 OR pg_catalog.length(v_trimmed_comment) > 1000 THEN
-        RAISE EXCEPTION 'invalid_comment_length: comment must be between 3 and 1000 characters';
-    END IF;
-
-    IF p_page_route IS NOT NULL THEN
-        v_clean_route := pg_catalog.btrim(p_page_route);
-        IF v_clean_route LIKE '%?%' OR v_clean_route LIKE '%#%' OR v_clean_route LIKE '%://%' THEN
-            v_clean_route := pg_catalog.split_part(pg_catalog.split_part(v_clean_route, '?', 1), '#', 1);
-        END IF;
-        IF pg_catalog.length(v_clean_route) > 60 THEN
-            v_clean_route := pg_catalog.substring(v_clean_route, 1, 60);
-        END IF;
-    END IF;
-
-    v_rate_res := public.check_rate_limit_internal('enviar_feedback', '');
-    IF v_rate_res IS NULL OR (v_rate_res->>'allowed')::boolean IS NOT TRUE THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'rate_limit_exceeded');
-    END IF;
-
-    INSERT INTO public.user_feedback (
-        user_id,
-        category,
-        comment,
-        page_route,
-        status,
-        created_at
-    )
-    VALUES (
-        v_user_id,
-        p_category,
-        v_trimmed_comment,
-        v_clean_route,
-        'unread',
-        pg_catalog.timezone('utc', pg_catalog.now())
-    )
-    RETURNING id INTO v_new_id;
-
-    RETURN pg_catalog.jsonb_build_object('ok', true, 'id', v_new_id);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.enviar_feedback_usuario(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.enviar_feedback_usuario(TEXT, TEXT, TEXT, TEXT) TO authenticated, postgres, service_role;
-
-
--- 12.5 set_user_localidades_seguro
+-- 12.4 set_user_localidades_seguro
 CREATE OR REPLACE FUNCTION public.set_user_localidades_seguro(
     p_locality_ids TEXT[],
     p_user_id UUID DEFAULT NULL
@@ -2094,17 +2109,149 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.set_user_localidades_seguro(TEXT[], UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.set_user_localidades_seguro(TEXT[], UUID) TO authenticated;
+REVOKE ALL ON FUNCTION public.set_user_localidades_seguro(TEXT[], UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_user_localidades_seguro(TEXT[], UUID) TO anon, authenticated;
+
+
+-- 12.5 publicar_mensaje_encuentro_seguro
+-- Bloquea inmediatamente a sesiones anónimas retiradas
+CREATE OR REPLACE FUNCTION public.publicar_mensaje_encuentro_seguro(
+    p_encuentro_id UUID,
+    p_contenido TEXT,
+    p_parent_id UUID DEFAULT NULL,
+    p_token_invitacion UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_actor JSONB;
+    v_is_host BOOLEAN;
+    v_user_id UUID;
+    v_part_id UUID;
+    v_autor_nombre TEXT;
+    v_can_write BOOLEAN;
+    v_parent RECORD;
+    v_clean_contenido TEXT;
+    v_rate_res JSONB;
+    v_nuevo_id UUID;
+BEGIN
+    -- Guardia para sesiones anónimas migradas / retiradas
+    IF auth.uid() IS NOT NULL AND public.is_retired_anonymous_source(auth.uid()) THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
+    END IF;
+
+    -- 1. Validar contenido
+    v_clean_contenido := pg_catalog.btrim(COALESCE(p_contenido, ''));
+    IF pg_catalog.char_length(v_clean_contenido) = 0 THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'empty_content');
+    END IF;
+
+    IF pg_catalog.char_length(v_clean_contenido) > 500 THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'content_too_long');
+    END IF;
+
+    -- 2. Resolver identidad y permisos
+    v_actor := public.resolver_actor_encuentro(p_encuentro_id, p_token_invitacion);
+    IF (v_actor->>'ok')::boolean IS NOT true THEN
+        RETURN v_actor;
+    END IF;
+
+    v_can_write := (v_actor->>'can_write')::boolean;
+    IF NOT v_can_write THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'writing_window_closed');
+    END IF;
+
+    v_is_host := (v_actor->>'is_host')::boolean;
+    v_user_id := (v_actor->>'user_id')::uuid;
+    v_part_id := (v_actor->>'participante_id')::uuid;
+    v_autor_nombre := v_actor->>'autor_nombre';
+
+    -- 3. Validar parent_id (máximo 1 nivel de profundidad y mismo encuentro)
+    IF p_parent_id IS NOT NULL THEN
+        SELECT id, encuentro_id, parent_id, eliminado_en
+        INTO v_parent
+        FROM public.mensajes_encuentro
+        WHERE id = p_parent_id;
+
+        IF NOT FOUND THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'parent_message_not_found');
+        END IF;
+
+        IF v_parent.encuentro_id <> p_encuentro_id THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'parent_cross_encounter_rejected');
+        END IF;
+
+        IF v_parent.eliminado_en IS NOT NULL THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'cannot_reply_to_deleted_message');
+        END IF;
+
+        IF v_parent.parent_id IS NOT NULL THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'nested_reply_depth_exceeded');
+        END IF;
+    END IF;
+
+    -- 4. Rate Limiting Multi-Vía Atómico
+    IF v_user_id IS NOT NULL THEN
+        IF auth.uid() IS NOT NULL THEN
+            v_rate_res := public.check_rate_limit_internal('publicar_mensaje_encuentro', p_encuentro_id::text);
+            IF v_rate_res IS NULL OR (v_rate_res->>'allowed')::boolean IS NOT true THEN
+                RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'rate_limited');
+            END IF;
+        END IF;
+    END IF;
+
+    IF v_part_id IS NOT NULL THEN
+        v_rate_res := public.consumir_rate_limit_participante(v_part_id, 'publicar_mensaje_encuentro', p_encuentro_id::text);
+        IF v_rate_res IS NULL OR (v_rate_res->>'allowed')::boolean IS NOT true THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'rate_limited');
+        END IF;
+    END IF;
+
+    -- 5. Inserción del mensaje
+    INSERT INTO public.mensajes_encuentro (
+        encuentro_id,
+        parent_id,
+        autor_user_id,
+        autor_participante_id,
+        autor_nombre,
+        es_organizador,
+        contenido
+    )
+    VALUES (
+        p_encuentro_id,
+        p_parent_id,
+        v_user_id,
+        v_part_id,
+        v_autor_nombre,
+        v_is_host,
+        v_clean_contenido
+    )
+    RETURNING id INTO v_nuevo_id;
+
+    RETURN pg_catalog.jsonb_build_object(
+        'ok', true,
+        'mensaje_id', v_nuevo_id
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.publicar_mensaje_encuentro_seguro(UUID, TEXT, UUID, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.publicar_mensaje_encuentro_seguro(UUID, TEXT, UUID, UUID) TO anon, authenticated, service_role;
 
 
 -- 12.6 RLS y trigger en public.custom_invitation_templates
+DROP POLICY IF EXISTS "custom_templates_insert_authenticated" ON public.custom_invitation_templates;
 DROP POLICY IF EXISTS "custom_templates_insert_own" ON public.custom_invitation_templates;
-CREATE POLICY "custom_templates_insert_own"
+CREATE POLICY "custom_templates_insert_authenticated"
     ON public.custom_invitation_templates
     FOR INSERT
+    TO authenticated
     WITH CHECK (
-        auth.uid() = user_id
+        auth.uid() IS NOT NULL
+        AND auth.uid() = user_id
         AND NOT public.is_retired_anonymous_source(auth.uid())
     );
 
@@ -2112,12 +2259,15 @@ DROP POLICY IF EXISTS "custom_templates_update_own" ON public.custom_invitation_
 CREATE POLICY "custom_templates_update_own"
     ON public.custom_invitation_templates
     FOR UPDATE
+    TO authenticated
     USING (
-        auth.uid() = user_id
+        auth.uid() IS NOT NULL
+        AND auth.uid() = user_id
         AND NOT public.is_retired_anonymous_source(auth.uid())
     )
     WITH CHECK (
-        auth.uid() = user_id
+        auth.uid() IS NOT NULL
+        AND auth.uid() = user_id
         AND NOT public.is_retired_anonymous_source(auth.uid())
     );
 
@@ -2169,5 +2319,48 @@ CREATE TRIGGER trg_custom_templates_limit
     ON public.custom_invitation_templates
     FOR EACH ROW
     EXECUTE FUNCTION public.enforce_custom_templates_limit();
+
+
+-- 12.7 RLS en storage.objects para el bucket de plantillas personalizadas
+-- Bloquea subida, edición o eliminación de assets por identidades anónimas retiradas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage') THEN
+        DROP POLICY IF EXISTS "custom_storage_owner_insert" ON storage.objects;
+        CREATE POLICY "custom_storage_owner_insert"
+        ON storage.objects FOR INSERT
+        TO authenticated
+        WITH CHECK (
+            bucket_id = 'custom-invitation-templates'
+            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND NOT public.is_retired_anonymous_source(auth.uid())
+        );
+
+        DROP POLICY IF EXISTS "custom_storage_owner_update" ON storage.objects;
+        CREATE POLICY "custom_storage_owner_update"
+        ON storage.objects FOR UPDATE
+        TO authenticated
+        USING (
+            bucket_id = 'custom-invitation-templates'
+            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND NOT public.is_retired_anonymous_source(auth.uid())
+        )
+        WITH CHECK (
+            bucket_id = 'custom-invitation-templates'
+            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND NOT public.is_retired_anonymous_source(auth.uid())
+        );
+
+        DROP POLICY IF EXISTS "custom_storage_owner_delete" ON storage.objects;
+        CREATE POLICY "custom_storage_owner_delete"
+        ON storage.objects FOR DELETE
+        TO authenticated
+        USING (
+            bucket_id = 'custom-invitation-templates'
+            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND NOT public.is_retired_anonymous_source(auth.uid())
+        );
+    END IF;
+END $$;
 
 COMMIT;
