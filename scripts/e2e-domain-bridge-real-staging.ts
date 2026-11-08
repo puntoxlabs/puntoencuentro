@@ -1453,34 +1453,31 @@ export async function runDomainBridgeRealE2E(): Promise<MiniSprint2B4Report> {
       console.log('6.5 Verificando Residuo Cero en tablas de negocio y tickets...');
       let residualCount = 0;
       const zeroChecks = [
-        { name: 'encuentros (por id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', trackedEncounterIds) },
-        { name: 'encuentros (por host)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('host_id', trackedUserIds) },
-        { name: 'participantes (por encuentro)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
-        { name: 'participantes (por user)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('user_id', trackedUserIds) },
-        { name: 'mensajes (por encuentro)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds) },
-        { name: 'mensajes (por autor)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('autor_user_id', trackedUserIds) },
-        { name: 'tickets (por source)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', trackedUserIds) },
-        { name: 'tickets (por target)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('target_user_id_snapshot', trackedUserIds) },
-        { name: 'tickets (por intended)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('intended_target_user_id', trackedUserIds) },
-        { name: 'tickets (por hash)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('token_hash', trackedTicketHashes) },
-        { name: 'inbox_notifications', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
-        { name: 'notification_delivery_outbox', query: adminClient.from('notification_delivery_outbox').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds) },
-        { name: 'rate_limit_buckets', query: adminClient.from('rate_limit_buckets').select('*', { count: 'exact', head: true }).in('user_id', trackedUserIds) },
+        { name: 'encuentros (por id)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('id', trackedEncounterIds), active: trackedEncounterIds.length > 0 },
+        { name: 'encuentros (por host)', query: adminClient.from('encuentros').select('*', { count: 'exact', head: true }).in('host_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'participantes (por encuentro)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds), active: trackedEncounterIds.length > 0 },
+        { name: 'participantes (por user)', query: adminClient.from('participantes').select('*', { count: 'exact', head: true }).in('user_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'mensajes (por encuentro)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('encuentro_id', trackedEncounterIds), active: trackedEncounterIds.length > 0 },
+        { name: 'mensajes (por autor)', query: adminClient.from('mensajes_encuentro').select('*', { count: 'exact', head: true }).in('autor_user_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'tickets (por source)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('source_user_id_snapshot', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'tickets (por target)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('target_user_id_snapshot', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'tickets (por intended)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('intended_target_user_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'tickets (por hash)', query: adminClient.from('anonymous_transfer_tickets').select('*', { count: 'exact', head: true }).in('token_hash', trackedTicketHashes), active: trackedTicketHashes.length > 0 },
+        { name: 'inbox_notifications', query: adminClient.from('inbox_notifications').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'notification_delivery_outbox', query: adminClient.from('notification_delivery_outbox').select('*', { count: 'exact', head: true }).in('recipient_user_id', trackedUserIds), active: trackedUserIds.length > 0 },
+        { name: 'rate_limit_buckets', query: adminClient.from('rate_limit_buckets').select('*', { count: 'exact', head: true }).in('user_id', trackedUserIds), active: trackedUserIds.length > 0 },
       ];
 
       for (const zc of zeroChecks) {
-        if ((zc.name.includes('id') || zc.name.includes('encuentro')) && trackedEncounterIds.length === 0) continue;
-        if (
-          (zc.name.includes('user') || zc.name.includes('host') || zc.name.includes('autor') || zc.name.includes('recipient') || zc.name.includes('source') || zc.name.includes('target') || zc.name.includes('intended')) &&
-          trackedUserIds.length === 0
-        ) continue;
-        if (zc.name.includes('hash') && trackedTicketHashes.length === 0) continue;
+        if (!zc.active) continue;
 
         const { count, error } = await zc.query;
         if (error) {
           cleanupErrors.push(`Error en chequeo ${zc.name}: ${error.message}`);
-        } else if ((count || 0) > 0) {
-          residualCount += count!;
+        } else if (typeof count !== 'number') {
+          cleanupErrors.push(`Error en chequeo ${zc.name}: el conteo devuelto no es numérico (count=${count})`);
+        } else if (count > 0) {
+          residualCount += count;
           cleanupErrors.push(`Residuo detectado en ${zc.name}: ${count} filas`);
         }
       }
@@ -1488,8 +1485,14 @@ export async function runDomainBridgeRealE2E(): Promise<MiniSprint2B4Report> {
       // 6.6 Comprobar que los usuarios no existen en Auth Admin (getUserById)
       console.log('6.6 Comprobando que los usuarios no existen en Auth Admin (getUserById)...');
       for (const uid of trackedUserIds) {
-        const { data: uData } = await adminClient.auth.admin.getUserById(uid);
-        if (uData?.user) {
+        const { data: uData, error: uErr } = await adminClient.auth.admin.getUserById(uid);
+        if (uErr) {
+          const msg = uErr.message?.toLowerCase() || '';
+          const isNotFound = (uErr.status === 404 || msg === 'user not found' || msg.includes('user not found')) && !msg.includes('database error') && uErr.status !== 500;
+          if (!isNotFound) {
+            cleanupErrors.push(`Error indeterminado verificando usuario ${maskIdentifier(uid)}: ${uErr.message} (status: ${uErr.status})`);
+          }
+        } else if (uData?.user) {
           residualCount += 1;
           cleanupErrors.push(`Usuario ${maskIdentifier(uid)} aún existe en Auth`);
         }

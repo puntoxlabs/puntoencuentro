@@ -33,6 +33,49 @@ const maskIdentifier = (val: string | null | undefined): string => {
   return `${val.slice(0, 4)}...${val.slice(-4)}`;
 };
 
+export async function fetchAllAuthUsers(
+  adminClient: any,
+  perPage = 50
+): Promise<{
+  users: any[];
+  isCompleteCensus: boolean;
+  paginationNote?: string;
+  error?: string;
+}> {
+  const allUsers: any[] = [];
+  let page = 1;
+  let hasMore = true;
+  let paginationNote: string | undefined;
+
+  while (hasMore) {
+    const { data: authData, error: authErr } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (authErr) {
+      if (page === 1) {
+        return {
+          users: [],
+          isCompleteCensus: false,
+          error: `Error consultando usuarios Auth (página 1): ${authErr.message}`,
+        };
+      }
+      // Si falla en páginas subsiguientes (ej. restricción de GoTrue en Staging), limitamos alcance sin declarar censo completo
+      paginationNote = `Paginación remota de GoTrue interrumpida en página ${page} (${authErr.message}). Alcance limitado a ${allUsers.length} identidades evaluadas; no se declara censo completo.`;
+      break;
+    }
+
+    const pageUsers = authData?.users || [];
+    allUsers.push(...pageUsers);
+
+    if (pageUsers.length < perPage || !authData?.nextPage || (authData?.lastPage && page >= authData.lastPage)) {
+      hasMore = false;
+    } else {
+      page = typeof authData.nextPage === 'number' ? authData.nextPage : page + 1;
+    }
+  }
+
+  const isCompleteCensus = !paginationNote;
+  return { users: allUsers, isCompleteCensus, paginationNote };
+}
+
 async function runReadOnlyAudit() {
   console.log('================================================================================');
   console.log('AUDITORÍA DE SEGURIDAD Y RESIDUOS (STRICT READ-ONLY) — STAGING');
@@ -134,24 +177,26 @@ async function runReadOnlyAudit() {
     }
   }
 
-  // 2.2 Auditoría general de identidades en Auth Admin
+  // 2.2 Auditoría de identidades en Auth Admin (con paginación y limitación explícita de alcance)
   console.log('\nAuditando identidades en Auth Admin...');
-  const { data: authData, error: authErr } = await adminClient.auth.admin.listUsers();
-  if (authErr || !authData?.users) {
-    console.error(`  Error consultando usuarios Auth: ${authErr?.message}`);
+  const { users: allUsers, isCompleteCensus, paginationNote, error: authErr } = await fetchAllAuthUsers(adminClient);
+  if (authErr) {
+    console.error(`  [ALERTA] Fallo crítico consultando usuarios Auth: ${authErr}`);
     hasCriticalIssue = true;
   } else {
-    const allUsers = authData.users;
+    if (paginationNote) {
+      console.log(`  [ALCANCE DEL INFORME]: ${paginationNote}`);
+    }
     const qaUsers = allUsers.filter((u) => {
       const isAnon = u.is_anonymous === true || (u.raw_user_meta_data as any)?.is_anonymous === true;
       const isQaEmail = u.email?.includes('qa-host') || u.email?.includes('puntoencuentro.test');
       return isAnon || isQaEmail;
     });
 
-    console.log(`  Total usuarios evaluados en Auth: ${allUsers.length}`);
-    console.log(`  Identidades de prueba/anónimas detectadas (históricas y actuales): ${qaUsers.length}`);
+    console.log(`  Total usuarios evaluados en Auth: ${allUsers.length} (${isCompleteCensus ? 'censo completo verificado' : 'alcance limitado a muestra paginada disponible'})`);
+    console.log(`  Identidades de prueba/anónimas detectadas en la muestra: ${qaUsers.length}`);
     if (qaUsers.length > 0) {
-      console.log('  Censo de identidades QA/anónimas en Staging:');
+      console.log('  Identidades QA/anónimas detectadas en Staging:');
       for (const qu of qaUsers) {
         console.log(`    - User ID: ${qu.id} | is_anon: ${qu.is_anonymous} | email: ${maskIdentifier(qu.email)} | created: ${qu.created_at}`);
       }
@@ -162,7 +207,7 @@ async function runReadOnlyAudit() {
         console.warn(`\n  [ATENCIÓN] ${todayOrphans.length} usuario(s) anónimo(s)/QA creados en la fecha (${todayIso}).`);
       }
     } else {
-      console.log('  -> Confirmado: 0 usuarios temporales de QA o anónimos en auth.users.');
+      console.log('  -> Confirmado: 0 usuarios temporales de QA o anónimos en la muestra de auth.users.');
     }
   }
 
@@ -257,11 +302,11 @@ async function runReadOnlyAudit() {
       if (!allCataloged) {
         hasCriticalIssue = true;
       } else {
-        console.log('  -> Confirmado: 6/6 RPCs requeridas del puente catalogadas con contratos conformes.');
-        console.log('  -> Comprobación estrictamente de solo lectura (0 RPCs ejecutadas, 0 mutaciones invocadas).');
-        console.log('\n  [NOTA DE SEGURIDAD]: La comprobación de catálogo valida la presencia, contratos de interfaz');
-        console.log('  y despliegue del hotfix sin invocar mutaciones; no sustituye la suite E2E funcional de integración');
-        console.log('  ejecutada previamente.');
+        console.log('  -> Confirmado: 6/6 RPCs requeridas del puente registradas y presentes en el catálogo OpenAPI de PostgREST.');
+        console.log('  -> Comprobación estrictamente de presencia en catálogo de solo lectura (0 RPCs ejecutadas, 0 mutaciones invocadas).');
+        console.log('\n  [NOTA DE AUDITORÍA]: La inspección confirma únicamente la presencia y registro de las rutas');
+        console.log('  en el catálogo OpenAPI de PostgREST; no evalúa contratos de parámetros en tiempo de ejecución');
+        console.log('  ni valida la lógica PL/pgSQL interna, las cuales fueron verificadas mediante la suite PGlite.');
       }
     }
   } catch (catErr: any) {
@@ -281,7 +326,9 @@ async function runReadOnlyAudit() {
   }
 }
 
-runReadOnlyAudit().catch((err) => {
-  console.error('[UNCAUGHT AUDIT ERROR]', err);
-  process.exit(1);
-});
+if (process.argv[1]?.endsWith('audit-staging-security-state.ts')) {
+  runReadOnlyAudit().catch((err) => {
+    console.error('[UNCAUGHT AUDIT ERROR]', err);
+    process.exit(1);
+  });
+}

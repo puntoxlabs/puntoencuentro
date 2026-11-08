@@ -158,8 +158,13 @@ export async function verifyFixtureOwnership(
   for (const uid of userIds) {
     const { data: uData, error: uErr } = await adminClient.auth.admin.getUserById(uid);
     if (uErr) {
-      if (!uErr.message?.toLowerCase().includes('not found') && !uErr.message?.toLowerCase().includes('database error')) {
-        return { authorized: false, error: `Error verificando identidad de usuario ${uid}: ${uErr.message}` };
+      const msg = uErr.message?.toLowerCase() || '';
+      const isNotFound = (uErr.status === 404 || msg === 'user not found' || msg.includes('user not found')) && !msg.includes('database error') && uErr.status !== 500;
+      if (!isNotFound) {
+        return {
+          authorized: false,
+          error: `[CRÍTICO] Error indeterminado de Auth/DB consultando usuario ${uid}: ${uErr.message} (status: ${uErr.status}). Limpieza abortada.`,
+        };
       }
       continue;
     }
@@ -348,8 +353,10 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     const { count, error } = await sc.query;
     if (error) {
       errors.push(`Error en chequeo ${sc.name}: ${error.message}`);
-    } else if ((count || 0) > 0) {
-      residualCount += count!;
+    } else if (typeof count !== 'number') {
+      errors.push(`Error en chequeo ${sc.name}: el conteo devuelto no es numérico (count=${count})`);
+    } else if (count > 0) {
+      residualCount += count;
       errors.push(`Residuo detectado en ${sc.name}: ${count} filas`);
     }
   }
@@ -359,8 +366,10 @@ export async function cleanAuthorizedManifest(adminClient: any, targetRunId: str
     for (const uid of userIds) {
       const { data: uData, error: uErr } = await adminClient.auth.admin.getUserById(uid);
       if (uErr) {
-        if (!uErr.message?.toLowerCase().includes('not found') && !uErr.message?.toLowerCase().includes('database error')) {
-          errors.push(`Error verificando borrado de usuario ${uid}: ${uErr.message}`);
+        const msg = uErr.message?.toLowerCase() || '';
+        const isNotFound = (uErr.status === 404 || msg === 'user not found' || msg.includes('user not found')) && !msg.includes('database error') && uErr.status !== 500;
+        if (!isNotFound) {
+          errors.push(`Error indeterminado verificando borrado de usuario ${uid}: ${uErr.message} (status: ${uErr.status})`);
         }
       } else if (uData?.user) {
         residualCount += 1;
