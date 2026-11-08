@@ -1197,7 +1197,30 @@ BEGIN
 
     v_token_hash := pg_catalog.encode(pg_catalog.sha256(v_clean_token::bytea), 'hex');
 
-    -- Bloqueo FOR UPDATE a nivel de fila
+    -- Pre-lookup sin bloqueo para determinar la identidad origen y evitar inversión de locks
+    SELECT source_user_id_snapshot INTO v_source_user_id
+    FROM public.anonymous_transfer_tickets
+    WHERE token_hash = v_token_hash;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'ticket_not_found');
+    END IF;
+
+    -- Level 1: Adquisición de advisory locks de mutación de identidad en orden lexicográfico estricto
+    IF v_source_user_id <> v_target_user_id THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || LEAST(v_source_user_id, v_target_user_id)::text)
+        );
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || GREATEST(v_source_user_id, v_target_user_id)::text)
+        );
+    ELSE
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || v_source_user_id::text)
+        );
+    END IF;
+
+    -- Level 2: Bloqueo FOR UPDATE a nivel de fila sobre el ticket
     SELECT * INTO v_ticket
     FROM public.anonymous_transfer_tickets
     WHERE token_hash = v_token_hash
@@ -1610,6 +1633,30 @@ BEGIN
 
     v_token_hash := pg_catalog.encode(pg_catalog.sha256(v_clean_token::bytea), 'hex');
 
+    -- Pre-lookup sin bloqueo para determinar la identidad origen y evitar inversión de locks
+    SELECT source_user_id_snapshot INTO v_source_user_id
+    FROM public.anonymous_transfer_tickets
+    WHERE token_hash = v_token_hash;
+
+    IF NOT FOUND THEN
+        RETURN pg_catalog.json_build_object('ok', false, 'error', 'ticket_not_found');
+    END IF;
+
+    -- Level 1: Adquisición de advisory locks de mutación de identidad en orden lexicográfico estricto
+    IF v_source_user_id <> v_target_user_id THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || LEAST(v_source_user_id, v_target_user_id)::text)
+        );
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || GREATEST(v_source_user_id, v_target_user_id)::text)
+        );
+    ELSE
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || v_source_user_id::text)
+        );
+    END IF;
+
+    -- Level 2: Bloqueo FOR UPDATE a nivel de fila sobre el ticket
     SELECT * INTO v_ticket
     FROM public.anonymous_transfer_tickets
     WHERE token_hash = v_token_hash
@@ -1687,6 +1734,56 @@ $$;
 
 REVOKE ALL ON FUNCTION public.claim_anonymous_transfer(TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.claim_anonymous_transfer(TEXT) TO authenticated;
+
+
+-- 11.3 public.revoke_my_pending_transfer_ticket()
+-- Serialización estricta con pe_identity_mutation y bloqueo de revocaciones para sesiones anónimas retiradas
+CREATE OR REPLACE FUNCTION public.revoke_my_pending_transfer_ticket()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_is_anon BOOLEAN := COALESCE((auth.jwt() ->> 'is_anonymous')::boolean, false);
+    v_revoked_count INT := 0;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'authentication_required');
+    END IF;
+
+    IF NOT v_is_anon THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_user_required');
+    END IF;
+
+    -- Level 1: Lock de mutación de identidad
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtext('pe_identity_mutation:' || v_user_id::text)
+    );
+
+    -- Guardia obligatoria: rechazar si la sesión anónima ya fue retirada
+    IF public.is_retired_anonymous_source(v_user_id) THEN
+        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
+    END IF;
+
+    -- Level 2: Update tickets pendientes a revocado
+    UPDATE public.anonymous_transfer_tickets
+    SET status = 'revoked'
+    WHERE source_user_id_snapshot = v_user_id
+      AND status = 'pending';
+
+    GET DIAGNOSTICS v_revoked_count = ROW_COUNT;
+
+    RETURN pg_catalog.jsonb_build_object(
+        'ok', true,
+        'revoked_count', v_revoked_count
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.revoke_my_pending_transfer_ticket() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.revoke_my_pending_transfer_ticket() TO authenticated;
 
 
 -- =========================================================================
@@ -2138,9 +2235,14 @@ DECLARE
     v_rate_res JSONB;
     v_nuevo_id UUID;
 BEGIN
-    -- Guardia para sesiones anónimas migradas / retiradas
-    IF auth.uid() IS NOT NULL AND public.is_retired_anonymous_source(auth.uid()) THEN
-        RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
+    -- Serialización estricta con el motor de mutación de identidad y guardia de sesión retirada
+    IF auth.uid() IS NOT NULL THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(
+            pg_catalog.hashtext('pe_identity_mutation:' || auth.uid()::text)
+        );
+        IF public.is_retired_anonymous_source(auth.uid()) THEN
+            RETURN pg_catalog.jsonb_build_object('ok', false, 'error', 'anonymous_session_already_migrated');
+        END IF;
     END IF;
 
     -- 1. Validar contenido
@@ -2284,6 +2386,11 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- Level 1: Serialización estricta con el motor de mutación de identidad
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtext('pe_identity_mutation:' || NEW.user_id::text)
+    );
+
     IF public.is_retired_anonymous_source(NEW.user_id) THEN
         RAISE EXCEPTION 'anonymous_session_already_migrated'
             USING HINT = 'La sesión anónima ha sido transferida y retirada para nuevas operaciones.';
@@ -2292,8 +2399,6 @@ BEGIN
     IF NEW.is_active IS DISTINCT FROM true THEN
         RETURN NEW;
     END IF;
-
-    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(NEW.user_id::text));
 
     SELECT COUNT(*)
     INTO v_active_count
@@ -2321,8 +2426,50 @@ CREATE TRIGGER trg_custom_templates_limit
     EXECUTE FUNCTION public.enforce_custom_templates_limit();
 
 
--- 12.7 RLS en storage.objects para el bucket de plantillas personalizadas
+-- 12.7 Helper para verificar titularidad transferida en Storage
+-- Permite que el nuevo titular (target) visualice, administre y elimine assets
+-- originalmente alojados bajo carpetas del source sin romper URLs históricas.
+CREATE OR REPLACE FUNCTION public.is_transferred_identity_owner(
+    p_owner_candidate UUID,
+    p_original_folder_text TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT (
+        p_owner_candidate IS NOT NULL
+        AND p_original_folder_text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        AND (
+            p_owner_candidate::text = p_original_folder_text
+            OR EXISTS (
+                WITH RECURSIVE transfer_chain AS (
+                    SELECT target_user_id_snapshot, source_user_id_snapshot
+                    FROM public.anonymous_transfer_tickets
+                    WHERE status = 'completed'
+                    UNION
+                    SELECT att.target_user_id_snapshot, tc.source_user_id_snapshot
+                    FROM public.anonymous_transfer_tickets att
+                    JOIN transfer_chain tc ON att.source_user_id_snapshot = tc.target_user_id_snapshot
+                    WHERE att.status = 'completed'
+                )
+                SELECT 1 FROM transfer_chain
+                WHERE target_user_id_snapshot = p_owner_candidate
+                  AND source_user_id_snapshot = p_original_folder_text::UUID
+            )
+        )
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_transferred_identity_owner(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_transferred_identity_owner(UUID, TEXT) TO authenticated, service_role;
+
+
+-- 12.8 RLS en storage.objects para el bucket de plantillas personalizadas
 -- Bloquea subida, edición o eliminación de assets por identidades anónimas retiradas
+-- y permite al nuevo dueño de la identidad administrar assets heredados.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage') THEN
@@ -2336,18 +2483,28 @@ BEGIN
             AND NOT public.is_retired_anonymous_source(auth.uid())
         );
 
+        DROP POLICY IF EXISTS "custom_storage_owner_select" ON storage.objects;
+        CREATE POLICY "custom_storage_owner_select"
+        ON storage.objects FOR SELECT
+        TO authenticated
+        USING (
+            bucket_id = 'custom-invitation-templates'
+            AND public.is_transferred_identity_owner(auth.uid(), (storage.foldername(name))[1])
+            AND NOT public.is_retired_anonymous_source(auth.uid())
+        );
+
         DROP POLICY IF EXISTS "custom_storage_owner_update" ON storage.objects;
         CREATE POLICY "custom_storage_owner_update"
         ON storage.objects FOR UPDATE
         TO authenticated
         USING (
             bucket_id = 'custom-invitation-templates'
-            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND public.is_transferred_identity_owner(auth.uid(), (storage.foldername(name))[1])
             AND NOT public.is_retired_anonymous_source(auth.uid())
         )
         WITH CHECK (
             bucket_id = 'custom-invitation-templates'
-            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND public.is_transferred_identity_owner(auth.uid(), (storage.foldername(name))[1])
             AND NOT public.is_retired_anonymous_source(auth.uid())
         );
 
@@ -2357,7 +2514,7 @@ BEGIN
         TO authenticated
         USING (
             bucket_id = 'custom-invitation-templates'
-            AND auth.uid()::text = (storage.foldername(name))[1]
+            AND public.is_transferred_identity_owner(auth.uid(), (storage.foldername(name))[1])
             AND NOT public.is_retired_anonymous_source(auth.uid())
         );
     END IF;

@@ -464,6 +464,35 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
         RETURN jsonb_build_object('ok', true, 'revoked_count', v_revoked_count);
       END;
       $$;
+
+      -- Schema mock de Supabase Storage para verificar RLS de assets
+      CREATE SCHEMA IF NOT EXISTS storage;
+      CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[] AS $$
+        SELECT string_to_array(name, '/');
+      $$ LANGUAGE SQL IMMUTABLE;
+
+      CREATE TABLE IF NOT EXISTS storage.buckets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        public BOOLEAN DEFAULT true
+      );
+
+      INSERT INTO storage.buckets (id, name, public) VALUES ('custom-invitation-templates', 'custom-invitation-templates', true)
+      ON CONFLICT DO NOTHING;
+
+      CREATE TABLE IF NOT EXISTS storage.objects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        bucket_id TEXT NOT NULL REFERENCES storage.buckets(id),
+        name TEXT NOT NULL,
+        owner UUID,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+      GRANT USAGE ON SCHEMA storage TO authenticated, anon;
+      GRANT ALL ON ALL TABLES IN SCHEMA storage TO authenticated, anon;
+      GRANT USAGE ON SCHEMA public TO authenticated, anon;
+      GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon;
+      GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
     `);
 
     // 3. Ejecutar la migración SQL aditiva de Mini-Sprint 2B-1
@@ -475,6 +504,8 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
   beforeEach(async () => {
     // Limpiar estado entre pruebas
     await db.exec(`
+      RESET ROLE;
+      DELETE FROM storage.objects;
       DELETE FROM public.anonymous_transfer_tickets;
       DELETE FROM public.rate_limit_buckets;
       DELETE FROM public.solicitudes_encuentro_abierto;
@@ -1114,6 +1145,9 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     await setAuth(uid_A, true);
     await db.query(`INSERT INTO public.encuentros (id, host_id, titulo) VALUES (gen_random_uuid(), '${uid_A}', 'Encuentro Base A');`);
 
+    // Crear asset en storage previo a la migración
+    await db.query(`INSERT INTO storage.objects (bucket_id, name, owner) VALUES ('custom-invitation-templates', '${uid_A}/template_base.png', '${uid_A}');`);
+
     const emision = await db.query(`SELECT public.create_domain_migration_ticket_seguro('cross_origin_bridge', '${uid_B}') AS r;`);
     const code = (emision.rows[0] as any).r.ticket_token;
 
@@ -1151,14 +1185,37 @@ describe('Mini-Sprint 2B-1: Backend del Puente de Identidad entre Dominios (ADV-
     const resLegacyTicket = await db.query(`SELECT public.create_anonymous_transfer_ticket() AS r;`);
     assert.equal((resLegacyTicket.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
-    // 8. publicar_mensaje_encuentro_seguro
+    // 8. revoke_my_pending_transfer_ticket (ruta de revocación)
+    const resRevoke = await db.query(`SELECT public.revoke_my_pending_transfer_ticket() AS r;`);
+    assert.equal((resRevoke.rows[0] as any).r.error, 'anonymous_session_already_migrated');
+
+    // 9. publicar_mensaje_encuentro_seguro
     const resMsg = await db.query(`SELECT public.publicar_mensaje_encuentro_seguro('${genRandomUuid()}', 'Mensaje Rechazado') AS r;`);
     assert.equal((resMsg.rows[0] as any).r.error, 'anonymous_session_already_migrated');
 
-    // 9. Template trigger en inserción directa
+    // 10. Template trigger en inserción directa
     await assert.rejects(async () => {
       await db.query(`INSERT INTO public.custom_invitation_templates (user_id, name, image_path) VALUES ('${uid_A}', 'X', '/x.png');`);
     }, /anonymous_session_already_migrated/);
+
+    // 11. Storage & Congelamiento: sesión anónima retirada rechazada
+    const retiredSourceCheck = await db.query(`SELECT public.is_retired_anonymous_source('${uid_A}') AS is_retired;`);
+    assert.equal((retiredSourceCheck.rows[0] as any).is_retired, true, 'uid_A debe figurar como sesión retirada');
+
+    const targetNotRetired = await db.query(`SELECT public.is_retired_anonymous_source('${uid_B}') AS is_retired;`);
+    assert.equal((targetNotRetired.rows[0] as any).is_retired, false, 'uid_B no debe estar retirada');
+
+    // 12. Storage Heredado: target uid_B posee titularidad autorizada para ver y administrar assets de uid_A
+    const bOwnsA = await db.query(`SELECT public.is_transferred_identity_owner('${uid_B}', '${uid_A}') AS owns;`);
+    assert.equal((bOwnsA.rows[0] as any).owns, true, 'Target B debe tener titularidad transferida sobre carpeta de A');
+
+    // 13. Storage Aislamiento: tercero uid_Evil NO tiene titularidad sobre carpeta de A
+    const evilOwnsA = await db.query(`SELECT public.is_transferred_identity_owner('${uid_Evil}', '${uid_A}') AS owns;`);
+    assert.equal((evilOwnsA.rows[0] as any).owns, false, 'Tercero Evil NO debe tener titularidad sobre carpeta de A');
+
+    // 14. Storage Robustez: carpetas no-UUID o nulas rechazadas de forma segura
+    const invalidFolder = await db.query(`SELECT public.is_transferred_identity_owner('${uid_B}', 'malicious-path/..') AS owns;`);
+    assert.equal((invalidFolder.rows[0] as any).owns, false, 'Rutas maliciosas o no-UUID deben rechazarse');
   });
 
   // =========================================================================
