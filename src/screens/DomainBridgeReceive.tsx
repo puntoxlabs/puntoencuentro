@@ -59,19 +59,17 @@ export const DomainBridgeReceiveScreen: React.FC = () => {
         if (hasOpener && window.opener) {
           // Iniciar escucha automática con opener
           setState('receiving_auto');
+          const sourceOriginParam = searchParams.get('source_origin');
           const bridgeSession = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
             sourceOpener: window.opener,
             targetUserId: user.id,
+            sourceOrigin: sourceOriginParam || undefined,
             onCodeReceived: async (ticketToken) => {
               const claimRes = await domainMigrationBridgeService.claimMigrationTicket(ticketToken);
               if (!mounted) return;
 
               if (claimRes.ok) {
-                try {
-                  window.opener?.postMessage({ type: 'PE_BRIDGE_COMPLETED' }, '*');
-                } catch {
-                  /* fail-open */
-                }
+                bridgeSession.notifyCompleted();
                 setState('completed');
               } else {
                 setErrorCode(claimRes.error || 'claim_failed');
@@ -87,8 +85,12 @@ export const DomainBridgeReceiveScreen: React.FC = () => {
 
           bridgeListenerRef.current = bridgeSession;
         } else {
-          // Entrada directa o sin opener -> esperar código manual
-          setState('awaiting_manual_code');
+          // Entrada directa o sin opener: solo mostrar código manual si está habilitado
+          if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+            setState('awaiting_manual_code');
+          } else {
+            setState('lost_access_help');
+          }
         }
       } catch (err: any) {
         if (!mounted) return;
@@ -407,8 +409,18 @@ export const DomainBridgeReceiveScreen: React.FC = () => {
               </Button>
             </div>
 
-            <Button variant="ghost" fullWidth onClick={() => setState('awaiting_manual_code')}>
-              Volver
+            <Button
+              variant="ghost"
+              fullWidth
+              onClick={() => {
+                if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+                  setState('awaiting_manual_code');
+                } else {
+                  navigate('/');
+                }
+              }}
+            >
+              {domainMigrationBridgeService.isManualFallbackEnabled() ? 'Volver' : 'Ir al inicio'}
             </Button>
           </div>
         )}
@@ -427,7 +439,11 @@ export const DomainBridgeReceiveScreen: React.FC = () => {
                     fullWidth
                     onClick={() => {
                       setErrorCode(null);
-                      setState('awaiting_manual_code');
+                      if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+                        setState('awaiting_manual_code');
+                      } else {
+                        navigate('/');
+                      }
                     }}
                   >
                     Volver a intentar

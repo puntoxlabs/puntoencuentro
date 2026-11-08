@@ -119,6 +119,7 @@ export interface EnvSource {
   VITE_PUBLIC_SUPPORT_EMAIL?: string;
   VITE_APP_TWITTER_SITE?: string;
   VITE_REQUIRE_EXPLICIT_APP_URL?: string;
+  VITE_MIGRATION_TARGET_ORIGIN?: string;
   PUBLIC_APP_ORIGIN?: string;
   PUBLIC_STAGING_ORIGIN?: string;
   LEGACY_APP_ORIGINS?: string;
@@ -1334,8 +1335,21 @@ export function getTargetMigrationOrigin(runtimeOrigin?: string): string {
 }
 
 /**
- * Valida si un origen postMessage pertenece a la lista autorizada de migración
- * (origen canónico, orígenes históricos registrados o hosts locales autorizados).
+ * Orígenes locales explícitamente autorizados para desarrollo y pruebas del puente.
+ * NUNCA autorizar puertos arbitrarios (e.g. 5999) ni comodines localhost.
+ */
+export const AUTHORIZED_LOCAL_BRIDGE_ORIGINS: ReadonlySet<string> = Object.freeze(
+  new Set([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+  ])
+);
+
+/**
+ * Valida si un origen postMessage pertenece estrictamente a la lista autorizada de migración.
+ * Compara protocolo, hostname y puerto exactos (NUNCA solo host).
  * Previene suplantación cross-origin (ADV-08).
  */
 export function isTrustedBridgeOrigin(
@@ -1344,18 +1358,88 @@ export function isTrustedBridgeOrigin(
 ): boolean {
   if (typeof origin !== 'string' || !origin.trim()) return false;
   try {
-    const norm = normalizeAppOrigin(origin, { requireHttps: false });
-    const parsed = new URL(norm);
-    const host = parsed.host.toLowerCase();
+    const raw = origin.trim();
+    // Rechazar credenciales embebidas
+    if (raw.includes('@')) return false;
+
+    // Normalizar mediante URL estándar
+    const parsed = new URL(raw);
+
+    // No permitir rutas, queries ni fragmentos en un origen
+    if (parsed.pathname !== '' && parsed.pathname !== '/') return false;
+    if (parsed.search || parsed.hash) return false;
+
+    const candidateOrigin = parsed.origin.toLowerCase();
     const config = resolveDomainConfig({ env: options.env, strict: false });
 
-    if (new URL(config.canonicalOrigin).host.toLowerCase() === host) return true;
-    if (config.legacyHosts.has(host)) return true;
-    if (config.trustedActiveHosts.has(host)) return true;
+    // 1. Origen canónico exacto (protocolo + hostname + puerto)
+    const canonicalOrigin = new URL(config.canonicalOrigin).origin.toLowerCase();
+    if (candidateOrigin === canonicalOrigin) {
+      if (config.environment !== 'development' && parsed.protocol !== 'https:') {
+        return false;
+      }
+      return true;
+    }
 
+    // 2. Origen oficial de producción y staging (siempre HTTPS estricto y sin puerto alternativo)
+    const prodOrigin = new URL(config.productionOrigin).origin.toLowerCase();
+    if (candidateOrigin === prodOrigin && parsed.protocol === 'https:') {
+      return true;
+    }
+
+    const stagingOrigin = new URL(config.stagingOrigin).origin.toLowerCase();
+    if (candidateOrigin === stagingOrigin && parsed.protocol === 'https:') {
+      return true;
+    }
+
+    // 3. Orígenes históricos registrados exactos
+    for (const legacy of config.legacyOrigins) {
+      const legacyOrigin = new URL(legacy).origin.toLowerCase();
+      if (candidateOrigin === legacyOrigin) {
+        if (config.environment !== 'development' && parsed.protocol !== 'https:') {
+          return false;
+        }
+        return true;
+      }
+    }
+
+    // 3. Entorno de desarrollo / testing local:
+    // Solo permitir puertos explícitos y autorizados, NUNCA puertos arbitrarios
+    if (config.environment === 'development' || options.env?.NODE_ENV === 'test') {
+      if (AUTHORIZED_LOCAL_BRIDGE_ORIGINS.has(candidateOrigin)) {
+        return true;
+      }
+      // Origen explícito configurado en VITE_MIGRATION_TARGET_ORIGIN
+      const targetEnv =
+        options.env?.VITE_MIGRATION_TARGET_ORIGIN ||
+        (typeof import.meta !== 'undefined'
+          ? (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_MIGRATION_TARGET_ORIGIN
+          : undefined);
+      if (targetEnv) {
+        try {
+          const parsedTarget = new URL(targetEnv).origin.toLowerCase();
+          if (candidateOrigin === parsedTarget) return true;
+        } catch {}
+      }
+    }
+
+    // 4. Staging exacto si aplica
+    if (config.environment === 'staging') {
+      const stagingOrigin = new URL(config.stagingOrigin).origin.toLowerCase();
+      if (candidateOrigin === stagingOrigin && parsed.protocol === 'https:') {
+        return true;
+      }
+      if (AUTHORIZED_LOCAL_BRIDGE_ORIGINS.has(candidateOrigin)) {
+        return true;
+      }
+    }
+
+    // 5. Previews de Vercel en preview environment (HTTPS estricto y sin puerto)
     if (
-      config.environment !== 'production' &&
-      LOCALHOST_HOSTS.has(parsed.hostname.toLowerCase())
+      config.environment === 'preview' &&
+      parsed.protocol === 'https:' &&
+      parsed.port === '' &&
+      GENERIC_VERCEL_APP_HOST_REGEX.test(parsed.hostname)
     ) {
       return true;
     }

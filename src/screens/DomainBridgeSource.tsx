@@ -109,10 +109,46 @@ export const DomainBridgeSourceScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, [state, manualExpiresAt]);
 
+  // Iniciar traslado manual si el fallback está activado
+  const handleManualFallbackSwitch = async () => {
+    setState('manual_code_fallback');
+    const res = await domainMigrationBridgeService.createManualMigrationTicket();
+    if (res.ok && res.ticket_token && res.expires_at) {
+      setManualToken(res.ticket_token);
+      setManualExpiresAt(res.expires_at);
+    } else {
+      setErrorCode(res.error || 'manual_ticket_failed');
+      setState('error_recoverable');
+    }
+  };
+
   // Iniciar traslado automático
   const handleStartAutoTransfer = () => {
     setErrorCode(null);
+    setState('awaiting_handshake');
+
+    // Apertura sincrónica del popup dentro del gesto del usuario para evitar bloqueos en iOS Safari y Android Chrome
+    const sourceOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const targetUrl = `${targetOrigin}/migrate-receive?mode=popup${sourceOrigin ? `&source_origin=${encodeURIComponent(sourceOrigin)}` : ''}`;
+    let popupWindow: Window | null = null;
+    try {
+      popupWindow = window.open(targetUrl, 'puntoencuentro_bridge_popup');
+    } catch {
+      popupWindow = null;
+    }
+
+    if (!popupWindow) {
+      if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+        void handleManualFallbackSwitch();
+      } else {
+        setErrorCode('popup_blocked');
+        setState('error_recoverable');
+      }
+      return;
+    }
+
     bridgeSessionRef.current = domainMigrationBridgeService.startBridgeHandshake({
+      popupWindow,
       targetOrigin,
       onStateChange: (newState) => setState(newState),
       onError: (errCode) => {

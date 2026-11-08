@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import { ensureHostSession } from '@/lib/ensureHostSession';
 import { collectAllLocalInvitationTokens } from '@/lib/participatedTokens';
 import {
-  resolveDomainConfig,
   getTargetMigrationOrigin,
   isTrustedBridgeOrigin,
 } from '@/config/domainConfig';
@@ -11,6 +10,7 @@ import {
   ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK,
 } from '@/config/features';
 
+export const RETIRED_LOCAL_SESSION_PREFIX = 'puntoencuentro_identity_retired_user_';
 export const RETIRED_LOCAL_SESSION_KEY = 'puntoencuentro_identity_migrated_v1';
 const USER_ZONES_KEY = 'puntoencuentro_zones_v1';
 
@@ -49,6 +49,15 @@ export interface MigrationInventory {
   lastMigratedAt?: string | null;
 }
 
+export interface PrepareResourcesResult {
+  ok: boolean;
+  error?: string;
+  linkedCount?: number;
+  alreadyLinkedCount?: number;
+  skippedCount?: number;
+  totalTokens?: number;
+}
+
 export interface BridgeReadyMessage {
   type: 'PE_BRIDGE_READY';
   target_user_id: string;
@@ -63,6 +72,7 @@ export interface BridgeCodeMessage {
 
 export interface BridgeCompletedMessage {
   type: 'PE_BRIDGE_COMPLETED';
+  bridge_nonce: string;
 }
 
 export type BridgeMessage =
@@ -112,8 +122,15 @@ export function getMigrationUserMessage(errorCode: string): string {
       return 'La funcionalidad de migración de dominio no está activa.';
     case 'popup_blocked':
       return 'El navegador bloqueó la apertura de la nueva ventana. Habilitá las ventanas emergentes o intentá nuevamente.';
+    case 'popup_closed':
+      return 'Se cerró la ventana de traslado antes de completarlo. Podés iniciar nuevamente cuando quieras.';
     case 'authentication_required':
       return 'Iniciando sesión segura para continuar…';
+    case 'untrusted_source_origin':
+    case 'untrusted_target_origin':
+      return 'No pudimos verificar la autenticidad del sitio para la transferencia.';
+    case 'bridge_nonce_mismatch':
+      return 'La sesión de transferencia cambió. Iniciá el traslado nuevamente.';
     default:
       return 'Ocurrió un inconveniente al conectar con el servidor. Tus encuentros no sufrieron ningún cambio.';
   }
@@ -131,26 +148,42 @@ export function generateBridgeNonce(): string {
 }
 
 /**
- * Comprueba si la sesión del navegador actual fue retirada y congelada tras una migración.
+ * Comprueba si la sesión del usuario especificado fue retirada y congelada tras una migración.
+ * Cada sesión se aísla por su UUID para que otro usuario en el mismo navegador no herede el estado.
  */
-export function isLocalSessionRetired(): boolean {
-  if (typeof window === 'undefined' || !window.localStorage) return false;
+export function isLocalSessionRetired(userId?: string | null): boolean {
+  const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
+  const storage = typeof localStorage !== 'undefined' ? localStorage : win?.localStorage;
+  if (!storage) return false;
   try {
-    return localStorage.getItem(RETIRED_LOCAL_SESSION_KEY) === 'true';
+    if (userId) {
+      return storage.getItem(`${RETIRED_LOCAL_SESSION_PREFIX}${userId}`) !== null;
+    }
+    // Si no se provee userId, se verifica la clave global histórica (compatibilidad previa)
+    return storage.getItem(RETIRED_LOCAL_SESSION_KEY) === 'true';
   } catch {
     return false;
   }
 }
 
 /**
- * Marca la sesión del navegador actual como retirada.
+ * Marca la sesión del usuario especificado como retirada.
  * IMPORTANTE: Nunca invoca signOut(), preservando la sesión local para evitar
  * que un clic accidental genere otra cuenta anónima huérfana en el dominio viejo.
  */
-export function markLocalSessionRetired(): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+export function markLocalSessionRetired(userId?: string | null): void {
+  const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
+  const storage = typeof localStorage !== 'undefined' ? localStorage : win?.localStorage;
+  if (!storage) return;
   try {
-    localStorage.setItem(RETIRED_LOCAL_SESSION_KEY, 'true');
+    if (userId) {
+      storage.setItem(
+        `${RETIRED_LOCAL_SESSION_PREFIX}${userId}`,
+        JSON.stringify({ retired_at: new Date().toISOString() })
+      );
+    } else {
+      storage.setItem(RETIRED_LOCAL_SESSION_KEY, 'true');
+    }
   } catch {
     /* fail-open */
   }
@@ -173,14 +206,16 @@ export const domainMigrationBridgeService = {
 
   /**
    * Inspecciona el inventario local y remoto en el dominio emisor (Dominio A).
+   * Ante errores de red o RPC, reporta estado 'error_recoverable' con reintento,
+   * NUNCA 'empty_clean'.
    */
   async detectInventory(): Promise<{
     state: BridgeSourceState;
-    inventory: MigrationInventory;
+    inventory: MigrationInventory | null;
     user: any;
+    error?: string;
   }> {
     const localTokens = collectAllLocalInvitationTokens();
-    const isRetired = isLocalSessionRetired();
 
     const {
       data: { session },
@@ -207,8 +242,8 @@ export const domainMigrationBridgeService = {
       };
     }
 
-    // Caso 2: Sesión ya retirada localmente
-    if (isRetired) {
+    // Caso 2: Sesión ya retirada localmente para este usuario
+    if (user && isLocalSessionRetired(user.id)) {
       return {
         state: 'already_migrated',
         inventory: {
@@ -268,29 +303,36 @@ export const domainMigrationBridgeService = {
     // Caso 4: Sesión anónima en Supabase -> consultar get_anonymous_upgrade_state()
     try {
       const { data, error } = await supabase.rpc('get_anonymous_upgrade_state');
-      if (error || !data || data.ok === false) {
-        // Fallback defensivo usando tokens locales
-        const hasLocal = localTokens.length > 0;
+      if (error) {
         return {
-          state: hasLocal ? 'ready_to_migrate' : 'empty_clean',
-          inventory: {
-            isAnonymous: true,
-            hasOwnedEncounters: false,
-            hasParticipantLinks: hasLocal,
-            localTokensCount: localTokens.length,
-            hasServerZones: false,
-            hasMessages: false,
-            hasWhatsappContacts: false,
-            hasCustomTemplates: false,
-            hasTransferableResources: hasLocal,
-            alreadyMigrated: false,
-          },
+          state: 'error_recoverable',
+          error: error.message || 'network_error',
+          inventory: null,
           user,
         };
       }
 
-      if (data.already_migrated) {
-        markLocalSessionRetired();
+      if (!data || typeof data !== 'object') {
+        return {
+          state: 'error_recoverable',
+          error: 'invalid_rpc_response',
+          inventory: null,
+          user,
+        };
+      }
+
+      const res = data as any;
+      if (res.ok === false) {
+        return {
+          state: 'error_recoverable',
+          error: res.error || 'get_upgrade_state_failed',
+          inventory: null,
+          user,
+        };
+      }
+
+      if (res.already_migrated) {
+        markLocalSessionRetired(user.id);
         return {
           state: 'already_migrated',
           inventory: {
@@ -304,58 +346,49 @@ export const domainMigrationBridgeService = {
             hasCustomTemplates: false,
             hasTransferableResources: false,
             alreadyMigrated: true,
-            lastMigratedAt: data.last_migrated_at,
+            lastMigratedAt: res.last_migrated_at,
           },
           user,
         };
       }
 
       const hasTransferable = Boolean(
-        data.has_transferable_resources || localTokens.length > 0
+        res.has_transferable_resources || localTokens.length > 0
       );
 
       return {
         state: hasTransferable ? 'ready_to_migrate' : 'empty_clean',
         inventory: {
           isAnonymous: true,
-          hasOwnedEncounters: Boolean(data.has_owned_encounters),
-          hasParticipantLinks: Boolean(data.has_participant_links || localTokens.length > 0),
+          hasOwnedEncounters: Boolean(res.has_owned_encounters),
+          hasParticipantLinks: Boolean(res.has_participant_links || localTokens.length > 0),
           localTokensCount: localTokens.length,
-          hasServerZones: Boolean(data.has_server_zones),
-          hasMessages: Boolean(data.has_messages),
-          hasWhatsappContacts: Boolean(data.has_whatsapp_contacts),
-          hasCustomTemplates: Boolean(data.has_custom_templates),
+          hasServerZones: Boolean(res.has_server_zones),
+          hasMessages: Boolean(res.has_messages),
+          hasWhatsappContacts: Boolean(res.has_whatsapp_contacts),
+          hasCustomTemplates: Boolean(res.has_custom_templates),
           hasTransferableResources: hasTransferable,
           alreadyMigrated: false,
         },
         user,
       };
-    } catch {
+    } catch (err: any) {
       return {
-        state: localTokens.length > 0 ? 'ready_to_migrate' : 'empty_clean',
-        inventory: {
-          isAnonymous: true,
-          hasOwnedEncounters: false,
-          hasParticipantLinks: localTokens.length > 0,
-          localTokensCount: localTokens.length,
-          hasServerZones: false,
-          hasMessages: false,
-          hasWhatsappContacts: false,
-          hasCustomTemplates: false,
-          hasTransferableResources: localTokens.length > 0,
-          alreadyMigrated: false,
-        },
+        state: 'error_recoverable',
+        error: err?.message || 'network_error',
+        inventory: null,
         user,
       };
     }
   },
 
   /**
-   * Prepara y sincroniza los recursos locales antes de emitir cualquier llave.
-   * Si el usuario es null pero tiene tokens locales, inicializa ensureHostSession()
-   * y llama a vincular_tokens_participante_lote_seguro.
+   * Prepara y sincroniza los recursos locales antes de emitir cualquier ticket.
+   * Valida estrictamente { data, error } y data.ok === true de cada RPC.
+   * Si la sincronización o vinculación falla, detiene el flujo y NUNCA emite llaves.
+   * Conserva los datos locales intactos hasta la confirmación de la transferencia.
    */
-  async prepareSourceResources(): Promise<{ ok: boolean; error?: string }> {
+  async prepareSourceResources(): Promise<PrepareResourcesResult> {
     const localTokens = collectAllLocalInvitationTokens();
 
     let {
@@ -372,51 +405,107 @@ export const domainMigrationBridgeService = {
     }
 
     if (!session?.user) {
-      return { ok: true };
+      if (localTokens.length > 0) {
+        return { ok: false, error: 'authentication_required' };
+      }
+      return {
+        ok: true,
+        totalTokens: 0,
+        linkedCount: 0,
+        alreadyLinkedCount: 0,
+        skippedCount: 0,
+      };
     }
 
-    // Sincronizar zonas locales si existen en localStorage
+    // 1. Sincronizar zonas locales si existen en localStorage
     if (typeof localStorage !== 'undefined') {
       try {
         const rawZones = localStorage.getItem(USER_ZONES_KEY);
         if (rawZones) {
           const parsedZones = JSON.parse(rawZones);
           if (Array.isArray(parsedZones) && parsedZones.length > 0) {
-            await supabase.rpc('set_user_localidades_seguro', {
-              p_locality_ids: parsedZones,
-              p_user_id: session.user.id,
-            });
+            const { data: zoneData, error: zoneError } = await supabase.rpc(
+              'set_user_localidades_seguro',
+              {
+                p_locality_ids: parsedZones,
+                p_user_id: session.user.id,
+              }
+            );
+
+            if (zoneError) {
+              return { ok: false, error: zoneError.message || 'set_localities_error' };
+            }
+            if (zoneData && (zoneData as any).ok === false) {
+              const err = (zoneData as any).error || 'set_localities_failed';
+              if (err === 'anonymous_session_already_migrated') {
+                markLocalSessionRetired(session.user.id);
+              }
+              return { ok: false, error: err };
+            }
           }
         }
-      } catch {
-        /* fail-open */
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'parse_zones_failed' };
       }
     }
 
-    // Pre-vincular lote de tokens de invitados locales
+    // 2. Pre-vincular lote de tokens de invitados locales
+    let linkedCount = 0;
+    let alreadyLinkedCount = 0;
+    let skippedCount = 0;
+
     if (localTokens.length > 0) {
       try {
-        await supabase.rpc('vincular_tokens_participante_lote_seguro', {
-          p_tokens: localTokens,
-        });
-      } catch (err: any) {
-        if (err?.message === 'anonymous_session_already_migrated') {
-          markLocalSessionRetired();
-          return { ok: false, error: 'anonymous_session_already_migrated' };
+        const { data: linkData, error: linkError } = await supabase.rpc(
+          'vincular_tokens_participante_lote_seguro',
+          {
+            p_tokens: localTokens,
+          }
+        );
+
+        if (linkError) {
+          return { ok: false, error: linkError.message || 'link_tokens_error' };
         }
-        // Continuar si es transitorio
+
+        if (!linkData || typeof linkData !== 'object') {
+          return { ok: false, error: 'invalid_rpc_response' };
+        }
+
+        const res = linkData as any;
+        if (res.ok === false) {
+          const err = res.error || 'link_tokens_failed';
+          if (err === 'anonymous_session_already_migrated') {
+            markLocalSessionRetired(session.user.id);
+          }
+          return { ok: false, error: err };
+        }
+
+        linkedCount = Number(res.linked_count) || 0;
+        alreadyLinkedCount = Number(res.already_linked_count) || 0;
+        skippedCount = Number(res.skipped_count) || 0;
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'link_tokens_exception' };
       }
     }
 
-    return { ok: true };
+    return {
+      ok: true,
+      totalTokens: localTokens.length,
+      linkedCount,
+      alreadyLinkedCount,
+      skippedCount,
+    };
   },
 
   /**
    * Inicia el flujo automático del puente (Dominio A -> Dominio B).
-   * Abre popup, espera PE_BRIDGE_READY con uid_B y nonce, emite ticket atado
-   * y entrega PE_BRIDGE_CODE con validación estricta de origen y nonce.
+   * Admite ventana popup abierta sincrónicamente en el gesto de clic (iOS / Android).
+   * Registra listeners inmediatamente para prevenir carreras con PE_BRIDGE_READY.
+   * Valida estrictamente event.origin (protocolo, host y puerto exactos),
+   * event.source, nonces y estados de sesión. NUNCA emite hacia targetOrigin = '*'.
    */
   startBridgeHandshake(options: {
+    popupWindow?: Window | null;
     targetOrigin?: string;
     onStateChange: (state: BridgeSourceState) => void;
     onError: (errorCode: string, rawError?: any) => void;
@@ -424,16 +513,34 @@ export const domainMigrationBridgeService = {
   }): { cancel: () => void } {
     let isCancelled = false;
     let fallbackTimeoutId: any = null;
-    let popupWindow: Window | null = null;
+    let windowWatchdogId: any = null;
     let messageListener: ((evt: MessageEvent) => void) | null = null;
+    let transferStage: 'awaiting_ready' | 'code_sent' | 'completed' | 'cancelled' = 'awaiting_ready';
+    let activeNonce: string | null = null;
+    let activeTargetUserId: string | null = null;
 
-    const targetOrigin =
-      options.targetOrigin || getTargetMigrationOrigin();
+    const rawTarget = options.targetOrigin || getTargetMigrationOrigin();
+    let expectedTargetOrigin: string;
+    try {
+      expectedTargetOrigin = new URL(rawTarget).origin.toLowerCase();
+    } catch {
+      options.onError('invalid_target_origin');
+      return { cancel: () => {} };
+    }
+
+    if (!isTrustedBridgeOrigin(expectedTargetOrigin)) {
+      options.onError('untrusted_target_origin');
+      return { cancel: () => {} };
+    }
 
     const cleanup = () => {
       if (fallbackTimeoutId) {
         clearTimeout(fallbackTimeoutId);
         fallbackTimeoutId = null;
+      }
+      if (windowWatchdogId) {
+        clearInterval(windowWatchdogId);
+        windowWatchdogId = null;
       }
       if (messageListener && typeof window !== 'undefined') {
         window.removeEventListener('message', messageListener);
@@ -441,137 +548,9 @@ export const domainMigrationBridgeService = {
       }
     };
 
-    const execute = async () => {
-      options.onStateChange('awaiting_handshake');
-
-      // 1. Pre-sincronizar recursos
-      const prep = await domainMigrationBridgeService.prepareSourceResources();
-      if (!prep.ok) {
-        cleanup();
-        options.onError(prep.error || 'prepare_resources_failed');
-        return;
-      }
-
-      if (isCancelled) return;
-
-      // 2. Abrir ventana receptora en Dominio B
-      const targetUrl = `${targetOrigin}/migrate-receive?mode=popup`;
-      try {
-        popupWindow = window.open(targetUrl, 'puntoencuentro_bridge_popup');
-      } catch {
-        popupWindow = null;
-      }
-
-      if (!popupWindow) {
-        // Bloqueo de popup o WebView sin window.open
-        if (domainMigrationBridgeService.isManualFallbackEnabled()) {
-          void switchToManualFallback();
-        } else {
-          cleanup();
-          options.onError('popup_blocked');
-        }
-        return;
-      }
-
-      // 3. Fallback timer a 2.500 ms si Dominio B no responde el handshake
-      fallbackTimeoutId = setTimeout(() => {
-        if (isCancelled) return;
-        if (domainMigrationBridgeService.isManualFallbackEnabled()) {
-          void switchToManualFallback();
-        } else {
-          cleanup();
-          options.onError('timeout');
-        }
-      }, 2500);
-
-      // 4. Listener postMessage seguro
-      messageListener = async (event: MessageEvent) => {
-        if (isCancelled) return;
-
-        // Validar origen estricto (ADV-08)
-        if (!isTrustedBridgeOrigin(event.origin)) {
-          return;
-        }
-
-        // Validar ventana
-        if (event.source !== popupWindow) {
-          return;
-        }
-
-        const data = event.data;
-        if (!data || typeof data !== 'object') return;
-
-        // --- HANDSHAKE: PE_BRIDGE_READY ---
-        if (data.type === 'PE_BRIDGE_READY') {
-          if (fallbackTimeoutId) {
-            clearTimeout(fallbackTimeoutId);
-            fallbackTimeoutId = null;
-          }
-
-          const targetUserId = data.target_user_id;
-          const bridgeNonce = data.bridge_nonce;
-
-          if (!targetUserId || !UUID_REGEX.test(targetUserId)) {
-            options.onError('invalid_target_user');
-            return;
-          }
-
-          if (!bridgeNonce || !NONCE_REGEX.test(bridgeNonce)) {
-            options.onError('invalid_bridge_nonce');
-            return;
-          }
-
-          // Emitir ticket cross_origin_bridge atado al target
-          try {
-            const { data: ticketData, error: ticketError } = await supabase.rpc(
-              'create_domain_migration_ticket_seguro',
-              {
-                p_flow_mode: 'cross_origin_bridge',
-                p_intended_target_user_id: targetUserId,
-              }
-            );
-
-            if (ticketError) {
-              cleanup();
-              options.onError(ticketError.message);
-              return;
-            }
-
-            const ticketRes = ticketData as any;
-            if (!ticketRes?.ok || !ticketRes.ticket_token) {
-              cleanup();
-              options.onError(ticketRes?.error || 'ticket_creation_failed');
-              return;
-            }
-
-            // Entregar código temporal por postMessage hacia event.origin (NUNCA '*')
-            const codeMessage: BridgeCodeMessage = {
-              type: 'PE_BRIDGE_CODE',
-              ticket_token: ticketRes.ticket_token,
-              bridge_nonce: bridgeNonce,
-            };
-
-            popupWindow?.postMessage(codeMessage, event.origin);
-          } catch (err: any) {
-            cleanup();
-            options.onError(err?.message || 'ticket_creation_failed');
-          }
-          return;
-        }
-
-        // --- CONFIRMACIÓN: PE_BRIDGE_COMPLETED ---
-        if (data.type === 'PE_BRIDGE_COMPLETED') {
-          cleanup();
-          markLocalSessionRetired();
-          options.onStateChange('already_migrated');
-        }
-      };
-
-      window.addEventListener('message', messageListener);
-    };
-
     const switchToManualFallback = async () => {
       cleanup();
+      transferStage = 'cancelled';
       options.onStateChange('manual_code_fallback');
 
       try {
@@ -600,11 +579,197 @@ export const domainMigrationBridgeService = {
       }
     };
 
-    void execute();
+    options.onStateChange('awaiting_handshake');
+
+    // Iniciar pre-sincronización de recursos en paralelo
+    const prepPromise = domainMigrationBridgeService.prepareSourceResources();
+
+    // Resolver popup window (sincrónicamente provista o fallback si no está presente)
+    let popupWindow: Window | null = options.popupWindow || null;
+    if (!popupWindow && typeof window !== 'undefined') {
+      const sourceOrigin = window.location?.origin || '';
+      const targetUrl = `${expectedTargetOrigin}/migrate-receive?mode=popup${sourceOrigin ? `&source_origin=${encodeURIComponent(sourceOrigin)}` : ''}`;
+      try {
+        popupWindow = window.open(targetUrl, 'puntoencuentro_bridge_popup');
+      } catch {
+        popupWindow = null;
+      }
+    }
+
+    if (!popupWindow) {
+      if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+        void switchToManualFallback();
+      } else {
+        cleanup();
+        options.onError('popup_blocked');
+      }
+      return {
+        cancel: () => {
+          isCancelled = true;
+          cleanup();
+        },
+      };
+    }
+
+    // Vigilar si el usuario cierra el popup antes de completar
+    windowWatchdogId = setInterval(() => {
+      if (isCancelled) return;
+      if (popupWindow && popupWindow.closed && transferStage !== 'completed') {
+        cleanup();
+        options.onError('popup_closed');
+      }
+    }, 500);
+
+    // Watchdog de handshake (3.500 ms)
+    fallbackTimeoutId = setTimeout(() => {
+      if (isCancelled || transferStage !== 'awaiting_ready') return;
+      if (domainMigrationBridgeService.isManualFallbackEnabled()) {
+        void switchToManualFallback();
+      } else {
+        cleanup();
+        options.onError('timeout');
+      }
+    }, 3500);
+
+    // Listener postMessage seguro — registrado INMEDIATAMENTE
+    messageListener = async (event: MessageEvent) => {
+      if (isCancelled || transferStage === 'completed') return;
+
+      // 1. Validar origen estricto contra allowlist autorizada
+      if (!isTrustedBridgeOrigin(event.origin)) {
+        return;
+      }
+
+      // 2. Validar que el origen del evento coincida exactamente con el destino configurado
+      if (event.origin.toLowerCase() !== expectedTargetOrigin) {
+        return;
+      }
+
+      // 3. Validar que la ventana emisora sea exactamente el popup creado
+      if (popupWindow && event.source !== popupWindow) {
+        return;
+      }
+
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      // --- HANDSHAKE: PE_BRIDGE_READY ---
+      if (data.type === 'PE_BRIDGE_READY') {
+        if (transferStage !== 'awaiting_ready') {
+          // Descartar mensajes READY duplicados o tardíos
+          return;
+        }
+
+        if (fallbackTimeoutId) {
+          clearTimeout(fallbackTimeoutId);
+          fallbackTimeoutId = null;
+        }
+
+        const targetUserId = data.target_user_id;
+        const bridgeNonce = data.bridge_nonce;
+
+        if (!targetUserId || !UUID_REGEX.test(targetUserId)) {
+          cleanup();
+          options.onError('invalid_target_user');
+          return;
+        }
+
+        if (!bridgeNonce || !NONCE_REGEX.test(bridgeNonce)) {
+          cleanup();
+          options.onError('invalid_bridge_nonce');
+          return;
+        }
+
+        activeNonce = bridgeNonce;
+        activeTargetUserId = targetUserId;
+
+        // Esperar resolución de la sincronización antes de emitir tickets
+        const prep = await prepPromise;
+        if (!prep.ok) {
+          transferStage = 'cancelled';
+          cleanup();
+          options.onError(prep.error || 'prepare_resources_failed');
+          return;
+        }
+
+        if (isCancelled) return;
+
+        // Emitir ticket cross_origin_bridge atado al target específico
+        try {
+          const { data: ticketData, error: ticketError } = await supabase.rpc(
+            'create_domain_migration_ticket_seguro',
+            {
+              p_flow_mode: 'cross_origin_bridge',
+              p_intended_target_user_id: activeTargetUserId,
+            }
+          );
+
+          if (ticketError) {
+            transferStage = 'cancelled';
+            cleanup();
+            options.onError(ticketError.message);
+            return;
+          }
+
+          const ticketRes = ticketData as any;
+          if (!ticketRes?.ok || !ticketRes.ticket_token) {
+            transferStage = 'cancelled';
+            cleanup();
+            options.onError(ticketRes?.error || 'ticket_creation_failed');
+            return;
+          }
+
+          transferStage = 'code_sent';
+
+          // Entregar código temporal por postMessage hacia expectedTargetOrigin (NUNCA '*')
+          const codeMessage: BridgeCodeMessage = {
+            type: 'PE_BRIDGE_CODE',
+            ticket_token: ticketRes.ticket_token,
+            bridge_nonce: activeNonce || bridgeNonce,
+          };
+
+          popupWindow?.postMessage(codeMessage, expectedTargetOrigin);
+        } catch (err: any) {
+          transferStage = 'cancelled';
+          cleanup();
+          options.onError(err?.message || 'ticket_creation_failed');
+        }
+        return;
+      }
+
+      // --- CONFIRMACIÓN: PE_BRIDGE_COMPLETED ---
+      if (data.type === 'PE_BRIDGE_COMPLETED') {
+        // Rechazar si no había una transferencia con código entregado
+        if (transferStage !== 'code_sent') {
+          return;
+        }
+
+        // Rechazar si el nonce no coincide con el de la transferencia activa
+        if (!data.bridge_nonce || data.bridge_nonce !== activeNonce) {
+          return;
+        }
+
+        transferStage = 'completed';
+        cleanup();
+
+        // Obtener usuario emisor y marcar su sesión como retirada
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        markLocalSessionRetired(session?.user?.id);
+
+        options.onStateChange('already_migrated');
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', messageListener);
+    }
 
     return {
       cancel: () => {
         isCancelled = true;
+        transferStage = 'cancelled';
         cleanup();
         void (async () => {
           try {
@@ -691,7 +856,7 @@ export const domainMigrationBridgeService = {
 
   /**
    * Canjea un ticket de migración en Dominio B.
-   * Si falla por corte de red, intenta confirmar idempotentemente con
+   * Si falla por corte de red, intenta confirmar de forma idempotente con
    * confirmar_migracion_dominio_completada_seguro.
    */
   async claimMigrationTicket(ticketToken: string): Promise<{
@@ -729,7 +894,6 @@ export const domainMigrationBridgeService = {
 
       // Si retornó error de negocio:
       if (res?.error === 'ticket_already_used') {
-        // Verificar si fue usado exitosamente por esta misma sesión
         const confirmed = await domainMigrationBridgeService.confirmMigrationCompleted(cleanToken);
         if (confirmed.ok) {
           return confirmed;
@@ -786,25 +950,70 @@ export const domainMigrationBridgeService = {
 
   /**
    * Configura la escucha en Dominio B para recibir el handshake automático.
+   * Determina el origen de Dominio A sin depender de document.referrer (vía parámetro seguro sourceOrigin).
+   * Valida estrictamente event.origin, event.source y bridge_nonce.
+   * Prohíbe en todos los casos targetOrigin = '*'.
    */
   listenForBridgeCodeOnReceive(options: {
     sourceOpener: Window;
     targetUserId: string;
+    sourceOrigin?: string;
     onCodeReceived: (ticketToken: string) => void;
     onError: (errorCode: string) => void;
-  }): { nonce: string; cleanup: () => void } {
+  }): {
+    nonce: string;
+    authorizedSourceOrigin: string;
+    notifyCompleted: () => void;
+    cleanup: () => void;
+  } {
     const bridgeNonce = generateBridgeNonce();
     let isCleanedUp = false;
+    let codeReceived = false;
+
+    // Determinar origen autorizado del emisor
+    let authorizedSourceOrigin: string | null = null;
+    if (options.sourceOrigin && typeof options.sourceOrigin === 'string') {
+      try {
+        const parsed = new URL(options.sourceOrigin);
+        if (isTrustedBridgeOrigin(parsed.origin)) {
+          authorizedSourceOrigin = parsed.origin.toLowerCase();
+        }
+      } catch {}
+    }
+
+    if (!authorizedSourceOrigin && typeof document !== 'undefined' && document.referrer) {
+      try {
+        const refParsed = new URL(document.referrer);
+        if (isTrustedBridgeOrigin(refParsed.origin)) {
+          authorizedSourceOrigin = refParsed.origin.toLowerCase();
+        }
+      } catch {}
+    }
+
+    if (!authorizedSourceOrigin) {
+      options.onError('untrusted_source_origin');
+      return {
+        nonce: '',
+        authorizedSourceOrigin: '',
+        notifyCompleted: () => {},
+        cleanup: () => {},
+      };
+    }
 
     const messageListener = (event: MessageEvent) => {
       if (isCleanedUp) return;
 
-      // Validar origen confiable
+      // 1. Validar origen confiable
       if (!isTrustedBridgeOrigin(event.origin)) {
         return;
       }
 
-      // Validar que provenga de la ventana opener
+      // 2. Validar que coincida exactamente con el origen autorizado del emisor
+      if (event.origin.toLowerCase() !== authorizedSourceOrigin) {
+        return;
+      }
+
+      // 3. Validar que provenga de la ventana opener
       if (event.source !== options.sourceOpener) {
         return;
       }
@@ -813,6 +1022,8 @@ export const domainMigrationBridgeService = {
       if (!data || typeof data !== 'object') return;
 
       if (data.type === 'PE_BRIDGE_CODE') {
+        if (codeReceived) return;
+
         // Validar nonce
         if (data.bridge_nonce !== bridgeNonce) {
           options.onError('bridge_nonce_mismatch');
@@ -825,45 +1036,44 @@ export const domainMigrationBridgeService = {
           return;
         }
 
+        codeReceived = true;
         options.onCodeReceived(token);
       }
     };
 
-    window.addEventListener('message', messageListener);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', messageListener);
+    }
 
-    // Enviar PE_BRIDGE_READY al opener
+    // Enviar PE_BRIDGE_READY al opener estrictamente hacia authorizedSourceOrigin (NUNCA '*')
     const readyMessage: BridgeReadyMessage = {
       type: 'PE_BRIDGE_READY',
       target_user_id: options.targetUserId,
       bridge_nonce: bridgeNonce,
     };
 
-    // Obtenemos origen seguro a partir de document.referrer o dominio canónico
-    let targetOrigin = '*';
-    try {
-      if (document.referrer) {
-        const refOrigin = new URL(document.referrer).origin;
-        if (isTrustedBridgeOrigin(refOrigin)) {
-          targetOrigin = refOrigin;
-        }
-      }
-    } catch {
-      targetOrigin = '*';
-    }
-
-    if (targetOrigin !== '*') {
-      options.sourceOpener.postMessage(readyMessage, targetOrigin);
-    } else {
-      // Si el referrer no coincide con un origen confiable, usamos el canónico de config
-      const cfg = resolveDomainConfig();
-      options.sourceOpener.postMessage(readyMessage, cfg.canonicalOrigin);
-    }
+    options.sourceOpener.postMessage(readyMessage, authorizedSourceOrigin);
 
     return {
       nonce: bridgeNonce,
+      authorizedSourceOrigin,
+      notifyCompleted: () => {
+        if (isCleanedUp) return;
+        try {
+          const completedMessage: BridgeCompletedMessage = {
+            type: 'PE_BRIDGE_COMPLETED',
+            bridge_nonce: bridgeNonce,
+          };
+          options.sourceOpener.postMessage(completedMessage, authorizedSourceOrigin);
+        } catch {
+          /* fail-open */
+        }
+      },
       cleanup: () => {
         isCleanedUp = true;
-        window.removeEventListener('message', messageListener);
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('message', messageListener);
+        }
       },
     };
   },

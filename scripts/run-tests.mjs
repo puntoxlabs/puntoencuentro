@@ -9,8 +9,14 @@ try {
   await server.ssrLoadModule('./scripts/setup-telemetry-mock.ts');
   console.log('✅ Telemetry isolation layer loaded successfully.');
 
-  await server.ssrLoadModule('./scripts/test-domain.ts');
-  console.log('✅ Domain tests executed successfully via Vite SSR loader.');
+  const targetTest = process.argv[2];
+  if (targetTest) {
+    const formattedTarget = targetTest.startsWith('.') ? targetTest : `./${targetTest}`;
+    await server.ssrLoadModule(formattedTarget);
+    console.log(`✅ ${formattedTarget} executed successfully via Vite SSR loader.`);
+  } else {
+    await server.ssrLoadModule('./scripts/test-domain.ts');
+    console.log('✅ Domain tests executed successfully via Vite SSR loader.');
 
   await server.ssrLoadModule('./scripts/test-benchmark.ts');
   console.log('✅ Benchmark harness tests executed successfully via Vite SSR loader.');
@@ -233,7 +239,7 @@ try {
 
   await server.ssrLoadModule('./scripts/test-domain-bridge-frontend.ts');
   console.log('✅ Mini-sprint 2B-3: Domain identity bridge frontend & protocol tests executed successfully via Vite SSR loader.');
-
+  }
 
   console.log('\n--- QA TELEMETRY MOCK REPORT ---');
   console.log(`Intercepted QA calls (Mocked): ${globalThis.__QA_TELEMETRY_INTERCEPTED_CALLS || 0}`);

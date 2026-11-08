@@ -980,7 +980,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
 
   const startNewEncounterWithIntent = async (text: string) => {
-    if (ENABLE_DOMAIN_MIGRATION_BRIDGE && isLocalSessionRetired() && isCurrentOriginLegacy()) {
+    if (ENABLE_DOMAIN_MIGRATION_BRIDGE && isLocalSessionRetired(user?.id) && isCurrentOriginLegacy()) {
       navigate('/auth/domain-bridge');
       return;
     }
@@ -1322,7 +1322,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
         {/* Banner de Migración de Dominio */}
         {ENABLE_DOMAIN_MIGRATION_BRIDGE && isCurrentOriginLegacy() && (
-          isLocalSessionRetired() ? (
+          isLocalSessionRetired(user?.id) ? (
             <div className="home-banner" style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981' }}>
               <p className="home-banner-title" style={{ color: '#047857' }}>
                 Tus encuentros ya están en nuestra nueva dirección
@@ -1360,7 +1360,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         )}
 
         {/* Banner A: Usuario NO logueado + encuentros locales (Nudge Login) */}
-        {isAnonymousUser && !isLocalSessionRetired() && (
+        {isAnonymousUser && !isLocalSessionRetired(user?.id) && (
           <div className="home-banner" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffca28' }}>
             <p className="home-banner-title" style={{ color: '#f57f17' }}>
               Protegé tu historial

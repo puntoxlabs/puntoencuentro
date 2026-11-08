@@ -1,24 +1,22 @@
 /**
  * Suite Automatizada: Frontend del Puente de Identidad entre Dominios (Mini-Sprint 2B-3)
  *
- * Verifica de punta a punta los 12 escenarios obligatorios del prompt:
- * 1. Paridad completa de inventario local (las 6 fuentes y deduplicación estricta).
- * 2. Usuario anónimo con encuentros detectado en estado ready_to_migrate.
- * 3. Invitado sin cuenta con tokens locales materializable sin pérdida.
- * 4. Cuenta permanente Google identificada en estado google_ready.
- * 5. Cancelación antes del canje con revocación de ticket y retorno seguro.
- * 6. Ticket vencido o revocado mapeado a mensaje comprensible sin jerga.
- * 7. Interrupción de red posterior al COMMIT y confirmación idempotente.
- * 8. Rechazo de terceros (intended_target_mismatch) y protección anti-DoS.
- * 9. Protocolo postMessage seguro, rechazo de origen malicioso y nonce incorrecto.
- * 10. Protección contra filtración de códigos en URLs, query strings y logs.
- * 11. Transferencia sucesiva A -> B -> C y congelamiento post-migración sin signOut.
- * 12. Preservación y deduplicación de participaciones en Home para sesiones anónimas.
- * 13. Ensayo dual-origin simulado (localhost:5173 <-> 127.0.0.1:5174).
- * 14. Gobernanza de Feature Flags independientes y desactivados por defecto.
+ * Cubre de punta a punta:
+ * 1. Paridad de Inventario Local y Deduplicación (las 6 fuentes y persistencia en coordinación).
+ * 2. Presincronización de Recursos y Validación Estricta de RPCs (desglose, fallos parciales, PostgREST).
+ * 3. Seguridad de Protocolo postMessage y Allowlist Estricta de Orígenes (protocolo, host, puerto, no wildcards).
+ * 4. Handshake Determinista sin Dependencia de document.referrer y Validación de Nonces.
+ * 5. Ciclo de Vida de Popup Móvil, Ventana Cerrada, Cancelación y Reintentos.
+ * 6. Aislamiento y Scoping de Sesión Retirada por Identidad (sin herencia entre usuarios ni signOut).
+ * 7. Detección de Inventario y Resiliencia ante Fallos de Servidor (error_recoverable vs empty_clean).
+ * 8. Resiliencia, Caída de Red Post-Commit e Idempotencia (ADV-15).
+ * 9. Matriz de Mensajes UX en Lenguaje Claro (cero jerga técnica).
+ * 10. Protección contra Fugas de Secretos en URLs, Redirecciones y Anti-Framing (ADV-09).
+ * 11. Ensayo Simulado Cross-Origin Dual (localhost:5173 <-> 127.0.0.1:5174) de punta a punta.
+ * 12. Gobernanza de Feature Flags Independientes y Desactivados por Defecto.
  */
 
-import { describe, test, beforeEach } from 'node:test';
+import { describe, test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,12 +26,10 @@ import {
   collectAllLocalInvitationTokens,
   getParticipatedIndividualTokens,
   saveParticipatedToken,
-  getGeneralParticipatedTokens,
-  getCoordinationGeneralParticipatedTokens,
 } from '../src/lib/participatedTokens';
 import {
   isTrustedBridgeOrigin,
-  isCurrentOriginLegacy,
+  AUTHORIZED_LOCAL_BRIDGE_ORIGINS,
   getTargetMigrationOrigin,
   resolveDomainConfig,
   resolveLegacyDomainRedirect,
@@ -50,9 +46,11 @@ import {
   isLocalSessionRetired,
   markLocalSessionRetired,
   RETIRED_LOCAL_SESSION_KEY,
+  RETIRED_LOCAL_SESSION_PREFIX,
 } from '../src/services/domainMigrationBridgeService';
 import { isValidPostAuthRedirect } from '../src/hooks/usePostAuthRedirect';
 import { normalizeRouteForFeedback } from '../src/services/feedbackService';
+import { supabase } from '../src/lib/supabase';
 
 // Mock simple de Web Storage en memoria para Node
 class MockStorage implements Storage {
@@ -86,6 +84,8 @@ class MockStorage implements Storage {
 describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', () => {
   let mockLocal: MockStorage;
   let mockSession: MockStorage;
+  let originalRpc: any;
+  let originalGetSession: any;
 
   beforeEach(() => {
     mockLocal = new MockStorage();
@@ -98,13 +98,24 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
         origin: 'http://localhost:5173',
         href: 'http://localhost:5173/',
       },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      open: () => null,
     };
     (globalThis as any).localStorage = mockLocal;
     (globalThis as any).sessionStorage = mockSession;
+
+    originalRpc = (supabase as any).rpc;
+    originalGetSession = (supabase.auth as any).getSession;
+  });
+
+  afterEach(() => {
+    (supabase as any).rpc = originalRpc;
+    (supabase.auth as any).getSession = originalGetSession;
   });
 
   // =========================================================================
-  // BLOQUE 1: PARIDAD DE INVENTARIO LOCAL (LAS 6 FUENTES Y COORDINACIÓN)
+  // BLOQUE 1: PARIDAD DE INVENTARIO LOCAL Y DEDUPLICACIÓN
   // =========================================================================
   describe('1. Paridad de Inventario Local y Deduplicación', () => {
     test('Recolecta y deduplica tokens válidos de las 6 fuentes locales', () => {
@@ -115,27 +126,18 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       const token5 = '55555555-5555-4555-8555-555555555555';
       const token6 = '66666666-6666-4666-8666-666666666666';
 
-      // Fuente 1: participated_tokens (array)
       mockLocal.setItem('participated_tokens', JSON.stringify([token1, token2]));
-
-      // Fuente 2: puntoencuentro_guest_token_by_public_*
-      mockLocal.setItem(`puntoencuentro_guest_token_by_public_pub_abc`, token3);
-
-      // Fuente 3: puntoencuentro_coordination_guest_token_by_public_*
-      mockLocal.setItem(`puntoencuentro_coordination_guest_token_by_public_coord_xyz`, token4);
-
-      // Fuente 4: encuentros_general (mapa histórico)
+      mockLocal.setItem('puntoencuentro_guest_token_by_public_pub_abc', token3);
+      mockLocal.setItem('puntoencuentro_coordination_guest_token_by_public_coord_xyz', token4);
       mockLocal.setItem(
         'encuentros_general',
         JSON.stringify({
           encuentros: {
             enc_1: { token_invitacion: token5 },
-            enc_duplicate: { token_invitacion: token1 }, // Duplicado intencional
+            enc_duplicate: { token_invitacion: token1 },
           },
         })
       );
-
-      // Fuente 5: encuentros_coordination_general (mapa histórico)
       mockLocal.setItem(
         'encuentros_coordination_general',
         JSON.stringify({
@@ -144,36 +146,32 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
           },
         })
       );
+      mockSession.setItem('pending_participant_invitation_token', token2);
 
-      // Fuente 6: sessionStorage['pending_participant_invitation_token']
-      mockSession.setItem('pending_participant_invitation_token', token2); // Duplicado intencional
-
-      const allTokens = collectAllLocalInvitationTokens();
-
-      assert.equal(allTokens.length, 6, 'Debe contener exactamente 6 tokens únicos');
-      assert.ok(allTokens.includes(token1), 'Debe incluir token1');
-      assert.ok(allTokens.includes(token2), 'Debe incluir token2');
-      assert.ok(allTokens.includes(token3), 'Debe incluir token3');
-      assert.ok(allTokens.includes(token4), 'Debe incluir token4');
-      assert.ok(allTokens.includes(token5), 'Debe incluir token5');
-      assert.ok(allTokens.includes(token6), 'Debe incluir token6');
+      const tokens = collectAllLocalInvitationTokens();
+      assert.equal(tokens.length, 6, 'Deben recolectarse exactamente 6 tokens únicos');
+      assert.ok(tokens.includes(token1));
+      assert.ok(tokens.includes(token2));
+      assert.ok(tokens.includes(token3));
+      assert.ok(tokens.includes(token4));
+      assert.ok(tokens.includes(token5));
+      assert.ok(tokens.includes(token6));
     });
 
     test('Filtra valores vacíos, malformados o no UUID de forma segura', () => {
       mockLocal.setItem(
         'participated_tokens',
-        JSON.stringify(['not-a-uuid', '', null, 12345, '11111111-1111-4111-8111-111111111111'])
+        JSON.stringify(['not-a-uuid', '', null, undefined, '12345', '77777777-7777-4777-8777-777777777777'])
       );
-      mockLocal.setItem('puntoencuentro_guest_token_by_public_invalid', 'evil<script>');
 
       const tokens = collectAllLocalInvitationTokens();
       assert.equal(tokens.length, 1);
-      assert.equal(tokens[0], '11111111-1111-4111-8111-111111111111');
+      assert.equal(tokens[0], '77777777-7777-4777-8777-777777777777');
     });
 
     test('Normaliza tokens a minúsculas sin duplicados por casing', () => {
-      const lower = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
-      const upper = 'AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE';
+      const upper = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
+      const lower = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
       mockLocal.setItem('participated_tokens', JSON.stringify([upper]));
       mockSession.setItem('pending_participant_invitation_token', lower);
@@ -198,7 +196,6 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       saveParticipatedToken(token);
       mockLocal.setItem('puntoencuentro_guest_token_by_public_test', token);
 
-      // Durante la preparación o recolección, los datos locales deben permanecer intactos
       const tokens = collectAllLocalInvitationTokens();
       assert.equal(tokens.length, 1);
       assert.notEqual(mockLocal.getItem('participated_tokens'), null);
@@ -207,9 +204,124 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
   });
 
   // =========================================================================
-  // BLOQUE 2: SEGURIDAD DEL PROTOCOLO POSTMESSAGE, ORÍGENES Y NONCES
+  // BLOQUE 2: PRESINCRONIZACIÓN DE RECURSOS Y VALIDACIÓN ESTRICTA DE RPCS
   // =========================================================================
-  describe('2. Seguridad de Protocolo postMessage y Handshake', () => {
+  describe('2. Presincronización de Recursos y Validación de RPCs', () => {
+    test('Sincronización exitosa retorna desglose completo de tokens', async () => {
+      const token = 'aaaaaaaa-1111-4111-8111-111111111111';
+      saveParticipatedToken(token);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          return {
+            data: { ok: true, linked_count: 1, already_linked_count: 0, skipped_count: 0 },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, true);
+      assert.equal(res.linkedCount, 1);
+      assert.equal(res.alreadyLinkedCount, 0);
+      assert.equal(res.skippedCount, 0);
+      assert.equal(res.totalTokens, 1);
+    });
+
+    test('Fallo funcional con { ok: false } en vinculación detiene flujo y no emite tickets', async () => {
+      const token = 'aaaaaaaa-1111-4111-8111-111111111111';
+      saveParticipatedToken(token);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'vincular_tokens_participante_lote_seguro') {
+          return {
+            data: { ok: false, error: 'rate_limit_exceeded' },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'rate_limit_exceeded');
+    });
+
+    test('Error PostgREST en RPC de vinculación detiene flujo fail-closed', async () => {
+      const token = 'aaaaaaaa-1111-4111-8111-111111111111';
+      saveParticipatedToken(token);
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async () => {
+        return {
+          data: null,
+          error: { message: '500: Database connection error' },
+        };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, false);
+      assert.ok(res.error?.includes('Database connection error'));
+    });
+
+    test('Fallo en sincronización de localidades aborta la preparación', async () => {
+      mockLocal.setItem('puntoencuentro_zones_v1', JSON.stringify(['loc-palermo', 'loc-belgrano']));
+
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'user-source-123', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'set_user_localidades_seguro') {
+          return { data: { ok: false, error: 'set_localities_error' }, error: null };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'set_localities_error');
+    });
+
+    test('Sesión anónima retirada detectada en servidor marca retiro local y aborta', async () => {
+      const token = 'aaaaaaaa-1111-4111-8111-111111111111';
+      saveParticipatedToken(token);
+
+      const userId = 'user-already-retired-999';
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: userId, is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async () => {
+        return {
+          data: { ok: false, error: 'anonymous_session_already_migrated' },
+          error: null,
+        };
+      };
+
+      const res = await domainMigrationBridgeService.prepareSourceResources();
+      assert.equal(res.ok, false);
+      assert.equal(res.error, 'anonymous_session_already_migrated');
+      assert.equal(isLocalSessionRetired(userId), true, 'Debe marcarse como retirada');
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 3: SEGURIDAD DEL PROTOCOLO POSTMESSAGE Y ALLOWLIST ESTRICTA
+  // =========================================================================
+  describe('3. Seguridad de Protocolo postMessage y Allowlist Estricta', () => {
     test('generateBridgeNonce produce nonces CSPRNG de 128 bits (32 hex)', () => {
       const n1 = generateBridgeNonce();
       const n2 = generateBridgeNonce();
@@ -220,34 +332,107 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       assert.notEqual(n1, n2, 'Dos nonces generados no deben colisionar');
     });
 
-    test('isTrustedBridgeOrigin acepta origen canónico, legados y localhost en desarrollo/staging', () => {
-      const cfg = resolveDomainConfig();
-      // Canónico
-      assert.equal(isTrustedBridgeOrigin(cfg.canonicalOrigin), true);
-      // Localhost / 127.0.0.1 para ensayo dual
+    test('isTrustedBridgeOrigin acepta orígenes válidos configurados', () => {
+      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar'), true);
       assert.equal(isTrustedBridgeOrigin('http://localhost:5173'), true);
       assert.equal(isTrustedBridgeOrigin('http://127.0.0.1:5174'), true);
     });
 
-    test('isTrustedBridgeOrigin rechaza orígenes maliciosos, esquemas inseguros o wildcards (ADV-08)', () => {
+    test('isTrustedBridgeOrigin rechaza adversarialmente http://localhost:5999 (puerto no autorizado)', () => {
+      assert.equal(isTrustedBridgeOrigin('http://localhost:5999'), false);
+      assert.equal(isTrustedBridgeOrigin('http://127.0.0.1:5999'), false);
+      assert.equal(isTrustedBridgeOrigin('http://localhost:8080'), false);
+    });
+
+    test('isTrustedBridgeOrigin rechaza adversarialmente http://puntoencuentro.com.ar (HTTP inseguro)', () => {
+      assert.equal(isTrustedBridgeOrigin('http://puntoencuentro.com.ar'), false);
+      assert.equal(isTrustedBridgeOrigin('http://puntoencuentro.com.ar:80'), false);
+    });
+
+    test('isTrustedBridgeOrigin rechaza puertos alternativos no autorizados en producción', () => {
+      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar:8443'), false);
+      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar:5173'), false);
+    });
+
+    test('isTrustedBridgeOrigin rechaza hosts engañosos y wildcards (ADV-08)', () => {
       assert.equal(isTrustedBridgeOrigin('*'), false);
-      assert.equal(isTrustedBridgeOrigin('https://evil.com'), false);
-      assert.equal(isTrustedBridgeOrigin('http://puntoencuentro.com.ar.evil.com'), false);
-      assert.equal(isTrustedBridgeOrigin('javascript:alert(1)'), false);
+      assert.equal(isTrustedBridgeOrigin('null'), false);
       assert.equal(isTrustedBridgeOrigin(''), false);
-      assert.equal(isTrustedBridgeOrigin(null), false);
+      assert.equal(isTrustedBridgeOrigin('https://puntoencuentro.com.ar.evil.com'), false);
+      assert.equal(isTrustedBridgeOrigin('https://evil-puntoencuentro.com.ar'), false);
+      assert.equal(isTrustedBridgeOrigin('javascript:alert(1)'), false);
+    });
+
+    test('isTrustedBridgeOrigin rechaza credenciales embebidas y rutas en el origen', () => {
+      assert.equal(isTrustedBridgeOrigin('http://user:pass@localhost:5173'), false);
+      assert.equal(isTrustedBridgeOrigin('http://localhost:5173/auth/callback'), false);
+      assert.equal(isTrustedBridgeOrigin('http://localhost:5173?foo=bar'), false);
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 4: HANDSHAKE SIN DOCUMENT.REFERRER Y VALIDACIÓN DE NONCES
+  // =========================================================================
+  describe('4. Handshake sin document.referrer y Validación de Nonces', () => {
+    test('Determina el origen autorizado mediante sourceOrigin explícito sin referrer', () => {
+      const mockOpener = { postMessage: () => {} } as unknown as Window;
+      const targetUserId = '22222222-bbbb-4222-8222-222222222222';
+
+      // Referrer no disponible (Referrer-Policy: no-referrer)
+      (globalThis as any).document = { referrer: '' };
+
+      let sentMessage: any = null;
+      let sentTargetOrigin: string | null = null;
+      const fakeOpener = {
+        postMessage: (msg: any, target: string) => {
+          sentMessage = msg;
+          sentTargetOrigin = target;
+        },
+      } as unknown as Window;
+
+      const session = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
+        sourceOpener: fakeOpener,
+        targetUserId,
+        sourceOrigin: 'http://localhost:5173',
+        onCodeReceived: () => {},
+        onError: () => {},
+      });
+
+      assert.equal(session.authorizedSourceOrigin, 'http://localhost:5173');
+      assert.equal(sentTargetOrigin, 'http://localhost:5173', 'NUNCA debe usar targetOrigin = *');
+      assert.equal(sentMessage.type, 'PE_BRIDGE_READY');
+      assert.equal(sentMessage.target_user_id, targetUserId);
+      assert.match(sentMessage.bridge_nonce, /^[0-9a-f]{32}$/i);
+
+      session.cleanup();
+    });
+
+    test('Rechazo fail-closed si ni sourceOrigin ni document.referrer son válidos', () => {
+      let reportedError: string | null = null;
+      (globalThis as any).document = { referrer: '' };
+
+      const session = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
+        sourceOpener: {} as Window,
+        targetUserId: '22222222-bbbb-4222-8222-222222222222',
+        sourceOrigin: 'http://evil-origin.com',
+        onCodeReceived: () => {},
+        onError: (err) => {
+          reportedError = err;
+        },
+      });
+
+      assert.equal(reportedError, 'untrusted_source_origin');
+      assert.equal(session.authorizedSourceOrigin, '');
+      session.cleanup();
     });
 
     test('Rechazo estricto de nonce adulterado en listenForBridgeCodeOnReceive', () => {
       let reportedError: string | null = null;
       let receivedCode: string | null = null;
 
-      const mockOpener = {
-        postMessage: () => {},
-      } as unknown as Window;
+      const mockOpener = { postMessage: () => {} } as unknown as Window;
       const targetUserId = '22222222-bbbb-4222-8222-222222222222';
 
-      // Configurar simulación de window con message listener
       let registeredListener: ((e: MessageEvent) => void) | null = null;
       const fakeWindow = {
         addEventListener: (_evt: string, fn: any) => {
@@ -262,6 +447,7 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       const session = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
         sourceOpener: mockOpener,
         targetUserId,
+        sourceOrigin: 'http://localhost:5173',
         onCodeReceived: (t) => {
           receivedCode = t;
         },
@@ -272,74 +458,238 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
 
       assert.ok(registeredListener);
 
-      // Simular ataque: atacante envía PE_BRIDGE_CODE con nonce adulterado
       const fakeMessage = {
         origin: 'http://localhost:5173',
         source: mockOpener,
         data: {
           type: 'PE_BRIDGE_CODE',
           ticket_token: 'b'.repeat(64),
-          bridge_nonce: '0'.repeat(32), // Nonce incorrecto
+          bridge_nonce: '0'.repeat(32),
         },
       } as MessageEvent;
 
       registeredListener!(fakeMessage);
 
-      assert.equal(reportedError, 'bridge_nonce_mismatch', 'Debe rechazar nonce adulterado');
-      assert.equal(receivedCode, null, 'No debe aceptar el código si el nonce no coincide');
+      assert.equal(reportedError, 'bridge_nonce_mismatch');
+      assert.equal(receivedCode, null);
+      session.cleanup();
+    });
+
+    test('notifyCompleted entrega PE_BRIDGE_COMPLETED con nonce hacia el origen exacto (cero *)', () => {
+      let deliveredMessage: any = null;
+      let deliveredOrigin: string | null = null;
+
+      const mockOpener = {
+        postMessage: (msg: any, target: string) => {
+          deliveredMessage = msg;
+          deliveredOrigin = target;
+        },
+      } as unknown as Window;
+
+      const session = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
+        sourceOpener: mockOpener,
+        targetUserId: '22222222-bbbb-4222-8222-222222222222',
+        sourceOrigin: 'http://localhost:5173',
+        onCodeReceived: () => {},
+        onError: () => {},
+      });
+
+      session.notifyCompleted();
+
+      assert.equal(deliveredOrigin, 'http://localhost:5173');
+      assert.notEqual(deliveredOrigin, '*');
+      assert.equal(deliveredMessage.type, 'PE_BRIDGE_COMPLETED');
+      assert.equal(deliveredMessage.bridge_nonce, session.nonce);
 
       session.cleanup();
     });
   });
 
   // =========================================================================
-  // BLOQUE 3: SIMULACIÓN DE ENSAYO DUAL-ORIGIN (localhost:5173 <-> 127.0.0.1:5174)
+  // BLOQUE 5: CICLO DE VIDA DE POPUP MÓVIL, VENTANA CERRADA Y CANCELACIÓN
   // =========================================================================
-  describe('3. Ensayo Simulado Cross-Origin Dual (Dominio A <-> Dominio B)', () => {
-    test('Aislamiento de almacenamiento: Origen A y Origen B no comparten storage', () => {
-      const originAStorage = new MockStorage();
-      const originBStorage = new MockStorage();
+  describe('5. Ciclo de Vida de Popup Móvil, Ventana Cerrada y Cancelación', () => {
+    test('Acepta popup provisto sincrónicamente y no pierde listeners', () => {
+      let listenerAttached = false;
+      const fakeWindow = {
+        addEventListener: (evt: string) => {
+          if (evt === 'message') listenerAttached = true;
+        },
+        removeEventListener: () => {},
+      };
+      (globalThis as any).window = fakeWindow;
 
-      originAStorage.setItem('participated_tokens', JSON.stringify(['11111111-1111-4111-8111-111111111111']));
-      assert.equal(originBStorage.getItem('participated_tokens'), null, 'Dominio B no puede leer storage de Dominio A');
+      const mockPopup = { closed: false, postMessage: () => {} } as unknown as Window;
+
+      const bridge = domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow: mockPopup,
+        targetOrigin: 'http://127.0.0.1:5174',
+        onStateChange: () => {},
+        onError: () => {},
+      });
+
+      assert.equal(listenerAttached, true, 'El listener debe estar registrado de inmediato');
+      bridge.cancel();
     });
 
-    test('Handshake simulado: Target genera nonce 128b y Source entrega ticket asociado a target', () => {
-      const originA = 'http://localhost:5173';
-      const originB = 'http://127.0.0.1:5174';
-
-      const targetUserId = '22222222-bbbb-4222-8222-222222222222';
-      const bridgeNonce = generateBridgeNonce();
-
-      // Mensaje de B -> A
-      const readyMsg = {
-        type: 'PE_BRIDGE_READY',
-        target_user_id: targetUserId,
-        bridge_nonce: bridgeNonce,
+    test('Falla de popup bloqueado reporta popup_blocked si fallback manual está inactivo', () => {
+      let reportedError: string | null = null;
+      (globalThis as any).window = {
+        open: () => null, // Popup bloqueado por navegador
+        addEventListener: () => {},
+        removeEventListener: () => {},
       };
 
-      assert.equal(isTrustedBridgeOrigin(originA), true);
-      assert.equal(isTrustedBridgeOrigin(originB), true);
-      assert.match(readyMsg.target_user_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-      assert.match(readyMsg.bridge_nonce, /^[0-9a-f]{32}$/i);
+      domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow: null,
+        targetOrigin: 'http://127.0.0.1:5174',
+        onStateChange: () => {},
+        onError: (err) => {
+          reportedError = err;
+        },
+      });
 
-      // Respuesta de A -> B
-      const ticketToken = 'a'.repeat(64);
-      const codeMsg = {
-        type: 'PE_BRIDGE_CODE',
-        ticket_token: ticketToken,
-        bridge_nonce: readyMsg.bridge_nonce, // Eco exacto
+      assert.equal(reportedError, 'popup_blocked');
+    });
+
+    test('Cancelación manual revoca ticket en servidor y restablece estado', async () => {
+      let revokedCalled = false;
+      let stateResult: string | null = null;
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'revoke_my_pending_transfer_ticket') {
+          revokedCalled = true;
+          return { data: { ok: true }, error: null };
+        }
+        return { data: { ok: true }, error: null };
       };
 
-      assert.equal(codeMsg.bridge_nonce, bridgeNonce);
-      assert.equal(codeMsg.ticket_token.length, 64);
+      const mockPopup = { closed: false, postMessage: () => {} } as unknown as Window;
+      const bridge = domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow: mockPopup,
+        targetOrigin: 'http://127.0.0.1:5174',
+        onStateChange: (st) => {
+          stateResult = st;
+        },
+        onError: () => {},
+      });
+
+      bridge.cancel();
+      assert.equal(stateResult, 'ready_to_migrate');
+      // Esperar microtarea de revocación
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(revokedCalled, true, 'Debe invocar revoke_my_pending_transfer_ticket');
     });
   });
 
   // =========================================================================
-  // BLOQUE 4: CAÍDA DE RED POST-COMMIT E IDEMPOTENCIA
+  // BLOQUE 6: AISLAMIENTO Y SCOPING DE SESIÓN RETIRADA POR IDENTIDAD
   // =========================================================================
-  describe('4. Resiliencia, Caída de Red Post-Commit e Idempotencia (ADV-15)', () => {
+  describe('6. Aislamiento y Scoping de Sesión Retirada por Identidad', () => {
+    test('Retirar Usuario A NO afecta a Usuario B en el mismo navegador', () => {
+      const userA = '11111111-aaaa-4111-8111-111111111111';
+      const userB = '22222222-bbbb-4222-8222-222222222222';
+
+      assert.equal(isLocalSessionRetired(userA), false);
+      assert.equal(isLocalSessionRetired(userB), false);
+
+      markLocalSessionRetired(userA);
+
+      assert.equal(isLocalSessionRetired(userA), true, 'Usuario A debe estar retirado');
+      assert.equal(isLocalSessionRetired(userB), false, 'Usuario B NO debe heredar el estado');
+      assert.equal(mockLocal.getItem(`${RETIRED_LOCAL_SESSION_PREFIX}${userB}`), null);
+    });
+
+    test('Nunca invoca signOut() sobre la sesión de origen transferida', () => {
+      let signOutCalled = false;
+      (supabase.auth as any).signOut = async () => {
+        signOutCalled = true;
+      };
+
+      markLocalSessionRetired('user-test-no-signout');
+      assert.equal(signOutCalled, false, 'Jamás debe llamar a signOut()');
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 7: DETECCIÓN DE INVENTARIO Y RESILIENCIA ANTE FALLOS DE SERVIDOR
+  // =========================================================================
+  describe('7. Detección de Inventario y Resiliencia ante Fallos', () => {
+    test('Falla de red en get_anonymous_upgrade_state resulta en error_recoverable, NO empty_clean', async () => {
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'anon-user-1', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'get_anonymous_upgrade_state') {
+          return { data: null, error: { message: 'Failed to fetch (network error)' } };
+        }
+        return { data: null, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.detectInventory();
+      assert.equal(res.state, 'error_recoverable', 'Fallo de red debe ser error_recoverable');
+      assert.notEqual(res.state, 'empty_clean', 'NUNCA debe reportar empty_clean ante error');
+      assert.ok(res.error?.includes('Failed to fetch'));
+    });
+
+    test('Respuesta { ok: false } de get_anonymous_upgrade_state se trata como error_recoverable', async () => {
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'anon-user-2', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'get_anonymous_upgrade_state') {
+          return { data: { ok: false, error: 'internal_query_timeout' }, error: null };
+        }
+        return { data: null, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.detectInventory();
+      assert.equal(res.state, 'error_recoverable');
+      assert.equal(res.error, 'internal_query_timeout');
+    });
+
+    test('Solo reporta empty_clean cuando el servidor confirma 0 recursos y no hay tokens locales', async () => {
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'anon-clean', is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'get_anonymous_upgrade_state') {
+          return {
+            data: {
+              ok: true,
+              already_migrated: false,
+              has_transferable_resources: false,
+              has_owned_encounters: false,
+            },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.detectInventory();
+      assert.equal(res.state, 'empty_clean');
+      assert.equal(res.inventory?.hasTransferableResources, false);
+    });
+
+    test('Cuenta permanente Google identificada en estado google_ready', async () => {
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: 'google-user', is_anonymous: false } } },
+      });
+
+      const res = await domainMigrationBridgeService.detectInventory();
+      assert.equal(res.state, 'google_ready');
+      assert.equal(res.inventory?.isAnonymous, false);
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 8: RESILIENCIA, CAÍDA DE RED POST-COMMIT E IDEMPOTENCIA (ADV-15)
+  // =========================================================================
+  describe('8. Resiliencia, Caída de Red Post-Commit e Idempotencia (ADV-15)', () => {
     test('confirmMigrationCompleted valida formato hex de 64 caracteres antes de invocar RPC', async () => {
       const invalidShort = '1234abcd';
       const res = await domainMigrationBridgeService.confirmMigrationCompleted(invalidShort);
@@ -353,12 +703,33 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       assert.equal(res.ok, false);
       assert.equal(res.error, 'invalid_token_format');
     });
+
+    test('Caída de red en claim dispara confirmación idempotente y recupera éxito', async () => {
+      const validToken = 'c'.repeat(64);
+
+      (supabase as any).rpc = async (fn: string) => {
+        if (fn === 'claim_domain_migration_ticket_seguro') {
+          return { data: null, error: { message: 'Network request failed' } };
+        }
+        if (fn === 'confirmar_migracion_dominio_completada_seguro') {
+          return {
+            data: { ok: true, already_completed: true, resources_transferred: { count: 3 } },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      };
+
+      const res = await domainMigrationBridgeService.claimMigrationTicket(validToken);
+      assert.equal(res.ok, true);
+      assert.equal(res.alreadyCompleted, true);
+    });
   });
 
   // =========================================================================
-  // BLOQUE 5: MATRIZ DE MENSAJES UX (CERO JERGA TÉCNICA)
+  // BLOQUE 9: MATRIZ DE MENSAJES UX EN LENGUAJE CLARO (CERO JERGA)
   // =========================================================================
-  describe('5. Matriz de Mensajes UX en Lenguaje Claro', () => {
+  describe('9. Matriz de Mensajes UX en Lenguaje Claro', () => {
     const forbiddenJargon = [
       'jwt',
       'token',
@@ -385,6 +756,8 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       'no_transferable_resources',
       'cross_origin_migration_disabled',
       'manual_migration_disabled',
+      'popup_blocked',
+      'popup_closed',
     ];
 
     test('Todos los códigos de error tienen mensajes claros sin jerga técnica', () => {
@@ -416,14 +789,13 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
   });
 
   // =========================================================================
-  // BLOQUE 6: PROTECCIÓN CONTRA FUGAS DE SECRETOS EN URLS Y CABECERAS
+  // BLOQUE 10: PROTECCIÓN CONTRA FUGAS DE SECRETOS EN URLS Y CABECERAS
   // =========================================================================
-  describe('6. Protección contra Fugas de Secretos y Anti-Framing (ADV-09)', () => {
+  describe('10. Protección contra Fugas de Secretos y Anti-Framing (ADV-09)', () => {
     test('isValidPostAuthRedirect autoriza rutas de migración y rechaza parámetros con códigos', () => {
       assert.equal(isValidPostAuthRedirect('/auth/domain-bridge'), true);
       assert.equal(isValidPostAuthRedirect('/migrate-receive'), true);
 
-      // Rechazo estricto de códigos en query string o fragmentos
       assert.equal(isValidPostAuthRedirect(`/migrate-receive?code=${'a'.repeat(64)}`), false);
       assert.equal(isValidPostAuthRedirect(`/auth/domain-bridge?ticket=${'b'.repeat(64)}`), false);
       assert.equal(isValidPostAuthRedirect('/migrate-receive#access_token=secret'), false);
@@ -449,8 +821,8 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       const bridgeHeader = content.headers.find((h: any) => h.source.includes('/auth/domain-bridge'));
       const receiveHeader = content.headers.find((h: any) => h.source.includes('/migrate-receive'));
 
-      assert.ok(bridgeHeader, 'Debe existir configuración de cabeceras para /auth/domain-bridge');
-      assert.ok(receiveHeader, 'Debe existir configuración de cabeceras para /migrate-receive');
+      assert.ok(bridgeHeader, 'Debe existir cabecera para /auth/domain-bridge');
+      assert.ok(receiveHeader, 'Debe existir cabecera para /migrate-receive');
 
       const hasXFrame = (entry: any) =>
         entry.headers.some((h: any) => h.key === 'X-Frame-Options' && h.value === 'DENY');
@@ -459,25 +831,184 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       const hasNoStore = (entry: any) =>
         entry.headers.some((h: any) => h.key === 'Cache-Control' && h.value === 'no-store');
 
-      assert.ok(hasXFrame(bridgeHeader), '/auth/domain-bridge debe tener X-Frame-Options: DENY');
-      assert.ok(hasCsp(bridgeHeader), '/auth/domain-bridge debe tener CSP frame-ancestors none');
-      assert.ok(hasNoStore(bridgeHeader), '/auth/domain-bridge debe tener Cache-Control: no-store');
+      assert.ok(hasXFrame(bridgeHeader));
+      assert.ok(hasCsp(bridgeHeader));
+      assert.ok(hasNoStore(bridgeHeader));
 
-      assert.ok(hasXFrame(receiveHeader), '/migrate-receive debe tener X-Frame-Options: DENY');
-      assert.ok(hasCsp(receiveHeader), '/migrate-receive debe tener CSP frame-ancestors none');
-      assert.ok(hasNoStore(receiveHeader), '/migrate-receive debe tener Cache-Control: no-store');
+      assert.ok(hasXFrame(receiveHeader));
+      assert.ok(hasCsp(receiveHeader));
+      assert.ok(hasNoStore(receiveHeader));
     });
   });
 
   // =========================================================================
-  // BLOQUE 7: RETIRO POST-MIGRACIÓN Y CADENA A -> B -> C (ADV-16, ADV-17)
+  // BLOQUE 11: ENSAYO SIMULADO CROSS-ORIGIN DUAL DE PUNTA A PUNTA
   // =========================================================================
-  describe('7. Retiro Post-Migración y Cadena A -> B -> C', () => {
-    test('markLocalSessionRetired persiste estado y isLocalSessionRetired lo detecta', () => {
-      assert.equal(isLocalSessionRetired(), false);
-      markLocalSessionRetired();
-      assert.equal(isLocalSessionRetired(), true);
-      assert.equal(mockLocal.getItem(RETIRED_LOCAL_SESSION_KEY), 'true');
+  describe('11. Ensayo Simulado Cross-Origin Dual (localhost:5173 <-> 127.0.0.1:5174)', () => {
+    test('Intercambio completo end-to-end con métodos reales de servicio y cero wildcards', async () => {
+      const originA = 'http://localhost:5173';
+      const originB = 'http://127.0.0.1:5174';
+      const targetUserId = 'bbbbbbbb-2222-4222-8222-222222222222';
+      const sourceUserId = 'aaaaaaaa-1111-4111-8111-111111111111';
+      const generatedTicket = 'd'.repeat(64);
+
+      let targetListener: ((e: MessageEvent) => void) | null = null;
+      let sourceListener: ((e: MessageEvent) => void) | null = null;
+
+      let postMessageTargetCalls: Array<{ msg: any; targetOrigin: string }> = [];
+      let postMessageSourceCalls: Array<{ msg: any; targetOrigin: string }> = [];
+
+      const storageA = new MockStorage();
+      const storageB = new MockStorage();
+
+      // Ventana de origen (Dominio A) simulada
+      // Recibe mensajes dirigidos a Dominio A (enviados por popupWindow)
+      const windowA = {
+        localStorage: storageA,
+        sessionStorage: new MockStorage(),
+        addEventListener: (_evt: string, fn: any) => {
+          sourceListener = fn;
+        },
+        removeEventListener: () => {
+          sourceListener = null;
+        },
+        location: { origin: originA },
+        postMessage: (msg: any, target: string) => {
+          postMessageSourceCalls.push({ msg, targetOrigin: target });
+          if (sourceListener) {
+            (globalThis as any).window = windowA;
+            (globalThis as any).localStorage = storageA;
+            sourceListener({
+              origin: originB,
+              source: popupWindow,
+              data: msg,
+            } as MessageEvent);
+          }
+        },
+      } as unknown as Window;
+
+      // Ventana popup (Dominio B) simulada
+      // Recibe mensajes dirigidos a Dominio B (enviados por windowA)
+      const popupWindow = {
+        closed: false,
+        opener: windowA,
+        location: { origin: originB },
+        localStorage: storageB,
+        sessionStorage: new MockStorage(),
+        postMessage: (msg: any, target: string) => {
+          postMessageTargetCalls.push({ msg, targetOrigin: target });
+          if (targetListener) {
+            (globalThis as any).window = popupWindow;
+            (globalThis as any).localStorage = storageB;
+            targetListener({
+              origin: originA,
+              source: windowA,
+              data: msg,
+            } as MessageEvent);
+          }
+        },
+      } as unknown as Window;
+
+      (globalThis as any).window = windowA;
+
+      // Mock de Supabase para Dominio A y Dominio B
+      (supabase.auth as any).getSession = async () => ({
+        data: { session: { user: { id: sourceUserId, is_anonymous: true } } },
+      });
+
+      (supabase as any).rpc = async (fn: string, params: any) => {
+        if (fn === 'create_domain_migration_ticket_seguro') {
+          assert.equal(params.p_intended_target_user_id, targetUserId);
+          assert.equal(params.p_flow_mode, 'cross_origin_bridge');
+          return {
+            data: { ok: true, ticket_token: generatedTicket },
+            error: null,
+          };
+        }
+        if (fn === 'claim_domain_migration_ticket_seguro') {
+          assert.equal(params.p_ticket_token, generatedTicket);
+          return {
+            data: { ok: true, resources_transferred: { encuentros: 2 } },
+            error: null,
+          };
+        }
+        return { data: { ok: true }, error: null };
+      };
+
+      // 1. Dominio A inicia handshake
+      let sourceState: string | null = null;
+      const bridgeA = domainMigrationBridgeService.startBridgeHandshake({
+        popupWindow,
+        targetOrigin: originB,
+        onStateChange: (st) => {
+          sourceState = st;
+        },
+        onError: (err) => {
+          assert.fail(`Error inesperado en Dominio A: ${err}`);
+        },
+      });
+
+      // 2. Dominio B configura escucha con sourceOrigin = originA
+      (popupWindow as any).addEventListener = (_evt: string, fn: any) => {
+        targetListener = fn;
+      };
+      (popupWindow as any).removeEventListener = () => {
+        targetListener = null;
+      };
+
+      (globalThis as any).window = popupWindow;
+      (globalThis as any).localStorage = storageB;
+
+      let codeReceivedByB: string | null = null;
+      const bridgeB = domainMigrationBridgeService.listenForBridgeCodeOnReceive({
+        sourceOpener: windowA,
+        targetUserId,
+        sourceOrigin: originA,
+        onCodeReceived: async (token) => {
+          codeReceivedByB = token;
+          // Dominio B canjea el ticket recibido
+          const claimRes = await domainMigrationBridgeService.claimMigrationTicket(token);
+          assert.equal(claimRes.ok, true);
+          // Dominio B notifica completitud
+          bridgeB.notifyCompleted();
+        },
+        onError: (err) => {
+          assert.fail(`Error inesperado en Dominio B: ${err}`);
+        },
+      });
+
+      // Dar tiempo para la propagación de microtareas asíncronas
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 3. Verificaciones de seguridad y paridad
+      assert.equal(codeReceivedByB, generatedTicket, 'Dominio B debe recibir el código emitido');
+      assert.equal(sourceState, 'already_migrated', 'Dominio A debe transicionar a already_migrated');
+      assert.equal(storageA.getItem(`${RETIRED_LOCAL_SESSION_PREFIX}${sourceUserId}`) !== null, true, 'La sesión de A debe quedar retirada');
+
+      // 4. Verificar que NINGÚN mensaje utilizó targetOrigin = '*'
+      for (const call of postMessageTargetCalls) {
+        assert.notEqual(call.targetOrigin, '*', 'Target de llamada de A a B no puede ser *');
+        assert.equal(call.targetOrigin, originB);
+      }
+      for (const call of postMessageSourceCalls) {
+        assert.notEqual(call.targetOrigin, '*', 'Target de llamada de B a A no puede ser *');
+        assert.equal(call.targetOrigin, originA);
+      }
+
+      bridgeA.cancel();
+      bridgeB.cleanup();
+    });
+  });
+
+  // =========================================================================
+  // BLOQUE 12: GOBERNANZA DE FEATURE FLAGS Y DESACTIVACIÓN POR DEFECTO
+  // =========================================================================
+  describe('12. Gobernanza de Feature Flags y Desactivación por Defecto', () => {
+    test('Feature flags están desactivados por defecto en producción', () => {
+      assert.equal(typeof ENABLE_DOMAIN_MIGRATION_BRIDGE, 'boolean');
+      assert.equal(typeof ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK, 'boolean');
+      assert.equal(domainMigrationBridgeService.isBridgeEnabled(), ENABLE_DOMAIN_MIGRATION_BRIDGE);
+      assert.equal(domainMigrationBridgeService.isManualFallbackEnabled(), ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK);
     });
 
     test('Cadena de redirección histórica N -> 1 resuelve A -> C y B -> C sin encadenamiento', () => {
@@ -498,18 +1029,6 @@ describe('Mini-Sprint 2B-3: Frontend del Puente de Identidad entre Dominios', ()
       if (fromB.shouldRedirect) {
         assert.equal(fromB.destinationUrl, 'https://dominio-c.com/meet/1234');
       }
-    });
-  });
-
-  // =========================================================================
-  // BLOQUE 8: GOBERNANZA DE FEATURE FLAGS
-  // =========================================================================
-  describe('8. Gobernanza de Feature Flags y Desactivación por Defecto', () => {
-    test('Feature flags están desactivados por defecto en producción', () => {
-      assert.equal(typeof ENABLE_DOMAIN_MIGRATION_BRIDGE, 'boolean');
-      assert.equal(typeof ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK, 'boolean');
-      assert.equal(domainMigrationBridgeService.isBridgeEnabled(), ENABLE_DOMAIN_MIGRATION_BRIDGE);
-      assert.equal(domainMigrationBridgeService.isManualFallbackEnabled(), ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK);
     });
   });
 });
