@@ -1070,8 +1070,8 @@ export const HomeOpenEncounterDetailSheet: React.FC<HomeOpenEncounterDetailSheet
                   {t('open_encounters.withdraw_action', { defaultValue: 'No voy a poder asistir' })}
                 </button>
               </div>
-              {/* Panel de mensajes para participante confirmado con logística habilitada */}
-              {encounter?.id && (authorizedDetail?.lugar_texto || authorizedDetail?.link_virtual) && (
+              {/* Panel de mensajes para participante confirmado (DIF-17: desacoplado de la logística privada) */}
+              {encounter?.id && (
                 <div style={{ marginTop: '1rem' }}>
                   <EncounterMessagesPanel
                     encuentroId={encounter.id}

@@ -15,9 +15,11 @@ import {
   Phone,
   Plus,
   Sparkles,
+  Info,
 } from 'lucide-react';
 import { mensajesService } from '@/services/mensajesService';
 import { whatsappContactService, type WhatsappContactResult } from '@/services/whatsappContactService';
+import { useAuth } from '@/contexts/AuthContext';
 import type { MensajeEncuentro } from '@/types/mensajes';
 import './EncounterMessagesPanel.css';
 
@@ -26,21 +28,30 @@ export interface EncounterMessagesPanelProps {
   tokenInvitacion?: string;
   isHost?: boolean;
   isConfirmed?: boolean;
+  authUserId?: string;
 }
 
-export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
+interface EncounterMessagesPanelContentProps extends EncounterMessagesPanelProps {
+  effectiveUserId: string;
+}
+
+const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelContentProps> = ({
   encuentroId,
   tokenInvitacion,
   isHost = false,
   isConfirmed = true,
+  effectiveUserId,
 }) => {
   const { t } = useTranslation();
 
+  const currentContextKey = `${encuentroId || 'none'}:${tokenInvitacion || 'auth'}:${effectiveUserId}`;
+  const [loadedContextKey, setLoadedContextKey] = useState<string | null>(null);
+
   const [mensajes, setMensajes] = useState<MensajeEncuentro[]>([]);
   const [destacados, setDestacados] = useState<MensajeEncuentro[]>([]);
-  const [canWrite, setCanWrite] = useState(true);
+  const [canWrite, setCanWrite] = useState(false);
   const [writingWindowClosed, setWritingWindowClosed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [rawLoading, setRawLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [specialState, setSpecialState] = useState<"retention_expired" | "purged" | "cancelled" | "unauthorized" | null>(null);
 
@@ -61,29 +72,55 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
 
-  // Referencias para evitar duplicados en polling
+  // Referencias para control de concurrencia e invalidación atómica de respuestas obsoletas
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isFetchingRef = useRef(false);
+  const activeRequestIdRef = useRef(0);
+  const currentTargetRef = useRef<{ encuentroId: string; tokenInvitacion?: string }>({
+    encuentroId,
+    tokenInvitacion,
+  });
+  const inFlightTargetRef = useRef<string | null>(null);
   const lastActivityRef = useRef(Date.now());
   const isIdleRef = useRef(false);
 
+  // Mantener actualizado el contexto de destino actual en cada render
+  useEffect(() => {
+    currentTargetRef.current = { encuentroId, tokenInvitacion };
+  }, [encuentroId, tokenInvitacion]);
+
   const fetchMensajes = useCallback(async (showLoadingSpinner = false) => {
-    if (!encuentroId || isFetchingRef.current) return;
+    if (!encuentroId) return;
     if (document.visibilityState !== 'visible') return;
+
     const targetEncuentroId = encuentroId;
     const targetToken = tokenInvitacion;
 
+    // Evitar peticiones concurrentes idénticas en polling para el mismo encuentro,
+    // pero NUNCA bloquear la ejecución si el encuentro de destino ha cambiado.
+    if (!showLoadingSpinner && inFlightTargetRef.current === targetEncuentroId) {
+      return;
+    }
+
+    const thisRequestId = ++activeRequestIdRef.current;
+    inFlightTargetRef.current = targetEncuentroId;
+
     try {
-      isFetchingRef.current = true;
-      if (showLoadingSpinner) setLoading(true);
+      if (showLoadingSpinner) setRawLoading(true);
 
       const [res, waRes] = await Promise.all([
-        mensajesService.getMensajes(encuentroId, tokenInvitacion),
-        whatsappContactService.obtenerContacto(encuentroId, tokenInvitacion),
+        mensajesService.getMensajes(targetEncuentroId, targetToken),
+        whatsappContactService.obtenerContacto(targetEncuentroId, targetToken),
       ]);
 
-      // Guard against stale response if encounterId or token changed
-      if (encuentroId !== targetEncuentroId || tokenInvitacion !== targetToken) return;
+      // Guardia estricta contra respuestas obsoletas (race condition):
+      // Si la petición actual ya no coincide con la última solicitada o el contexto cambió
+      if (
+        thisRequestId !== activeRequestIdRef.current ||
+        currentTargetRef.current.encuentroId !== targetEncuentroId ||
+        currentTargetRef.current.tokenInvitacion !== targetToken
+      ) {
+        return;
+      }
 
       if (waRes.ok) {
         setWhatsappContact(waRes);
@@ -98,19 +135,21 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         setWritingWindowClosed(res.writing_window_closed);
         setSpecialState(null);
         setErrorMsg(null);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
       } else {
         setWhatsappContact(null);
+        setMensajes([]);
+        setDestacados([]);
+        setCanWrite(false);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
         if (res.error === 'history_retention_expired') {
           setSpecialState('retention_expired');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (res.error === 'history_purged') {
           setSpecialState('purged');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (res.error === 'meeting_cancelled') {
           setSpecialState('cancelled');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (
           res.error === 'participant_not_confirmed' ||
@@ -118,30 +157,65 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           res.error === 'unauthorized'
         ) {
           setSpecialState('unauthorized');
-          setCanWrite(false);
           setErrorMsg(null);
+        } else if (res.error === 'reconfirmation_required') {
+          setErrorMsg(t('encounter_messages.reconfirmation_required', 'La mensajería interna estará disponible una vez confirmada la realización del encuentro.'));
         } else {
-          setErrorMsg(res.error || 'Error cargando mensajes');
+          setErrorMsg(t('encounter_messages.load_error', 'No pudimos cargar los mensajes en este momento. Por favor, reintentá más tarde.'));
         }
       }
     } catch (err: any) {
+      if (
+        thisRequestId !== activeRequestIdRef.current ||
+        currentTargetRef.current.encuentroId !== targetEncuentroId ||
+        currentTargetRef.current.tokenInvitacion !== targetToken
+      ) {
+        return;
+      }
       if (import.meta.env.DEV) console.error('[EncounterMessagesPanel] fetch error:', err);
+      setMensajes([]);
+      setDestacados([]);
+      setCanWrite(false);
+      setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
+      setErrorMsg(t('encounter_messages.network_error', 'No pudimos conectar con el servicio de mensajería. Por favor, verificá tu conexión.'));
     } finally {
-      isFetchingRef.current = false;
-      if (showLoadingSpinner) setLoading(false);
+      if (thisRequestId === activeRequestIdRef.current) {
+        inFlightTargetRef.current = null;
+        if (showLoadingSpinner) {
+          setRawLoading(false);
+        }
+      }
     }
-  }, [encuentroId, tokenInvitacion]);
+  }, [encuentroId, tokenInvitacion, effectiveUserId]);
 
   // Carga inicial y configuración de Smart Polling: 20s (activo) y máx 45s (inactivo visible)
   useEffect(() => {
+    // 1. Invalidar inmediatamente cualquier petición asíncrona previa en curso
+    activeRequestIdRef.current += 1;
+    inFlightTargetRef.current = null;
+    currentTargetRef.current = { encuentroId, tokenInvitacion };
+    setLoadedContextKey(null);
+
+    // 2. Resetear estado al cambiar de encuentro o token para evitar retener mensajes ajenos
+    setMensajes([]);
+    setDestacados([]);
+    setWhatsappContact(null);
+    setErrorMsg(null);
+    setSpecialState(null);
+    setCanWrite(false);
+    setWritingWindowClosed(false);
+    setReplyingTo(null);
+    setNuevoMensaje('');
+
     if (!isConfirmed) {
-      setLoading(false);
+      setRawLoading(false);
       return;
     }
 
     lastActivityRef.current = Date.now();
     isIdleRef.current = false;
 
+    // Disparar inmediatamente la nueva consulta para el nuevo encuentro sin bloqueo
     fetchMensajes(true);
 
     const startPolling = (cadence = 20000) => {
@@ -165,6 +239,9 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
 
         fetchMensajes(false);
       }, cadence);
+      if (pollTimerRef.current && typeof (pollTimerRef.current as any).unref === 'function') {
+        (pollTimerRef.current as any).unref();
+      }
     };
 
     if (document.visibilityState === 'visible') {
@@ -215,12 +292,18 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     });
 
     return () => {
+      activeRequestIdRef.current += 1;
+      inFlightTargetRef.current = null;
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      interactionEvents.forEach((evt) => {
-        window.removeEventListener(evt, handleInteraction);
-      });
+      if (typeof document !== 'undefined' && document.removeEventListener) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('focus', handleFocus);
+        interactionEvents.forEach((evt) => {
+          window.removeEventListener(evt, handleInteraction);
+        });
+      }
     };
   }, [fetchMensajes, isConfirmed]);
 
@@ -496,10 +579,17 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     );
   }
 
+  // Aislamiento visual estricto: el estado privado solo se proyecta si coincide con el destino autorizado cargado
+  const isTargetLoaded = loadedContextKey === currentContextKey;
+  const activeMensajes = isTargetLoaded ? mensajes : [];
+  const activeDestacados = isTargetLoaded ? destacados : [];
+  const activeWhatsapp = isTargetLoaded ? whatsappContact : null;
+  const loading = rawLoading || !isTargetLoaded;
+
   // Estructura de árbol de respuestas (1 nivel de profundidad)
-  const rootMessages = mensajes.filter((m) => !m.parent_id);
+  const rootMessages = activeMensajes.filter((m) => !m.parent_id);
   const replyMap: Record<string, MensajeEncuentro[]> = {};
-  mensajes.forEach((m) => {
+  activeMensajes.forEach((m) => {
     if (m.parent_id) {
       if (!replyMap[m.parent_id]) replyMap[m.parent_id] = [];
       replyMap[m.parent_id].push(m);
@@ -516,9 +606,11 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           </div>
           <h2 className="pe-msg-title">{t('encounter_messages.title', 'Información y mensajes')}</h2>
         </div>
-        <span className="pe-msg-count-pill">
-          {mensajes.length} {mensajes.length === 1 ? 'mensaje' : 'mensajes'}
-        </span>
+        {!loading && !errorMsg && specialState === null && (
+          <span className="pe-msg-count-pill">
+            {activeMensajes.length} {activeMensajes.length === 1 ? t('encounter_messages.single_count', 'mensaje') : t('encounter_messages.plural_count', 'mensajes')}
+          </span>
+        )}
       </header>
 
       {/* Banners de feedback / error */}
@@ -545,13 +637,13 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         </div>
 
         {/* 1.1 Instrucciones destacadas del anfitrión */}
-        {destacados.length > 0 ? (
+        {activeDestacados.length > 0 ? (
           <div className="pe-msg-destacados">
             <div className="pe-msg-destacados-header">
               <Pin size={14} />
-              <span>{t('encounter_messages.pinned_instructions', 'Instrucciones del anfitrión')} ({destacados.length}/3)</span>
+              <span>{t('encounter_messages.pinned_instructions', 'Instrucciones del anfitrión')} ({activeDestacados.length}/3)</span>
             </div>
-            {destacados.map((d) => (
+            {activeDestacados.map((d) => (
               <article key={d.id} className="pe-msg-destacado-card">
                 <div className="pe-msg-item-top">
                   <div className="pe-msg-author-info">
@@ -583,12 +675,12 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         ) : null}
 
         {/* 1.2 Contacto voluntario de WhatsApp */}
-        {!isHost && whatsappContact?.has_contact && whatsappContact?.opt_in && whatsappContact?.wa_link && (
+        {!isHost && activeWhatsapp?.has_contact && activeWhatsapp?.opt_in && activeWhatsapp?.wa_link && (
           <div className="pe-msg-wa-box">
             <div className="pe-msg-wa-info">
               <span className="pe-msg-wa-label">{t('encounter_messages.whatsapp_contact_title', 'Contacto por WhatsApp')}</span>
               <a
-                href={whatsappContact.wa_link}
+                href={activeWhatsapp.wa_link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="pe-msg-wa-btn"
@@ -608,21 +700,21 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           <div className="pe-msg-wa-host-box">
             <div className="pe-msg-wa-host-row">
               <div className="pe-msg-wa-host-status">
-                <Phone size={15} color={whatsappContact?.opt_in && whatsappContact?.telefono ? '#16a34a' : '#64748b'} />
+                <Phone size={15} color={activeWhatsapp?.opt_in && activeWhatsapp?.telefono ? '#16a34a' : '#64748b'} />
                 <span>
-                  {whatsappContact?.opt_in && whatsappContact?.telefono
-                    ? `${t('encounter_messages.whatsapp_host_status_active', 'Contacto de WhatsApp activo')}: +${whatsappContact.telefono}`
+                  {activeWhatsapp?.opt_in && activeWhatsapp?.telefono
+                    ? `${t('encounter_messages.whatsapp_host_status_active', 'Contacto de WhatsApp activo')}: +${activeWhatsapp.telefono}`
                     : t('encounter_messages.whatsapp_host_status_inactive', 'Contacto de WhatsApp desactivado')}
                 </span>
               </div>
               <div className="pe-msg-wa-host-actions">
-                {whatsappContact?.opt_in && whatsappContact?.telefono ? (
+                {activeWhatsapp?.opt_in && activeWhatsapp?.telefono ? (
                   <>
                     <button
                       type="button"
                       className="pe-msg-wa-action-btn"
                       onClick={() => {
-                        setWhatsappInput('+' + whatsappContact.telefono);
+                        setWhatsappInput('+' + activeWhatsapp.telefono);
                         setWhatsappError(null);
                         setShowWhatsappModal(true);
                       }}
@@ -887,8 +979,20 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       </div>
 
       {/* SECCIÓN 3: Campo para escribir */}
-      {canWrite && !writingWindowClosed && (
+      {!loading && canWrite && !writingWindowClosed && !errorMsg && specialState === null && (
         <form className="pe-msg-composer" onSubmit={handlePublicar}>
+          {isHost && (
+            <p className="pe-msg-host-privacy-hint" style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 8px 0', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Info size={13} style={{ flexShrink: 0 }} />
+              <span>
+                {t(
+                  'encounter_messages.host_privacy_hint',
+                  'Aviso para organizadores: estos mensajes son visibles para participantes confirmados antes de la confirmación final. No compartas acá direcciones exactas ni accesos privados que deban permanecer restringidos.'
+                )}
+              </span>
+            </p>
+          )}
+
           {replyingTo && (
             <div className="pe-msg-replying-pill">
               <span className="pe-msg-replying-text">
@@ -1032,4 +1136,18 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       )}
     </section>
   );
+};
+
+/**
+ * Componente canónico expuesto.
+ * Utiliza una clave interna vinculada al contexto autorizado (encuentroId + token/sesión)
+ * para garantizar a nivel de reconciliación de React que cualquier transición entre
+ * encuentros o credenciales desmonte de forma estanca la instancia anterior,
+ * imposibilitando la exposición visual de datos privados en el primer render de un nuevo destino.
+ */
+export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = (props) => {
+  const auth = useAuth();
+  const effectiveUserId = props.authUserId ?? auth?.user?.id ?? 'no_session';
+  const panelKey = `${props.encuentroId || 'none'}:${props.tokenInvitacion || 'auth'}:${effectiveUserId}`;
+  return <EncounterMessagesPanelContent key={panelKey} effectiveUserId={effectiveUserId} {...props} />;
 };
