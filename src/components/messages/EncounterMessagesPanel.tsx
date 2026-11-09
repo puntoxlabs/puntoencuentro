@@ -29,7 +29,7 @@ export interface EncounterMessagesPanelProps {
   isConfirmed?: boolean;
 }
 
-export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
+const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
   encuentroId,
   tokenInvitacion,
   isHost = false,
@@ -37,11 +37,14 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
 }) => {
   const { t } = useTranslation();
 
+  const currentContextKey = `${encuentroId || 'none'}:${tokenInvitacion || 'auth'}`;
+  const [loadedContextKey, setLoadedContextKey] = useState<string | null>(null);
+
   const [mensajes, setMensajes] = useState<MensajeEncuentro[]>([]);
   const [destacados, setDestacados] = useState<MensajeEncuentro[]>([]);
-  const [canWrite, setCanWrite] = useState(true);
+  const [canWrite, setCanWrite] = useState(false);
   const [writingWindowClosed, setWritingWindowClosed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [rawLoading, setRawLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [specialState, setSpecialState] = useState<"retention_expired" | "purged" | "cancelled" | "unauthorized" | null>(null);
 
@@ -95,7 +98,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     inFlightTargetRef.current = targetEncuentroId;
 
     try {
-      if (showLoadingSpinner) setLoading(true);
+      if (showLoadingSpinner) setRawLoading(true);
 
       const [res, waRes] = await Promise.all([
         mensajesService.getMensajes(targetEncuentroId, targetToken),
@@ -125,11 +128,13 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         setWritingWindowClosed(res.writing_window_closed);
         setSpecialState(null);
         setErrorMsg(null);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
       } else {
         setWhatsappContact(null);
         setMensajes([]);
         setDestacados([]);
         setCanWrite(false);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
         if (res.error === 'history_retention_expired') {
           setSpecialState('retention_expired');
           setErrorMsg(null);
@@ -164,13 +169,14 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       setMensajes([]);
       setDestacados([]);
       setCanWrite(false);
+      setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
       setErrorMsg(t('encounter_messages.network_error', 'No pudimos conectar con el servicio de mensajería. Por favor, verificá tu conexión.'));
     } finally {
-      if (inFlightTargetRef.current === targetEncuentroId) {
+      if (thisRequestId === activeRequestIdRef.current) {
         inFlightTargetRef.current = null;
-      }
-      if (thisRequestId === activeRequestIdRef.current && showLoadingSpinner) {
-        setLoading(false);
+        if (showLoadingSpinner) {
+          setRawLoading(false);
+        }
       }
     }
   }, [encuentroId, tokenInvitacion]);
@@ -181,6 +187,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     activeRequestIdRef.current += 1;
     inFlightTargetRef.current = null;
     currentTargetRef.current = { encuentroId, tokenInvitacion };
+    setLoadedContextKey(null);
 
     // 2. Resetear estado al cambiar de encuentro o token para evitar retener mensajes ajenos
     setMensajes([]);
@@ -194,7 +201,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     setNuevoMensaje('');
 
     if (!isConfirmed) {
-      setLoading(false);
+      setRawLoading(false);
       return;
     }
 
@@ -225,6 +232,9 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
 
         fetchMensajes(false);
       }, cadence);
+      if (pollTimerRef.current && typeof (pollTimerRef.current as any).unref === 'function') {
+        (pollTimerRef.current as any).unref();
+      }
     };
 
     if (document.visibilityState === 'visible') {
@@ -558,10 +568,17 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     );
   }
 
+  // Aislamiento visual estricto: el estado privado solo se proyecta si coincide con el destino autorizado cargado
+  const isTargetLoaded = loadedContextKey === currentContextKey;
+  const activeMensajes = isTargetLoaded ? mensajes : [];
+  const activeDestacados = isTargetLoaded ? destacados : [];
+  const activeWhatsapp = isTargetLoaded ? whatsappContact : null;
+  const loading = rawLoading || !isTargetLoaded;
+
   // Estructura de árbol de respuestas (1 nivel de profundidad)
-  const rootMessages = mensajes.filter((m) => !m.parent_id);
+  const rootMessages = activeMensajes.filter((m) => !m.parent_id);
   const replyMap: Record<string, MensajeEncuentro[]> = {};
-  mensajes.forEach((m) => {
+  activeMensajes.forEach((m) => {
     if (m.parent_id) {
       if (!replyMap[m.parent_id]) replyMap[m.parent_id] = [];
       replyMap[m.parent_id].push(m);
@@ -580,7 +597,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         </div>
         {!loading && !errorMsg && specialState === null && (
           <span className="pe-msg-count-pill">
-            {mensajes.length} {mensajes.length === 1 ? t('encounter_messages.single_count', 'mensaje') : t('encounter_messages.plural_count', 'mensajes')}
+            {activeMensajes.length} {activeMensajes.length === 1 ? t('encounter_messages.single_count', 'mensaje') : t('encounter_messages.plural_count', 'mensajes')}
           </span>
         )}
       </header>
@@ -609,13 +626,13 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         </div>
 
         {/* 1.1 Instrucciones destacadas del anfitrión */}
-        {destacados.length > 0 ? (
+        {activeDestacados.length > 0 ? (
           <div className="pe-msg-destacados">
             <div className="pe-msg-destacados-header">
               <Pin size={14} />
-              <span>{t('encounter_messages.pinned_instructions', 'Instrucciones del anfitrión')} ({destacados.length}/3)</span>
+              <span>{t('encounter_messages.pinned_instructions', 'Instrucciones del anfitrión')} ({activeDestacados.length}/3)</span>
             </div>
-            {destacados.map((d) => (
+            {activeDestacados.map((d) => (
               <article key={d.id} className="pe-msg-destacado-card">
                 <div className="pe-msg-item-top">
                   <div className="pe-msg-author-info">
@@ -647,12 +664,12 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         ) : null}
 
         {/* 1.2 Contacto voluntario de WhatsApp */}
-        {!isHost && whatsappContact?.has_contact && whatsappContact?.opt_in && whatsappContact?.wa_link && (
+        {!isHost && activeWhatsapp?.has_contact && activeWhatsapp?.opt_in && activeWhatsapp?.wa_link && (
           <div className="pe-msg-wa-box">
             <div className="pe-msg-wa-info">
               <span className="pe-msg-wa-label">{t('encounter_messages.whatsapp_contact_title', 'Contacto por WhatsApp')}</span>
               <a
-                href={whatsappContact.wa_link}
+                href={activeWhatsapp.wa_link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="pe-msg-wa-btn"
@@ -672,21 +689,21 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           <div className="pe-msg-wa-host-box">
             <div className="pe-msg-wa-host-row">
               <div className="pe-msg-wa-host-status">
-                <Phone size={15} color={whatsappContact?.opt_in && whatsappContact?.telefono ? '#16a34a' : '#64748b'} />
+                <Phone size={15} color={activeWhatsapp?.opt_in && activeWhatsapp?.telefono ? '#16a34a' : '#64748b'} />
                 <span>
-                  {whatsappContact?.opt_in && whatsappContact?.telefono
-                    ? `${t('encounter_messages.whatsapp_host_status_active', 'Contacto de WhatsApp activo')}: +${whatsappContact.telefono}`
+                  {activeWhatsapp?.opt_in && activeWhatsapp?.telefono
+                    ? `${t('encounter_messages.whatsapp_host_status_active', 'Contacto de WhatsApp activo')}: +${activeWhatsapp.telefono}`
                     : t('encounter_messages.whatsapp_host_status_inactive', 'Contacto de WhatsApp desactivado')}
                 </span>
               </div>
               <div className="pe-msg-wa-host-actions">
-                {whatsappContact?.opt_in && whatsappContact?.telefono ? (
+                {activeWhatsapp?.opt_in && activeWhatsapp?.telefono ? (
                   <>
                     <button
                       type="button"
                       className="pe-msg-wa-action-btn"
                       onClick={() => {
-                        setWhatsappInput('+' + whatsappContact.telefono);
+                        setWhatsappInput('+' + activeWhatsapp.telefono);
                         setWhatsappError(null);
                         setShowWhatsappModal(true);
                       }}
@@ -951,7 +968,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       </div>
 
       {/* SECCIÓN 3: Campo para escribir */}
-      {canWrite && !writingWindowClosed && !errorMsg && specialState === null && (
+      {!loading && canWrite && !writingWindowClosed && !errorMsg && specialState === null && (
         <form className="pe-msg-composer" onSubmit={handlePublicar}>
           {isHost && (
             <p className="pe-msg-host-privacy-hint" style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 8px 0', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1108,4 +1125,16 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       )}
     </section>
   );
+};
+
+/**
+ * Componente canónico expuesto.
+ * Utiliza una clave interna vinculada al contexto autorizado (encuentroId + token/sesión)
+ * para garantizar a nivel de reconciliación de React que cualquier transición entre
+ * encuentros o credenciales desmonte de forma estanca la instancia anterior,
+ * imposibilitando la exposición visual de datos privados en el primer render de un nuevo destino.
+ */
+export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = (props) => {
+  const panelKey = `${props.encuentroId || 'none'}:${props.tokenInvitacion || 'auth'}`;
+  return <EncounterMessagesPanelContent key={panelKey} {...props} />;
 };

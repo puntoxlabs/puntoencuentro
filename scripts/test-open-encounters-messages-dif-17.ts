@@ -17,12 +17,18 @@
  * 12. Frontend: Manejo de errores en EncounterMessagesPanel, desacople en HomeOpenEncounterDetailSheet y aviso host.
  */
 
-import { test, describe, before, beforeEach } from 'node:test';
+import { test, describe, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import '@/i18n/i18n';
+import { EncounterMessagesPanel } from '@/components/messages/EncounterMessagesPanel';
+import { mensajesService } from '@/services/mensajesService';
+import { whatsappContactService } from '@/services/whatsappContactService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -696,5 +702,279 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
     assert.equal(panelState.mensajes[0].id, 'msg-B-1', 'Los mensajes deben pertenecer exclusivamente al Encuentro B');
     assert.equal(panelState.destacados.length, 0, 'No debe haber destacados retenidos de A');
     assert.equal(panelState.whatsappContact?.telefono, '+5492222222222', 'El contacto de WhatsApp debe pertenecer a B');
+  });
+
+  // ── 18. Frontend / Ciclo de vida real: Montaje y rerender con respuestas diferidas ──
+  test('18. Frontend / Ciclo de vida real: Montaje y rerender con respuestas diferidas (Aislamiento Visual Estricto)', async () => {
+    // 1. Configuración de DOM simulado compatible con React 19
+    const makeDomNode = (tag = 'DIV') => {
+      const node: any = {
+        nodeType: 1,
+        tagName: tag.toUpperCase(),
+        childNodes: [],
+        style: {},
+        attributes: {},
+        _textContent: '',
+        ownerDocument: null,
+        parentNode: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        appendChild(child: any) {
+          this.childNodes.push(child);
+          child.parentNode = this;
+          return child;
+        },
+        removeChild(child: any) {
+          this.childNodes = this.childNodes.filter((c: any) => c !== child);
+          child.parentNode = null;
+          return child;
+        },
+        insertBefore(child: any, ref: any) {
+          const idx = this.childNodes.indexOf(ref);
+          if (idx >= 0) this.childNodes.splice(idx, 0, child);
+          else this.childNodes.push(child);
+          child.parentNode = this;
+          return child;
+        },
+        setAttribute(k: string, v: string) {
+          this.attributes[k] = v;
+        },
+        removeAttribute(k: string) {
+          delete this.attributes[k];
+        },
+      };
+      Object.defineProperty(node, 'textContent', {
+        get() {
+          if (this._textContent) return this._textContent;
+          if (this.childNodes.length > 0) return this.childNodes.map((c: any) => c.textContent || '').join(' ');
+          return '';
+        },
+        set(val: string) {
+          this._textContent = val;
+        },
+      });
+      return node;
+    };
+
+    function getDomString(node: any): string {
+      if (!node) return '';
+      let out = '';
+      if (node.nodeType === 3) return node.textContent || node.nodeValue || '';
+      if (node.attributes) {
+        for (const [k, v] of Object.entries(node.attributes)) {
+          out += ' ' + k + '="' + v + '"';
+        }
+      }
+      if (node._textContent) out += ' ' + node._textContent;
+      if (node.childNodes && node.childNodes.length > 0) {
+        out += ' ' + node.childNodes.map(getDomString).join(' ');
+      }
+      return out;
+    }
+
+    const container = makeDomNode('DIV');
+    (globalThis as any).document = {
+      nodeType: 9,
+      visibilityState: 'visible',
+      createElement: (tag: string) => makeDomNode(tag),
+      createElementNS: (_ns: string, tag: string) => makeDomNode(tag),
+      createTextNode: (text: string) => ({
+        nodeType: 3,
+        nodeValue: text,
+        textContent: text,
+        parentNode: null,
+      }),
+      createComment: () => ({ nodeType: 8, nodeValue: '', parentNode: null }),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      documentElement: makeDomNode('HTML'),
+    };
+    container.ownerDocument = globalThis.document;
+    (globalThis as any).window = globalThis;
+    (globalThis as any).window.addEventListener = () => {};
+    (globalThis as any).window.removeEventListener = () => {};
+    (globalThis as any).HTMLIFrameElement = class {};
+
+    // 2. Control de promesas diferidas
+    function createDeferred<T>() {
+      let resolve!: (val: T) => void;
+      let reject!: (err: any) => void;
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    let defMsgA = createDeferred<any>();
+    let defWaA = createDeferred<any>();
+    let defMsgB = createDeferred<any>();
+    let defWaB = createDeferred<any>();
+    let defMsgB2 = createDeferred<any>();
+    let defWaB2 = createDeferred<any>();
+
+    const origGetMensajes = mensajesService.getMensajes;
+    const origObtenerContacto = whatsappContactService.obtenerContacto;
+
+    mensajesService.getMensajes = async (id: string, token?: string) => {
+      if (id === OPEN_ENC_ID) return defMsgA.promise;
+      if (id === PRIVATE_ENC_ID && !token) return defMsgB.promise;
+      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) return defMsgB2.promise;
+      return { ok: true, mensajes: [], destacados: [] };
+    };
+
+    whatsappContactService.obtenerContacto = async (id: string, token?: string) => {
+      if (id === OPEN_ENC_ID) return defWaA.promise;
+      if (id === PRIVATE_ENC_ID && !token) return defWaB.promise;
+      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) return defWaB2.promise;
+      return { ok: false };
+    };
+
+    try {
+      const root = createRoot(container);
+
+      // Paso 1: Montar A con mensajes, destacados y WhatsApp
+      root.render(React.createElement(EncounterMessagesPanel, {
+        encuentroId: OPEN_ENC_ID,
+        tokenInvitacion: APPROVED_TOKEN,
+      }));
+      await new Promise(r => setTimeout(r, 20));
+
+      // Resolver datos de A
+      defMsgA.resolve({
+        ok: true,
+        mensajes: [{
+          id: 'msg-A-1',
+          encuentro_id: OPEN_ENC_ID,
+          autor_nombre: 'Organizador A',
+          contenido: 'Mensaje confidencial de Encuentro A',
+          es_organizador: true,
+          destacado: true,
+          destacado_en: new Date().toISOString(),
+          creado_en: new Date().toISOString(),
+        }],
+        destacados: [{
+          id: 'msg-A-1',
+          encuentro_id: OPEN_ENC_ID,
+          autor_nombre: 'Organizador A',
+          contenido: 'Instrucción destacada privada de A',
+          es_organizador: true,
+          destacado: true,
+          destacado_en: new Date().toISOString(),
+          creado_en: new Date().toISOString(),
+        }],
+        can_write: true,
+        writing_window_closed: false,
+      });
+      defWaA.resolve({
+        ok: true,
+        has_contact: true,
+        opt_in: true,
+        telefono: '5491199998888',
+        wa_link: 'https://wa.me/5491199998888',
+      });
+      await new Promise(r => setTimeout(r, 40));
+
+      const textA = getDomString(container);
+      assert.ok(textA.includes('Mensaje confidencial de Encuentro A'), 'A debe contener sus mensajes');
+      assert.ok(textA.includes('Instrucción destacada privada de A'), 'A debe contener sus destacados');
+      assert.ok(textA.includes('5491199998888'), 'A debe contener su WhatsApp');
+
+      // Paso 2: Cambiar a B mediante rerender
+      root.render(React.createElement(EncounterMessagesPanel, {
+        encuentroId: PRIVATE_ENC_ID,
+      }));
+      await new Promise(r => setTimeout(r, 5));
+
+      // En el primer render de B, NINGÚN dato de A debe estar visible
+      const textBFirstRender = getDomString(container);
+      assert.ok(!textBFirstRender.includes('Mensaje confidencial de Encuentro A'), 'En el primer render de B, ningún mensaje de A debe estar visible');
+      assert.ok(!textBFirstRender.includes('Instrucción destacada privada de A'), 'En el primer render de B, ningún destacado de A debe estar visible');
+      assert.ok(!textBFirstRender.includes('5491199998888'), 'En el primer render de B, ningún contacto de A debe estar visible');
+
+      // Paso 3: Simular llegada tardía de una respuesta obsoleta de A
+      const textBBeforeResolve = getDomString(container);
+      assert.ok(!textBBeforeResolve.includes('Mensaje confidencial de Encuentro A'));
+      assert.ok(!textBBeforeResolve.includes('5491199998888'));
+
+      // Paso 4: Resolver respuesta legítima de B
+      defMsgB.resolve({
+        ok: true,
+        mensajes: [{
+          id: 'msg-B-1',
+          encuentro_id: PRIVATE_ENC_ID,
+          autor_nombre: 'Asistente B',
+          contenido: 'Mensaje público del Encuentro B',
+          es_organizador: false,
+          destacado: false,
+          destacado_en: null,
+          creado_en: new Date().toISOString(),
+        }],
+        destacados: [],
+        can_write: true,
+        writing_window_closed: false,
+      });
+      defWaB.resolve({
+        ok: true,
+        has_contact: true,
+        opt_in: true,
+        telefono: '5491122223333',
+        wa_link: 'https://wa.me/5491122223333',
+      });
+      await new Promise(r => setTimeout(r, 40));
+
+      const textB = getDomString(container);
+      assert.ok(textB.includes('Mensaje público del Encuentro B'), 'B debe mostrar sus propios mensajes');
+      assert.ok(!textB.includes('Mensaje confidencial de Encuentro A'), 'B no debe mostrar mensajes de A');
+      assert.ok(!textB.includes('Instrucción destacada privada de A'), 'B no debe mostrar destacados de A');
+      assert.ok(!textB.includes('5491199998888'), 'B no debe mostrar WhatsApp de A');
+      assert.ok(textB.includes('5491122223333'), 'B debe mostrar su propio WhatsApp');
+
+      // Paso 5: Repetir con cambio de token en el mismo encuentro B
+      root.render(React.createElement(EncounterMessagesPanel, {
+        encuentroId: PRIVATE_ENC_ID,
+        tokenInvitacion: PRIVATE_TOKEN,
+      }));
+      await new Promise(r => setTimeout(r, 5));
+
+      const textToken2FirstRender = getDomString(container);
+      assert.ok(!textToken2FirstRender.includes('Mensaje público del Encuentro B'), 'En el primer render con nuevo token, los mensajes previos no deben mostrarse transitoriamente');
+
+      defMsgB2.resolve({
+        ok: true,
+        mensajes: [{
+          id: 'msg-B2-1',
+          encuentro_id: PRIVATE_ENC_ID,
+          autor_nombre: 'Invitado Especial 2',
+          contenido: 'Mensaje cargado con token guest 2',
+          es_organizador: false,
+          destacado: false,
+          destacado_en: null,
+          creado_en: new Date().toISOString(),
+        }],
+        destacados: [],
+        can_write: true,
+        writing_window_closed: false,
+      });
+      defWaB2.resolve({ ok: false });
+      await new Promise(r => setTimeout(r, 40));
+
+      const textToken2Final = getDomString(container);
+      assert.ok(textToken2Final.includes('Mensaje cargado con token guest 2'), 'Debe cargar mensajes del nuevo token');
+      assert.ok(!textToken2Final.includes('Mensaje confidencial de Encuentro A'), 'No debe contener datos de A');
+    } finally {
+      try {
+        root.unmount();
+      } catch {}
+      await new Promise(r => setTimeout(r, 20));
+      mensajesService.getMensajes = origGetMensajes;
+      whatsappContactService.obtenerContacto = origObtenerContacto;
+    }
+  });
+
+  after(async () => {
+    if (db) {
+      await db.close();
+    }
   });
 });
