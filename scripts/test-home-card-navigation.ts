@@ -23,8 +23,10 @@ import { renderToString } from 'react-dom/server';
 import {
   ActiveCard,
   resolveEncounterCardNavigation,
+  handleOpenEncounterDetailAction,
   type EncounterCardNavigationContext,
 } from '../src/screens/Home';
+import type { OpenEncounterSummary } from '../src/components/home/openEncounters/types';
 
 describe('DIF-16: Navegación Segura y Centralizada de Tarjetas de Encuentro', () => {
   const CANONICAL_TOKEN = '11111111-2222-3333-4444-555555555555';
@@ -439,5 +441,149 @@ describe('DIF-16: Navegación Segura y Centralizada de Tarjetas de Encuentro', (
 
     handleCardClick(enc);
     assert.equal(targetRoute, `/invite/${CANONICAL_TOKEN}`, 'Debe navegar a /invite/:token y jamás a /meet/:id');
+  });
+
+  // ── 15. Flujo Real de Apertura: Normalización OpenEncounterSummary ───────────
+  test('15. handleOpenEncounterDetailAction recupera y normaliza OpenEncounterSummary a través de getEncuentroAbiertoById', async () => {
+    const rawParticipation = {
+      id: ENCOUNTER_ID,
+      titulo: 'Encuentro Comunitario Abierto',
+      fecha: '2026-11-25',
+      hora: '18:30',
+      lugar_texto: 'Plaza Central',
+      date_mode: 'fixed',
+      is_open: true,
+      _isHost: false,
+    };
+
+    const normalizedSummary: OpenEncounterSummary = {
+      id: ENCOUNTER_ID,
+      title: 'Encuentro Comunitario Abierto',
+      startsAt: '2026-11-25T18:30:00Z',
+      dateLabel: 'Miércoles · 18:30',
+      approximateZone: 'Centro',
+      localityId: 'mdq-centro',
+      openSlots: 8,
+      confirmedCount: 12,
+      confirmedSeats: 12,
+      language: 'es',
+      description: 'Encuentro público para la comunidad',
+      hostName: 'Carlos Anfitrión',
+      hostId: HOST_USER_ID,
+      isHost: false,
+      realizationStatus: 'confirmed',
+    };
+
+    let openedSummary: OpenEncounterSummary | null = null;
+    let noticeMessage = '';
+
+    const mockService = {
+      getEncuentroAbiertoById: async (id: string) => {
+        assert.equal(id, ENCOUNTER_ID, 'Debe solicitar el ID del encuentro correspondiente');
+        return normalizedSummary;
+      },
+    };
+
+    await handleOpenEncounterDetailAction(
+      rawParticipation.id,
+      {
+        onSuccess: (summary) => { openedSummary = summary; },
+        onNotice: (msg) => { noticeMessage = msg; },
+      },
+      mockService
+    );
+
+    // Verificaciones de cumplimiento de contrato
+    assert.ok(openedSummary !== null, 'Debe invocar onSuccess con un resumen válido');
+    assert.equal(noticeMessage, '', 'No debe registrarse ningún mensaje de error');
+    assert.equal(openedSummary.id, ENCOUNTER_ID);
+    assert.equal(openedSummary.title, 'Encuentro Comunitario Abierto', 'El contrato exige title normalizado');
+    assert.equal(openedSummary.startsAt, '2026-11-25T18:30:00Z', 'El contrato exige startsAt');
+    assert.equal(openedSummary.dateLabel, 'Miércoles · 18:30', 'El contrato exige dateLabel');
+    assert.equal(openedSummary.openSlots, 8, 'El contrato exige openSlots numérico');
+    assert.equal(openedSummary.confirmedCount, 12, 'El contrato exige confirmedCount');
+
+    // Verificación de que NO es el objeto crudo de participación
+    assert.notEqual(openedSummary, rawParticipation as any, 'Jamás debe pasarse la referencia del objeto de participación crudo');
+    assert.equal((openedSummary as any).titulo, undefined, 'El objeto normalizado no contiene el campo no-estándar titulo');
+    assert.equal((openedSummary as any)._mi_token, undefined, 'No debe filtrar tokens internos en OpenEncounterSummary');
+  });
+
+  // ── 16. Flujo de Apertura: Encuentro abierto no encontrado o revocado ─────────
+  test('16. handleOpenEncounterDetailAction emite aviso recuperable cuando el encuentro no existe o no está disponible', async () => {
+    let openedSummary: OpenEncounterSummary | null = null;
+    let noticeMessage = '';
+
+    const mockService = {
+      getEncuentroAbiertoById: async () => null,
+    };
+
+    await handleOpenEncounterDetailAction(
+      ENCOUNTER_ID,
+      {
+        onSuccess: (summary) => { openedSummary = summary; },
+        onNotice: (msg) => { noticeMessage = msg; },
+      },
+      mockService
+    );
+
+    assert.equal(openedSummary, null, 'No debe abrirse el detalle si el servicio retorna null');
+    assert.ok(
+      noticeMessage.includes('ya no está disponible') || noticeMessage.includes('autorización'),
+      'Debe emitir un aviso recuperable sobre la disponibilidad o autorización'
+    );
+  });
+
+  // ── 17. Flujo de Apertura: Manejo de errores de red o RPC ────────────────────
+  test('17. handleOpenEncounterDetailAction gestiona excepciones de consulta mediante aviso recuperable', async () => {
+    let openedSummary: OpenEncounterSummary | null = null;
+    let noticeMessage = '';
+
+    const mockService = {
+      getEncuentroAbiertoById: async () => {
+        throw new Error('Network timeout o fallo en RPC');
+      },
+    };
+
+    await handleOpenEncounterDetailAction(
+      ENCOUNTER_ID,
+      {
+        onSuccess: (summary) => { openedSummary = summary; },
+        onNotice: (msg) => { noticeMessage = msg; },
+      },
+      mockService
+    );
+
+    assert.equal(openedSummary, null, 'No debe abrirse el detalle ante una excepción');
+    assert.ok(
+      noticeMessage.includes('No pudimos cargar los detalles') || noticeMessage.includes('reintentá'),
+      'Debe emitir un aviso al usuario para reintentar más tarde'
+    );
+  });
+
+  // ── 18. Contrato: Discrepancia estructural entre participación y resumen ─────
+  test('18. El contrato OpenEncounterSummary difiere estructuralmente de la proyección de participación', () => {
+    const rawParticipation = {
+      id: ENCOUNTER_ID,
+      titulo: 'Título en español',
+      fecha: '2026-11-20',
+      hora: '19:00',
+      lugar_texto: 'Dirección privada',
+      modalidad: 'presencial',
+      _isHost: false,
+      _mi_token: CANONICAL_TOKEN,
+      _mi_estado: 'confirmado',
+    };
+
+    // Validar que la proyección de participación carece de las propiedades obligatorias de OpenEncounterSummary
+    const missingKeysInParticipation = ['title', 'startsAt', 'dateLabel', 'openSlots', 'confirmedCount'].filter(
+      key => !(key in rawParticipation)
+    );
+
+    assert.equal(
+      missingKeysInParticipation.length,
+      5,
+      'La proyección de participación carece de las 5 propiedades estructurales de OpenEncounterSummary'
+    );
   });
 });

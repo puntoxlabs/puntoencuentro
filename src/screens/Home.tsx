@@ -173,6 +173,32 @@ export function resolveEncounterCardNavigation(
   return { type: 'navigate', path: `/meet/${enc.id}` };
 }
 
+/**
+ * Ejecuta la recuperación y apertura segura del detalle de encuentro abierto para participantes sin token,
+ * normalizando la proyección a través de openEncountersService.getEncuentroAbiertoById y evitando
+ * pasar directamente objetos de participación que no cumplan con OpenEncounterSummary.
+ */
+export async function handleOpenEncounterDetailAction(
+  encounterId: string,
+  callbacks: {
+    onSuccess: (summary: OpenEncounterSummary) => void;
+    onNotice: (message: string) => void;
+  },
+  service: Pick<typeof openEncountersService, 'getEncuentroAbiertoById'> = openEncountersService
+): Promise<void> {
+  try {
+    const openEnc = await service.getEncuentroAbiertoById(encounterId);
+    if (openEnc) {
+      callbacks.onSuccess(openEnc);
+    } else {
+      callbacks.onNotice('El encuentro solicitado ya no está disponible o no contás con autorización para ver sus detalles.');
+    }
+  } catch (err) {
+    console.error('[Home] Error al cargar encuentro abierto desde tarjeta:', err);
+    callbacks.onNotice('No pudimos cargar los detalles del encuentro abierto. Por favor, reintentá más tarde.');
+  }
+}
+
 /* ─── Componente de card activa ───────────────────────────────────── */
 export const ActiveCard: React.FC<{
   enc: any;
@@ -1267,12 +1293,15 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     if (target.type === 'navigate') {
       navigate(target.path);
     } else if (target.type === 'open_encounter_detail') {
-      if (enc && enc.is_open && enc.modalidad) {
-        setSelectedDeepLinkEncounter(enc);
-        setIsDeepLinkEncounterDetailOpen(true);
-      } else {
-        navigate(target.path);
-      }
+      void handleOpenEncounterDetailAction(target.encounterId, {
+        onSuccess: (openEnc) => {
+          setSelectedDeepLinkEncounter(openEnc);
+          setIsDeepLinkEncounterDetailOpen(true);
+        },
+        onNotice: (message) => {
+          setDeepLinkNotice(message);
+        },
+      });
     } else if (target.type === 'missing_token_notice') {
       setDeepLinkNotice(target.message);
     }
