@@ -15,6 +15,7 @@ import {
   Phone,
   Plus,
   Sparkles,
+  Info,
 } from 'lucide-react';
 import { mensajesService } from '@/services/mensajesService';
 import { whatsappContactService, type WhatsappContactResult } from '@/services/whatsappContactService';
@@ -100,17 +101,17 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         setErrorMsg(null);
       } else {
         setWhatsappContact(null);
+        setMensajes([]);
+        setDestacados([]);
+        setCanWrite(false);
         if (res.error === 'history_retention_expired') {
           setSpecialState('retention_expired');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (res.error === 'history_purged') {
           setSpecialState('purged');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (res.error === 'meeting_cancelled') {
           setSpecialState('cancelled');
-          setCanWrite(false);
           setErrorMsg(null);
         } else if (
           res.error === 'participant_not_confirmed' ||
@@ -118,14 +119,19 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           res.error === 'unauthorized'
         ) {
           setSpecialState('unauthorized');
-          setCanWrite(false);
           setErrorMsg(null);
+        } else if (res.error === 'reconfirmation_required') {
+          setErrorMsg(t('encounter_messages.reconfirmation_required', 'La mensajería interna estará disponible una vez confirmada la realización del encuentro.'));
         } else {
-          setErrorMsg(res.error || 'Error cargando mensajes');
+          setErrorMsg(t('encounter_messages.load_error', 'No pudimos cargar los mensajes en este momento. Por favor, reintentá más tarde.'));
         }
       }
     } catch (err: any) {
       if (import.meta.env.DEV) console.error('[EncounterMessagesPanel] fetch error:', err);
+      setMensajes([]);
+      setDestacados([]);
+      setCanWrite(false);
+      setErrorMsg(t('encounter_messages.network_error', 'No pudimos conectar con el servicio de mensajería. Por favor, verificá tu conexión.'));
     } finally {
       isFetchingRef.current = false;
       if (showLoadingSpinner) setLoading(false);
@@ -134,6 +140,17 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
 
   // Carga inicial y configuración de Smart Polling: 20s (activo) y máx 45s (inactivo visible)
   useEffect(() => {
+    // Resetear estado al cambiar de encuentro o token para evitar retener mensajes ajenos
+    setMensajes([]);
+    setDestacados([]);
+    setWhatsappContact(null);
+    setErrorMsg(null);
+    setSpecialState(null);
+    setCanWrite(false);
+    setWritingWindowClosed(false);
+    setReplyingTo(null);
+    setNuevoMensaje('');
+
     if (!isConfirmed) {
       setLoading(false);
       return;
@@ -516,9 +533,11 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
           </div>
           <h2 className="pe-msg-title">{t('encounter_messages.title', 'Información y mensajes')}</h2>
         </div>
-        <span className="pe-msg-count-pill">
-          {mensajes.length} {mensajes.length === 1 ? 'mensaje' : 'mensajes'}
-        </span>
+        {!loading && !errorMsg && specialState === null && (
+          <span className="pe-msg-count-pill">
+            {mensajes.length} {mensajes.length === 1 ? t('encounter_messages.single_count', 'mensaje') : t('encounter_messages.plural_count', 'mensajes')}
+          </span>
+        )}
       </header>
 
       {/* Banners de feedback / error */}
@@ -887,8 +906,20 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
       </div>
 
       {/* SECCIÓN 3: Campo para escribir */}
-      {canWrite && !writingWindowClosed && (
+      {canWrite && !writingWindowClosed && !errorMsg && specialState === null && (
         <form className="pe-msg-composer" onSubmit={handlePublicar}>
+          {isHost && (
+            <p className="pe-msg-host-privacy-hint" style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 8px 0', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Info size={13} style={{ flexShrink: 0 }} />
+              <span>
+                {t(
+                  'encounter_messages.host_privacy_hint',
+                  'Aviso para organizadores: estos mensajes son visibles para participantes confirmados antes de la confirmación final. No compartas acá direcciones exactas ni accesos privados que deban permanecer restringidos.'
+                )}
+              </span>
+            </p>
+          )}
+
           {replyingTo && (
             <div className="pe-msg-replying-pill">
               <span className="pe-msg-replying-text">
