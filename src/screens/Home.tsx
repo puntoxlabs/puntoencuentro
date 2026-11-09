@@ -105,6 +105,74 @@ function preloadWizardFromEncuentro(enc: any, wizardStore: ReturnType<typeof use
   setField('tema', enc.tema || 'blue');
 }
 
+export interface EncounterCardNavigationContext {
+  activeScope?: 'todos' | 'organizo' | 'participo';
+  userId?: string | null;
+}
+
+export type EncounterCardNavigationTarget =
+  | { type: 'navigate'; path: string }
+  | { type: 'open_encounter_detail'; encounterId: string; path: string }
+  | { type: 'missing_token_notice'; message: string };
+
+/**
+ * Resuelve de forma centralizada la ruta segura hacia la que debe navegar una tarjeta
+ * de encuentro en Home (ActiveCard / PastCard), respetando el rol real del usuario
+ * (_isHost), el token del participante (_mi_token / _mi_token_invitacion) y evitando
+ * derivaciones erróneas a consolas administrativas de anfitrión (/meet/:id o /coordination/:id).
+ */
+export function resolveEncounterCardNavigation(
+  enc: any,
+  context: EncounterCardNavigationContext = {}
+): EncounterCardNavigationTarget {
+  if (!enc || !enc.id) {
+    return {
+      type: 'missing_token_notice',
+      message: 'No se pudo identificar el encuentro seleccionado.',
+    };
+  }
+
+  const { activeScope, userId } = context;
+
+  // 1. Determinar rol: _isHost explícito > coincidencia de host_id con userId > activeScope === 'organizo'
+  const isHost = typeof enc._isHost === 'boolean'
+    ? enc._isHost
+    : Boolean((userId && enc.host_id === userId) || activeScope === 'organizo');
+
+  // 2. Flujo de PARTICIPANTE (no es anfitrión)
+  if (!isHost) {
+    const participantToken = enc._mi_token || enc._mi_token_invitacion;
+
+    if (participantToken) {
+      if (isCoordinationEncounter(enc)) {
+        return { type: 'navigate', path: `/coordination/invite/${participantToken}` };
+      }
+      return { type: 'navigate', path: `/invite/${participantToken}` };
+    }
+
+    // Encuentro abierto sin token individual disponible: utilizar exclusivamente la vista pública segura
+    if (enc.is_open) {
+      return {
+        type: 'open_encounter_detail',
+        encounterId: enc.id,
+        path: `/?open_encounter=${enc.id}`,
+      };
+    }
+
+    // Encuentro privado o de coordinación sin token: mostrar indicación recuperable (NUNCA derivar a /meet ni /coordination)
+    return {
+      type: 'missing_token_notice',
+      message: 'No se encontró el enlace de acceso para este encuentro. Solicitale una nueva invitación al anfitrión.',
+    };
+  }
+
+  // 3. Flujo de ANFITRIÓN
+  if (isCoordinationEncounter(enc)) {
+    return { type: 'navigate', path: `/coordination/${enc.id}` };
+  }
+  return { type: 'navigate', path: `/meet/${enc.id}` };
+}
+
 /* ─── Componente de card activa ───────────────────────────────────── */
 export const ActiveCard: React.FC<{
   enc: any;
@@ -1190,6 +1258,26 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     startFixedEncounter();
   };
 
+  const handleCardClick = useCallback((enc: any) => {
+    const target = resolveEncounterCardNavigation(enc, {
+      activeScope,
+      userId: user?.id,
+    });
+
+    if (target.type === 'navigate') {
+      navigate(target.path);
+    } else if (target.type === 'open_encounter_detail') {
+      if (enc && enc.is_open && enc.modalidad) {
+        setSelectedDeepLinkEncounter(enc);
+        setIsDeepLinkEncounterDetailOpen(true);
+      } else {
+        navigate(target.path);
+      }
+    } else if (target.type === 'missing_token_notice') {
+      setDeepLinkNotice(target.message);
+    }
+  }, [activeScope, user?.id, navigate]);
+
   const renderContent = () => {
     if (loading) return (
       <div className="home-loading">
@@ -1377,29 +1465,20 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         {activeTab === 'upcoming' ? (
           proximos.length > 0 ? (
             <div className="home-card-list">
-              {proximos.map(enc => (
-                <ActiveCard
-                  key={enc.id}
-                  enc={enc}
-                  onClick={() => {
-                    if (activeScope === 'participo' && enc._mi_token_invitacion) {
-                      if (isCoordinationEncounter(enc)) {
-                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
-                      } else {
-                        navigate(`/invite/${enc._mi_token_invitacion}`);
-                      }
-                    } else if (isCoordinationEncounter(enc)) {
-                      navigate(`/coordination/${enc.id}`);
-                    } else {
-                      navigate(`/meet/${enc.id}`);
-                    }
-                  }}
-                  participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
-                  miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
-                  counts={counts[enc.id] ?? null}
-                  isHost={enc._isHost ?? (activeScope === 'organizo')}
-                />
-              ))}
+              {proximos.map(enc => {
+                const isHost = typeof enc._isHost === 'boolean' ? enc._isHost : (activeScope === 'organizo');
+                return (
+                  <ActiveCard
+                    key={enc.id}
+                    enc={enc}
+                    onClick={() => handleCardClick(enc)}
+                    participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
+                    miEstado={!isHost ? (enc._mi_estado ?? null) : null}
+                    counts={counts[enc.id] ?? null}
+                    isHost={isHost}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="home-empty">
@@ -1428,29 +1507,20 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         ) : (
           pasados.length > 0 ? (
             <div className="home-card-list">
-              {pasados.map(enc => (
-                <PastCard
-                  key={enc.id}
-                  enc={enc}
-                  onClick={() => {
-                    if (activeScope === 'participo' && enc._mi_token_invitacion) {
-                      if (isCoordinationEncounter(enc)) {
-                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
-                      } else {
-                        navigate(`/invite/${enc._mi_token_invitacion}`);
-                      }
-                    } else if (isCoordinationEncounter(enc)) {
-                      navigate(`/coordination/${enc.id}`);
-                    } else {
-                      navigate(`/meet/${enc.id}`);
-                    }
-                  }}
-                  onRepeat={(e) => handleRepeat(enc, e)}
-                  participantesCache={activeScope === 'organizo' ? (detailCache[enc.id]?.participantes ?? null) : null}
-                  miEstado={activeScope === 'participo' ? (enc._mi_estado ?? null) : null}
-                  counts={counts[enc.id] ?? null}
-                />
-              ))}
+              {pasados.map(enc => {
+                const isHost = typeof enc._isHost === 'boolean' ? enc._isHost : (activeScope === 'organizo');
+                return (
+                  <PastCard
+                    key={enc.id}
+                    enc={enc}
+                    onClick={() => handleCardClick(enc)}
+                    onRepeat={(e) => handleRepeat(enc, e)}
+                    participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
+                    miEstado={!isHost ? (enc._mi_estado ?? null) : null}
+                    counts={counts[enc.id] ?? null}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="home-empty-past">
@@ -1612,19 +1682,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
                 <PastCard
                   key={enc.id}
                   enc={enc}
-                  onClick={() => {
-                    if (!isHost && enc._mi_token_invitacion) {
-                      if (isCoordinationEncounter(enc)) {
-                        navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
-                      } else {
-                        navigate(`/invite/${enc._mi_token_invitacion}`);
-                      }
-                    } else if (isCoordinationEncounter(enc)) {
-                      navigate(`/coordination/${enc.id}`);
-                    } else {
-                      navigate(`/meet/${enc.id}`);
-                    }
-                  }}
+                  onClick={() => handleCardClick(enc)}
                   onRepeat={(e) => handleRepeat(enc, e)}
                   participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
                   miEstado={!isHost ? (enc._mi_estado ?? null) : null}
@@ -1637,19 +1695,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               <ActiveCard
                 key={enc.id}
                 enc={enc}
-                onClick={() => {
-                  if (!isHost && enc._mi_token_invitacion) {
-                    if (isCoordinationEncounter(enc)) {
-                      navigate(`/coordination/invite/${enc._mi_token_invitacion}`);
-                    } else {
-                      navigate(`/invite/${enc._mi_token_invitacion}`);
-                    }
-                  } else if (isCoordinationEncounter(enc)) {
-                    navigate(`/coordination/${enc.id}`);
-                  } else {
-                    navigate(`/meet/${enc.id}`);
-                  }
-                }}
+                onClick={() => handleCardClick(enc)}
                 participantesCache={isHost ? (detailCache[enc.id]?.participantes ?? null) : null}
                 miEstado={!isHost ? (enc._mi_estado ?? null) : null}
                 counts={counts[enc.id] ?? null}
