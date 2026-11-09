@@ -62,29 +62,55 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
 
-  // Referencias para evitar duplicados en polling
+  // Referencias para control de concurrencia e invalidación atómica de respuestas obsoletas
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isFetchingRef = useRef(false);
+  const activeRequestIdRef = useRef(0);
+  const currentTargetRef = useRef<{ encuentroId: string; tokenInvitacion?: string }>({
+    encuentroId,
+    tokenInvitacion,
+  });
+  const inFlightTargetRef = useRef<string | null>(null);
   const lastActivityRef = useRef(Date.now());
   const isIdleRef = useRef(false);
 
+  // Mantener actualizado el contexto de destino actual en cada render
+  useEffect(() => {
+    currentTargetRef.current = { encuentroId, tokenInvitacion };
+  }, [encuentroId, tokenInvitacion]);
+
   const fetchMensajes = useCallback(async (showLoadingSpinner = false) => {
-    if (!encuentroId || isFetchingRef.current) return;
+    if (!encuentroId) return;
     if (document.visibilityState !== 'visible') return;
+
     const targetEncuentroId = encuentroId;
     const targetToken = tokenInvitacion;
 
+    // Evitar peticiones concurrentes idénticas en polling para el mismo encuentro,
+    // pero NUNCA bloquear la ejecución si el encuentro de destino ha cambiado.
+    if (!showLoadingSpinner && inFlightTargetRef.current === targetEncuentroId) {
+      return;
+    }
+
+    const thisRequestId = ++activeRequestIdRef.current;
+    inFlightTargetRef.current = targetEncuentroId;
+
     try {
-      isFetchingRef.current = true;
       if (showLoadingSpinner) setLoading(true);
 
       const [res, waRes] = await Promise.all([
-        mensajesService.getMensajes(encuentroId, tokenInvitacion),
-        whatsappContactService.obtenerContacto(encuentroId, tokenInvitacion),
+        mensajesService.getMensajes(targetEncuentroId, targetToken),
+        whatsappContactService.obtenerContacto(targetEncuentroId, targetToken),
       ]);
 
-      // Guard against stale response if encounterId or token changed
-      if (encuentroId !== targetEncuentroId || tokenInvitacion !== targetToken) return;
+      // Guardia estricta contra respuestas obsoletas (race condition):
+      // Si la petición actual ya no coincide con la última solicitada o el contexto cambió
+      if (
+        thisRequestId !== activeRequestIdRef.current ||
+        currentTargetRef.current.encuentroId !== targetEncuentroId ||
+        currentTargetRef.current.tokenInvitacion !== targetToken
+      ) {
+        return;
+      }
 
       if (waRes.ok) {
         setWhatsappContact(waRes);
@@ -127,20 +153,36 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
         }
       }
     } catch (err: any) {
+      if (
+        thisRequestId !== activeRequestIdRef.current ||
+        currentTargetRef.current.encuentroId !== targetEncuentroId ||
+        currentTargetRef.current.tokenInvitacion !== targetToken
+      ) {
+        return;
+      }
       if (import.meta.env.DEV) console.error('[EncounterMessagesPanel] fetch error:', err);
       setMensajes([]);
       setDestacados([]);
       setCanWrite(false);
       setErrorMsg(t('encounter_messages.network_error', 'No pudimos conectar con el servicio de mensajería. Por favor, verificá tu conexión.'));
     } finally {
-      isFetchingRef.current = false;
-      if (showLoadingSpinner) setLoading(false);
+      if (inFlightTargetRef.current === targetEncuentroId) {
+        inFlightTargetRef.current = null;
+      }
+      if (thisRequestId === activeRequestIdRef.current && showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   }, [encuentroId, tokenInvitacion]);
 
   // Carga inicial y configuración de Smart Polling: 20s (activo) y máx 45s (inactivo visible)
   useEffect(() => {
-    // Resetear estado al cambiar de encuentro o token para evitar retener mensajes ajenos
+    // 1. Invalidar inmediatamente cualquier petición asíncrona previa en curso
+    activeRequestIdRef.current += 1;
+    inFlightTargetRef.current = null;
+    currentTargetRef.current = { encuentroId, tokenInvitacion };
+
+    // 2. Resetear estado al cambiar de encuentro o token para evitar retener mensajes ajenos
     setMensajes([]);
     setDestacados([]);
     setWhatsappContact(null);
@@ -159,6 +201,7 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     lastActivityRef.current = Date.now();
     isIdleRef.current = false;
 
+    // Disparar inmediatamente la nueva consulta para el nuevo encuentro sin bloqueo
     fetchMensajes(true);
 
     const startPolling = (cadence = 20000) => {
@@ -232,6 +275,8 @@ export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = ({
     });
 
     return () => {
+      activeRequestIdRef.current += 1;
+      inFlightTargetRef.current = null;
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);

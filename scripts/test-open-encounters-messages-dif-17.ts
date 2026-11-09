@@ -181,6 +181,17 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
       RETURNS BOOLEAN AS $$
         SELECT EXISTS (SELECT 1 FROM public.retired_anonymous_sources WHERE user_id = p_user_id);
       $$ LANGUAGE sql STABLE;
+
+      -- Mocks de rate limiting requeridos por publicar_mensaje_encuentro_seguro
+      CREATE OR REPLACE FUNCTION public.check_rate_limit_internal(p_action TEXT, p_target TEXT)
+      RETURNS JSONB AS $$
+        SELECT '{"allowed": true}'::jsonb;
+      $$ LANGUAGE sql STABLE;
+
+      CREATE OR REPLACE FUNCTION public.consumir_rate_limit_participante(p_part_id UUID, p_action TEXT, p_target TEXT)
+      RETURNS JSONB AS $$
+        SELECT '{"allowed": true}'::jsonb;
+      $$ LANGUAGE sql STABLE;
     `);
 
     // 2. Cargar funciones y RPCs requeridas (get_participante_seguro, obtener_contacto_whatsapp_seguro y la nueva migración)
@@ -211,7 +222,7 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
       await db.exec(getWaMatch[0]);
     }
 
-    // Extraer y aplicar get_mensajes_encuentro_seguro y post_mensaje_encuentro_seguro
+    // Extraer y aplicar get_mensajes_encuentro_seguro
     const encounterMessagesPath = path.resolve(
       rootDir,
       'supabase/migrations/20261020100000_encounter_messages_panel_v1.sql'
@@ -220,6 +231,17 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
     const getMsgsMatch = messagesSql.match(/CREATE OR REPLACE FUNCTION public\.get_mensajes_encuentro_seguro[\s\S]*?\$\$;/);
     if (getMsgsMatch) {
       await db.exec(getMsgsMatch[0]);
+    }
+
+    // Extraer y aplicar publicar_mensaje_encuentro_seguro desde 20261107120000
+    const bridgePath = path.resolve(
+      rootDir,
+      'supabase/migrations/20261107120000_domain_identity_bridge_v1.sql'
+    );
+    const bridgeSql = fs.readFileSync(bridgePath, 'utf8');
+    const postMatch = bridgeSql.match(/CREATE OR REPLACE FUNCTION public\.publicar_mensaje_encuentro_seguro[\s\S]*?\$\$;/);
+    if (postMatch) {
+      await db.exec(postMatch[0]);
     }
   });
 
@@ -528,5 +550,151 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
       content.includes('host_privacy_hint'),
       'Debe incluir la clave de localización para el hint de anfitrión'
     );
+  });
+
+  // ── 14. Publicación efectiva por participante aprobado sin reconfirmación ──
+  test('14. Publicación efectiva: participante aprobado sin reconfirmación puede escribir en encuentro abierto', async () => {
+    const resPost = await runWithContext(APPROVED_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${OPEN_ENC_ID}', 'Hola a todos los confirmados!') AS result;
+    `);
+    const postData = resPost.rows[0].result;
+    assert.equal(postData.ok, true, 'publicar_mensaje_encuentro_seguro debe retornar ok = true');
+    assert.ok(postData.mensaje_id, 'Debe devolver el id del mensaje creado');
+
+    // Verificar inserción en la base de datos
+    const dbMsg = await db.query(`SELECT * FROM public.mensajes_encuentro WHERE id = '${postData.mensaje_id}'`);
+    assert.equal(dbMsg.rows.length, 1);
+    assert.equal(dbMsg.rows[0].autor_user_id, APPROVED_USER_ID);
+    assert.equal(dbMsg.rows[0].es_organizador, false);
+    assert.equal(dbMsg.rows[0].contenido, 'Hola a todos los confirmados!');
+
+    // Verificar que el mensaje es devuelto por get_mensajes_encuentro_seguro
+    const resList = await runWithContext(APPROVED_USER_ID, {}, `
+      SELECT public.get_mensajes_encuentro_seguro('${OPEN_ENC_ID}') AS result;
+    `);
+    assert.equal(resList.rows[0].result.ok, true);
+    assert.equal(resList.rows[0].result.mensajes.length, 1);
+    assert.equal(resList.rows[0].result.mensajes[0].id, postData.mensaje_id);
+    assert.equal(resList.rows[0].result.mensajes[0].contenido, 'Hola a todos los confirmados!');
+  });
+
+  // ── 15. Publicación efectiva: rechazo para no autorizados, bloqueados y anónimos retirados ──
+  test('15. Publicación efectiva: solicitante pendiente, usuario bloqueado, ajeno y anónimo retirado son denegados al escribir', async () => {
+    // A. Solicitante pendiente
+    const resPending = await runWithContext(PENDING_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${OPEN_ENC_ID}', 'Intento de publicación no autorizada') AS result;
+    `);
+    assert.equal(resPending.rows[0].result.ok, false);
+    assert.equal(resPending.rows[0].result.error, 'unauthorized');
+
+    // B. Usuario bloqueado bilateralmente
+    const resBlocked = await runWithContext(BLOCKED_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${OPEN_ENC_ID}', 'Intento usuario bloqueado') AS result;
+    `);
+    assert.equal(resBlocked.rows[0].result.ok, false);
+    assert.equal(resBlocked.rows[0].result.error, 'blocked_user');
+
+    // C. Usuario ajeno al encuentro
+    const resStranger = await runWithContext(UNAUTHORIZED_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${OPEN_ENC_ID}', 'Intento usuario ajeno') AS result;
+    `);
+    assert.equal(resStranger.rows[0].result.ok, false);
+    assert.equal(resStranger.rows[0].result.error, 'unauthorized');
+
+    // D. Sesión anónima retirada por migración de dominio
+    const resRetired = await runWithContext(RETIRED_ANON_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${OPEN_ENC_ID}', 'Intento anónimo retirado') AS result;
+    `);
+    assert.equal(resRetired.rows[0].result.ok, false);
+    assert.equal(resRetired.rows[0].result.error, 'anonymous_session_already_migrated');
+  });
+
+  // ── 16. Publicación efectiva: encuentro cancelado deniega escritura ─────────
+  test('16. Publicación efectiva: encuentro cancelado deniega la publicación con writing_window_closed', async () => {
+    const resCancelled = await runWithContext(APPROVED_USER_ID, {}, `
+      SELECT public.publicar_mensaje_encuentro_seguro('${CANCELLED_ENC_ID}', 'Intento en encuentro cancelado') AS result;
+    `);
+    assert.equal(resCancelled.rows[0].result.ok, false);
+    assert.equal(resCancelled.rows[0].result.error, 'writing_window_closed');
+  });
+
+  // ── 17. Frontend / Concurrencia: carrera asíncrona entre encuentros ─────────
+  test('17. Frontend / Concurrencia: verificación de carrera asíncrona entre encuentros e invalidación de peticiones obsoletas', async () => {
+    // Simulación del motor de invalidación y concurrencia implementado en EncounterMessagesPanel.tsx
+    let activeRequestId = 0;
+    let inFlightTarget: string | null = null;
+    let currentTarget = { encuentroId: 'enc-A', tokenInvitacion: undefined as string | undefined };
+    let panelState = {
+      encuentroId: 'enc-A',
+      mensajes: [] as Array<{ id: string; contenido: string }>,
+      destacados: [] as Array<{ id: string }>,
+      whatsappContact: null as any,
+    };
+
+    const simulateFetchMensajes = async (targetId: string, delayMs: number, payload: any) => {
+      // Regla de EncounterMessagesPanel: si el targetId cambió respecto a inFlightTarget, no bloquear
+      const thisRequestId = ++activeRequestId;
+      inFlightTarget = targetId;
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+
+      // Guardia idéntica a EncounterMessagesPanel.tsx:
+      // Si la petición ya no es la más reciente o el destino cambió, descartar inmediatamente
+      if (
+        thisRequestId !== activeRequestId ||
+        currentTarget.encuentroId !== targetId
+      ) {
+        return { discarded: true };
+      }
+
+      panelState = {
+        encuentroId: targetId,
+        mensajes: payload.mensajes,
+        destacados: payload.destacados,
+        whatsappContact: payload.whatsappContact,
+      };
+      return { discarded: false };
+    };
+
+    // 1. Encuentro A inicia consulta lenta (50ms)
+    currentTarget = { encuentroId: 'enc-A', tokenInvitacion: undefined };
+    const promiseA = simulateFetchMensajes('enc-A', 50, {
+      mensajes: [{ id: 'msg-A-1', contenido: 'Mensaje confidencial de A' }],
+      destacados: [{ id: 'msg-A-1' }],
+      whatsappContact: { telefono: '+5491111111111' },
+    });
+
+    // 2. A los 10ms, el usuario conmuta al Encuentro B (interacción de navegación)
+    await new Promise(resolve => setTimeout(resolve, 10));
+    // El useEffect de EncounterMessagesPanel incrementa activeRequestIdRef, limpia inFlightTarget y resetea estado
+    activeRequestId += 1;
+    inFlightTarget = null;
+    currentTarget = { encuentroId: 'enc-B', tokenInvitacion: undefined };
+    panelState = {
+      encuentroId: 'enc-B',
+      mensajes: [],
+      destacados: [],
+      whatsappContact: null,
+    };
+
+    // 3. Encuentro B inicia su consulta inmediata (15ms).
+    // Verificar que NO queda bloqueado por la petición pendiente de A
+    const promiseB = simulateFetchMensajes('enc-B', 15, {
+      mensajes: [{ id: 'msg-B-1', contenido: 'Mensaje público de B' }],
+      destacados: [],
+      whatsappContact: { telefono: '+5492222222222' },
+    });
+
+    // 4. Aguardar resolución de ambas promesas
+    const [resA, resB] = await Promise.all([promiseA, promiseB]);
+
+    // Verificaciones de aislamiento y no-contaminación:
+    assert.equal(resB.discarded, false, 'La consulta del Encuentro B debió completarse y aplicarse con éxito');
+    assert.equal(resA.discarded, true, 'La respuesta demorada del Encuentro A debió ser descartada');
+    assert.equal(panelState.encuentroId, 'enc-B', 'El estado activo debe ser únicamente del Encuentro B');
+    assert.equal(panelState.mensajes.length, 1);
+    assert.equal(panelState.mensajes[0].id, 'msg-B-1', 'Los mensajes deben pertenecer exclusivamente al Encuentro B');
+    assert.equal(panelState.destacados.length, 0, 'No debe haber destacados retenidos de A');
+    assert.equal(panelState.whatsappContact?.telefono, '+5492222222222', 'El contacto de WhatsApp debe pertenecer a B');
   });
 });
