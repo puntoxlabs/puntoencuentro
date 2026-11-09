@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { mensajesService } from '@/services/mensajesService';
 import { whatsappContactService, type WhatsappContactResult } from '@/services/whatsappContactService';
+import { useAuth } from '@/contexts/AuthContext';
 import type { MensajeEncuentro } from '@/types/mensajes';
 import './EncounterMessagesPanel.css';
 
@@ -27,17 +28,23 @@ export interface EncounterMessagesPanelProps {
   tokenInvitacion?: string;
   isHost?: boolean;
   isConfirmed?: boolean;
+  authUserId?: string;
 }
 
-const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
+interface EncounterMessagesPanelContentProps extends EncounterMessagesPanelProps {
+  effectiveUserId: string;
+}
+
+const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelContentProps> = ({
   encuentroId,
   tokenInvitacion,
   isHost = false,
   isConfirmed = true,
+  effectiveUserId,
 }) => {
   const { t } = useTranslation();
 
-  const currentContextKey = `${encuentroId || 'none'}:${tokenInvitacion || 'auth'}`;
+  const currentContextKey = `${encuentroId || 'none'}:${tokenInvitacion || 'auth'}:${effectiveUserId}`;
   const [loadedContextKey, setLoadedContextKey] = useState<string | null>(null);
 
   const [mensajes, setMensajes] = useState<MensajeEncuentro[]>([]);
@@ -128,13 +135,13 @@ const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
         setWritingWindowClosed(res.writing_window_closed);
         setSpecialState(null);
         setErrorMsg(null);
-        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
       } else {
         setWhatsappContact(null);
         setMensajes([]);
         setDestacados([]);
         setCanWrite(false);
-        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
+        setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
         if (res.error === 'history_retention_expired') {
           setSpecialState('retention_expired');
           setErrorMsg(null);
@@ -169,7 +176,7 @@ const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
       setMensajes([]);
       setDestacados([]);
       setCanWrite(false);
-      setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}`);
+      setLoadedContextKey(`${targetEncuentroId}:${targetToken || 'auth'}:${effectiveUserId}`);
       setErrorMsg(t('encounter_messages.network_error', 'No pudimos conectar con el servicio de mensajería. Por favor, verificá tu conexión.'));
     } finally {
       if (thisRequestId === activeRequestIdRef.current) {
@@ -179,7 +186,7 @@ const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
         }
       }
     }
-  }, [encuentroId, tokenInvitacion]);
+  }, [encuentroId, tokenInvitacion, effectiveUserId]);
 
   // Carga inicial y configuración de Smart Polling: 20s (activo) y máx 45s (inactivo visible)
   useEffect(() => {
@@ -288,11 +295,15 @@ const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
       activeRequestIdRef.current += 1;
       inFlightTargetRef.current = null;
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      interactionEvents.forEach((evt) => {
-        window.removeEventListener(evt, handleInteraction);
-      });
+      if (typeof document !== 'undefined' && document.removeEventListener) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('focus', handleFocus);
+        interactionEvents.forEach((evt) => {
+          window.removeEventListener(evt, handleInteraction);
+        });
+      }
     };
   }, [fetchMensajes, isConfirmed]);
 
@@ -1135,6 +1146,8 @@ const EncounterMessagesPanelContent: React.FC<EncounterMessagesPanelProps> = ({
  * imposibilitando la exposición visual de datos privados en el primer render de un nuevo destino.
  */
 export const EncounterMessagesPanel: React.FC<EncounterMessagesPanelProps> = (props) => {
-  const panelKey = `${props.encuentroId || 'none'}:${props.tokenInvitacion || 'auth'}`;
-  return <EncounterMessagesPanelContent key={panelKey} {...props} />;
+  const auth = useAuth();
+  const effectiveUserId = props.authUserId ?? auth?.user?.id ?? 'no_session';
+  const panelKey = `${props.encuentroId || 'none'}:${props.tokenInvitacion || 'auth'}:${effectiveUserId}`;
+  return <EncounterMessagesPanelContent key={panelKey} effectiveUserId={effectiveUserId} {...props} />;
 };

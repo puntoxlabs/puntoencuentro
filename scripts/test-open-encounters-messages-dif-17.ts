@@ -773,6 +773,16 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
     }
 
     const container = makeDomNode('DIV');
+
+    const origDocument = (globalThis as any).document;
+    const origWindow = (globalThis as any).window;
+    const origHTMLIFrameElement = (globalThis as any).HTMLIFrameElement;
+    const origGetMensajes = mensajesService.getMensajes;
+    const origObtenerContacto = whatsappContactService.obtenerContacto;
+
+    const docListeners: Record<string, Array<() => void>> = {};
+    const winListeners: Record<string, Array<() => void>> = {};
+
     (globalThis as any).document = {
       nodeType: 9,
       visibilityState: 'visible',
@@ -785,14 +795,28 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
         parentNode: null,
       }),
       createComment: () => ({ nodeType: 8, nodeValue: '', parentNode: null }),
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: (event: string, fn: () => void) => {
+        docListeners[event] = docListeners[event] || [];
+        docListeners[event].push(fn);
+      },
+      removeEventListener: (event: string, fn: () => void) => {
+        if (docListeners[event]) {
+          docListeners[event] = docListeners[event].filter(f => f !== fn);
+        }
+      },
       documentElement: makeDomNode('HTML'),
     };
     container.ownerDocument = globalThis.document;
     (globalThis as any).window = globalThis;
-    (globalThis as any).window.addEventListener = () => {};
-    (globalThis as any).window.removeEventListener = () => {};
+    (globalThis as any).window.addEventListener = (event: string, fn: () => void) => {
+      winListeners[event] = winListeners[event] || [];
+      winListeners[event].push(fn);
+    };
+    (globalThis as any).window.removeEventListener = (event: string, fn: () => void) => {
+      if (winListeners[event]) {
+        winListeners[event] = winListeners[event].filter(f => f !== fn);
+      }
+    };
     (globalThis as any).HTMLIFrameElement = class {};
 
     // 2. Control de promesas diferidas
@@ -806,42 +830,71 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
       return { promise, resolve, reject };
     }
 
-    let defMsgA = createDeferred<any>();
-    let defWaA = createDeferred<any>();
-    let defMsgB = createDeferred<any>();
-    let defWaB = createDeferred<any>();
-    let defMsgB2 = createDeferred<any>();
-    let defWaB2 = createDeferred<any>();
+    let defMsgA1 = createDeferred<any>();
+    let defWaA1 = createDeferred<any>();
+    let defMsgALate = createDeferred<any>();
+    let defWaALate = createDeferred<any>();
+    let defMsgB_User1 = createDeferred<any>();
+    let defWaB_User1 = createDeferred<any>();
+    let defMsgB_User2 = createDeferred<any>();
+    let defWaB_User2 = createDeferred<any>();
+    let defMsgB_Guest = createDeferred<any>();
+    let defWaB_Guest = createDeferred<any>();
 
-    const origGetMensajes = mensajesService.getMensajes;
-    const origObtenerContacto = whatsappContactService.obtenerContacto;
+    let countMsgA = 0;
+    let countWaA = 0;
+    let countMsgB_Auth = 0;
+    let countWaB_Auth = 0;
+    let countMsgB_Guest = 0;
+    let countWaB_Guest = 0;
 
     mensajesService.getMensajes = async (id: string, token?: string) => {
-      if (id === OPEN_ENC_ID) return defMsgA.promise;
-      if (id === PRIVATE_ENC_ID && !token) return defMsgB.promise;
-      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) return defMsgB2.promise;
+      if (id === OPEN_ENC_ID) {
+        countMsgA++;
+        return countMsgA === 1 ? defMsgA1.promise : defMsgALate.promise;
+      }
+      if (id === PRIVATE_ENC_ID && !token) {
+        countMsgB_Auth++;
+        return countMsgB_Auth === 1 ? defMsgB_User1.promise : defMsgB_User2.promise;
+      }
+      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) {
+        countMsgB_Guest++;
+        return defMsgB_Guest.promise;
+      }
       return { ok: true, mensajes: [], destacados: [] };
     };
 
     whatsappContactService.obtenerContacto = async (id: string, token?: string) => {
-      if (id === OPEN_ENC_ID) return defWaA.promise;
-      if (id === PRIVATE_ENC_ID && !token) return defWaB.promise;
-      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) return defWaB2.promise;
+      if (id === OPEN_ENC_ID) {
+        countWaA++;
+        return countWaA === 1 ? defWaA1.promise : defWaALate.promise;
+      }
+      if (id === PRIVATE_ENC_ID && !token) {
+        countWaB_Auth++;
+        return countWaB_Auth === 1 ? defWaB_User1.promise : defWaB_User2.promise;
+      }
+      if (id === PRIVATE_ENC_ID && token === PRIVATE_TOKEN) {
+        countWaB_Guest++;
+        return defWaB_Guest.promise;
+      }
       return { ok: false };
     };
 
-    try {
-      const root = createRoot(container);
+    let root: any = null;
 
-      // Paso 1: Montar A con mensajes, destacados y WhatsApp
+    try {
+      root = createRoot(container);
+
+      // Paso 1: Montar A con identidad 'user-1'
       root.render(React.createElement(EncounterMessagesPanel, {
         encuentroId: OPEN_ENC_ID,
         tokenInvitacion: APPROVED_TOKEN,
+        authUserId: 'user-1',
       }));
       await new Promise(r => setTimeout(r, 20));
 
-      // Resolver datos de A
-      defMsgA.resolve({
+      // Resolver datos iniciales de A
+      defMsgA1.resolve({
         ok: true,
         mensajes: [{
           id: 'msg-A-1',
@@ -866,7 +919,7 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
         can_write: true,
         writing_window_closed: false,
       });
-      defWaA.resolve({
+      defWaA1.resolve({
         ok: true,
         has_contact: true,
         opt_in: true,
@@ -880,31 +933,77 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
       assert.ok(textA.includes('Instrucción destacada privada de A'), 'A debe contener sus destacados');
       assert.ok(textA.includes('5491199998888'), 'A debe contener su WhatsApp');
 
-      // Paso 2: Cambiar a B mediante rerender
+      // Paso 2: Disparar petición tardía para A y navegar inmediatamente a B
+      // Simular evento que dispara una consulta en segundo plano para A (quedará pendiente)
+      if (docListeners['visibilitychange']) {
+        docListeners['visibilitychange'].forEach(fn => fn());
+      }
+      await new Promise(r => setTimeout(r, 10));
+
+      // Navegar a B con usuario 'user-1'
       root.render(React.createElement(EncounterMessagesPanel, {
         encuentroId: PRIVATE_ENC_ID,
+        authUserId: 'user-1',
       }));
       await new Promise(r => setTimeout(r, 5));
 
       // En el primer render de B, NINGÚN dato de A debe estar visible
       const textBFirstRender = getDomString(container);
-      assert.ok(!textBFirstRender.includes('Mensaje confidencial de Encuentro A'), 'En el primer render de B, ningún mensaje de A debe estar visible');
+      assert.ok(!textBFirstRender.includes('Mensaje confidencial de Encuentro A'), 'En el primer render de B, ningún mensaje previo de A debe estar visible');
       assert.ok(!textBFirstRender.includes('Instrucción destacada privada de A'), 'En el primer render de B, ningún destacado de A debe estar visible');
       assert.ok(!textBFirstRender.includes('5491199998888'), 'En el primer render de B, ningún contacto de A debe estar visible');
 
-      // Paso 3: Simular llegada tardía de una respuesta obsoleta de A
-      const textBBeforeResolve = getDomString(container);
-      assert.ok(!textBBeforeResolve.includes('Mensaje confidencial de Encuentro A'));
-      assert.ok(!textBBeforeResolve.includes('5491199998888'));
-
-      // Paso 4: Resolver respuesta legítima de B
-      defMsgB.resolve({
+      // Paso 3: Llegada de la respuesta realmente tardía de A tras haber navegado a B
+      defMsgALate.resolve({
         ok: true,
         mensajes: [{
-          id: 'msg-B-1',
+          id: 'late-msg-A',
+          encuentro_id: OPEN_ENC_ID,
+          autor_nombre: 'Organizador A',
+          contenido: 'Mensaje tardío rezagado de Encuentro A',
+          es_organizador: true,
+          destacado: true,
+          destacado_en: new Date().toISOString(),
+          creado_en: new Date().toISOString(),
+        }],
+        destacados: [{
+          id: 'late-msg-A',
+          encuentro_id: OPEN_ENC_ID,
+          autor_nombre: 'Organizador A',
+          contenido: 'Destacado tardío de Encuentro A',
+          es_organizador: true,
+          destacado: true,
+          destacado_en: new Date().toISOString(),
+          creado_en: new Date().toISOString(),
+        }],
+        can_write: true,
+        writing_window_closed: false,
+      });
+      defWaALate.resolve({
+        ok: true,
+        has_contact: true,
+        opt_in: true,
+        telefono: '5491100000000',
+        wa_link: 'https://wa.me/5491100000000',
+      });
+      await new Promise(r => setTimeout(r, 40));
+
+      // La respuesta tardía de A no debe contaminar a B bajo ningún concepto
+      const textBAfterLateA = getDomString(container);
+      assert.ok(!textBAfterLateA.includes('Mensaje tardío rezagado de Encuentro A'), 'La respuesta tardía de A no debe contaminar mensajes en B');
+      assert.ok(!textBAfterLateA.includes('Destacado tardío de Encuentro A'), 'La respuesta tardía de A no debe contaminar destacados en B');
+      assert.ok(!textBAfterLateA.includes('5491100000000'), 'La respuesta tardía de A no debe contaminar WhatsApp en B');
+      assert.ok(!textBAfterLateA.includes('Mensaje confidencial de Encuentro A'), 'Mensajes iniciales de A no deben reaparecer');
+      assert.ok(!textBAfterLateA.includes('5491199998888'), 'WhatsApp inicial de A no debe reaparecer');
+
+      // Paso 4: Resolver respuesta legítima de B para user-1
+      defMsgB_User1.resolve({
+        ok: true,
+        mensajes: [{
+          id: 'msg-B-u1',
           encuentro_id: PRIVATE_ENC_ID,
-          autor_nombre: 'Asistente B',
-          contenido: 'Mensaje público del Encuentro B',
+          autor_nombre: 'Usuario Uno',
+          contenido: 'Mensaje de cuenta 1 en Encuentro B',
           es_organizador: false,
           destacado: false,
           destacado_en: null,
@@ -914,38 +1013,83 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
         can_write: true,
         writing_window_closed: false,
       });
-      defWaB.resolve({
+      defWaB_User1.resolve({
         ok: true,
         has_contact: true,
         opt_in: true,
-        telefono: '5491122223333',
-        wa_link: 'https://wa.me/5491122223333',
+        telefono: '5491111111111',
+        wa_link: 'https://wa.me/5491111111111',
       });
       await new Promise(r => setTimeout(r, 40));
 
-      const textB = getDomString(container);
-      assert.ok(textB.includes('Mensaje público del Encuentro B'), 'B debe mostrar sus propios mensajes');
-      assert.ok(!textB.includes('Mensaje confidencial de Encuentro A'), 'B no debe mostrar mensajes de A');
-      assert.ok(!textB.includes('Instrucción destacada privada de A'), 'B no debe mostrar destacados de A');
-      assert.ok(!textB.includes('5491199998888'), 'B no debe mostrar WhatsApp de A');
-      assert.ok(textB.includes('5491122223333'), 'B debe mostrar su propio WhatsApp');
+      const textB_User1 = getDomString(container);
+      assert.ok(textB_User1.includes('Mensaje de cuenta 1 en Encuentro B'), 'B debe mostrar mensajes de cuenta 1');
+      assert.ok(textB_User1.includes('5491111111111'), 'B debe mostrar WhatsApp de cuenta 1');
+      assert.ok(!textB_User1.includes('Mensaje confidencial de Encuentro A'), 'B no debe contener mensajes de A');
+      assert.ok(!textB_User1.includes('Mensaje tardío rezagado de Encuentro A'), 'B no debe contener mensajes tardíos de A');
+      assert.ok(!textB_User1.includes('5491199998888'), 'B no debe contener WhatsApp de A');
+      assert.ok(!textB_User1.includes('5491100000000'), 'B no debe contener WhatsApp tardío de A');
 
-      // Paso 5: Repetir con cambio de token en el mismo encuentro B
+      // Paso 5: Cambio de cuenta en el mismo encuentro B (user-1 -> user-2)
+      root.render(React.createElement(EncounterMessagesPanel, {
+        encuentroId: PRIVATE_ENC_ID,
+        authUserId: 'user-2',
+      }));
+      await new Promise(r => setTimeout(r, 5));
+
+      // En el primer render con user-2, los datos de user-1 quedan inmediatamente aislados
+      const textUser2FirstRender = getDomString(container);
+      assert.ok(!textUser2FirstRender.includes('Mensaje de cuenta 1 en Encuentro B'), 'En el primer render de user-2, los mensajes de user-1 no deben estar visibles');
+      assert.ok(!textUser2FirstRender.includes('5491111111111'), 'En el primer render de user-2, WhatsApp de user-1 no debe estar visible');
+
+      // Resolver datos de user-2
+      defMsgB_User2.resolve({
+        ok: true,
+        mensajes: [{
+          id: 'msg-B-u2',
+          encuentro_id: PRIVATE_ENC_ID,
+          autor_nombre: 'Usuario Dos',
+          contenido: 'Mensaje de cuenta 2 en Encuentro B',
+          es_organizador: false,
+          destacado: false,
+          destacado_en: null,
+          creado_en: new Date().toISOString(),
+        }],
+        destacados: [],
+        can_write: true,
+        writing_window_closed: false,
+      });
+      defWaB_User2.resolve({
+        ok: true,
+        has_contact: true,
+        opt_in: true,
+        telefono: '5491122222222',
+        wa_link: 'https://wa.me/5491122222222',
+      });
+      await new Promise(r => setTimeout(r, 40));
+
+      const textUser2Final = getDomString(container);
+      assert.ok(textUser2Final.includes('Mensaje de cuenta 2 en Encuentro B'), 'Debe cargar mensajes de user-2');
+      assert.ok(textUser2Final.includes('5491122222222'), 'Debe cargar WhatsApp de user-2');
+      assert.ok(!textUser2Final.includes('Mensaje de cuenta 1 en Encuentro B'), 'No debe contener mensajes de user-1');
+      assert.ok(!textUser2Final.includes('5491111111111'), 'No debe contener WhatsApp de user-1');
+
+      // Paso 6: Repetir con cambio a token de invitado guest en el mismo encuentro B
       root.render(React.createElement(EncounterMessagesPanel, {
         encuentroId: PRIVATE_ENC_ID,
         tokenInvitacion: PRIVATE_TOKEN,
       }));
       await new Promise(r => setTimeout(r, 5));
 
-      const textToken2FirstRender = getDomString(container);
-      assert.ok(!textToken2FirstRender.includes('Mensaje público del Encuentro B'), 'En el primer render con nuevo token, los mensajes previos no deben mostrarse transitoriamente');
+      const textGuestFirstRender = getDomString(container);
+      assert.ok(!textGuestFirstRender.includes('Mensaje de cuenta 2 en Encuentro B'), 'En el primer render con token guest, mensajes previos no deben mostrarse transitoriamente');
 
-      defMsgB2.resolve({
+      defMsgB_Guest.resolve({
         ok: true,
         mensajes: [{
-          id: 'msg-B2-1',
+          id: 'msg-B-guest',
           encuentro_id: PRIVATE_ENC_ID,
-          autor_nombre: 'Invitado Especial 2',
+          autor_nombre: 'Invitado Guest Especial',
           contenido: 'Mensaje cargado con token guest 2',
           es_organizador: false,
           destacado: false,
@@ -956,19 +1100,37 @@ describe('DIF-17: Desacople de Mensajería Interna y Reconfirmación Logística'
         can_write: true,
         writing_window_closed: false,
       });
-      defWaB2.resolve({ ok: false });
+      defWaB_Guest.resolve({ ok: false });
       await new Promise(r => setTimeout(r, 40));
 
-      const textToken2Final = getDomString(container);
-      assert.ok(textToken2Final.includes('Mensaje cargado con token guest 2'), 'Debe cargar mensajes del nuevo token');
-      assert.ok(!textToken2Final.includes('Mensaje confidencial de Encuentro A'), 'No debe contener datos de A');
+      const textGuestFinal = getDomString(container);
+      assert.ok(textGuestFinal.includes('Mensaje cargado con token guest 2'), 'Debe cargar mensajes del token guest');
+      assert.ok(!textGuestFinal.includes('Mensaje de cuenta 2 en Encuentro B'), 'No debe contener mensajes de user-2');
+      assert.ok(!textGuestFinal.includes('Mensaje confidencial de Encuentro A'), 'No debe contener datos de A');
     } finally {
-      try {
-        root.unmount();
-      } catch {}
-      await new Promise(r => setTimeout(r, 20));
+      if (root) {
+        try {
+          root.unmount();
+        } catch {}
+      }
+      await new Promise(r => setTimeout(r, 60));
       mensajesService.getMensajes = origGetMensajes;
       whatsappContactService.obtenerContacto = origObtenerContacto;
+      if (origDocument !== undefined) {
+        (globalThis as any).document = origDocument;
+      } else {
+        delete (globalThis as any).document;
+      }
+      if (origWindow !== undefined) {
+        (globalThis as any).window = origWindow;
+      } else {
+        delete (globalThis as any).window;
+      }
+      if (origHTMLIFrameElement !== undefined) {
+        (globalThis as any).HTMLIFrameElement = origHTMLIFrameElement;
+      } else {
+        delete (globalThis as any).HTMLIFrameElement;
+      }
     }
   });
 
