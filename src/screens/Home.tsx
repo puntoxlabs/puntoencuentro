@@ -1233,10 +1233,137 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     (isNavMenuOpen && isMobileViewport) ||
     Boolean(coordinationWarningProps.open);
 
+  // ── FAB contextual mobile-first (DIF-18-Q) ──────────────────────────────────
+  // En mobile (<768px), el FAB se oculta suavemente cuando entran en el viewport
+  // secciones que compiten visualmente con acciones de creación o tarjetas interactivas:
+  //   1. Estado inspirador (.pe-inspirational-grid, .pe-inspirational-actions)
+  //   2. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info)
+  //   3. Empty state con filtro activo (.pe-discovery-empty-actions)
+  // En desktop (>=768px), el FAB permanece anclado en el gutter derecho fijo sin interferencias.
+  const [isFabSuppressedByContext, setIsFabSuppressedByContext] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return;
+
+    const observedElements = new Set<Element>();
+    const intersectingElements = new Set<Element>();
+
+    const updateSuppression = (suppressed: boolean) => {
+      setIsFabSuppressedByContext((prev) => (prev === suppressed ? prev : suppressed));
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // En desktop (>=768px), el FAB permanece siempre visible en gutter sin supresión
+        if (window.innerWidth >= 768) {
+          if (intersectingElements.size > 0) intersectingElements.clear();
+          updateSuppression(false);
+          return;
+        }
+
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            intersectingElements.add(entry.target);
+          } else {
+            intersectingElements.delete(entry.target);
+          }
+        }
+        updateSuppression(intersectingElements.size > 0);
+      },
+      {
+        rootMargin: '0px',
+        threshold: 0,
+      }
+    );
+
+    const reconcileTargets = () => {
+      if (typeof document === 'undefined') return;
+
+      // 1. En desktop: limpiar observador y asegurar que no haya supresión activa
+      if (window.innerWidth >= 768) {
+        if (observedElements.size > 0) {
+          observer.disconnect();
+          observedElements.clear();
+          intersectingElements.clear();
+        }
+        updateSuppression(false);
+        return;
+      }
+
+      // 2. En mobile: reconciliar elementos observados
+      const container = document.querySelector('.home-screen-container') || document.body;
+      const currentTargets = Array.from(
+        container.querySelectorAll(
+          '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions'
+        )
+      );
+      const currentTargetSet = new Set(currentTargets);
+
+      // Desregistrar elementos retirados del DOM
+      for (const el of observedElements) {
+        if (!currentTargetSet.has(el) || !document.contains(el)) {
+          observer.unobserve(el);
+          observedElements.delete(el);
+          intersectingElements.delete(el);
+        }
+      }
+
+      // Registrar elementos nuevos (evitando registros redundantes)
+      for (const el of currentTargets) {
+        if (!observedElements.has(el)) {
+          observer.observe(el);
+          observedElements.add(el);
+        }
+      }
+
+      if (observedElements.size === 0) {
+        updateSuppression(false);
+      } else {
+        updateSuppression(intersectingElements.size > 0);
+      }
+    };
+
+    // Reconciliación inicial
+    reconcileTargets();
+
+    // MutationObserver acotado al contenedor de la pantalla Home
+    let mutationObserver: MutationObserver | null = null;
+    if (typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver(() => {
+        reconcileTargets();
+      });
+      const container = document.querySelector('.home-screen-container') || document.body;
+      mutationObserver.observe(container, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    let resizeTimer: number | null = null;
+    const handleResize = () => {
+      if (resizeTimer) cancelAnimationFrame(resizeTimer);
+      resizeTimer = requestAnimationFrame(() => {
+        reconcileTargets();
+      });
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (resizeTimer) cancelAnimationFrame(resizeTimer);
+      observer.disconnect();
+      observedElements.clear();
+      intersectingElements.clear();
+      if (mutationObserver) mutationObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [loading, isV2Variant]);
+
   const showFab =
     !loading &&
     !isAnySheetOpen &&
     !(isInputFocused && isMobileViewport);
+
+  const isFabVisible = showFab && !isFabSuppressedByContext;
 
 
   const aiDraft = useAiWizardStore(s => s.draft);
@@ -2669,9 +2796,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         }}
       />
 
-      {/* FAB Botón Crear Contextual (Mobile + Desktop, aparece al alejarte del Hero cuando no hay otro CTA de crear visible) */}
+      {/* FAB Botón Crear Contextual (Mobile + Desktop, con adaptación contextual anti-colisión DIF-18-Q) */}
       {showFab && (
-        <div className="home-fab-container">
+        <div
+          className={`home-fab-container ${isFabVisible ? 'home-fab-container--visible' : 'home-fab-container--hidden'}`}
+          data-testid="home-fab-container"
+        >
           <div className="home-fab-wrapper">
             <button
               onClick={handleCreateClick}
