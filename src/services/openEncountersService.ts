@@ -16,6 +16,67 @@ import type {
 
 const USER_ZONES_LOCAL_STORAGE_KEY = 'puntoencuentro_user_zones';
 
+/**
+ * Normaliza fecha y hora provenientes de las RPCs de Supabase (PostgreSQL DATE y TIME)
+ * hacia un string ISO representativo en la zona horaria de Argentina (America/Argentina/Buenos_Aires, UTC-3).
+ * Soporta encuentros con fecha u hora a coordinar (null / undefined / vacíos).
+ */
+export function normalizeEncounterStartsAt(
+  fecha?: string | null,
+  hora?: string | null,
+  fallbackStartsAt?: string | null
+): string {
+  if (fallbackStartsAt && typeof fallbackStartsAt === 'string' && fallbackStartsAt.trim().length > 0) {
+    return fallbackStartsAt.trim();
+  }
+
+  if (!fecha || typeof fecha !== 'string' || fecha.trim().length === 0) {
+    return '';
+  }
+
+  const cleanFecha = fecha.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanFecha)) {
+    return cleanFecha;
+  }
+
+  let cleanHora = '00:00:00';
+  if (hora && typeof hora === 'string' && hora.trim().length > 0) {
+    const trimmedHora = hora.trim();
+    if (/^\d{2}:\d{2}$/.test(trimmedHora)) {
+      cleanHora = `${trimmedHora}:00`;
+    } else if (/^\d{2}:\d{2}:\d{2}/.test(trimmedHora)) {
+      cleanHora = trimmedHora.substring(0, 8);
+    }
+  }
+
+  // Zona horaria de Argentina: UTC-3 permanente (sin DST)
+  return `${cleanFecha}T${cleanHora}-03:00`;
+}
+
+/**
+ * Normaliza la etiqueta legible de fecha y horario del encuentro.
+ */
+export function formatEncounterDateLabel(
+  dateLabel?: string | null,
+  timeLabel?: string | null,
+  fecha?: string | null,
+  hora?: string | null
+): string {
+  if (dateLabel && dateLabel.trim().length > 0) {
+    const timePart = timeLabel && timeLabel !== 'Horario a coordinar' && !dateLabel.includes(timeLabel)
+      ? ` · ${timeLabel}`
+      : '';
+    return `${dateLabel.trim()}${timePart}`;
+  }
+
+  if (fecha && fecha.trim().length > 0) {
+    const timePart = hora ? ` · ${hora.substring(0, 5)}` : '';
+    return `${fecha.trim()}${timePart}`;
+  }
+
+  return 'Fecha a coordinar';
+}
+
 export const openEncountersService = {
   /**
    * Obtiene el catálogo de localidades activas desde Supabase.
@@ -115,8 +176,8 @@ export const openEncountersService = {
         title: item.title,
         emoji: item.emoji,
         activityType: item.activity_type,
-        startsAt: item.starts_at,
-        dateLabel: item.date_label,
+        startsAt: normalizeEncounterStartsAt(item.fecha, item.hora, item.starts_at),
+        dateLabel: formatEncounterDateLabel(item.date_label, item.time_label, item.fecha, item.hora),
         approximateZone: item.approximate_zone,
         localityId: item.locality_id ?? null,
         modalidad: (item.modalidad || item.modality || (item.open_public_zone === 'Online' ? 'virtual' : 'presencial')) as 'presencial' | 'virtual',
@@ -175,8 +236,8 @@ export const openEncountersService = {
           title: item.title,
           emoji: item.emoji,
           activityType: item.activity_type,
-          startsAt: item.starts_at,
-          dateLabel: item.date_label,
+          startsAt: normalizeEncounterStartsAt(item.fecha, item.hora, item.starts_at),
+          dateLabel: formatEncounterDateLabel(item.date_label, item.time_label, item.fecha, item.hora),
           approximateZone: item.approximate_zone,
           localityId: item.locality_id ?? null,
           modalidad: (item.modalidad || item.modality || (item.open_public_zone === 'Online' ? 'virtual' : 'presencial')) as 'presencial' | 'virtual',
@@ -211,14 +272,12 @@ export const openEncountersService = {
       // (ej. el usuario es Host o participante aprobado)
       const authRes = await this.getEncuentroParticipanteAutorizado(encounterId);
       if (authRes && authRes.ok && authRes.id) {
-        const timePart = authRes.hora ? authRes.hora.substring(0, 5) : '';
-        const dateLabel = authRes.fecha ? `${authRes.fecha}${timePart ? ` · ${timePart}` : ''}` : '';
         const zone = authRes.open_public_zone || (authRes.modalidad === 'virtual' ? 'Online' : 'Ubicación confirmada');
         return {
           id: authRes.id,
           title: authRes.open_public_title || 'Encuentro',
-          startsAt: `${authRes.fecha || ''}T${authRes.hora || '00:00:00'}`,
-          dateLabel,
+          startsAt: normalizeEncounterStartsAt(authRes.fecha, authRes.hora),
+          dateLabel: formatEncounterDateLabel(null, null, authRes.fecha, authRes.hora),
           approximateZone: zone,
           localityId: authRes.locality_id ?? null,
           modalidad: (authRes.modalidad || (zone === 'Online' ? 'virtual' : 'presencial')) as 'presencial' | 'virtual',

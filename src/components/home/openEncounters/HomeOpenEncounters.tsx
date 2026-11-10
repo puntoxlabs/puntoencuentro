@@ -64,8 +64,12 @@ export interface HomeOpenEncountersProps {
   onClearHighlight?: () => void;
   /** Disparador de refresco en caliente para Discovery (ej. tras nuevo match en tiempo real) */
   refreshTrigger?: number;
+  /** Disparador controlado externo para abrir modal de selección de zonas (ej. desde aviso de coincidencias) */
+  configureZonesTrigger?: number;
   /** Disparador controlado externo para abrir Avisame (Fase 2B / Navegación) */
   externalAvisameTrigger?: { tab: 'create' | 'list'; timestamp: number } | null;
+  /** Inyección controlada de encuentros del hook (para testing de recorrido real sin prop encounters) */
+  hookEncountersOverride?: OpenEncounterSummary[];
 }
 
 /**
@@ -107,7 +111,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   highlightEncounterIds,
   onClearHighlight,
   refreshTrigger,
+  configureZonesTrigger,
   externalAvisameTrigger,
+  hookEncountersOverride,
 }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -156,6 +162,17 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       }
     }
   }, [externalAvisameTrigger, isPermanentUser]);
+
+  // Disparador controlado externo para abrir selector de zonas desde aviso o navegación
+  useEffect(() => {
+    if (configureZonesTrigger && configureZonesTrigger > 0) {
+      if (onConfigureZones) {
+        onConfigureZones();
+      } else {
+        setIsZoneModalOpen(true);
+      }
+    }
+  }, [configureZonesTrigger, onConfigureZones]);
 
   // Filtro simple: Solo con lugares disponibles (por defecto false/OFF)
   const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
@@ -243,6 +260,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const liveEncounters = useMemo<OpenEncounterSummary[]>(() => {
     let list: OpenEncounterSummary[] = [];
     if (propEncounters !== undefined) list = propEncounters;
+    else if (hookEncountersOverride !== undefined) list = hookEncountersOverride;
     else if (hookEncounters && hookEncounters.length > 0) list = hookEncounters;
     else if (allowDemoFallback && !hookLoading) list = OPEN_ENCOUNTERS_DEMO;
     else list = hookEncounters || [];
@@ -255,7 +273,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       });
     }
     return list;
-  }, [propEncounters, hookEncounters, allowDemoFallback, hookLoading, user?.id]);
+  }, [propEncounters, hookEncountersOverride, hookEncounters, allowDemoFallback, hookLoading, user?.id]);
 
   const liveIntentions = useMemo<PublicIntencionSummary[]>(() => {
     if (propIntentions !== undefined) return propIntentions;
@@ -268,26 +286,38 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, []);
 
   // Filtrado por zonas seleccionadas efectivas con orden canónico ascendente (V2) o por defecto (V1)
-  // Invariante DIF-18: Encuentros virtuales se preservan independientemente de localityId (consistente con RPC)
+  // Invariante DIF-18:
+  // - Si el usuario tiene zonas configuradas: muestra virtuales + presenciales de sus zonas.
+  // - Si el usuario NO tiene zonas configuradas en el recorrido real (sin prop encounters):
+  //   muestra únicamente los encuentros virtuales elegibles (los presenciales requieren elegir zonas).
+  // - Si se pasaron encuentros explícitos por props (tests/previews): se respetan los encuentros provistos.
   const visibleEncounters = useMemo(() => {
     if (!liveEncounters || liveEncounters.length === 0) return [];
-    const filtered = effectiveZones && effectiveZones.length > 0
-      ? liveEncounters.filter((e) => isVirtualEncounter(e) || (Boolean(e.localityId) && effectiveZones.includes(e.localityId!)))
-      : liveEncounters;
+    let filtered: OpenEncounterSummary[];
+
+    if (effectiveZones && effectiveZones.length > 0) {
+      filtered = liveEncounters.filter(
+        (e) => isVirtualEncounter(e) || (Boolean(e.localityId) && effectiveZones.includes(e.localityId!))
+      );
+    } else if (propEncounters !== undefined) {
+      filtered = liveEncounters;
+    } else {
+      filtered = liveEncounters.filter((e) => isVirtualEncounter(e));
+    }
 
     // En V2: ordenar copia de los resultados de forma ascendente (más próximo -> más lejano)
     if (isV2Variant) {
       return [...filtered].sort((a, b) => {
-        const timeA = new Date(a.startsAt).getTime();
-        const timeB = new Date(b.startsAt).getTime();
-        const valA = isNaN(timeA) ? 0 : timeA;
-        const valB = isNaN(timeB) ? 0 : timeB;
+        const timeA = a.startsAt ? new Date(a.startsAt).getTime() : Infinity;
+        const timeB = b.startsAt ? new Date(b.startsAt).getTime() : Infinity;
+        const valA = isNaN(timeA) ? Infinity : timeA;
+        const valB = isNaN(timeB) ? Infinity : timeB;
         return valA - valB;
       });
     }
 
     return filtered;
-  }, [liveEncounters, effectiveZones, isV2Variant, isVirtualEncounter]);
+  }, [liveEncounters, effectiveZones, propEncounters, isV2Variant, isVirtualEncounter]);
 
   // Filtro simple: "Solo con lugares disponibles" (OFF: disponibles + completos; ON: oculta completos e inscripciones cerradas)
   const displayedEncounters = useMemo(() => {
@@ -859,21 +889,10 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    // Estado 1 (Sin zonas configuradas explícitamente): Muestra CTA de configuración + tarjetas inspiradoras
-    if (noZonesConfigured) {
-      return (
-        <HomeInspirationalEmptyState
-          noZonesConfigured={true}
-          onSelectIdea={handleInspirationalSelect}
-          onOpenCreate={onOpenCreate}
-          onOpenAvisame={() => handleOpenAvisame('create')}
-          onConfigureZones={handleOpenZoneModal}
-        />
-      );
-    }
-
     // Estado F: Datos aún cargando
-    const isFetching = propLoading !== undefined ? propLoading : (propEncounters === undefined && hookLoading);
+    const isFetching = propLoading !== undefined
+      ? propLoading
+      : (propEncounters === undefined && hookEncountersOverride === undefined && !noZonesConfigured && hookLoading);
     if (isFetching) {
       return (
         <div className="pe-discovery-loading" aria-live="polite" aria-busy="true">
@@ -883,18 +902,10 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    // Estado D2: Sin zonas tras finalizar carga
-    if (propEncounters === undefined && userZones.length === 0 && effectiveZones.length === 0) {
-      return (
-        <HomeInspirationalEmptyState
-          noZonesConfigured={true}
-          onSelectIdea={handleInspirationalSelect}
-          onOpenCreate={onOpenCreate}
-          onOpenAvisame={() => handleOpenAvisame('create')}
-          onConfigureZones={handleOpenZoneModal}
-        />
-      );
-    }
+    // Determinamos si el usuario no tiene zonas configuradas
+    const hasNoZones = noZonesConfigured
+      ? true
+      : propEncounters === undefined && userZones.length === 0 && effectiveZones.length === 0;
 
     // Estado 3: Hay encuentros reales, pero el filtro «Solo disponibles» devuelve cero
     if (visibleEncounters.length > 0 && onlyAvailableFilter && displayedEncounters.length === 0) {
@@ -937,11 +948,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    // Estado 2: Cero encuentros reales en la zona seleccionada
+    // Estado Vacío: Cuando efectivamente NO existan encuentros visibles
     if (visibleEncounters.length === 0) {
       return (
         <HomeInspirationalEmptyState
-          noZonesConfigured={false}
+          noZonesConfigured={hasNoZones}
           onSelectIdea={handleInspirationalSelect}
           onOpenCreate={onOpenCreate}
           onOpenAvisame={() => handleOpenAvisame('create')}
@@ -951,8 +962,24 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
 
     return (
-      <div
-        className="pe-discovery-carousel-wrapper"
+      <div className="pe-discovery-encounters-container">
+        {hasNoZones && (
+          <div className="pe-discovery-virtual-zones-banner" data-testid="discovery-virtual-no-zones-banner">
+            <MapPin size={14} className="pe-discovery-virtual-zones-icon" aria-hidden="true" />
+            <span className="pe-discovery-virtual-zones-text">
+              Mostrando encuentros online. Elegí tus zonas para ver también opciones presenciales cerca tuyo.
+            </span>
+            <button
+              type="button"
+              className="pe-discovery-virtual-zones-cta"
+              onClick={handleOpenZoneModal}
+            >
+              Elegir zonas
+            </button>
+          </div>
+        )}
+        <div
+          className="pe-discovery-carousel-wrapper"
         onMouseEnter={() => {
           isInteractingRef.current = true;
           if (autoplayTimerRef.current) {
@@ -1043,8 +1070,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           </button>
         )}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   // Renderizado del bloque de Intenciones
   const renderIntentionsGroup = () => {

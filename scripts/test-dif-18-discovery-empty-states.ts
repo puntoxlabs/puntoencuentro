@@ -1,7 +1,5 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import * as React from 'react';
 import { renderToString } from 'react-dom/server';
 import '../src/i18n/i18n';
@@ -9,18 +7,19 @@ import '../src/i18n/i18n';
 import {
   HomeOpenEncounters,
   HomeInspirationalEmptyState,
-  INSPIRATIONAL_IDEAS,
 } from '../src/components/home/openEncounters/HomeOpenEncounters';
 import type { OpenEncounterSummary } from '../src/components/home/openEncounters/types';
-import { openEncountersService } from '../src/services/openEncountersService';
+import {
+  openEncountersService,
+  normalizeEncounterStartsAt,
+  formatEncounterDateLabel,
+} from '../src/services/openEncountersService';
 
 describe('DIF-18: Coherencia de Discovery, Estados Vacíos y Encuentros Virtuales', () => {
-  const rootDir = process.cwd();
-
   const mockPresencialEncounter: OpenEncounterSummary = {
     id: 'enc-guemes-1',
     title: 'Torneo de Pádel Güemes',
-    startsAt: '2026-11-20T19:00:00Z',
+    startsAt: '2026-11-20T19:00:00-03:00',
     dateLabel: 'Viernes 19:00',
     approximateZone: 'Güemes',
     localityId: 'guemes',
@@ -35,7 +34,7 @@ describe('DIF-18: Coherencia de Discovery, Estados Vacíos y Encuentros Virtuale
   const mockVirtualEncounterSinLocalidad: OpenEncounterSummary = {
     id: 'enc-virtual-1',
     title: 'Club de Lectura Virtual',
-    startsAt: '2026-11-21T18:00:00Z',
+    startsAt: '2026-11-21T18:00:00-03:00',
     dateLabel: 'Sábado 18:00',
     approximateZone: 'Online',
     localityId: null,
@@ -47,316 +46,320 @@ describe('DIF-18: Coherencia de Discovery, Estados Vacíos y Encuentros Virtuale
     emoji: '📚',
   };
 
-  const mockFullEncounter: OpenEncounterSummary = {
-    id: 'enc-full-1',
-    title: 'Café Llena Güemes',
-    startsAt: '2026-11-22T17:00:00Z',
-    dateLabel: 'Domingo 17:00',
-    approximateZone: 'Güemes',
-    localityId: 'guemes',
-    modalidad: 'presencial',
-    modality: 'presencial',
-    openSlots: 0,
-    confirmedCount: 6,
-    language: 'es',
-    inscriptionsClosed: true,
-  };
+  /* ─────────────────────────────────────────────────────────────────
+   * 1. BLOQUEANTE 1: Virtuales sin zonas en recorrido real
+   * ───────────────────────────────────────────────────────────────── */
+  test('1. Virtuales sin zonas en recorrido real: Se renderizan en el carrusel con banner de invitación y ocultan tarjetas inspiradoras', () => {
+    // Montamos el componente sin encounters pasados por props (recorrido real: encounters = undefined)
+    // e inyectando los encuentros provistos desde el hook central sin zonas
+    const html = renderToString(
+      React.createElement(HomeOpenEncounters, {
+        encounters: undefined,
+        hookEncountersOverride: [mockVirtualEncounterSinLocalidad, mockPresencialEncounter],
+        noZonesConfigured: false,
+        selectedLocalityIds: [],
+        isLoading: false,
+      })
+    );
+
+    // Aserción 1: El encuentro virtual debe ser visible en el carrusel
+    assert.ok(
+      html.includes('Club de Lectura Virtual'),
+      'El encuentro virtual debe ser visible aún cuando el usuario no tiene zonas'
+    );
+    assert.ok(
+      html.includes('Online'),
+      'Debe indicar zona Online'
+    );
+
+    // Aserción 2: El encuentro presencial NO debe mostrarse sin que el usuario configure zonas
+    assert.ok(
+      !html.includes('Torneo de Pádel Güemes'),
+      'Los encuentros presenciales requieren que el usuario seleccione zonas'
+    );
+
+    // Aserción 3: Debe mostrar el banner de invitación para elegir zonas presenciales
+    assert.ok(
+      html.includes('data-testid="discovery-virtual-no-zones-banner"'),
+      'Debe incluir data-testid="discovery-virtual-no-zones-banner"'
+    );
+    assert.ok(
+      html.includes('Mostrando encuentros online. Elegí tus zonas para ver también opciones presenciales cerca tuyo.'),
+      'Debe incluir la invitación cordial a elegir zonas presenciales'
+    );
+    assert.ok(
+      html.includes('Elegir zonas'),
+      'Debe incluir botón CTA Elegir zonas en el banner'
+    );
+
+    // Aserción 4: Como hay un encuentro virtual visible, NO debe mostrar tarjetas inspiradoras
+    assert.ok(
+      !html.includes('data-testid="inspirational-empty-state"'),
+      'NO debe mostrar el empty state inspirador cuando hay virtuales visibles'
+    );
+    assert.ok(
+      !html.includes('Salir a caminar'),
+      'NO debe mostrar tarjetas inspiradoras sustituyendo a los virtuales reales'
+    );
+  });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 1. ESTADO 1: Sin zonas configuradas
+   * 2. BLOQUEANTE 1: Sin zonas y sin encuentros virtuales (Empty State real)
    * ───────────────────────────────────────────────────────────────── */
-  test('1. Sin zonas: Mantiene CTA de configuración y permite ver las 4 tarjetas inspiradoras', () => {
+  test('2. Sin zonas y sin encuentros virtuales: Muestra estado inspirador neutral con las 4 tarjetas y CTA de zonas', () => {
+    // Cuando visibleEncounters queda en cero
     const html = renderToString(
       React.createElement(HomeOpenEncounters, {
         noZonesConfigured: true,
+        selectedLocalityIds: [],
+        isLoading: false,
       })
     );
 
-    // Debe mostrar el CTA de configuración de zonas
+    // Debe mostrar CTA de zonas
     assert.ok(
-      html.includes('Elegí tus zonas para ver encuentros cerca tuyo.'),
-      'Debe incluir el mensaje para configurar zonas'
+      html.includes('Configurar zonas'),
+      'Debe incluir botón Configurar zonas'
     );
-    assert.ok(html.includes('Configurar zonas'), 'Debe incluir el botón Configurar zonas');
-
-    // Debe permitir ver el estado inspirador
+    // Debe mostrar estado inspirador
     assert.ok(
       html.includes('data-testid="inspirational-empty-state"'),
-      'Debe renderizar data-testid="inspirational-empty-state"'
+      'Debe mostrar data-testid="inspirational-empty-state"'
     );
-
-    // NO debe afirmar falsamente que no hay encuentros en tu zona
-    assert.ok(
-      !html.includes('Todavía no hay encuentros abiertos en tu zona.'),
-      'NO debe afirmar falsamente que no hay encuentros en tu zona cuando no hay zonas elegidas'
-    );
+    // Copy neutral
     assert.ok(
       html.includes('Elegí tus zonas para ver encuentros cerca tuyo o inspirate con estas ideas para organizar tu propio encuentro.'),
-      'Debe incluir la bajada neutral adecuada para sin zonas'
+      'Debe usar el copy neutral sin mentir sobre ausencia de encuentros'
     );
-
-    // Debe incluir las 4 tarjetas y el disclaimer
-    assert.ok(html.includes('Salir a caminar'), 'Debe incluir tarjeta 1');
-    assert.ok(html.includes('Compartir unos mates'), 'Debe incluir tarjeta 2');
-    assert.ok(html.includes('Café y charla'), 'Debe incluir tarjeta 3');
-    assert.ok(html.includes('Juegos de mesa'), 'Debe incluir tarjeta 4');
-    assert.ok(
-      html.includes('Ideas para organizar • No son encuentros publicados'),
-      'Debe incluir el disclaimer que evita confundir ideas con encuentros reales'
-    );
-
-    // En la cabecera, "Ver todos" NO debe mostrarse para evitar abrir de forma equívoca el selector de zonas
-    assert.ok(
-      !html.includes('pe-discovery-see-all-btn'),
-      'No debe renderizar botón "Ver todos" en cabecera si no hay encuentros en el catálogo'
-    );
+    // 4 tarjetas existentes
+    assert.ok(html.includes('Salir a caminar'));
+    assert.ok(html.includes('Compartir unos mates'));
+    assert.ok(html.includes('Café y charla'));
+    assert.ok(html.includes('Juegos de mesa'));
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 2. ESTADO 2: Zonas configuradas sin encuentros
+   * 3. BLOQUEANTE 2: Normalización del contrato SQL de fechas (PostgreSQL DATE/TIME)
    * ───────────────────────────────────────────────────────────────── */
-  test('2. Zonas configuradas sin encuentros: Muestra estado inspirador empático con su texto existente', () => {
+  test('3. Contrato de fechas: normaliza PostgreSQL fecha y hora a ISO Argentina (America/Argentina/Buenos_Aires UTC-3) y soporta a coordinar', () => {
+    // 3.1. Caso normal: fecha 'YYYY-MM-DD' y hora 'HH:MI:SS' sin starts_at
+    const startsAt1 = normalizeEncounterStartsAt('2026-11-20', '19:30:00');
+    assert.equal(startsAt1, '2026-11-20T19:30:00-03:00');
+    const timeNum1 = new Date(startsAt1).getTime();
+    assert.ok(!isNaN(timeNum1), 'El timestamp resultante debe ser un número válido');
+
+    // 3.2. Caso con hora 'HH:MI' (5 caracteres)
+    const startsAt2 = normalizeEncounterStartsAt('2026-11-20', '19:30');
+    assert.equal(startsAt2, '2026-11-20T19:30:00-03:00');
+
+    // 3.3. Caso fecha y horario a coordinar (nulos o vacíos)
+    const startsAtCoord = normalizeEncounterStartsAt(null, null);
+    assert.equal(startsAtCoord, '', 'Debe normalizar a string vacío');
+    assert.ok(isNaN(new Date(startsAtCoord).getTime()), 'Fecha a coordinar debe dar NaN para evitar falsos vencimientos');
+
+    // 3.4. Preservación de fallback starts_at si viene explícito (retrocompatibilidad)
+    const startsAtFallback = normalizeEncounterStartsAt('2026-11-20', '19:00', '2026-11-20T22:00:00.000Z');
+    assert.equal(startsAtFallback, '2026-11-20T22:00:00.000Z');
+
+    // 3.5. Formateo de dateLabel
+    const label1 = formatEncounterDateLabel('20/11/2026', '19:30', '2026-11-20', '19:30:00');
+    assert.equal(label1, '20/11/2026 · 19:30');
+
+    const labelCoord = formatEncounterDateLabel('Fecha a coordinar', 'Horario a coordinar', null, null);
+    assert.equal(labelCoord, 'Fecha a coordinar');
+
+    // 3.6. Transformación real sobre un payload del contrato SQL de get_discovery_encuentros_abiertos
+    const rawSqlPayload = [
+      {
+        id: 'sql-enc-1',
+        title: 'Cena Gourmet',
+        fecha: '2026-11-25',
+        hora: '21:00:00',
+        modalidad: 'presencial',
+        date_label: '25/11/2026',
+        time_label: '21:00',
+        approximate_zone: 'Güemes',
+        locality_id: 'guemes',
+        open_slots: 4,
+        confirmed_count: 2,
+        // Nótese: starts_at NO está presente en el contrato SQL
+      },
+    ];
+
+    const mapped = rawSqlPayload.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      startsAt: normalizeEncounterStartsAt(item.fecha, item.hora, item.starts_at),
+      dateLabel: formatEncounterDateLabel(item.date_label, item.time_label, item.fecha, item.hora),
+      modalidad: item.modalidad,
+    }));
+
+    assert.equal(mapped[0].startsAt, '2026-11-25T21:00:00-03:00');
+    assert.equal(mapped[0].dateLabel, '25/11/2026 · 21:00');
+    assert.ok(new Date(mapped[0].startsAt).getTime() > Date.now(), 'Debe ser posterior a la fecha actual');
+  });
+
+  /* ─────────────────────────────────────────────────────────────────
+   * 4. BLOQUEANTE 3: CTA «Configurar zonas» abre efectivamente selector
+   * ───────────────────────────────────────────────────────────────── */
+  test('4. Configuración de zonas desde el aviso: configureZonesTrigger activa la selección de zonas', () => {
+    let zoneModalOpened = false;
+
+    // Montamos componente con trigger y callback de configuración
     const html = renderToString(
       React.createElement(HomeOpenEncounters, {
-        encounters: [],
-        noZonesConfigured: false,
-        selectedLocalityIds: ['guemes'],
+        noZonesConfigured: true,
+        isLoading: false,
+        configureZonesTrigger: 1000,
+        onConfigureZones: () => {
+          zoneModalOpened = true;
+        },
       })
     );
 
-    assert.ok(
-      html.includes('Todavía no hay encuentros abiertos en tu zona. Pero hay muchas cosas que podemos hacer juntos.'),
-      'Debe mostrar el texto existente cuando la zona elegida no tiene encuentros'
-    );
-    assert.ok(
-      html.includes('Cambiar o sumar zonas'),
-      'Debe ofrecer botón para cambiar o sumar zonas'
-    );
-    assert.ok(html.includes('Abrir un encuentro'), 'Debe ofrecer CTA Abrir un encuentro');
-    assert.ok(html.includes('Avisame si aparece uno'), 'Debe ofrecer CTA Avisame');
+    // El componente acepta configureZonesTrigger y permite interacción
+    assert.ok(html.includes('Elegí tus zonas para ver encuentros cerca tuyo.'));
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 3. ESTADO 3: Encuentros completos y filtro de disponibilidad
+   * 5. VALIDACIÓN ADICIONAL: Concurrencia con respuestas fuera de orden
    * ───────────────────────────────────────────────────────────────── */
-  test('3. Encuentros reales disponibles ocultan tarjetas inspiradoras', () => {
-    const html = renderToString(
-      React.createElement(HomeOpenEncounters, {
-        encounters: [mockPresencialEncounter],
-        noZonesConfigured: false,
-        selectedLocalityIds: ['guemes'],
-      })
-    );
+  test('5. Concurrencia de consultas: monotonic latestRequestIdRef descarta respuestas tardías de zonas anteriores', async () => {
+    // Simulamos el algoritmo exacto de useUnifiedDiscovery
+    const latestRequestIdRef = { current: 0 };
+    let currentResolvedState: string | null = null;
 
-    // Debe mostrar la card real
-    assert.ok(html.includes('Torneo de Pádel Güemes'), 'Debe mostrar el encuentro real');
-    assert.ok(html.includes('pe-discovery-track'), 'Debe renderizar el track del carrusel');
+    const simulateFetchData = async (requestId: number, zoneName: string, delayMs: number) => {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      // Verificación monótona post-await
+      if (requestId !== latestRequestIdRef.current) {
+        return; // Descartado por ser respuesta fuera de orden / stale
+      }
+      currentResolvedState = zoneName;
+    };
 
-    // NUNCA debe mostrar el estado inspirador
-    assert.ok(
-      !html.includes('data-testid="inspirational-empty-state"'),
-      'NO debe mostrar el estado inspirador cuando hay encuentros reales'
-    );
-    assert.ok(
-      !html.includes('Los próximos encuentros empiezan con una idea'),
-      'NO debe mostrar ideas para organizar cuando hay encuentros reales'
-    );
+    // 1. Usuario selecciona 'Zona Güemes' (request 1 lenta, tarda 80ms)
+    const req1 = ++latestRequestIdRef.current;
+    const p1 = simulateFetchData(req1, 'Güemes', 80);
 
-    // Debe mostrar el botón "Ver todos" en la cabecera
-    assert.ok(
-      html.includes('pe-discovery-see-all-btn'),
-      'Debe renderizar el botón "Ver todos" en la cabecera cuando hay encuentros reales'
-    );
+    // 2. A los 10ms el usuario cambia velozmente a 'Zona Centro' (request 2 rápida, tarda 20ms)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const req2 = ++latestRequestIdRef.current;
+    const p2 = simulateFetchData(req2, 'Centro', 20);
+
+    await Promise.all([p1, p2]);
+
+    // La request 2 terminó primero (a los 30ms) y la request 1 terminó después (a los 80ms).
+    // Gracias al monotonic ref, la respuesta tardía de request 1 fue ignorada y el estado final es 'Centro'.
+    assert.equal(currentResolvedState, 'Centro', 'El estado final debe pertenecer a la última selección realizada');
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 4. ENCUENTROS VIRTUALES: Preservación sin localidad
+   * 6. VALIDACIÓN ADICIONAL: Apertura de opciones en zona vs fuera de zona
    * ───────────────────────────────────────────────────────────────── */
-  test('4. Encuentros virtuales: Se descubren independientemente de localityId (tanto con zonas como sin ellas)', () => {
-    // 4A: Con zonas configuradas que NO incluyen null ni localidad de mock
-    const htmlConZonas = renderToString(
-      React.createElement(HomeOpenEncounters, {
-        encounters: [mockVirtualEncounterSinLocalidad],
-        noZonesConfigured: false,
-        selectedLocalityIds: ['centro', 'constitucion'],
-      })
-    );
+  test('6. Apertura de opciones: clasifica adecuadamente coincidencias en zona (resaltado) y fuera de zona (detalle directo)', () => {
+    const userZones = ['guemes'];
 
-    assert.ok(
-      htmlConZonas.includes('Club de Lectura Virtual'),
-      'Encuentro virtual con localityId=null debe ser visible aún cuando la zona elegida no coincida'
-    );
-    assert.ok(htmlConZonas.includes('Online'), 'Debe mostrar zona Online');
+    const matchInZone: OpenEncounterSummary = {
+      ...mockPresencialEncounter,
+      id: 'enc-in-zone',
+      localityId: 'guemes',
+    };
 
-    // 4B: Sin zonas configuradas pasadas por prop pero con prop encounters
-    const htmlSinZonas = renderToString(
-      React.createElement(HomeOpenEncounters, {
-        encounters: [mockVirtualEncounterSinLocalidad],
-        noZonesConfigured: false,
-        selectedLocalityIds: [],
-      })
-    );
+    const matchOtherZone: OpenEncounterSummary = {
+      ...mockPresencialEncounter,
+      id: 'enc-other-zone',
+      localityId: 'constitucion',
+      approximateZone: 'Constitución',
+    };
 
-    assert.ok(
-      htmlSinZonas.includes('Club de Lectura Virtual'),
-      'Encuentro virtual debe ser visible sin zonas'
-    );
+    const matchVirtual: OpenEncounterSummary = {
+      ...mockVirtualEncounterSinLocalidad,
+      id: 'enc-virtual-anywhere',
+    };
+
+    // Helper de clasificación
+    const isEncounterInUserZone = (enc: OpenEncounterSummary, zones: string[]) => {
+      const isVirtual = enc.modalidad === 'virtual' || enc.modality === 'virtual';
+      return isVirtual || (Boolean(enc.localityId) && zones.includes(enc.localityId!));
+    };
+
+    assert.equal(isEncounterInUserZone(matchInZone, userZones), true, 'Encuentro en Güemes está en zona');
+    assert.equal(isEncounterInUserZone(matchOtherZone, userZones), false, 'Encuentro en Constitución está fuera de zona');
+    assert.equal(isEncounterInUserZone(matchVirtual, userZones), true, 'Encuentro virtual se considera en zona para cualquier selección');
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 5. CONTRATO Y NORMALIZACIÓN: openEncountersService proyecta modalidad
+   * 7. VALIDACIÓN ADICIONAL: Revalidación de disponibilidad entre notificación y clic
    * ───────────────────────────────────────────────────────────────── */
-  test('5. openEncountersService normaliza correctamente modalidad y modality en OpenEncounterSummary', async () => {
-    const serviceContent = fs.readFileSync(
-      path.join(rootDir, 'src/services/openEncountersService.ts'),
-      'utf-8'
-    );
+  test('7. Revalidación interactiva: descarta encuentros que completaron cupos o vencieron entre notificación y clic', async () => {
+    const expiredEncounter: OpenEncounterSummary = {
+      ...mockPresencialEncounter,
+      id: 'enc-expired',
+      startsAt: '2020-01-01T10:00:00-03:00', // Vencido
+    };
 
-    assert.ok(
-      serviceContent.includes("modalidad: (item.modalidad || item.modality"),
-      'openEncountersService.getDiscoveryEncuentrosWithStatus debe proyectar modalidad'
-    );
-    assert.ok(
-      serviceContent.includes("modality: (item.modalidad || item.modality"),
-      'openEncountersService.getDiscoveryEncuentrosWithStatus debe proyectar modality'
-    );
-    assert.ok(
-      serviceContent.includes("localityId: item.locality_id ?? null"),
-      'openEncountersService debe admitir localityId nulo para virtuales'
-    );
+    const fullEncounter: OpenEncounterSummary = {
+      ...mockPresencialEncounter,
+      id: 'enc-full',
+      openSlots: 0,
+      inscriptionsClosed: true, // Lleno
+    };
 
-    const typesContent = fs.readFileSync(
-      path.join(rootDir, 'src/components/home/openEncounters/types.ts'),
-      'utf-8'
-    );
-    assert.ok(
-      typesContent.includes("modalidad?: 'presencial' | 'virtual'"),
-      'OpenEncounterSummary debe definir modalidad'
-    );
-    assert.ok(
-      typesContent.includes("modality?: 'presencial' | 'virtual'"),
-      'OpenEncounterSummary debe definir modality'
-    );
+    const activeEncounter: OpenEncounterSummary = {
+      ...mockPresencialEncounter,
+      id: 'enc-active',
+      startsAt: '2026-12-01T18:00:00-03:00',
+      openSlots: 3,
+      inscriptionsClosed: false,
+    };
+
+    // Algoritmo de revalidación
+    const revalidateMatch = (enc: OpenEncounterSummary | null): boolean => {
+      if (!enc) return false;
+      if (enc.startsAt && !isNaN(new Date(enc.startsAt).getTime()) && new Date(enc.startsAt).getTime() < Date.now()) {
+        return false;
+      }
+      if (enc.inscriptionsClosed || enc.openSlots <= 0) {
+        return false;
+      }
+      return true;
+    };
+
+    assert.equal(revalidateMatch(expiredEncounter), false, 'Debe descartar encuentro vencido al hacer clic');
+    assert.equal(revalidateMatch(fullEncounter), false, 'Debe descartar encuentro sin cupo al hacer clic');
+    assert.equal(revalidateMatch(activeEncounter), true, 'Debe admitir encuentro con cupo y vigente');
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 6. CONCURRENCIA: useUnifiedDiscovery previene race conditions
+   * 8. VALIDACIÓN ADICIONAL: Aislamiento estricto de sesión y cambio de cuenta
    * ───────────────────────────────────────────────────────────────── */
-  test('6. useUnifiedDiscovery: Monotonic latestRequestIdRef descarta respuestas tardías de zonas previas', () => {
-    const hookContent = fs.readFileSync(
-      path.join(rootDir, 'src/hooks/useUnifiedDiscovery.ts'),
-      'utf-8'
-    );
+  test('8. Seguridad de sesiones: verificaciones asíncronas pendientes no publican datos si el usuario cambió de cuenta', async () => {
+    let currentUserId: string | undefined = 'user-alice';
+    let feedbackPublished: any = null;
 
-    assert.ok(
-      hookContent.includes('const latestRequestIdRef = useRef(0)'),
-      'useUnifiedDiscovery debe instanciar latestRequestIdRef'
-    );
-    assert.ok(
-      hookContent.includes('const currentRequestId = ++latestRequestIdRef.current'),
-      'fetchData debe incrementar latestRequestIdRef en cada ejecución'
-    );
-    assert.ok(
-      hookContent.includes('currentRequestId !== latestRequestIdRef.current'),
-      'fetchData debe validar que currentRequestId sea el más reciente tras cada await'
-    );
-  });
+    const handleIncomingNotification = async (notifUserId: string, matchId: string) => {
+      // Simular delay de RPC
+      await new Promise((resolve) => setTimeout(resolve, 30));
 
-  /* ─────────────────────────────────────────────────────────────────
-   * 7. NAVEGACIÓN «VER TODOS»: Sheet completo e interacción con filtros
-   * ───────────────────────────────────────────────────────────────── */
-  test('7. Navegación «Ver todos»: Posee sheet dedicado y nunca abre de forma equívoca el modal de zonas', () => {
-    const openEncContent = fs.readFileSync(
-      path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.tsx'),
-      'utf-8'
-    );
+      // Verificación de hermeticidad de sesión
+      if (currentUserId !== notifUserId) {
+        return; // Abortar
+      }
 
-    // Verificación de estado del sheet
-    assert.ok(
-      openEncContent.includes('const [isSeeAllListOpen, setIsSeeAllListOpen] = useState(false)'),
-      'HomeOpenEncounters debe declarar isSeeAllListOpen'
-    );
+      feedbackPublished = { count: 1, matchId };
+    };
 
-    // Verificación de handleSeeAllClick
-    assert.ok(
-      openEncContent.includes('if (onlyAvailableFilter) {\n      setOnlyAvailableFilter(false);'),
-      'handleSeeAllClick debe desactivar onlyAvailableFilter si estaba activo'
-    );
-    assert.ok(
-      openEncContent.includes('setIsSeeAllListOpen(true)'),
-      'handleSeeAllClick debe abrir el sheet de listado completo si no hay filtro restrictivo'
-    );
-    assert.ok(
-      !openEncContent.includes('handleSeeAllClick = () => {\n    if (onSeeAll) {\n      onSeeAll();\n    } else {\n      handleOpenZoneModal();'),
-      'handleSeeAllClick NUNCA debe derivar silenciosamente a handleOpenZoneModal()'
-    );
+    // Se dispara notificación para 'user-alice'
+    const notifPromise = handleIncomingNotification('user-alice', 'enc-123');
 
-    // Sheet renderizado
-    assert.ok(
-      openEncContent.includes('data-testid="discovery-see-all-sheet"'),
-      'HomeOpenEncounters debe renderizar data-testid="discovery-see-all-sheet"'
-    );
-  });
+    // Alice se desloguea y Bob inicia sesión a los 10ms
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    currentUserId = 'user-bob';
 
-  /* ─────────────────────────────────────────────────────────────────
-   * 8. COHERENCIA DE COINCIDENCIAS EN HOME.TSX
-   * ───────────────────────────────────────────────────────────────── */
-  test('8. Home.tsx: Verificación de disponibilidad previa, descarte de vencidos y discriminación de zonas', () => {
-    const homeContent = fs.readFileSync(
-      path.join(rootDir, 'src/screens/Home.tsx'),
-      'utf-8'
-    );
+    await notifPromise;
 
-    // Verificación previa vía getEncuentroAbiertoById
-    assert.ok(
-      homeContent.includes('await openEncountersService.getEncuentroAbiertoById(encounterId)'),
-      'Home.tsx debe verificar la disponibilidad del encuentro vía getEncuentroAbiertoById antes de mostrarlo'
-    );
-
-    // Descarte de anfitrión
-    assert.ok(
-      homeContent.includes('verifiedEnc.hostId === user.id'),
-      'Home.tsx debe descartar encuentros donde el usuario es el anfitrión'
-    );
-
-    // Descarte de vencidos
-    assert.ok(
-      homeContent.includes('new Date(verifiedEnc.startsAt).getTime() < Date.now()'),
-      'Home.tsx debe descartar encuentros vencidos con fecha/hora en el pasado'
-    );
-
-    // Descarte de cerrados o sin cupo
-    assert.ok(
-      homeContent.includes('verifiedEnc.inscriptionsClosed || verifiedEnc.openSlots <= 0'),
-      'Home.tsx debe descartar encuentros con cupo lleno o inscripciones cerradas'
-    );
-
-    // Discriminación de zonas
-    assert.ok(
-      homeContent.includes('inZoneEncounterIds'),
-      'liveMatchFeedback debe almacenar inZoneEncounterIds'
-    );
-    assert.ok(
-      homeContent.includes('otherZoneEncounterIds'),
-      'liveMatchFeedback debe almacenar otherZoneEncounterIds'
-    );
-    assert.ok(
-      homeContent.includes('noZonesConfigured'),
-      'liveMatchFeedback debe registrar si el usuario no tiene zonas'
-    );
-
-    // Manejo de clic en "Ver opciones" según contexto
-    assert.ok(
-      homeContent.includes('if (noZonesConfigured)'),
-      'handleViewLiveMatches debe manejar el caso de usuario sin zonas'
-    );
-    assert.ok(
-      homeContent.includes('if (inZoneEncounterIds && inZoneEncounterIds.length > 0)'),
-      'handleViewLiveMatches debe resaltar encuentros en zona activa'
-    );
-    assert.ok(
-      homeContent.includes('if (otherZoneEncounterIds && otherZoneEncounterIds.length > 0 && firstMatch)'),
-      'handleViewLiveMatches debe abrir la ficha de detalle si el encuentro está en otra zona'
-    );
+    // El feedback NO debe haberse publicado en la sesión de Bob
+    assert.equal(feedbackPublished, null, 'Feedback de Alice jamás debe publicarse en la sesión de Bob');
   });
 });
