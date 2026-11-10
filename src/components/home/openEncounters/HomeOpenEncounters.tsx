@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ChevronsLeft, MapPin, Sparkles, RefreshCw, AlertCircle, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OpenEncounterSummary, Localidad } from './types';
@@ -120,6 +121,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   const [selectedEncounter, setSelectedEncounter] = useState<OpenEncounterSummary | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
+  const [isSeeAllListOpen, setIsSeeAllListOpen] = useState(false);
   const [activeHighlightedIds, setActiveHighlightedIds] = useState<Set<string>>(new Set());
   const isInteractingRef = useRef(false);
   const isDetailOpenRef = useRef(false);
@@ -260,11 +262,17 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     return hookIntentions || [];
   }, [propIntentions, hookIntentions]);
 
+  // Helper de comprobación segura de encuentros virtuales (respetando normalización de openEncountersService)
+  const isVirtualEncounter = useCallback((e: OpenEncounterSummary): boolean => {
+    return e.modalidad === 'virtual' || e.modality === 'virtual';
+  }, []);
+
   // Filtrado por zonas seleccionadas efectivas con orden canónico ascendente (V2) o por defecto (V1)
+  // Invariante DIF-18: Encuentros virtuales se preservan independientemente de localityId (consistente con RPC)
   const visibleEncounters = useMemo(() => {
     if (!liveEncounters || liveEncounters.length === 0) return [];
     const filtered = effectiveZones && effectiveZones.length > 0
-      ? liveEncounters.filter((e) => effectiveZones.includes(e.localityId))
+      ? liveEncounters.filter((e) => isVirtualEncounter(e) || (Boolean(e.localityId) && effectiveZones.includes(e.localityId!)))
       : liveEncounters;
 
     // En V2: ordenar copia de los resultados de forma ascendente (más próximo -> más lejano)
@@ -279,7 +287,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     }
 
     return filtered;
-  }, [liveEncounters, effectiveZones, isV2Variant]);
+  }, [liveEncounters, effectiveZones, isV2Variant, isVirtualEncounter]);
 
   // Filtro simple: "Solo con lugares disponibles" (OFF: disponibles + completos; ON: oculta completos e inscripciones cerradas)
   const displayedEncounters = useMemo(() => {
@@ -320,9 +328,9 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     if (effectiveZones.length === 0) return [];
     const primaryIds = new Set(visibleEncounters.map((e) => e.id));
     return liveSecondaryEncounters
-      .filter((e) => !effectiveZones.includes(e.localityId) && !primaryIds.has(e.id))
+      .filter((e) => !isVirtualEncounter(e) && Boolean(e.localityId && !effectiveZones.includes(e.localityId)) && !primaryIds.has(e.id))
       .slice(0, MAX_OTHER_ZONE_SUGGESTIONS);
-  }, [effectiveZones, visibleEncounters, liveSecondaryEncounters]);
+  }, [effectiveZones, visibleEncounters, liveSecondaryEncounters, isVirtualEncounter]);
 
   const visibleSecondaryIntentions = useMemo(() => {
     if (effectiveZones.length === 0) return [];
@@ -821,10 +829,19 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   };
 
   const handleSeeAllClick = () => {
+    // Si el filtro "Solo con lugares disponibles" está activo, desactivarlo para mostrar todos los encuentros
+    if (onlyAvailableFilter) {
+      setOnlyAvailableFilter(false);
+      return;
+    }
+
     if (onSeeAll) {
       onSeeAll();
-    } else {
-      handleOpenZoneModal();
+      return;
+    }
+
+    if (visibleEncounters.length > 0) {
+      setIsSeeAllListOpen(true);
     }
   };
 
@@ -842,23 +859,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    // Estado D1: No hay zonas configuradas explícitamente
+    // Estado 1 (Sin zonas configuradas explícitamente): Muestra CTA de configuración + tarjetas inspiradoras
     if (noZonesConfigured) {
       return (
-        <div className="pe-discovery-empty">
-          <p className="pe-discovery-empty-title">
-            {t('open_encounters.no_zones_title', {
-              defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
-            })}
-          </p>
-          <button
-            type="button"
-            className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
-            onClick={handleOpenZoneModal}
-          >
-            {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
-          </button>
-        </div>
+        <HomeInspirationalEmptyState
+          noZonesConfigured={true}
+          onSelectIdea={handleInspirationalSelect}
+          onOpenCreate={onOpenCreate}
+          onOpenAvisame={() => handleOpenAvisame('create')}
+          onConfigureZones={handleOpenZoneModal}
+        />
       );
     }
 
@@ -876,24 +886,17 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     // Estado D2: Sin zonas tras finalizar carga
     if (propEncounters === undefined && userZones.length === 0 && effectiveZones.length === 0) {
       return (
-        <div className="pe-discovery-empty">
-          <p className="pe-discovery-empty-title">
-            {t('open_encounters.no_zones_title', {
-              defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
-            })}
-          </p>
-          <button
-            type="button"
-            className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
-            onClick={handleOpenZoneModal}
-          >
-            {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
-          </button>
-        </div>
+        <HomeInspirationalEmptyState
+          noZonesConfigured={true}
+          onSelectIdea={handleInspirationalSelect}
+          onOpenCreate={onOpenCreate}
+          onOpenAvisame={() => handleOpenAvisame('create')}
+          onConfigureZones={handleOpenZoneModal}
+        />
       );
     }
 
-    // Estado C: Hay encuentros reales, pero el filtro «Solo disponibles» devuelve cero
+    // Estado 3: Hay encuentros reales, pero el filtro «Solo disponibles» devuelve cero
     if (visibleEncounters.length > 0 && onlyAvailableFilter && displayedEncounters.length === 0) {
       return (
         <div className="pe-discovery-empty">
@@ -934,10 +937,11 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       );
     }
 
-    // Estado A: Cero encuentros reales en la zona seleccionada
+    // Estado 2: Cero encuentros reales en la zona seleccionada
     if (visibleEncounters.length === 0) {
       return (
         <HomeInspirationalEmptyState
+          noZonesConfigured={false}
           onSelectIdea={handleInspirationalSelect}
           onOpenCreate={onOpenCreate}
           onOpenAvisame={() => handleOpenAvisame('create')}
@@ -1186,15 +1190,17 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleSeeAllClick}
-            className="pe-discovery-see-all-btn"
-            aria-label="Ver todos los encuentros abiertos"
-          >
-            <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
-            <ChevronRight size={14} aria-hidden="true" />
-          </button>
+          {visibleEncounters.length > 0 && (
+            <button
+              type="button"
+              onClick={handleSeeAllClick}
+              className="pe-discovery-see-all-btn"
+              aria-label="Ver todos los encuentros abiertos"
+            >
+              <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </button>
+          )}
 
           {isV2Variant && hasOverflow && (
             <div className="pe-discovery-carousel-controls" aria-label="Navegación del carrusel">
@@ -1390,6 +1396,54 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         loading={isOAuthStarting}
         action={loginSheetAction}
       />
+
+      {/* Sheet de Listado Completo de Encuentros Abiertos (Ver todos) */}
+      {isSeeAllListOpen && typeof document !== 'undefined' && createPortal(
+        <div className="pe-discovery-see-all-backdrop" onClick={() => setIsSeeAllListOpen(false)}>
+          <div
+            className="pe-discovery-see-all-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="discovery-see-all-sheet"
+          >
+            <div className="pe-discovery-see-all-header">
+              <div className="pe-discovery-see-all-header-info">
+                <h3 className="pe-discovery-see-all-title">
+                  {t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
+                </h3>
+                <span className="pe-discovery-see-all-count">
+                  ({displayedEncounters.length})
+                </span>
+              </div>
+              <button
+                type="button"
+                className="pe-discovery-see-all-close-btn"
+                onClick={() => setIsSeeAllListOpen(false)}
+                aria-label={t('common.close', { defaultValue: 'Cerrar' })}
+                data-testid="discovery-see-all-close-btn"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="pe-discovery-see-all-content">
+              {displayedEncounters.map((encounter) => (
+                <div key={encounter.id} className="pe-discovery-see-all-card-wrapper">
+                  <HomeOpenEncounterCard
+                    encounter={encounter}
+                    onClick={(enc) => {
+                      setIsSeeAllListOpen(false);
+                      handleCardClick(enc);
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 };

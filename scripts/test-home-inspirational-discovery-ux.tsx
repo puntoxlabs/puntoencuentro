@@ -166,9 +166,9 @@ describe('Mini-sprint UX: Discovery Inspirador Sin Encuentros', () => {
   });
 
   /* ─────────────────────────────────────────────────────────────────
-   * 4. ESTADO D: No hay zonas configuradas
+   * 4. ESTADO D (DIF-18): No hay zonas configuradas
    * ───────────────────────────────────────────────────────────────── */
-  test('4. Estado D: No hay zonas configuradas -> conserva flujo de configuración de zonas', () => {
+  test('4. Estado D: No hay zonas configuradas -> conserva CTA de zonas y permite visualizar tarjetas inspiradoras', () => {
     const html = renderToString(
       React.createElement(HomeOpenEncounters, {
         noZonesConfigured: true,
@@ -181,9 +181,18 @@ describe('Mini-sprint UX: Discovery Inspirador Sin Encuentros', () => {
     );
     assert.ok(html.includes('Configurar zonas'), 'Debe mostrar botón Configurar zonas');
     assert.ok(
-      !html.includes('data-testid="inspirational-empty-state"'),
-      'NO debe confundir falta de zonas con falta de encuentros'
+      html.includes('data-testid="inspirational-empty-state"'),
+      'DIF-18: Debe permitir visualizar el componente de tarjetas inspiradoras'
     );
+    assert.ok(
+      !html.includes('Todavía no hay encuentros abiertos en tu zona.'),
+      'DIF-18: NO debe afirmar falsamente que no hay encuentros en tu zona si no hay zonas configuradas'
+    );
+    assert.ok(
+      html.includes('Ideas para organizar • No son encuentros publicados'),
+      'Debe incluir el disclaimer inequívoco'
+    );
+    assert.ok(html.includes('Salir a caminar'), 'Debe mostrar las 4 tarjetas inspiradoras');
   });
 
   /* ─────────────────────────────────────────────────────────────────

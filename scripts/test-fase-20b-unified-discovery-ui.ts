@@ -248,8 +248,8 @@ describe('Fase 2.0-B Discovery Unificado — Bloque 4 UI Tests', () => {
       );
 
       assert.ok(
-        html.includes('No hay encuentros abiertos ahora en tus zonas.'),
-        'Mensaje de encuentros vacíos'
+        html.includes('data-testid="inspirational-empty-state"') || html.includes('Los próximos encuentros empiezan con una idea'),
+        'Mensaje o estado inspirador de encuentros vacíos'
       );
       assert.ok(
         html.includes('Pádel principiantes'),

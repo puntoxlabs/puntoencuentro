@@ -48,6 +48,7 @@ export const INSPIRATIONAL_IDEAS: InspirationalIdea[] = [
 ];
 
 export interface HomeInspirationalEmptyStateProps {
+  noZonesConfigured?: boolean;
   onSelectIdea: (idea: InspirationalIdea) => void;
   onOpenCreate?: () => void;
   onOpenAvisame?: () => void;
@@ -55,6 +56,7 @@ export interface HomeInspirationalEmptyStateProps {
 }
 
 export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStateProps> = ({
+  noZonesConfigured = false,
   onSelectIdea,
   onOpenCreate,
   onOpenAvisame,
@@ -77,10 +79,37 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
           })}
         </h3>
         <p className="pe-inspirational-desc">
-          {t('open_encounters.inspirational_desc', {
-            defaultValue: 'Todavía no hay encuentros abiertos en tu zona. Pero hay muchas cosas que podemos hacer juntos.',
-          })}
+          {noZonesConfigured
+            ? t('open_encounters.inspirational_no_zones_desc', {
+                defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo o inspirate con estas ideas para organizar tu propio encuentro.',
+              })
+            : t('open_encounters.inspirational_desc', {
+                defaultValue: 'Todavía no hay encuentros abiertos en tu zona. Pero hay muchas cosas que podemos hacer juntos.',
+              })}
         </p>
+
+        {/* CTA contextual de configuración cuando no hay zonas configuradas */}
+        {noZonesConfigured && (
+          <div className="pe-inspirational-zone-prompt" data-testid="inspirational-zone-prompt">
+            <div className="pe-inspirational-zone-prompt-text">
+              <MapPin size={16} className="pe-inspirational-zone-prompt-icon" aria-hidden="true" />
+              <span>
+                {t('open_encounters.no_zones_title', {
+                  defaultValue: 'Elegí tus zonas para ver encuentros cerca tuyo.',
+                })}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="pe-discovery-empty-btn pe-discovery-empty-btn--outline pe-inspirational-zone-btn"
+              onClick={onConfigureZones}
+              data-testid="inspirational-btn-configure-zones"
+            >
+              {t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })}
+            </button>
+          </div>
+        )}
+
         <div className="pe-inspirational-notice" role="note">
           <Sparkles size={13} className="pe-inspirational-notice-icon" aria-hidden="true" />
           <span>
@@ -157,7 +186,9 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
           data-testid="inspirational-cta-zones"
         >
           <MapPin size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
-          {t('open_encounters.inspirational_change_zones', { defaultValue: 'Cambiar o sumar zonas' })}
+          {noZonesConfigured
+            ? t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })
+            : t('open_encounters.inspirational_change_zones', { defaultValue: 'Cambiar o sumar zonas' })}
         </button>
       </div>
     </div>

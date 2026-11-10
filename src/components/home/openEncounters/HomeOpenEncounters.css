@@ -774,3 +774,113 @@
     gap: 12px;
   }
 }
+
+/* Modal / Sheet de Listado Completo de Encuentros (Ver todos) */
+.pe-discovery-see-all-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: peFadeIn 0.2s ease-out;
+}
+
+@media (min-width: 640px) {
+  .pe-discovery-see-all-backdrop {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.pe-discovery-see-all-sheet {
+  background-color: #FFFFFF;
+  width: 100%;
+  max-width: 580px;
+  max-height: 85vh;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
+  animation: peSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 640px) {
+  .pe-discovery-see-all-sheet {
+    border-radius: 24px;
+    max-height: 80vh;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.pe-discovery-see-all-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  background-color: #F8FAFC;
+}
+
+.pe-discovery-see-all-header-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pe-discovery-see-all-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.pe-discovery-see-all-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.pe-discovery-see-all-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #64748B;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pe-discovery-see-all-close-btn:hover {
+  background-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.pe-discovery-see-all-content {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pe-discovery-see-all-card-wrapper {
+  width: 100%;
+}
+
+@keyframes peFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes peSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
