@@ -70,6 +70,8 @@ export interface HomeOpenEncountersProps {
   externalAvisameTrigger?: { tab: 'create' | 'list'; timestamp: number } | null;
   /** Inyección controlada de encuentros del hook (para testing de recorrido real sin prop encounters) */
   hookEncountersOverride?: OpenEncounterSummary[];
+  /** Valor inicial para el filtro «Solo con lugares disponibles» (útil para pruebas o deep links) */
+  initialOnlyAvailableFilter?: boolean;
 }
 
 /**
@@ -114,6 +116,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   configureZonesTrigger,
   externalAvisameTrigger,
   hookEncountersOverride,
+  initialOnlyAvailableFilter = false,
 }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -175,7 +178,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, [configureZonesTrigger, onConfigureZones]);
 
   // Filtro simple: Solo con lugares disponibles (por defecto false/OFF)
-  const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
+  const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(initialOnlyAvailableFilter);
 
   // Catálogo activo para reconciliación de preferencias stale y cálculo de otras macrozonas
   const [activeCatalogue, setActiveCatalogue] = useState<Localidad[]>(DEFAULT_LOCALIDADES);
@@ -472,7 +475,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, [isPermanentUser, liveEncounters]);
 
   const handleOpenAvisame = (tab: 'create' | 'list' = 'create') => {
-    if (!isPermanentUser) {
+    if (!isPermanentUser && !allowDemoFallback) {
       const defaultDraft: Partial<CrearAlertaParams> = {
         modalidad: effectiveZones.length > 0 ? 'presencial' : 'indistinto',
         localityId: effectiveZones[0] || null,
@@ -868,7 +871,12 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       return;
     }
 
-    if (displayedEncounters.length > 0 || visibleEncounters.length > 0) {
+    if (onlyAvailableFilter && displayedEncounters.length === 0) {
+      setOnlyAvailableFilter(false);
+      return;
+    }
+
+    if (displayedEncounters.length > 0) {
       setIsSeeAllListOpen(true);
     }
   };
@@ -1212,6 +1220,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             className="pe-discovery-badge pe-discovery-badge--interactive"
             onClick={handleOpenZoneModal}
             title="Elegir zonas de interés"
+            data-testid="discovery-zone-badge"
           >
             <MapPin size={11} aria-hidden="true" />
             <span>
@@ -1228,6 +1237,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             onClick={() => setOnlyAvailableFilter((prev) => !prev)}
             aria-pressed={onlyAvailableFilter}
             title={t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}
+            data-testid="discovery-filter-btn"
           >
             <span>{t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}</span>
           </button>
@@ -1238,12 +1248,13 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             onClick={() => handleOpenAvisame('create')}
             aria-label={t('avisame.action_btn', { defaultValue: 'Avisame' })}
             title={t('avisame.action_tooltip', { defaultValue: 'Avisame cuando aparezca un encuentro' })}
+            data-testid="discovery-avisame-btn"
           >
             <Bell size={13} aria-hidden="true" />
             <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
           </button>
 
-          {visibleEncounters.length > 0 && (
+          {displayedEncounters.length > 0 && (
             <button
               type="button"
               onClick={handleSeeAllClick}
@@ -1452,7 +1463,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
       />
 
       {/* Sheet de Listado Completo de Encuentros Abiertos (Ver en lista) */}
-      {isSeeAllListOpen && typeof document !== 'undefined' && createPortal(
+      {isSeeAllListOpen && displayedEncounters.length > 0 && typeof document !== 'undefined' && createPortal(
         <div className="pe-discovery-see-all-backdrop" onClick={() => setIsSeeAllListOpen(false)}>
           <div
             className="pe-discovery-see-all-sheet"

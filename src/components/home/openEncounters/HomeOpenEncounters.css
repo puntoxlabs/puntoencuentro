@@ -119,35 +119,6 @@
   width: 100%;
 }
 
-@media (max-width: 539px) {
-  .pe-discovery-header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .pe-discovery-filter-btn {
-    font-size: 0.77rem;
-    padding: 6px 11px;
-    flex: 0 1 auto;
-  }
-
-  .pe-discovery-avisame-btn {
-    font-size: 0.78rem;
-    padding: 6px 11px;
-    flex: 0 0 auto;
-  }
-
-  .pe-discovery-see-all-btn {
-    font-size: 0.82rem;
-    padding: 6px 8px;
-    flex: 0 0 auto;
-    margin-left: auto;
-  }
-}
-
 .pe-discovery-filter-btn {
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-outline-variant, #e2e8f0);
@@ -224,6 +195,40 @@
 .pe-discovery-see-all-btn:hover {
   background-color: rgba(5, 150, 105, 0.08);
   opacity: 0.9;
+}
+
+/* Reglas móviles: declaradas DESPUÉS de las reglas base para garantizar precedencia de cascada */
+@media (max-width: 539px) {
+  .pe-discovery-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .pe-discovery-filter-btn {
+    font-size: 0.76rem;
+    padding: 6px 10px;
+    min-height: 36px;
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+
+  .pe-discovery-avisame-btn {
+    font-size: 0.77rem;
+    padding: 6px 11px;
+    min-height: 36px;
+    flex: 0 0 auto;
+  }
+
+  .pe-discovery-see-all-btn {
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    min-height: 36px;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
 }
 
 @media (min-width: 540px) {
@@ -921,9 +926,15 @@
 
 /* Ocultar FAB flotante "+ Crear" cuando cualquier modal/sheet de Discovery está abierto */
 body:has(.pe-discovery-see-all-backdrop) .home-fab-container,
-body:has(.pe-open-detail-backdrop) .home-fab-container,
-body:has(.pe-zone-modal-backdrop) .home-fab-container,
-body:has(.pe-avisame-backdrop) .home-fab-container {
+body:has(.pe-discovery-see-all-sheet) .home-fab-container,
+body:has(.pe-detail-overlay) .home-fab-container,
+body:has(.pe-detail-sheet) .home-fab-container,
+body:has(.pe-zones-overlay) .home-fab-container,
+body:has(.pe-zones-modal) .home-fab-container,
+body:has(.pe-sheet-overlay) .home-fab-container,
+body:has(.pe-avisame-sheet) .home-fab-container,
+body:has(.login-required-overlay) .home-fab-container,
+body:has(.login-required-sheet) .home-fab-container {
   display: none !important;
 }
 

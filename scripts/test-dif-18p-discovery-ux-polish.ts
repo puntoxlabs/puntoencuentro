@@ -289,7 +289,7 @@ describe('DIF-18-P: Pulido Visual y UX de Discovery (Mobile-First)', () => {
   /* ─────────────────────────────────────────────────────────────────
    * 5. BOTÓN FLOTANTE «+ CREAR» (FAB) Y ÁREA SEGURA
    * ───────────────────────────────────────────────────────────────── */
-  test('5. FAB «+ Crear»: Ocultamiento seguro en sheets de Discovery y área segura', () => {
+  test('5. FAB «+ Crear»: Ocultamiento seguro en los 4 modales/sheets de Discovery y área segura', () => {
     const discoveryCss = fs.readFileSync(
       path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.css'),
       'utf-8'
@@ -299,15 +299,32 @@ describe('DIF-18-P: Pulido Visual y UX de Discovery (Mobile-First)', () => {
       'utf-8'
     );
 
-    // Ocultamiento con :has cuando el sheet de lista o detalle está abierto
-    assert.ok(
-      discoveryCss.includes('body:has(.pe-discovery-see-all-backdrop) .home-fab-container'),
-      'Debe ocultar el FAB cuando el sheet de listado está abierto'
-    );
-    assert.ok(
-      discoveryCss.includes('body:has(.pe-open-detail-backdrop) .home-fab-container'),
-      'Debe ocultar el FAB cuando la ficha de detalle está abierta'
-    );
+    // Ocultamiento con :has cuando cualquiera de los 4 modales/sheets está abierto:
+    // 1. Detalle de encuentro (.pe-detail-overlay / .pe-detail-sheet)
+    // 2. Selector de zonas (.pe-zones-overlay / .pe-zones-modal)
+    // 3. Avisame bottom sheet (.pe-sheet-overlay / .pe-avisame-sheet)
+    // 4. Ver en lista bottom sheet (.pe-discovery-see-all-backdrop / .pe-discovery-see-all-sheet)
+    const expectedSelectors = [
+      'body:has(.pe-detail-overlay) .home-fab-container',
+      'body:has(.pe-detail-sheet) .home-fab-container',
+      'body:has(.pe-zones-overlay) .home-fab-container',
+      'body:has(.pe-zones-modal) .home-fab-container',
+      'body:has(.pe-sheet-overlay) .home-fab-container',
+      'body:has(.pe-avisame-sheet) .home-fab-container',
+      'body:has(.pe-discovery-see-all-backdrop) .home-fab-container',
+      'body:has(.pe-discovery-see-all-sheet) .home-fab-container',
+    ];
+
+    for (const sel of expectedSelectors) {
+      assert.ok(
+        discoveryCss.includes(sel),
+        `HomeOpenEncounters.css debe contener el selector: ${sel}`
+      );
+      assert.ok(
+        homeCss.includes(sel),
+        `Home.css debe contener el selector: ${sel}`
+      );
+    }
 
     // Área segura y z-index en Home.css
     assert.ok(
@@ -324,6 +341,63 @@ describe('DIF-18-P: Pulido Visual y UX de Discovery (Mobile-First)', () => {
     assert.ok(
       discoveryCss.includes('calc(28px + env(safe-area-inset-bottom, 0px))'),
       '.pe-discovery-see-all-content debe incluir reserva de espacio inferior para la última tarjeta'
+    );
+  });
+
+  /* ─────────────────────────────────────────────────────────────────
+   * 6. PROTECCIÓN CONTRA LISTA VACÍA POR FILTRO DE DISPONIBILIDAD
+   * ───────────────────────────────────────────────────────────────── */
+  test('6. Filtro disponibilidad sin resultados: no abre sheet vacío, muestra aviso explicativo y acción contextual', () => {
+    // Render con un encuentro sin cupos disponibles y el filtro "Solo con lugares disponibles" activo
+    const htmlEmptyByFilter = renderToString(
+      React.createElement(HomeOpenEncounters, {
+        encounters: [mockPresencialEncounter2], // openSlots: 0, inscriptionsClosed: true
+        selectedLocalityIds: ['guemes'],
+        noZonesConfigured: false,
+        initialOnlyAvailableFilter: true,
+      })
+    );
+
+    // 1. No debe mostrar el botón «Ver en lista» en la cabecera cuando displayedEncounters está vacío
+    assert.ok(
+      !htmlEmptyByFilter.includes('data-testid="discovery-see-in-list-btn"'),
+      'NO debe renderizar «Ver en lista» en la cabecera cuando no hay resultados disponibles'
+    );
+
+    // 2. Debe mostrar el mensaje explicativo contextual
+    assert.ok(
+      htmlEmptyByFilter.includes('No hay encuentros con lugares disponibles ahora.'),
+      'Debe mostrar el mensaje explicativo de no disponibilidad'
+    );
+    assert.ok(
+      htmlEmptyByFilter.includes('Podés desactivar el filtro para ver todos los encuentros o abrir tu propio plan.'),
+      'Debe sugerir desactivar el filtro o abrir un plan propio'
+    );
+
+    // 3. Debe ofrecer la acción contextual para desactivar el filtro
+    assert.ok(
+      htmlEmptyByFilter.includes('Ver todos los encuentros'),
+      'Debe proveer el botón de acción para desactivar el filtro y ver todos los encuentros'
+    );
+
+    // 4. NO debe renderizar el sheet ni backdrop de listado vacío en el DOM
+    assert.ok(
+      !htmlEmptyByFilter.includes('pe-discovery-see-all-backdrop'),
+      'NO debe renderizar el portal del sheet vertical vacío'
+    );
+
+    // 5. Verificación de salvaguarda en código fuente
+    const openEncSource = fs.readFileSync(
+      path.join(rootDir, 'src/components/home/openEncounters/HomeOpenEncounters.tsx'),
+      'utf-8'
+    );
+    assert.ok(
+      openEncSource.includes('if (onlyAvailableFilter && displayedEncounters.length === 0)'),
+      'handleSeeAllClick debe comprobar y desactivar el filtro antes de intentar abrir un sheet vacío'
+    );
+    assert.ok(
+      openEncSource.includes('isSeeAllListOpen && displayedEncounters.length > 0 && typeof document !== \'undefined\''),
+      'El portal del sheet debe protegerse con displayedEncounters.length > 0'
     );
   });
 });

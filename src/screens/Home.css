@@ -759,6 +759,20 @@
   }
 }
 
+/* Ocultar FAB flotante "+ Crear" cuando cualquier modal/sheet de Discovery está abierto */
+body:has(.pe-discovery-see-all-backdrop) .home-fab-container,
+body:has(.pe-discovery-see-all-sheet) .home-fab-container,
+body:has(.pe-detail-overlay) .home-fab-container,
+body:has(.pe-detail-sheet) .home-fab-container,
+body:has(.pe-zones-overlay) .home-fab-container,
+body:has(.pe-zones-modal) .home-fab-container,
+body:has(.pe-sheet-overlay) .home-fab-container,
+body:has(.pe-avisame-sheet) .home-fab-container,
+body:has(.login-required-overlay) .home-fab-container,
+body:has(.login-required-sheet) .home-fab-container {
+  display: none !important;
+}
+
 .home-fab-wrapper {
   display: flex;
   justify-content: flex-end;
