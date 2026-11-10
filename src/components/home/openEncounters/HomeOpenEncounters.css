@@ -114,7 +114,7 @@
 .pe-discovery-header-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   width: 100%;
 }
@@ -197,6 +197,40 @@
   opacity: 0.9;
 }
 
+/* Reglas móviles: declaradas DESPUÉS de las reglas base para garantizar precedencia de cascada */
+@media (max-width: 539px) {
+  .pe-discovery-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .pe-discovery-filter-btn {
+    font-size: 0.76rem;
+    padding: 6px 10px;
+    min-height: 36px;
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+
+  .pe-discovery-avisame-btn {
+    font-size: 0.77rem;
+    padding: 6px 11px;
+    min-height: 36px;
+    flex: 0 0 auto;
+  }
+
+  .pe-discovery-see-all-btn {
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    min-height: 36px;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
 @media (min-width: 540px) {
   .pe-discovery-header {
     flex-direction: row;
@@ -214,6 +248,7 @@
 
   .pe-discovery-header-actions {
     width: auto;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 }
@@ -828,15 +863,32 @@
 
 .pe-discovery-see-all-header-info {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pe-discovery-see-all-title-row {
+  display: flex;
   align-items: baseline;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pe-discovery-see-all-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.08rem;
   font-weight: 700;
   color: #0F172A;
+  line-height: 1.25;
+}
+
+.pe-discovery-see-all-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #64748B;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .pe-discovery-see-all-count {
@@ -863,12 +915,27 @@
 }
 
 .pe-discovery-see-all-content {
-  padding: 16px;
+  padding: 16px 16px calc(28px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Ocultar FAB flotante "+ Crear" cuando cualquier modal/sheet de Discovery está abierto */
+body:has(.pe-discovery-see-all-backdrop) .home-fab-container,
+body:has(.pe-discovery-see-all-sheet) .home-fab-container,
+body:has(.pe-detail-overlay) .home-fab-container,
+body:has(.pe-detail-sheet) .home-fab-container,
+body:has(.pe-zones-overlay) .home-fab-container,
+body:has(.pe-zones-modal) .home-fab-container,
+body:has(.pe-sheet-overlay) .home-fab-container,
+body:has(.pe-avisame-sheet) .home-fab-container,
+body:has(.login-required-overlay) .home-fab-container,
+body:has(.login-required-sheet) .home-fab-container {
+  display: none !important;
 }
 
 .pe-discovery-see-all-card-wrapper {

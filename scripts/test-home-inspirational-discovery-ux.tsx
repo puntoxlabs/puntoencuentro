@@ -181,6 +181,14 @@ describe('Mini-sprint UX: Discovery Inspirador Sin Encuentros', () => {
     );
     assert.ok(html.includes('Configurar zonas'), 'Debe mostrar botón Configurar zonas');
     assert.ok(
+      html.includes('data-testid="inspirational-btn-configure-zones"'),
+      'Debe contener el CTA contextual superior de configuración de zonas'
+    );
+    assert.ok(
+      !html.includes('data-testid="inspirational-cta-zones"'),
+      'DIF-18-P: NO debe duplicar el botón de configuración de zonas al final'
+    );
+    assert.ok(
       html.includes('data-testid="inspirational-empty-state"'),
       'DIF-18: Debe permitir visualizar el componente de tarjetas inspiradoras'
     );

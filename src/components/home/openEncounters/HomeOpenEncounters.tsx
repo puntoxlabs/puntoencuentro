@@ -70,6 +70,8 @@ export interface HomeOpenEncountersProps {
   externalAvisameTrigger?: { tab: 'create' | 'list'; timestamp: number } | null;
   /** Inyección controlada de encuentros del hook (para testing de recorrido real sin prop encounters) */
   hookEncountersOverride?: OpenEncounterSummary[];
+  /** Valor inicial para el filtro «Solo con lugares disponibles» (útil para pruebas o deep links) */
+  initialOnlyAvailableFilter?: boolean;
 }
 
 /**
@@ -114,6 +116,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   configureZonesTrigger,
   externalAvisameTrigger,
   hookEncountersOverride,
+  initialOnlyAvailableFilter = false,
 }) => {
   const { t } = useTranslation();
   const { user, isPermanentUser, signInWithGoogleForDiscovery } = useAuth();
@@ -175,7 +178,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, [configureZonesTrigger, onConfigureZones]);
 
   // Filtro simple: Solo con lugares disponibles (por defecto false/OFF)
-  const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(false);
+  const [onlyAvailableFilter, setOnlyAvailableFilter] = useState(initialOnlyAvailableFilter);
 
   // Catálogo activo para reconciliación de preferencias stale y cálculo de otras macrozonas
   const [activeCatalogue, setActiveCatalogue] = useState<Localidad[]>(DEFAULT_LOCALIDADES);
@@ -472,7 +475,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   }, [isPermanentUser, liveEncounters]);
 
   const handleOpenAvisame = (tab: 'create' | 'list' = 'create') => {
-    if (!isPermanentUser) {
+    if (!isPermanentUser && !allowDemoFallback) {
       const defaultDraft: Partial<CrearAlertaParams> = {
         modalidad: effectiveZones.length > 0 ? 'presencial' : 'indistinto',
         localityId: effectiveZones[0] || null,
@@ -863,21 +866,47 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   };
 
   const handleSeeAllClick = () => {
-    // Si el filtro "Solo con lugares disponibles" está activo, desactivarlo para mostrar todos los encuentros
-    if (onlyAvailableFilter) {
-      setOnlyAvailableFilter(false);
-      return;
-    }
-
     if (onSeeAll) {
       onSeeAll();
       return;
     }
 
-    if (visibleEncounters.length > 0) {
+    if (onlyAvailableFilter && displayedEncounters.length === 0) {
+      setOnlyAvailableFilter(false);
+      return;
+    }
+
+    if (displayedEncounters.length > 0) {
       setIsSeeAllListOpen(true);
     }
   };
+
+  // Título y subtítulo del listado vertical ("Ver en lista") según contexto geográfico y disponibilidad
+  const listHeaderInfo = useMemo(() => {
+    const hasVirtual = displayedEncounters.some((e) => isVirtualEncounter(e));
+    const hasPresencial = displayedEncounters.some((e) => !isVirtualEncounter(e));
+
+    if (effectiveZones.length > 0) {
+      return {
+        title: t('open_encounters.list_title_zones', { defaultValue: 'Encuentros en tus zonas' }),
+        subtitle: hasVirtual && hasPresencial
+          ? t('open_encounters.list_subtitle_with_virtual', { defaultValue: 'Incluye opciones presenciales y virtuales' })
+          : undefined,
+      };
+    }
+
+    if (hasVirtual) {
+      return {
+        title: t('open_encounters.list_title_online', { defaultValue: 'Encuentros online' }),
+        subtitle: undefined,
+      };
+    }
+
+    return {
+      title: t('open_encounters.list_title_default', { defaultValue: 'Encuentros abiertos' }),
+      subtitle: undefined,
+    };
+  }, [effectiveZones.length, displayedEncounters, isVirtualEncounter, t]);
 
   // Renderizado del bloque de Encuentros
   const renderEncountersGroup = () => {
@@ -1191,6 +1220,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             className="pe-discovery-badge pe-discovery-badge--interactive"
             onClick={handleOpenZoneModal}
             title="Elegir zonas de interés"
+            data-testid="discovery-zone-badge"
           >
             <MapPin size={11} aria-hidden="true" />
             <span>
@@ -1207,6 +1237,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             onClick={() => setOnlyAvailableFilter((prev) => !prev)}
             aria-pressed={onlyAvailableFilter}
             title={t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}
+            data-testid="discovery-filter-btn"
           >
             <span>{t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}</span>
           </button>
@@ -1217,19 +1248,21 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             onClick={() => handleOpenAvisame('create')}
             aria-label={t('avisame.action_btn', { defaultValue: 'Avisame' })}
             title={t('avisame.action_tooltip', { defaultValue: 'Avisame cuando aparezca un encuentro' })}
+            data-testid="discovery-avisame-btn"
           >
             <Bell size={13} aria-hidden="true" />
             <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
           </button>
 
-          {visibleEncounters.length > 0 && (
+          {displayedEncounters.length > 0 && (
             <button
               type="button"
               onClick={handleSeeAllClick}
               className="pe-discovery-see-all-btn"
-              aria-label="Ver todos los encuentros abiertos"
+              aria-label={t('open_encounters.see_in_list_aria', { defaultValue: 'Ver encuentros en lista' })}
+              data-testid="discovery-see-in-list-btn"
             >
-              <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
+              <span>{t('open_encounters.see_in_list', { defaultValue: 'Ver en lista' })}</span>
               <ChevronRight size={14} aria-hidden="true" />
             </button>
           )}
@@ -1429,25 +1462,32 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         action={loginSheetAction}
       />
 
-      {/* Sheet de Listado Completo de Encuentros Abiertos (Ver todos) */}
-      {isSeeAllListOpen && typeof document !== 'undefined' && createPortal(
+      {/* Sheet de Listado Completo de Encuentros Abiertos (Ver en lista) */}
+      {isSeeAllListOpen && displayedEncounters.length > 0 && typeof document !== 'undefined' && createPortal(
         <div className="pe-discovery-see-all-backdrop" onClick={() => setIsSeeAllListOpen(false)}>
           <div
             className="pe-discovery-see-all-sheet"
             role="dialog"
             aria-modal="true"
-            aria-label={t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
+            aria-label={listHeaderInfo.title}
             onClick={(e) => e.stopPropagation()}
             data-testid="discovery-see-all-sheet"
           >
             <div className="pe-discovery-see-all-header">
               <div className="pe-discovery-see-all-header-info">
-                <h3 className="pe-discovery-see-all-title">
-                  {t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
-                </h3>
-                <span className="pe-discovery-see-all-count">
-                  ({displayedEncounters.length})
-                </span>
+                <div className="pe-discovery-see-all-title-row">
+                  <h3 className="pe-discovery-see-all-title">
+                    {listHeaderInfo.title}
+                  </h3>
+                  <span className="pe-discovery-see-all-count">
+                    ({displayedEncounters.length})
+                  </span>
+                </div>
+                {listHeaderInfo.subtitle && (
+                  <p className="pe-discovery-see-all-subtitle">
+                    {listHeaderInfo.subtitle}
+                  </p>
+                )}
               </div>
               <button
                 type="button"

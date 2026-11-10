@@ -743,10 +743,10 @@
 
 .home-fab-container {
   position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  right: 16px;
   left: auto;
-  z-index: 100;
+  z-index: 90;
   display: flex;
   pointer-events: none;
   animation: fadeInFab 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -757,6 +757,20 @@
     bottom: 28px;
     right: 28px;
   }
+}
+
+/* Ocultar FAB flotante "+ Crear" cuando cualquier modal/sheet de Discovery está abierto */
+body:has(.pe-discovery-see-all-backdrop) .home-fab-container,
+body:has(.pe-discovery-see-all-sheet) .home-fab-container,
+body:has(.pe-detail-overlay) .home-fab-container,
+body:has(.pe-detail-sheet) .home-fab-container,
+body:has(.pe-zones-overlay) .home-fab-container,
+body:has(.pe-zones-modal) .home-fab-container,
+body:has(.pe-sheet-overlay) .home-fab-container,
+body:has(.pe-avisame-sheet) .home-fab-container,
+body:has(.login-required-overlay) .home-fab-container,
+body:has(.login-required-sheet) .home-fab-container {
+  display: none !important;
 }
 
 .home-fab-wrapper {

@@ -642,7 +642,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
 
       assert.ok(html.includes('Encuentros abiertos'), 'Título de la sección');
       assert.ok(html.includes('En tus zonas'), 'Badge de zona');
-      assert.ok(html.includes('Ver todos'), 'Acción secundaria');
+      assert.ok(html.includes('Ver en lista'), 'Acción secundaria Ver en lista');
       assert.ok(html.includes('Pádel'), 'Card Pádel');
       assert.ok(html.includes('Fútbol 5'), 'Card Fútbol 5');
       assert.ok(html.includes('Salida en bici'), 'Card Bici');
