@@ -863,21 +863,42 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   };
 
   const handleSeeAllClick = () => {
-    // Si el filtro "Solo con lugares disponibles" está activo, desactivarlo para mostrar todos los encuentros
-    if (onlyAvailableFilter) {
-      setOnlyAvailableFilter(false);
-      return;
-    }
-
     if (onSeeAll) {
       onSeeAll();
       return;
     }
 
-    if (visibleEncounters.length > 0) {
+    if (displayedEncounters.length > 0 || visibleEncounters.length > 0) {
       setIsSeeAllListOpen(true);
     }
   };
+
+  // Título y subtítulo del listado vertical ("Ver en lista") según contexto geográfico y disponibilidad
+  const listHeaderInfo = useMemo(() => {
+    const hasVirtual = displayedEncounters.some((e) => isVirtualEncounter(e));
+    const hasPresencial = displayedEncounters.some((e) => !isVirtualEncounter(e));
+
+    if (effectiveZones.length > 0) {
+      return {
+        title: t('open_encounters.list_title_zones', { defaultValue: 'Encuentros en tus zonas' }),
+        subtitle: hasVirtual && hasPresencial
+          ? t('open_encounters.list_subtitle_with_virtual', { defaultValue: 'Incluye opciones presenciales y virtuales' })
+          : undefined,
+      };
+    }
+
+    if (hasVirtual) {
+      return {
+        title: t('open_encounters.list_title_online', { defaultValue: 'Encuentros online' }),
+        subtitle: undefined,
+      };
+    }
+
+    return {
+      title: t('open_encounters.list_title_default', { defaultValue: 'Encuentros abiertos' }),
+      subtitle: undefined,
+    };
+  }, [effectiveZones.length, displayedEncounters, isVirtualEncounter, t]);
 
   // Renderizado del bloque de Encuentros
   const renderEncountersGroup = () => {
@@ -1227,9 +1248,10 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
               type="button"
               onClick={handleSeeAllClick}
               className="pe-discovery-see-all-btn"
-              aria-label="Ver todos los encuentros abiertos"
+              aria-label={t('open_encounters.see_in_list_aria', { defaultValue: 'Ver encuentros en lista' })}
+              data-testid="discovery-see-in-list-btn"
             >
-              <span>{t('open_encounters.see_all', { defaultValue: 'Ver todos' })}</span>
+              <span>{t('open_encounters.see_in_list', { defaultValue: 'Ver en lista' })}</span>
               <ChevronRight size={14} aria-hidden="true" />
             </button>
           )}
@@ -1429,25 +1451,32 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         action={loginSheetAction}
       />
 
-      {/* Sheet de Listado Completo de Encuentros Abiertos (Ver todos) */}
+      {/* Sheet de Listado Completo de Encuentros Abiertos (Ver en lista) */}
       {isSeeAllListOpen && typeof document !== 'undefined' && createPortal(
         <div className="pe-discovery-see-all-backdrop" onClick={() => setIsSeeAllListOpen(false)}>
           <div
             className="pe-discovery-see-all-sheet"
             role="dialog"
             aria-modal="true"
-            aria-label={t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
+            aria-label={listHeaderInfo.title}
             onClick={(e) => e.stopPropagation()}
             data-testid="discovery-see-all-sheet"
           >
             <div className="pe-discovery-see-all-header">
               <div className="pe-discovery-see-all-header-info">
-                <h3 className="pe-discovery-see-all-title">
-                  {t('open_encounters.see_all_title', { defaultValue: 'Todos los encuentros abiertos' })}
-                </h3>
-                <span className="pe-discovery-see-all-count">
-                  ({displayedEncounters.length})
-                </span>
+                <div className="pe-discovery-see-all-title-row">
+                  <h3 className="pe-discovery-see-all-title">
+                    {listHeaderInfo.title}
+                  </h3>
+                  <span className="pe-discovery-see-all-count">
+                    ({displayedEncounters.length})
+                  </span>
+                </div>
+                {listHeaderInfo.subtitle && (
+                  <p className="pe-discovery-see-all-subtitle">
+                    {listHeaderInfo.subtitle}
+                  </p>
+                )}
               </div>
               <button
                 type="button"

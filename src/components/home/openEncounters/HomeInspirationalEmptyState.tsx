@@ -179,17 +179,17 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
           {t('avisame.empty_cta', { defaultValue: 'Avisame si aparece uno' })}
         </button>
 
-        <button
-          type="button"
-          className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
-          onClick={onConfigureZones}
-          data-testid="inspirational-cta-zones"
-        >
-          <MapPin size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
-          {noZonesConfigured
-            ? t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })
-            : t('open_encounters.inspirational_change_zones', { defaultValue: 'Cambiar o sumar zonas' })}
-        </button>
+        {!noZonesConfigured && (
+          <button
+            type="button"
+            className="pe-discovery-empty-btn pe-discovery-empty-btn--outline"
+            onClick={onConfigureZones}
+            data-testid="inspirational-cta-zones"
+          >
+            <MapPin size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+            {t('open_encounters.inspirational_change_zones', { defaultValue: 'Cambiar o sumar zonas' })}
+          </button>
+        )}
       </div>
     </div>
   );

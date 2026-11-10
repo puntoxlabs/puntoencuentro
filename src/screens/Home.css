@@ -743,10 +743,10 @@
 
 .home-fab-container {
   position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  right: 16px;
   left: auto;
-  z-index: 100;
+  z-index: 90;
   display: flex;
   pointer-events: none;
   animation: fadeInFab 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
