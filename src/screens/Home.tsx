@@ -1094,13 +1094,24 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   }, [organizedEncuentros]);
 
   const handleSelectEncuentroFromSolicitudes = useCallback((encuentroId: string) => {
-    void openEncountersService.getEncuentroAbiertoById(encuentroId).then((enc) => {
-      if (enc) {
-        setSelectedDeepLinkEncounter(enc);
-        setIsDeepLinkEncounterDetailOpen(true);
-      }
-    });
-  }, []);
+    void openEncountersService.getEncuentroAbiertoById(encuentroId)
+      .then((enc) => {
+        if (enc) {
+          setSelectedDeepLinkEncounter(enc);
+          setIsDeepLinkEncounterDetailOpen(true);
+        } else {
+          setDeepLinkNotice(t('your_encounters.matches_no_longer_available', {
+            defaultValue: 'El encuentro ya no se encuentra disponible o fue cancelado.'
+          }));
+        }
+      })
+      .catch((err) => {
+        console.warn('[Home] Error cargando encuentro desde solicitudes:', err);
+        setDeepLinkNotice(t('your_encounters.revalidation_network_error', {
+          defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
+        }));
+      });
+  }, [t]);
 
   // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
   const rawEncuentros = React.useMemo(() => {

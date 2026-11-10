@@ -768,4 +768,96 @@ describe('DIF-18: Coherencia de Discovery, Estados Vacíos y Encuentros Virtuale
 
     assert.equal(feedbackPublished, null, 'Feedback de Alice jamás debe publicarse en la sesión de Bob');
   });
+
+  /* ─────────────────────────────────────────────────────────────────
+   * 11. REGRESIÓN DE CONSUMIDORES: handleSelectEncuentroFromSolicitudes
+   * ───────────────────────────────────────────────────────────────── */
+  test('11. Consumidor handleSelectEncuentroFromSolicitudes: captura errores asíncronos y emite aviso sin UnhandledPromiseRejection', async () => {
+    let selectedDeepLink: any = null;
+    let isDeepLinkOpen = false;
+    let noticeMessage: string | null = null;
+
+    const t = (_k: string, opts?: any) => opts?.defaultValue || _k;
+
+    const handleSelectSimulation = async (
+      encuentroId: string,
+      fetchFn: (id: string) => Promise<OpenEncounterSummary | null>
+    ) => {
+      try {
+        const enc = await fetchFn(encuentroId);
+        if (enc) {
+          selectedDeepLink = enc;
+          isDeepLinkOpen = true;
+        } else {
+          noticeMessage = t('your_encounters.matches_no_longer_available', {
+            defaultValue: 'El encuentro ya no se encuentra disponible o fue cancelado.',
+          });
+        }
+      } catch {
+        noticeMessage = t('your_encounters.revalidation_network_error', {
+          defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.',
+        });
+      }
+    };
+
+    // Caso A: Error de red o timeout
+    await handleSelectSimulation('enc-err', async () => {
+      throw new Error('Network offline 500');
+    });
+    assert.equal(selectedDeepLink, null);
+    assert.equal(isDeepLinkOpen, false);
+    assert.equal(
+      noticeMessage,
+      'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
+    );
+
+    // Caso B: Encuentro legítimamente cancelado/no disponible (retorna null)
+    noticeMessage = null;
+    await handleSelectSimulation('enc-null', async () => null);
+    assert.equal(selectedDeepLink, null);
+    assert.equal(isDeepLinkOpen, false);
+    assert.equal(noticeMessage, 'El encuentro ya no se encuentra disponible o fue cancelado.');
+
+    // Caso C: Éxito
+    noticeMessage = null;
+    await handleSelectSimulation('enc-ok', async () => mockPresencialEncounter);
+    assert.equal(selectedDeepLink?.id, 'enc-guemes-1');
+    assert.equal(isDeepLinkOpen, true);
+    assert.equal(noticeMessage, null);
+  });
+
+  /* ─────────────────────────────────────────────────────────────────
+   * 12. REGRESIÓN DE CONSUMIDORES: PENDING_OPEN_REQUEST_KEY post-auth
+   * ───────────────────────────────────────────────────────────────── */
+  test('12. Consumidor PENDING_OPEN_REQUEST_KEY post-auth: captura errores asíncronos sin bloquear el flujo', async () => {
+    let selectedEncounter: any = null;
+    let isDetailOpen = false;
+
+    const handlePendingRestoreSimulation = async (
+      pendingId: string,
+      fetchFn: (id: string) => Promise<OpenEncounterSummary | null>
+    ) => {
+      return fetchFn(pendingId)
+        .then((enc) => {
+          if (enc) {
+            selectedEncounter = enc;
+            isDetailOpen = true;
+          }
+        })
+        .catch(() => {
+          // Captura controlada de error sin arrojar UnhandledPromiseRejection
+          return null;
+        });
+    };
+
+    // Si fetchFn lanza excepción, el .catch debe atraparla limpiamente
+    await assert.doesNotReject(async () => {
+      await handlePendingRestoreSimulation('enc-err-pending', async () => {
+        throw new Error('Timeout post-oauth');
+      });
+    });
+
+    assert.equal(selectedEncounter, null);
+    assert.equal(isDetailOpen, false);
+  });
 });

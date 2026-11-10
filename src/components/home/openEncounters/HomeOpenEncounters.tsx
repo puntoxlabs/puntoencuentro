@@ -454,12 +454,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           setSelectedEncounter(found);
           setIsDetailOpen(true);
         } else {
-          openEncountersService.getEncuentroAbiertoById(pending.encounterId).then((enc) => {
-            if (enc) {
-              setSelectedEncounter(enc);
-              setIsDetailOpen(true);
-            }
-          });
+          openEncountersService.getEncuentroAbiertoById(pending.encounterId)
+            .then((enc) => {
+              if (enc) {
+                setSelectedEncounter(enc);
+                setIsDetailOpen(true);
+              }
+            })
+            .catch((err) => {
+              console.warn('[HomeOpenEncounters] Error recuperando encuentro pendiente post-auth:', err);
+            });
         }
       }
     } catch (err) {
