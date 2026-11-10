@@ -303,6 +303,13 @@
   margin-bottom: 0.25rem;
 }
 
+.pe-inspirational-actions .pe-discovery-empty-btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Accesibilidad: Respeta movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   .pe-inspirational-card {

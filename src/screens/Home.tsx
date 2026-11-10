@@ -1233,10 +1233,85 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     (isNavMenuOpen && isMobileViewport) ||
     Boolean(coordinationWarningProps.open);
 
+  // ── FAB contextual mobile-first (DIF-18-Q) ──────────────────────────────────
+  // En mobile (<768px), el FAB se oculta suavemente cuando entran en el viewport
+  // secciones que compiten visualmente con acciones de creación o tarjetas interactivas:
+  //   1. Estado inspirador (.pe-inspirational-container): 4 tarjetas + "Abrir un encuentro" + "Avisame"
+  //   2. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info): pieza explicativa inferior
+  //   3. Empty state con filtro activo (.pe-discovery-empty): acciones de creación y aviso
+  // En desktop (>=768px), el FAB permanece anclado en el gutter derecho fijo sin interferencias.
+  const [isFabSuppressedByContext, setIsFabSuppressedByContext] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return;
+
+    // Solo activo en viewport mobile (<768px)
+    if (window.innerWidth >= 768) {
+      setIsFabSuppressedByContext(false);
+      return;
+    }
+
+    const intersectingElements = new Set<Element>();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            intersectingElements.add(entry.target);
+          } else {
+            intersectingElements.delete(entry.target);
+          }
+        }
+        setIsFabSuppressedByContext(intersectingElements.size > 0);
+      },
+      {
+        rootMargin: '0px',
+        threshold: 0,
+      }
+    );
+
+    const observeTargets = () => {
+      const targets = document.querySelectorAll(
+        '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions'
+      );
+      targets.forEach((target) => observer.observe(target));
+    };
+
+    observeTargets();
+
+    let mutationObserver: MutationObserver | null = null;
+    if (typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver(() => {
+        observeTargets();
+      });
+      mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsFabSuppressedByContext(false);
+      } else {
+        observeTargets();
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      observer.disconnect();
+      if (mutationObserver) mutationObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [loading, isV2Variant]);
+
   const showFab =
     !loading &&
     !isAnySheetOpen &&
     !(isInputFocused && isMobileViewport);
+
+  const isFabVisible = showFab && !isFabSuppressedByContext;
 
 
   const aiDraft = useAiWizardStore(s => s.draft);
@@ -2669,9 +2744,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         }}
       />
 
-      {/* FAB Botón Crear Contextual (Mobile + Desktop, aparece al alejarte del Hero cuando no hay otro CTA de crear visible) */}
+      {/* FAB Botón Crear Contextual (Mobile + Desktop, con adaptación contextual anti-colisión DIF-18-Q) */}
       {showFab && (
-        <div className="home-fab-container">
+        <div
+          className={`home-fab-container ${isFabVisible ? 'home-fab-container--visible' : 'home-fab-container--hidden'}`}
+          data-testid="home-fab-container"
+        >
           <div className="home-fab-wrapper">
             <button
               onClick={handleCreateClick}
