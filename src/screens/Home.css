@@ -1204,9 +1204,12 @@ body:has(.login-required-sheet) .home-fab-container {
     font-weight: 600;
   }
 
-  /* 7. Reserva de espacio inferior: garantiza que el FAB "+ Crear" no tape cards ni el timestamp inferior */
+  /* 7. Reserva de espacio inferior equilibrada para Home V2 (DIF-18-R):
+     Tras la implementación del FAB contextual, se elimina la reserva artificial obsoleta de 76px.
+     El timestamp de compilación queda próximo al final efectivo de la página,
+     con un margen visualmente equilibrado y respetando el área segura de Android. */
   .home-v2-variant .home-build-info {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 8px;
   }
 
   .home-v2-variant .pe-gsap-encounters-container {
@@ -1220,9 +1223,10 @@ body:has(.login-required-sheet) .home-fab-container {
    Reduce espaciado interno (~20-30%) para mayor cohesión visual como bloque.
    V1 y mobile permanecen completamente intactos.
    ══════════════════════════════════════════════════════════════════════════ */
-/* Contención de overflow scopeada exclusivamente a Home V2 (cero scrollbar horizontal sin tocar html/body) */
+/* Contención de overflow y padding inferior scopeados a Home V2 (DIF-18-R: balance inferior móvil) */
 .home-screen-container.home-v2-variant {
   overflow-x: clip;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 12px));
 }
 
 /* Header en Home V2: sticky en mobile, z-index 30 con precedencia absoluta sobre Hero y fondo sólido */

@@ -3,7 +3,7 @@
 .home-create-or-open-info {
   width: 100%;
   max-width: var(--pe-rail-width, 1060px);
-  margin: 1.75rem auto 2.5rem;
+  margin: 1.75rem auto 2.25rem;
   padding: 1.25rem 1.35rem;
   background: #ffffff;
   border: 1px solid rgba(209, 214, 226, 0.7);
