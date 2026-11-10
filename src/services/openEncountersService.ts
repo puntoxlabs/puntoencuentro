@@ -77,6 +77,92 @@ export function formatEncounterDateLabel(
   return 'Fecha a coordinar';
 }
 
+/**
+ * Obtiene la fecha y hora actual en la zona horaria canónica de Argentina (America/Argentina/Buenos_Aires).
+ */
+export function getArgentinaNow(referenceDate: Date = new Date()): { todayDateStr: string; currentTimeStr: string } {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(referenceDate);
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+  const todayDateStr = `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+  const currentTimeStr = `${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
+  return { todayDateStr, currentTimeStr };
+}
+
+/**
+ * Determina explícitamente si un encuentro abierto está vigente conforme a la semántica canónica de las RPCs SQL:
+ * - Fecha nula / vacía: vigente (fecha a coordinar, sin vencimiento artificial).
+ * - Fecha futura (fecha > hoy en hora Argentina): vigente.
+ * - Fecha pasada (fecha < hoy en hora Argentina): no vigente (vencido ayer o antes).
+ * - Fecha de hoy:
+ *     - Hora nula / vacía: VIGENTE durante toda la jornada de hoy.
+ *     - Hora definida: vigente únicamente si hora >= hora actual en Argentina.
+ */
+export function isEncounterVigente(
+  encounter: {
+    fecha?: string | null;
+    hora?: string | null;
+    startsAt?: string | null;
+  },
+  referenceDate: Date = new Date()
+): boolean {
+  if (!encounter) return false;
+
+  let fecha = encounter.fecha ?? null;
+  let hora = encounter.hora ?? null;
+
+  if ((!fecha || fecha.trim().length === 0) && encounter.startsAt) {
+    const trimmedStarts = encounter.startsAt.trim();
+    const dateMatch = trimmedStarts.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      fecha = dateMatch[1];
+      const timeMatch = trimmedStarts.match(/T(\d{2}:\d{2}(?::\d{2})?)/);
+      if (timeMatch && timeMatch[1] !== '00:00:00' && timeMatch[1] !== '00:00') {
+        hora = timeMatch[1];
+      }
+    }
+  }
+
+  // 1. Fecha a coordinar -> vigente
+  if (!fecha || fecha.trim().length === 0) {
+    return true;
+  }
+
+  const cleanFecha = fecha.trim();
+  const { todayDateStr, currentTimeStr } = getArgentinaNow(referenceDate);
+
+  // 2. Fecha futura
+  if (cleanFecha > todayDateStr) {
+    return true;
+  }
+
+  // 3. Fecha pasada
+  if (cleanFecha < todayDateStr) {
+    return false;
+  }
+
+  // 4. Es HOY: si la hora es nula o a coordinar, vigente durante todo el día
+  if (!hora || hora.trim().length === 0) {
+    return true;
+  }
+
+  // 5. Es HOY con horario definido: evaluar instante exacto
+  let cleanHora = hora.trim();
+  if (cleanHora.length === 5) {
+    cleanHora = `${cleanHora}:00`;
+  }
+  return cleanHora >= currentTimeStr;
+}
+
 export const openEncountersService = {
   /**
    * Obtiene el catálogo de localidades activas desde Supabase.
@@ -176,6 +262,8 @@ export const openEncountersService = {
         title: item.title,
         emoji: item.emoji,
         activityType: item.activity_type,
+        fecha: item.fecha ?? null,
+        hora: item.hora ?? null,
         startsAt: normalizeEncounterStartsAt(item.fecha, item.hora, item.starts_at),
         dateLabel: formatEncounterDateLabel(item.date_label, item.time_label, item.fecha, item.hora),
         approximateZone: item.approximate_zone,
@@ -238,6 +326,8 @@ export const openEncountersService = {
           activityType: item.activity_type,
           startsAt: normalizeEncounterStartsAt(item.fecha, item.hora, item.starts_at),
           dateLabel: formatEncounterDateLabel(item.date_label, item.time_label, item.fecha, item.hora),
+          fecha: item.fecha ?? null,
+          hora: item.hora ?? null,
           approximateZone: item.approximate_zone,
           localityId: item.locality_id ?? null,
           modalidad: (item.modalidad || item.modality || (item.open_public_zone === 'Online' ? 'virtual' : 'presencial')) as 'presencial' | 'virtual',
@@ -278,6 +368,8 @@ export const openEncountersService = {
           title: authRes.open_public_title || 'Encuentro',
           startsAt: normalizeEncounterStartsAt(authRes.fecha, authRes.hora),
           dateLabel: formatEncounterDateLabel(null, null, authRes.fecha, authRes.hora),
+          fecha: authRes.fecha ?? null,
+          hora: authRes.hora ?? null,
           approximateZone: zone,
           localityId: authRes.locality_id ?? null,
           modalidad: (authRes.modalidad || (zone === 'Online' ? 'virtual' : 'presencial')) as 'presencial' | 'virtual',

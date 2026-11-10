@@ -3,6 +3,8 @@ export interface OpenEncounterSummary {
   title: string;
   activityType?: string;
   emoji?: string;
+  fecha?: string | null; // Fecha canónica SQL (YYYY-MM-DD o null si es a coordinar)
+  hora?: string | null; // Hora canónica SQL (HH:MI:SS, HH:MI o null si es a coordinar)
   startsAt: string; // ISO date string
   dateLabel: string; // e.g. "Jueves · 20:00"
   approximateZone: string; // e.g. "Güemes"

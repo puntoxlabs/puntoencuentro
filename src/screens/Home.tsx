@@ -20,7 +20,7 @@ import type { OpenEncounterSummary } from '@/components/home/openEncounters/type
 import { useNotifications } from '@/contexts/NotificationsContext';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
-import { openEncountersService } from '@/services/openEncountersService';
+import { openEncountersService, isEncounterVigente } from '@/services/openEncountersService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -877,11 +877,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         }
 
         // Descartar si está vencido en fecha/hora
-        if (verifiedEnc.startsAt && !isNaN(new Date(verifiedEnc.startsAt).getTime())) {
-          if (new Date(verifiedEnc.startsAt).getTime() < Date.now()) {
-            sessionSeenMatchEncounterIdsRef.current.add(encounterId);
-            return;
-          }
+        if (!isEncounterVigente(verifiedEnc)) {
+          sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+          return;
         }
 
         // Descartar si inscripciones cerradas o sin cupos
@@ -931,27 +929,29 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const handleViewLiveMatches = useCallback(async () => {
     if (!liveMatchFeedback || liveMatchFeedback.encounterIds.length === 0) return;
-    const { inZoneEncounterIds, otherZoneEncounterIds, noZonesConfigured, firstMatch, encounterIds } = liveMatchFeedback;
+    const { encounterIds } = liveMatchFeedback;
     setLiveMatchFeedback(null);
     setDiscoveryRefreshTrigger(Date.now());
-
-    // Caso A: No hay zonas configuradas -> activar efectivamente el selector de zonas y hacer scroll a Discovery
-    if (noZonesConfigured) {
-      setConfigureZonesTrigger(Date.now());
-      const discoveryEl = document.getElementById('home-discovery-section');
-      if (discoveryEl) {
-        discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      return;
-    }
 
     // Invariante DIF-18: Revalidación en caliente al hacer clic (previene promesas si cambió disponibilidad o zonas)
     try {
       const userLocs = await openEncountersService.getUserLocalidades(user?.id);
+      const hasZones = Boolean(userLocs && userLocs.length > 0);
+
+      // Si el usuario actualmente no tiene zonas configuradas -> activar efectivamente el selector de zonas y hacer scroll a Discovery
+      if (!hasZones) {
+        setConfigureZonesTrigger(Date.now());
+        const discoveryEl = document.getElementById('home-discovery-section');
+        if (discoveryEl) {
+          discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return;
+      }
+
       const revalidatedPromises = encounterIds.map(async (id) => {
         const enc = await openEncountersService.getEncuentroAbiertoById(id);
         if (!enc) return null;
-        if (enc.startsAt && !isNaN(new Date(enc.startsAt).getTime()) && new Date(enc.startsAt).getTime() < Date.now()) {
+        if (!isEncounterVigente(enc)) {
           return null;
         }
         if (enc.inscriptionsClosed || enc.openSlots <= 0) {
@@ -969,7 +969,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return;
       }
 
-      const hasZones = Boolean(userLocs && userLocs.length > 0);
       const freshInZone = freshList.filter((e) => {
         const isVirt = e.modalidad === 'virtual' || e.modality === 'virtual';
         return isVirt || (Boolean(e.localityId) && userLocs.includes(e.localityId!));
@@ -979,7 +978,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return !isVirt && Boolean(e.localityId && !userLocs.includes(e.localityId));
       });
 
-      // Caso B: Hay coincidencias en la zona activa -> scroll y resaltado en Discovery
+      // Caso B: Hay coincidencias en la zona activa (o virtuales) -> scroll y resaltado en Discovery
       if (freshInZone.length > 0) {
         handleViewMatches(freshInZone.map((e) => e.id));
         return;
@@ -992,25 +991,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return;
       }
 
-      // Si no tiene zonas vigentes
-      if (!hasZones) {
-        setConfigureZonesTrigger(Date.now());
-        const discoveryEl = document.getElementById('home-discovery-section');
-        if (discoveryEl) {
-          discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        return;
-      }
-
       handleViewMatches(freshList.map((e) => e.id));
-    } catch {
-      // Fallback defensivo ante error de red
-      if (inZoneEncounterIds && inZoneEncounterIds.length > 0) {
-        handleViewMatches(inZoneEncounterIds);
-      } else if (otherZoneEncounterIds && otherZoneEncounterIds.length > 0 && firstMatch) {
-        setSelectedDeepLinkEncounter(firstMatch);
-        setIsDeepLinkEncounterDetailOpen(true);
-      }
+    } catch (err) {
+      // Bloqueante Auditoría: ante error de red no presentar encuentros no revalidados; informar con opción recuperable
+      console.warn('[Home] Error revalidando disponibilidad de encuentros al hacer clic:', err);
+      setDeepLinkNotice(t('your_encounters.revalidation_network_error', {
+        defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
+      }));
     }
   }, [liveMatchFeedback, user?.id, handleViewMatches, t]);
 
