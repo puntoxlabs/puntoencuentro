@@ -20,7 +20,7 @@ import type { OpenEncounterSummary } from '@/components/home/openEncounters/type
 import { useNotifications } from '@/contexts/NotificationsContext';
 import './Home.css';
 import { encuentrosService } from '@/services/encuentrosService';
-import { openEncountersService } from '@/services/openEncountersService';
+import { openEncountersService, isEncounterVigente } from '@/services/openEncountersService';
 
 import { rememberEncuentroHostBulk } from '@/lib/meetHostsStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -702,11 +702,25 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   // Estados para refresco y feedback de matches en vivo de "Mis ganas"
   const [discoveryRefreshTrigger, setDiscoveryRefreshTrigger] = useState<number>(0);
+  const [configureZonesTrigger, setConfigureZonesTrigger] = useState<number>(0);
   const [liveMatchFeedback, setLiveMatchFeedback] = useState<{
     count: number;
     encounterIds: string[];
+    inZoneEncounterIds?: string[];
+    otherZoneEncounterIds?: string[];
+    noZonesConfigured?: boolean;
+    firstMatch?: OpenEncounterSummary;
   } | null>(null);
   const sessionSeenMatchEncounterIdsRef = useRef<Set<string>>(new Set());
+  const currentUserIdRef = useRef<string | undefined>(user?.id);
+  const isValidatingLiveMatchesRef = useRef(false);
+
+  // Invariante de seguridad de sesiones: limpiar feedback al cambiar de cuenta o desloguearse
+  useEffect(() => {
+    currentUserIdRef.current = user?.id;
+    setLiveMatchFeedback(null);
+    sessionSeenMatchEncounterIdsRef.current.clear();
+  }, [user?.id]);
 
   // Estado para visualización de Encuentro Abierto desde deep link
   const [selectedDeepLinkEncounter, setSelectedDeepLinkEncounter] = useState<OpenEncounterSummary | null>(null);
@@ -819,8 +833,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   useEffect(() => {
     if (!subscribeToIncomingMatches) return;
 
-    const unsubscribe = subscribeToIncomingMatches(({ encounterId }) => {
+    const sessionUserId = user?.id;
+    const unsubscribe = subscribeToIncomingMatches(async ({ encounterId }) => {
       if (!encounterId) return;
+
+      // Invariante de sesión: descartar si la cuenta cambió
+      if (currentUserIdRef.current !== sessionUserId) return;
 
       // Deduplicación en sesión: si ya fue recibido, visto o descartado, no loopear ni repetir
       if (sessionSeenMatchEncounterIdsRef.current.has(encounterId)) {
@@ -833,8 +851,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return;
       }
 
-      sessionSeenMatchEncounterIdsRef.current.add(encounterId);
-
       // 1. Refrescar automáticamente Discovery de inmediato
       setDiscoveryRefreshTrigger(Date.now());
 
@@ -843,30 +859,174 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         setDiscoveryRefreshTrigger(Date.now());
       }, 600);
 
-      // 3. Acumular feedback visible en vivo
-      setLiveMatchFeedback((prev) => {
-        const prevIds = prev ? prev.encounterIds : [];
-        if (prevIds.includes(encounterId)) return prev;
-        const updatedIds = [...prevIds, encounterId];
-        return {
-          count: updatedIds.length,
-          encounterIds: updatedIds,
-        };
-      });
+      // Invariante DIF-18: Verificación de disponibilidad efectiva antes de acumular en el banner
+      try {
+        const verifiedEnc = await openEncountersService.getEncuentroAbiertoById(encounterId);
+        // Validar que la sesión no haya cambiado durante la resolución asíncrona
+        if (currentUserIdRef.current !== sessionUserId) return;
+
+        if (!verifiedEnc) {
+          // No existe, cancelado o no es público/aprobado -> descartar
+          sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+          return;
+        }
+
+        // Descartar si el usuario actual es el anfitrión
+        if (user?.id && (verifiedEnc.hostId === user.id || (verifiedEnc as any).host_id === user.id)) {
+          sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+          return;
+        }
+
+        // Descartar si está vencido en fecha/hora
+        if (!isEncounterVigente(verifiedEnc)) {
+          sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+          return;
+        }
+
+        // Descartar si inscripciones cerradas o sin cupos
+        if (verifiedEnc.inscriptionsClosed || verifiedEnc.openSlots <= 0) {
+          sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+          return;
+        }
+
+        sessionSeenMatchEncounterIdsRef.current.add(encounterId);
+
+        // Clasificar según zonas configuradas del usuario
+        const userLocs = await openEncountersService.getUserLocalidades(user?.id);
+        if (currentUserIdRef.current !== sessionUserId) return;
+
+        const hasZones = Boolean(userLocs && userLocs.length > 0);
+        const isVirtual = verifiedEnc.modalidad === 'virtual' || verifiedEnc.modality === 'virtual';
+        const isInZone = isVirtual || (Boolean(verifiedEnc.localityId) && userLocs.includes(verifiedEnc.localityId!));
+
+        // 3. Acumular feedback visible en vivo solo con encuentros confirmados disponibles
+        setLiveMatchFeedback((prev) => {
+          const prevIds = prev ? prev.encounterIds : [];
+          if (prevIds.includes(encounterId)) return prev;
+          const updatedIds = [...prevIds, encounterId];
+          const prevInZoneIds = prev?.inZoneEncounterIds || [];
+          const prevOtherZoneIds = prev?.otherZoneEncounterIds || [];
+          const updatedInZoneIds = isInZone ? [...prevInZoneIds, encounterId] : prevInZoneIds;
+          const updatedOtherZoneIds = !isInZone && hasZones ? [...prevOtherZoneIds, encounterId] : prevOtherZoneIds;
+
+          return {
+            count: updatedIds.length,
+            encounterIds: updatedIds,
+            inZoneEncounterIds: updatedInZoneIds,
+            otherZoneEncounterIds: updatedOtherZoneIds,
+            noZonesConfigured: !hasZones && !isVirtual,
+            firstMatch: prev?.firstMatch || verifiedEnc,
+          };
+        });
+      } catch (err) {
+        console.warn('[Home] Error verificando disponibilidad de match en vivo:', err);
+      }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [subscribeToIncomingMatches, selectedDeepLinkEncounter?.id, isDeepLinkEncounterDetailOpen]);
+  }, [subscribeToIncomingMatches, selectedDeepLinkEncounter?.id, isDeepLinkEncounterDetailOpen, user?.id]);
 
-  const handleViewLiveMatches = useCallback(() => {
+  const handleViewLiveMatches = useCallback(async () => {
     if (!liveMatchFeedback || liveMatchFeedback.encounterIds.length === 0) return;
-    const targetIds = [...liveMatchFeedback.encounterIds];
-    setLiveMatchFeedback(null);
-    setDiscoveryRefreshTrigger(Date.now());
-    handleViewMatches(targetIds);
-  }, [liveMatchFeedback, handleViewMatches]);
+    if (isValidatingLiveMatchesRef.current) return;
+
+    isValidatingLiveMatchesRef.current = true;
+    const { encounterIds } = liveMatchFeedback;
+
+    // Invariante DIF-18: Revalidación en caliente al hacer clic (previene promesas si cambió disponibilidad o zonas)
+    try {
+      const revalidatedPromises = encounterIds.map(async (id) => {
+        const enc = await openEncountersService.getEncuentroAbiertoById(id);
+        if (!enc) return null;
+        if (!isEncounterVigente(enc)) {
+          return null;
+        }
+        if (enc.inscriptionsClosed || enc.openSlots <= 0) {
+          return null;
+        }
+        return enc;
+      });
+
+      const freshList = (await Promise.all(revalidatedPromises)).filter((e): e is OpenEncounterSummary => Boolean(e));
+
+      if (freshList.length === 0) {
+        setLiveMatchFeedback(null);
+        setDiscoveryRefreshTrigger(Date.now());
+        setDeepLinkNotice(t('your_encounters.matches_no_longer_available', {
+          defaultValue: 'Las opciones coincidentes ya no se encuentran disponibles o completaron sus lugares.'
+        }));
+        return;
+      }
+
+      // Consultar zonas actuales del usuario
+      const userLocs = await openEncountersService.getUserLocalidades(user?.id);
+      const hasZones = Boolean(userLocs && userLocs.length > 0);
+
+      const freshVirtuals = freshList.filter((e) => e.modalidad === 'virtual' || e.modality === 'virtual');
+      const freshPresenciales = freshList.filter((e) => e.modalidad !== 'virtual' && e.modality !== 'virtual');
+
+      // Caso 1: El usuario NO tiene zonas configuradas
+      if (!hasZones) {
+        // Si hay al menos un encuentro virtual disponible -> ver directamente en Discovery sin exigir zonas
+        if (freshVirtuals.length > 0) {
+          setLiveMatchFeedback(null);
+          setDiscoveryRefreshTrigger(Date.now());
+          handleViewMatches(freshVirtuals.map((e) => e.id));
+          return;
+        }
+
+        // Si únicamente hay encuentros presenciales y faltan zonas -> abrir selector de zonas
+        if (freshPresenciales.length > 0) {
+          setLiveMatchFeedback(null);
+          setDiscoveryRefreshTrigger(Date.now());
+          setConfigureZonesTrigger(Date.now());
+          const discoveryEl = document.getElementById('home-discovery-section');
+          if (discoveryEl) {
+            discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+      }
+
+      // Caso 2: El usuario SÍ tiene zonas configuradas -> clasificar en zona vs fuera de zona
+      setLiveMatchFeedback(null);
+      setDiscoveryRefreshTrigger(Date.now());
+
+      const freshInZone = freshList.filter((e) => {
+        const isVirt = e.modalidad === 'virtual' || e.modality === 'virtual';
+        return isVirt || (Boolean(e.localityId) && userLocs.includes(e.localityId!));
+      });
+      const freshOtherZone = freshList.filter((e) => {
+        const isVirt = e.modalidad === 'virtual' || e.modality === 'virtual';
+        return !isVirt && Boolean(e.localityId && !userLocs.includes(e.localityId));
+      });
+
+      // Hay coincidencias en la zona activa (o virtuales) -> scroll y resaltado en Discovery
+      if (freshInZone.length > 0) {
+        handleViewMatches(freshInZone.map((e) => e.id));
+        return;
+      }
+
+      // Coincidencias en otras zonas -> abrir directamente la ficha de detalle seguro del encuentro
+      if (freshOtherZone.length > 0) {
+        setSelectedDeepLinkEncounter(freshOtherZone[0]);
+        setIsDeepLinkEncounterDetailOpen(true);
+        return;
+      }
+
+      handleViewMatches(freshList.map((e) => e.id));
+    } catch (err) {
+      // Bloqueante Auditoría: ante error de red/timeout, NO eliminar el aviso para permitir reintentar
+      console.warn('[Home] Error revalidando disponibilidad de encuentros al hacer clic:', err);
+      setDeepLinkNotice(t('your_encounters.revalidation_network_error', {
+        defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
+      }));
+    } finally {
+      isValidatingLiveMatchesRef.current = false;
+    }
+  }, [liveMatchFeedback, user?.id, handleViewMatches, t]);
 
   const handleDismissLiveMatchFeedback = useCallback(() => {
     setLiveMatchFeedback(null);
@@ -934,13 +1094,24 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   }, [organizedEncuentros]);
 
   const handleSelectEncuentroFromSolicitudes = useCallback((encuentroId: string) => {
-    void openEncountersService.getEncuentroAbiertoById(encuentroId).then((enc) => {
-      if (enc) {
-        setSelectedDeepLinkEncounter(enc);
-        setIsDeepLinkEncounterDetailOpen(true);
-      }
-    });
-  }, []);
+    void openEncountersService.getEncuentroAbiertoById(encuentroId)
+      .then((enc) => {
+        if (enc) {
+          setSelectedDeepLinkEncounter(enc);
+          setIsDeepLinkEncounterDetailOpen(true);
+        } else {
+          setDeepLinkNotice(t('your_encounters.matches_no_longer_available', {
+            defaultValue: 'El encuentro ya no se encuentra disponible o fue cancelado.'
+          }));
+        }
+      })
+      .catch((err) => {
+        console.warn('[Home] Error cargando encuentro desde solicitudes:', err);
+        setDeepLinkNotice(t('your_encounters.revalidation_network_error', {
+          defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
+        }));
+      });
+  }, [t]);
 
   // Lista unificada sin duplicaciones para selector "Todos" en Preview GSAP (Sección 31)
   const rawEncuentros = React.useMemo(() => {
@@ -2061,13 +2232,35 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             <div className="home-live-match-banner__header">
               <Sparkles className="home-live-match-banner__icon" size={18} aria-hidden="true" />
               <strong className="home-live-match-banner__title">
-                {liveMatchFeedback.count === 1
+                {liveMatchFeedback.noZonesConfigured
+                  ? t('your_encounters.live_match_plural_title', { defaultValue: 'Encontramos opciones para vos' })
+                  : liveMatchFeedback.inZoneEncounterIds && liveMatchFeedback.inZoneEncounterIds.length === 0 && (liveMatchFeedback.otherZoneEncounterIds?.length || 0) > 0
+                  ? t('your_encounters.live_match_other_zone_title', { defaultValue: 'Encontramos opciones en otras zonas' })
+                  : liveMatchFeedback.count === 1
                   ? t('your_encounters.live_match_single_title', { defaultValue: 'Encontramos algo para vos' })
                   : t('your_encounters.live_match_plural_title', { defaultValue: 'Encontramos opciones para vos' })}
               </strong>
             </div>
             <p className="home-live-match-banner__text">
-              {liveMatchFeedback.count === 1
+              {liveMatchFeedback.noZonesConfigured
+                ? (liveMatchFeedback.count === 1
+                    ? t('your_encounters.live_match_no_zones_single', {
+                        defaultValue: 'Hay un encuentro que coincide con algo que tenés ganas de hacer. Elegí tus zonas para verlo.',
+                      })
+                    : t('your_encounters.live_match_no_zones_plural', {
+                        count: liveMatchFeedback.count,
+                        defaultValue: `Hay ${liveMatchFeedback.count} encuentros que coinciden con algo que tenés ganas de hacer. Elegí tus zonas para verlos.`,
+                      }))
+                : liveMatchFeedback.inZoneEncounterIds && liveMatchFeedback.inZoneEncounterIds.length === 0 && (liveMatchFeedback.otherZoneEncounterIds?.length || 0) > 0
+                ? ((liveMatchFeedback.otherZoneEncounterIds?.length || 0) === 1
+                    ? t('your_encounters.live_match_other_zone_single', {
+                        defaultValue: 'Hay un encuentro en otra zona que coincide con algo que tenés ganas de hacer.',
+                      })
+                    : t('your_encounters.live_match_other_zone_plural', {
+                        count: liveMatchFeedback.otherZoneEncounterIds?.length || 0,
+                        defaultValue: `Hay ${liveMatchFeedback.otherZoneEncounterIds?.length || 0} encuentros en otras zonas que coinciden con algo que tenés ganas de hacer.`,
+                      }))
+                : liveMatchFeedback.count === 1
                 ? t('your_encounters.live_match_single_text', {
                     defaultValue: 'Hay un encuentro que coincide con algo que tenés ganas de hacer.',
                   })
@@ -2083,7 +2276,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
               className="home-live-match-banner__cta"
               onClick={handleViewLiveMatches}
             >
-              {liveMatchFeedback.count === 1
+              {liveMatchFeedback.noZonesConfigured
+                ? t('open_encounters.no_zones_cta', { defaultValue: 'Configurar zonas' })
+                : liveMatchFeedback.count === 1
                 ? t('your_encounters.live_match_single_cta', { defaultValue: 'Ver opción' })
                 : t('your_encounters.live_match_plural_cta', { defaultValue: 'Ver opciones' })}
             </button>
@@ -2184,6 +2379,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             highlightEncounterIds={matchedHighlightIds}
             onClearHighlight={handleClearHighlight}
             refreshTrigger={discoveryRefreshTrigger}
+            configureZonesTrigger={configureZonesTrigger}
             externalAvisameTrigger={externalAvisameTrigger}
             onSelectIdea={(prompt) => {
               setHomeIntent(prompt);

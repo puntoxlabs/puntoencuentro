@@ -57,6 +57,7 @@ export function useUnifiedDiscovery(
   const [intentionsError, setIntentionsError] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
+  const latestRequestIdRef = useRef(0);
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -74,6 +75,7 @@ export function useUnifiedDiscovery(
       return;
     }
 
+    const currentRequestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError(null);
     setEncountersError(null);
@@ -85,7 +87,7 @@ export function useUnifiedDiscovery(
       intencionesService.getDiscoveryIntenciones(localityIds),
     ]);
 
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) return;
 
     const encOk = encountersRes.ok;
     const intOk = intentionsRes.ok;
@@ -127,11 +129,11 @@ export function useUnifiedDiscovery(
         intencionesService.getDiscoveryIntenciones(otherActiveLocalityIds),
       ]);
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) return;
 
       const primaryEncIds = new Set(primaryEncounters.map((e) => e.id));
       const filteredSecEnc = (secEncRes.ok && secEncRes.data ? secEncRes.data : [])
-        .filter((e) => otherActiveLocalityIds.includes(e.localityId) && !primaryEncIds.has(e.id))
+        .filter((e) => Boolean(e.localityId && otherActiveLocalityIds.includes(e.localityId)) && !primaryEncIds.has(e.id))
         .slice(0, MAX_OTHER_ZONE_SUGGESTIONS);
       setSecondaryEncounters(filteredSecEnc);
 
@@ -149,6 +151,8 @@ export function useUnifiedDiscovery(
       setSecondaryEncounters([]);
       setSecondaryIntentions([]);
     }
+
+    if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) return;
 
     // Error general solo si ambas fuentes primarias fallan
     if (!encOk && !intOk) {

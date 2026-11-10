@@ -3,10 +3,14 @@ export interface OpenEncounterSummary {
   title: string;
   activityType?: string;
   emoji?: string;
+  fecha?: string | null; // Fecha canónica SQL (YYYY-MM-DD o null si es a coordinar)
+  hora?: string | null; // Hora canónica SQL (HH:MI:SS, HH:MI o null si es a coordinar)
   startsAt: string; // ISO date string
   dateLabel: string; // e.g. "Jueves · 20:00"
   approximateZone: string; // e.g. "Güemes"
-  localityId: string; // e.g. "guemes"
+  localityId?: string | null; // e.g. "guemes", o null para encuentros virtuales sin localidad
+  modalidad?: 'presencial' | 'virtual'; // Modalidad canónica devuelta por RPC y BD
+  modality?: 'presencial' | 'virtual'; // Alias defensivo para compatibilidad transversal
   openSlots: number; // Available spots to join = max_participants - SUM(seat_count)
   confirmedCount: number; // Canonical confirmed spots/persons = SUM(seat_count)
   confirmedSeats?: number; // Canonical alias for confirmed physical seats = SUM(seat_count)
@@ -108,6 +112,7 @@ export interface EncuentroParticipanteAutorizado {
   fecha?: string | null;
   hora?: string | null;
   modalidad?: 'presencial' | 'virtual';
+  locality_id?: string | null;
   open_public_zone?: string;
   lugar_texto?: string | null;
   link_virtual?: string | null;
