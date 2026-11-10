@@ -317,7 +317,12 @@ export const openEncountersService = {
         p_encuentro_id: encounterId,
       });
 
-      if (!rpcErr && (rpcData as any)?.ok && (rpcData as any)?.data) {
+      if (rpcErr) {
+        console.error('[openEncountersService] Error de RPC al obtener encuentro abierto:', rpcErr);
+        throw new Error(rpcErr.message || 'database_rpc_error');
+      }
+
+      if ((rpcData as any)?.ok && (rpcData as any)?.data) {
         const item = (rpcData as any).data;
         return {
           id: item.id,
@@ -392,7 +397,7 @@ export const openEncountersService = {
       return null;
     } catch (err) {
       console.warn('[openEncountersService] Error fetching encuentro abierto by id:', err);
-      return null;
+      throw err;
     }
   },
 

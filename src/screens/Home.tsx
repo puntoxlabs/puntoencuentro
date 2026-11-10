@@ -713,6 +713,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   } | null>(null);
   const sessionSeenMatchEncounterIdsRef = useRef<Set<string>>(new Set());
   const currentUserIdRef = useRef<string | undefined>(user?.id);
+  const isValidatingLiveMatchesRef = useRef(false);
 
   // Invariante de seguridad de sesiones: limpiar feedback al cambiar de cuenta o desloguearse
   useEffect(() => {
@@ -913,7 +914,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             encounterIds: updatedIds,
             inZoneEncounterIds: updatedInZoneIds,
             otherZoneEncounterIds: updatedOtherZoneIds,
-            noZonesConfigured: !hasZones,
+            noZonesConfigured: !hasZones && !isVirtual,
             firstMatch: prev?.firstMatch || verifiedEnc,
           };
         });
@@ -929,25 +930,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const handleViewLiveMatches = useCallback(async () => {
     if (!liveMatchFeedback || liveMatchFeedback.encounterIds.length === 0) return;
+    if (isValidatingLiveMatchesRef.current) return;
+
+    isValidatingLiveMatchesRef.current = true;
     const { encounterIds } = liveMatchFeedback;
-    setLiveMatchFeedback(null);
-    setDiscoveryRefreshTrigger(Date.now());
 
     // Invariante DIF-18: Revalidación en caliente al hacer clic (previene promesas si cambió disponibilidad o zonas)
     try {
-      const userLocs = await openEncountersService.getUserLocalidades(user?.id);
-      const hasZones = Boolean(userLocs && userLocs.length > 0);
-
-      // Si el usuario actualmente no tiene zonas configuradas -> activar efectivamente el selector de zonas y hacer scroll a Discovery
-      if (!hasZones) {
-        setConfigureZonesTrigger(Date.now());
-        const discoveryEl = document.getElementById('home-discovery-section');
-        if (discoveryEl) {
-          discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        return;
-      }
-
       const revalidatedPromises = encounterIds.map(async (id) => {
         const enc = await openEncountersService.getEncuentroAbiertoById(id);
         if (!enc) return null;
@@ -963,11 +952,47 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       const freshList = (await Promise.all(revalidatedPromises)).filter((e): e is OpenEncounterSummary => Boolean(e));
 
       if (freshList.length === 0) {
+        setLiveMatchFeedback(null);
+        setDiscoveryRefreshTrigger(Date.now());
         setDeepLinkNotice(t('your_encounters.matches_no_longer_available', {
           defaultValue: 'Las opciones coincidentes ya no se encuentran disponibles o completaron sus lugares.'
         }));
         return;
       }
+
+      // Consultar zonas actuales del usuario
+      const userLocs = await openEncountersService.getUserLocalidades(user?.id);
+      const hasZones = Boolean(userLocs && userLocs.length > 0);
+
+      const freshVirtuals = freshList.filter((e) => e.modalidad === 'virtual' || e.modality === 'virtual');
+      const freshPresenciales = freshList.filter((e) => e.modalidad !== 'virtual' && e.modality !== 'virtual');
+
+      // Caso 1: El usuario NO tiene zonas configuradas
+      if (!hasZones) {
+        // Si hay al menos un encuentro virtual disponible -> ver directamente en Discovery sin exigir zonas
+        if (freshVirtuals.length > 0) {
+          setLiveMatchFeedback(null);
+          setDiscoveryRefreshTrigger(Date.now());
+          handleViewMatches(freshVirtuals.map((e) => e.id));
+          return;
+        }
+
+        // Si únicamente hay encuentros presenciales y faltan zonas -> abrir selector de zonas
+        if (freshPresenciales.length > 0) {
+          setLiveMatchFeedback(null);
+          setDiscoveryRefreshTrigger(Date.now());
+          setConfigureZonesTrigger(Date.now());
+          const discoveryEl = document.getElementById('home-discovery-section');
+          if (discoveryEl) {
+            discoveryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+      }
+
+      // Caso 2: El usuario SÍ tiene zonas configuradas -> clasificar en zona vs fuera de zona
+      setLiveMatchFeedback(null);
+      setDiscoveryRefreshTrigger(Date.now());
 
       const freshInZone = freshList.filter((e) => {
         const isVirt = e.modalidad === 'virtual' || e.modality === 'virtual';
@@ -978,13 +1003,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return !isVirt && Boolean(e.localityId && !userLocs.includes(e.localityId));
       });
 
-      // Caso B: Hay coincidencias en la zona activa (o virtuales) -> scroll y resaltado en Discovery
+      // Hay coincidencias en la zona activa (o virtuales) -> scroll y resaltado en Discovery
       if (freshInZone.length > 0) {
         handleViewMatches(freshInZone.map((e) => e.id));
         return;
       }
 
-      // Caso C: Coincidencias en otras zonas -> abrir directamente la ficha de detalle seguro del encuentro
+      // Coincidencias en otras zonas -> abrir directamente la ficha de detalle seguro del encuentro
       if (freshOtherZone.length > 0) {
         setSelectedDeepLinkEncounter(freshOtherZone[0]);
         setIsDeepLinkEncounterDetailOpen(true);
@@ -993,11 +1018,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       handleViewMatches(freshList.map((e) => e.id));
     } catch (err) {
-      // Bloqueante Auditoría: ante error de red no presentar encuentros no revalidados; informar con opción recuperable
+      // Bloqueante Auditoría: ante error de red/timeout, NO eliminar el aviso para permitir reintentar
       console.warn('[Home] Error revalidando disponibilidad de encuentros al hacer clic:', err);
       setDeepLinkNotice(t('your_encounters.revalidation_network_error', {
         defaultValue: 'No pudimos comprobar la disponibilidad en este momento. Por favor, reintentá en unos instantes.'
       }));
+    } finally {
+      isValidatingLiveMatchesRef.current = false;
     }
   }, [liveMatchFeedback, user?.id, handleViewMatches, t]);
 
