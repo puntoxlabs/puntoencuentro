@@ -36,6 +36,30 @@ async function run() {
 
     browser = await chromium.launch({ headless: true });
 
+    const getFabState = async (page) => {
+      return await page.evaluate(() => {
+        const container = document.querySelector('.home-fab-container');
+        if (!container) return { exists: false, visible: false, display: 'none', opacity: '0' };
+        const style = window.getComputedStyle(container);
+        const isHiddenClass = container.classList.contains('home-fab-container--hidden');
+        const isVisibleClass = container.classList.contains('home-fab-container--visible');
+        const visible =
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          style.opacity !== '0' &&
+          !isHiddenClass;
+        return {
+          exists: true,
+          visible,
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity,
+          isHiddenClass,
+          isVisibleClass,
+        };
+      });
+    };
+
     const viewports = [
       { name: '320px-narrow', width: 320, height: 640, isMobile: true },
       { name: '360px-motorola', width: 360, height: 800, isMobile: true },
@@ -66,30 +90,6 @@ async function run() {
       await pageNoZones.goto(`${baseUrl}/preview/home-gsap`, { waitUntil: 'domcontentloaded' });
       await pageNoZones.waitForSelector('#home-discovery-section', { timeout: 8000 });
       await pageNoZones.waitForTimeout(400);
-
-      const getFabState = async (page) => {
-        return await page.evaluate(() => {
-          const container = document.querySelector('.home-fab-container');
-          if (!container) return { exists: false, visible: false, display: 'none', opacity: '0' };
-          const style = window.getComputedStyle(container);
-          const isHiddenClass = container.classList.contains('home-fab-container--hidden');
-          const isVisibleClass = container.classList.contains('home-fab-container--visible');
-          const visible =
-            style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            style.opacity !== '0' &&
-            !isHiddenClass;
-          return {
-            exists: true,
-            visible,
-            display: style.display,
-            visibility: style.visibility,
-            opacity: style.opacity,
-            isHiddenClass,
-            isVisibleClass,
-          };
-        });
-      };
 
       // 1. En el Hero (tope de página): El FAB está visible en navegación normal
       const fabAtHero = await getFabState(pageNoZones);
@@ -256,6 +256,81 @@ async function run() {
 
       await ctxWithZones.close();
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // PARTE 3: RESPONSIVE DINÁMICO (Desktop -> Mobile -> Desktop -> Mobile sin recargar)
+    // ─────────────────────────────────────────────────────────────
+    console.log(`\n───────────────────────────────────────────────────────────`);
+    console.log(`🔄 [DIF-18-Q] Prueba de Ciclo de Vida Responsive Dinámico (Sin Recarga)`);
+    console.log(`───────────────────────────────────────────────────────────`);
+
+    const ctxDynamic = await browser.newContext({
+      viewport: { width: 1200, height: 800 },
+      deviceScaleFactor: 2,
+    });
+    await ctxDynamic.addInitScript(() => {
+      localStorage.setItem('app_storage_version', '1.2');
+      localStorage.setItem('puntoencuentro_test_access_v1', JSON.stringify({ granted: true, at: Date.now() }));
+      localStorage.setItem('puntoencuentro_user_zones', JSON.stringify([]));
+    });
+
+    const pageDynamic = await ctxDynamic.newPage();
+    await pageDynamic.goto(`${baseUrl}/preview/home-gsap`, { waitUntil: 'domcontentloaded' });
+    await pageDynamic.waitForSelector('#home-discovery-section', { timeout: 8000 });
+    await pageDynamic.waitForTimeout(400);
+
+    const inspDynamic = pageDynamic.locator('[data-testid="inspirational-empty-state"]');
+    await inspDynamic.scrollIntoViewIfNeeded();
+    await pageDynamic.waitForTimeout(400);
+
+    // 1. En Desktop inicial (1200x800): FAB en gutter visible
+    let fabState = await getFabState(pageDynamic);
+    assert.ok(fabState.visible, 'En Desktop inicial (1200px), FAB debe estar visible en gutter');
+    console.log('  ✔ [Desktop Inicial 1200px] FAB visible en gutter derecho sin supresión');
+
+    // 2. Redimensionar dinámicamente a Mobile (360x800 Motorola) SIN recargar la página
+    await pageDynamic.setViewportSize({ width: 360, height: 800 });
+    await pageDynamic.waitForTimeout(500);
+
+    fabState = await getFabState(pageDynamic);
+    assert.ok(!fabState.visible, 'Al redimensionar dinámicamente a Mobile (360px), FAB debe ocultarse contextualmente');
+    assert.equal(fabState.visibility, 'hidden', 'FAB debe tener visibility: hidden en mobile sobre estado inspirador');
+    console.log('  ✔ [Redimensión dinámica Desktop -> Mobile 360px] FAB se oculta contextualmente');
+
+    // 3. Scroll hacia Hero en Mobile
+    const heroSection = pageDynamic.locator('.home-hero-wrapper');
+    await heroSection.scrollIntoViewIfNeeded();
+    await pageDynamic.waitForTimeout(400);
+
+    fabState = await getFabState(pageDynamic);
+    assert.ok(fabState.visible, 'Al desplazarse al Hero en Mobile, FAB debe reaparecer');
+    console.log('  ✔ [Mobile Scroll -> Hero] FAB reaparece al salir del área conflictiva');
+
+    // 4. Scroll de vuelta al Estado Inspirador en Mobile
+    await inspDynamic.scrollIntoViewIfNeeded();
+    await pageDynamic.waitForTimeout(400);
+
+    fabState = await getFabState(pageDynamic);
+    assert.ok(!fabState.visible, 'Al desplazarse nuevamente al Estado Inspirador en Mobile, FAB debe ocultarse');
+    console.log('  ✔ [Mobile Scroll -> Inspirador] FAB se oculta al reingresar al área conflictiva');
+
+    // 5. Redimensionar dinámicamente de vuelta a Desktop (1200x800) SIN recargar la página
+    await pageDynamic.setViewportSize({ width: 1200, height: 800 });
+    await pageDynamic.waitForTimeout(500);
+
+    fabState = await getFabState(pageDynamic);
+    assert.ok(fabState.visible, 'Al redimensionar dinámicamente a Desktop (1200px), FAB debe reaparecer inmediatamente');
+    console.log('  ✔ [Redimensión dinámica Mobile -> Desktop 1200px] FAB reaparece en gutter fijo');
+
+    // 6. Redimensionar dinámicamente a Mobile alternativo (390x844) SIN recargar la página
+    await pageDynamic.setViewportSize({ width: 390, height: 844 });
+    await pageDynamic.waitForTimeout(500);
+
+    fabState = await getFabState(pageDynamic);
+    assert.ok(!fabState.visible, 'Al redimensionar nuevamente a Mobile (390px), FAB debe ocultarse en área conflictiva');
+    console.log('  ✔ [Redimensión dinámica Desktop -> Mobile 390px] FAB se oculta contextualmente sin perder estado');
+
+    await ctxDynamic.close();
 
     console.log(`\n═══════════════════════════════════════════════════════════`);
     console.log(`🎉 DIF-18-Q: VALIDACIÓN VISUAL Y GEOMÉTRICA 100% EXITOSA`);

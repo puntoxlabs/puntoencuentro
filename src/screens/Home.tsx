@@ -1236,25 +1236,31 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   // ── FAB contextual mobile-first (DIF-18-Q) ──────────────────────────────────
   // En mobile (<768px), el FAB se oculta suavemente cuando entran en el viewport
   // secciones que compiten visualmente con acciones de creación o tarjetas interactivas:
-  //   1. Estado inspirador (.pe-inspirational-container): 4 tarjetas + "Abrir un encuentro" + "Avisame"
-  //   2. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info): pieza explicativa inferior
-  //   3. Empty state con filtro activo (.pe-discovery-empty): acciones de creación y aviso
+  //   1. Estado inspirador (.pe-inspirational-grid, .pe-inspirational-actions)
+  //   2. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info)
+  //   3. Empty state con filtro activo (.pe-discovery-empty-actions)
   // En desktop (>=768px), el FAB permanece anclado en el gutter derecho fijo sin interferencias.
   const [isFabSuppressedByContext, setIsFabSuppressedByContext] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return;
 
-    // Solo activo en viewport mobile (<768px)
-    if (window.innerWidth >= 768) {
-      setIsFabSuppressedByContext(false);
-      return;
-    }
-
+    const observedElements = new Set<Element>();
     const intersectingElements = new Set<Element>();
+
+    const updateSuppression = (suppressed: boolean) => {
+      setIsFabSuppressedByContext((prev) => (prev === suppressed ? prev : suppressed));
+    };
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // En desktop (>=768px), el FAB permanece siempre visible en gutter sin supresión
+        if (window.innerWidth >= 768) {
+          if (intersectingElements.size > 0) intersectingElements.clear();
+          updateSuppression(false);
+          return;
+        }
+
         for (const entry of entries) {
           if (entry.isIntersecting) {
             intersectingElements.add(entry.target);
@@ -1262,7 +1268,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             intersectingElements.delete(entry.target);
           }
         }
-        setIsFabSuppressedByContext(intersectingElements.size > 0);
+        updateSuppression(intersectingElements.size > 0);
       },
       {
         rootMargin: '0px',
@@ -1270,37 +1276,83 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       }
     );
 
-    const observeTargets = () => {
-      const targets = document.querySelectorAll(
-        '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions'
+    const reconcileTargets = () => {
+      if (typeof document === 'undefined') return;
+
+      // 1. En desktop: limpiar observador y asegurar que no haya supresión activa
+      if (window.innerWidth >= 768) {
+        if (observedElements.size > 0) {
+          observer.disconnect();
+          observedElements.clear();
+          intersectingElements.clear();
+        }
+        updateSuppression(false);
+        return;
+      }
+
+      // 2. En mobile: reconciliar elementos observados
+      const container = document.querySelector('.home-screen-container') || document.body;
+      const currentTargets = Array.from(
+        container.querySelectorAll(
+          '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions'
+        )
       );
-      targets.forEach((target) => observer.observe(target));
+      const currentTargetSet = new Set(currentTargets);
+
+      // Desregistrar elementos retirados del DOM
+      for (const el of observedElements) {
+        if (!currentTargetSet.has(el) || !document.contains(el)) {
+          observer.unobserve(el);
+          observedElements.delete(el);
+          intersectingElements.delete(el);
+        }
+      }
+
+      // Registrar elementos nuevos (evitando registros redundantes)
+      for (const el of currentTargets) {
+        if (!observedElements.has(el)) {
+          observer.observe(el);
+          observedElements.add(el);
+        }
+      }
+
+      if (observedElements.size === 0) {
+        updateSuppression(false);
+      } else {
+        updateSuppression(intersectingElements.size > 0);
+      }
     };
 
-    observeTargets();
+    // Reconciliación inicial
+    reconcileTargets();
 
+    // MutationObserver acotado al contenedor de la pantalla Home
     let mutationObserver: MutationObserver | null = null;
     if (typeof MutationObserver !== 'undefined') {
       mutationObserver = new MutationObserver(() => {
-        observeTargets();
+        reconcileTargets();
       });
-      mutationObserver.observe(document.body, {
+      const container = document.querySelector('.home-screen-container') || document.body;
+      mutationObserver.observe(container, {
         childList: true,
         subtree: true,
       });
     }
 
+    let resizeTimer: number | null = null;
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsFabSuppressedByContext(false);
-      } else {
-        observeTargets();
-      }
+      if (resizeTimer) cancelAnimationFrame(resizeTimer);
+      resizeTimer = requestAnimationFrame(() => {
+        reconcileTargets();
+      });
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
+      if (resizeTimer) cancelAnimationFrame(resizeTimer);
       observer.disconnect();
+      observedElements.clear();
+      intersectingElements.clear();
       if (mutationObserver) mutationObserver.disconnect();
       window.removeEventListener('resize', handleResize);
     };
