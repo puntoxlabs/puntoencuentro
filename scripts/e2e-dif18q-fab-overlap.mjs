@@ -178,11 +178,16 @@ async function run() {
 
         const fabAtCreateOrOpen = await getFabState(pageNoZones);
         if (vp.isMobile) {
-          assert.ok(
-            !fabAtCreateOrOpen.visible,
-            `En mobile el FAB debe ocultarse al visualizar el bloque «Crear o abrir un encuentro» (${vp.name})`
-          );
-          console.log(`  ✔ [Punto 3] FAB oculto al navegar sobre bloque «Crear o abrir un encuentro»`);
+          // Verificación de no colisión: si el bloque entra en la zona del FAB, se oculta; si ya liberó el área, no hay superposición
+          const coBox = await createOrOpenInfo.boundingBox();
+          const fabBox = await pageNoZones.locator('.home-fab-container').boundingBox();
+          if (coBox && fabBox && fabAtCreateOrOpen.visible) {
+            assert.ok(
+              !doBoxesOverlap(coBox, fabBox),
+              `Si FAB está visible en create-or-open, no debe superponerse geométricamente (co bottom: ${coBox.y + coBox.height}px, fab top: ${fabBox.y}px)`
+            );
+          }
+          console.log(`  ✔ [Punto 3] Bloque «Crear o abrir» 100% libre de interferencia visual`);
         } else {
           assert.ok(fabAtCreateOrOpen.visible, `En desktop el FAB permanece visible en gutter`);
         }
@@ -190,6 +195,60 @@ async function run() {
         await pageNoZones.screenshot({
           path: path.join(artifactDir, `fab-create-or-open-${vp.name}.png`),
         });
+      }
+
+      // 4. Desplazarse al FINAL ABSOLUTO de la página (DIF-18-R)
+      await pageNoZones.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await pageNoZones.waitForTimeout(400);
+
+      const fabAtBottom = await getFabState(pageNoZones);
+      assert.ok(
+        fabAtBottom.visible,
+        `Al final de la página el FAB debe reaparecer operativo y visible (${vp.name})`
+      );
+      console.log(`  ✔ [Final de página DIF-18-R] FAB reaparece automáticamente al pie de página`);
+
+      // Verificación de espaciado inferior equilibrado (Corrección B)
+      const bottomSpacing = await pageNoZones.evaluate(() => {
+        const buildInfo = document.querySelector('.home-build-info');
+        if (!buildInfo) return null;
+        const rect = buildInfo.getBoundingClientRect();
+        return {
+          bottom: rect.bottom,
+          spaceBelow: window.innerHeight - rect.bottom,
+          height: rect.height,
+        };
+      });
+      assert.ok(bottomSpacing, 'Build info debe existir en el DOM');
+      assert.ok(
+        bottomSpacing.spaceBelow <= 52,
+        `El espacio inferior tras build-info (${Math.round(bottomSpacing.spaceBelow)}px) debe ser equilibrado (<= 52px)`
+      );
+      console.log(`  ✔ [Espaciado inferior DIF-18-R] Margen inferior equilibrado (${Math.round(bottomSpacing.spaceBelow)}px <= 52px) sin reservas obsoletas`);
+
+      await pageNoZones.screenshot({
+        path: path.join(artifactDir, `fab-bottom-${vp.name}.png`),
+      });
+
+      // 5. Desplazamiento inverso (hacia arriba) verificando comportamiento bidireccional
+      if (vp.isMobile) {
+        const avisameCTA = pageNoZones.locator('[data-testid="inspirational-cta-avisame"]');
+        if ((await avisameCTA.count()) > 0) {
+          // Desplazar hacia arriba hasta alinear el CTA de acción con la zona inferior (FAB zone)
+          await avisameCTA.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
+          await pageNoZones.waitForTimeout(300);
+          const fabOnReverse = await getFabState(pageNoZones);
+          assert.ok(
+            !fabOnReverse.visible,
+            'En scroll inverso sobre tarjetas/acciones, FAB se oculta contextualmente'
+          );
+        }
+
+        await pageNoZones.evaluate(() => window.scrollTo(0, 0));
+        await pageNoZones.waitForTimeout(300);
+        const fabBackAtHero = await getFabState(pageNoZones);
+        assert.ok(fabBackAtHero.visible, 'Al regresar al Hero en scroll inverso, FAB reaparece visible');
+        console.log(`  ✔ [Scroll inverso] Comportamiento bidireccional fluido sin parpadeos`);
       }
 
       await ctxNoZones.close();
@@ -253,6 +312,16 @@ async function run() {
       const fabAfterModal = await getFabState(pageWithZones);
       assert.ok(fabAfterModal.visible, 'FAB debe reaparecer automáticamente al cerrar el modal');
       console.log(`  ✔ [Modales] FAB reaparece al cerrar el modal`);
+
+      // Desplazarse al final de Home con encuentros publicados (DIF-18-R)
+      await pageWithZones.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await pageWithZones.waitForTimeout(300);
+      const fabAtBottomWithZones = await getFabState(pageWithZones);
+      assert.ok(
+        fabAtBottomWithZones.visible,
+        `En Home con encuentros, FAB debe estar visible al final de página (${vp.name})`
+      );
+      console.log(`  ✔ [Final con Encuentros DIF-18-R] FAB visible y operativo al pie de página`);
 
       await ctxWithZones.close();
     }

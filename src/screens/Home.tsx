@@ -1233,13 +1233,19 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     (isNavMenuOpen && isMobileViewport) ||
     Boolean(coordinationWarningProps.open);
 
-  // ── FAB contextual mobile-first (DIF-18-Q) ──────────────────────────────────
-  // En mobile (<768px), el FAB se oculta suavemente cuando entran en el viewport
-  // secciones que compiten visualmente con acciones de creación o tarjetas interactivas:
-  //   1. Estado inspirador (.pe-inspirational-grid, .pe-inspirational-actions)
-  //   2. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info)
-  //   3. Empty state con filtro activo (.pe-discovery-empty-actions)
-  // En desktop (>=768px), el FAB permanece anclado en el gutter derecho fijo sin interferencias.
+  // ── FAB contextual mobile-first (DIF-18-Q / DIF-18-R) ───────────────────────
+  // En mobile (<768px), el FAB se oculta suavemente cuando entran en su área física
+  // de interferencia elementos interactivos protegidos:
+  //   1. Tarjetas inspiradoras (.pe-inspirational-grid)
+  //   2. Acciones del estado inspirador (.pe-inspirational-actions)
+  //   3. Bloque "Crear o abrir un encuentro" (.home-create-or-open-info)
+  //   4. Acciones de empty state con filtro activo (.pe-discovery-empty-actions)
+  //
+  // La zona de interferencia se calibra a los 72px inferiores de la pantalla
+  // (altura del FAB 48px + bottom 18px + margen seguro). Cuando los elementos
+  // protegidos han quedado fuera de esta área (por ejemplo, al llegar al final
+  // de la Home junto al footer), el FAB reaparece automáticamente.
+  // En desktop (>=768px), el FAB permanece fijo en su gutter derecho sin interferencias.
   const [isFabSuppressedByContext, setIsFabSuppressedByContext] = useState(false);
 
   useEffect(() => {
@@ -1252,42 +1258,67 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       setIsFabSuppressedByContext((prev) => (prev === suppressed ? prev : suppressed));
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // En desktop (>=768px), el FAB permanece siempre visible en gutter sin supresión
-        if (window.innerWidth >= 768) {
-          if (intersectingElements.size > 0) intersectingElements.clear();
-          updateSuppression(false);
-          return;
-        }
+    const getFabZoneRootMargin = () => {
+      // Zona de interferencia calibrada a la franja inferior donde flota el FAB
+      const fabZoneHeight = 72;
+      const topMargin = -(Math.max(window.innerHeight - fabZoneHeight, 0));
+      return `${topMargin}px 0px 0px 0px`;
+    };
 
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            intersectingElements.add(entry.target);
-          } else {
-            intersectingElements.delete(entry.target);
-          }
-        }
-        updateSuppression(intersectingElements.size > 0);
-      },
-      {
-        rootMargin: '0px',
-        threshold: 0,
+    let observer: IntersectionObserver | null = null;
+    let currentRootMargin = '';
+
+    const createObserver = () => {
+      if (observer) {
+        observer.disconnect();
+        observedElements.clear();
+        intersectingElements.clear();
       }
-    );
+
+      currentRootMargin = getFabZoneRootMargin();
+      observer = new IntersectionObserver(
+        (entries) => {
+          // En desktop (>=768px), el FAB permanece siempre visible en gutter sin supresión
+          if (window.innerWidth >= 768) {
+            if (intersectingElements.size > 0) intersectingElements.clear();
+            updateSuppression(false);
+            return;
+          }
+
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              intersectingElements.add(entry.target);
+            } else {
+              intersectingElements.delete(entry.target);
+            }
+          }
+          updateSuppression(intersectingElements.size > 0);
+        },
+        {
+          rootMargin: currentRootMargin,
+          threshold: 0,
+        }
+      );
+    };
 
     const reconcileTargets = () => {
       if (typeof document === 'undefined') return;
 
       // 1. En desktop: limpiar observador y asegurar que no haya supresión activa
       if (window.innerWidth >= 768) {
-        if (observedElements.size > 0) {
+        if (observer) {
           observer.disconnect();
           observedElements.clear();
           intersectingElements.clear();
         }
         updateSuppression(false);
         return;
+      }
+
+      // Recrear observador si cambió la altura del viewport para recalibrar rootMargin
+      const neededMargin = getFabZoneRootMargin();
+      if (!observer || currentRootMargin !== neededMargin) {
+        createObserver();
       }
 
       // 2. En mobile: reconciliar elementos observados
@@ -1302,7 +1333,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       // Desregistrar elementos retirados del DOM
       for (const el of observedElements) {
         if (!currentTargetSet.has(el) || !document.contains(el)) {
-          observer.unobserve(el);
+          observer?.unobserve(el);
           observedElements.delete(el);
           intersectingElements.delete(el);
         }
@@ -1311,7 +1342,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       // Registrar elementos nuevos (evitando registros redundantes)
       for (const el of currentTargets) {
         if (!observedElements.has(el)) {
-          observer.observe(el);
+          observer?.observe(el);
           observedElements.add(el);
         }
       }
@@ -1350,7 +1381,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
     return () => {
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      observer.disconnect();
+      if (observer) observer.disconnect();
       observedElements.clear();
       intersectingElements.clear();
       if (mutationObserver) mutationObserver.disconnect();
