@@ -4,18 +4,19 @@
  * Entorno Obligatorio: Staging (wougfhfwqgmxhgvjqoua)
  * Invariante: assertStagingEnvironment()
  *
- * Áreas Evaluadas (con identidades QA autorizadas):
- * 1. Home y Discovery (encuentros e intenciones).
- * 2. Creación de encuentros cerrados y abiertos.
- * 3. Sesiones anónimas de QA (creación y discovery habilitados vs externos bloqueados).
- * 4. Invitaciones y respuestas por token (get_encuentro_por_public_token sin fugas).
- * 5. Solicitudes, cupos y lista de espera (solicitar_sumarse_encuentro_abierto).
- * 6. Cambios de estado y coordinación (inscriptions_closed, anti-abuso, temporalidad).
- * 7. Notificaciones y mensajería (inbox_notifications, get_mensajes_encuentro_seguro).
- * 8. Identidad, entitlements y navegación (get_my_entitlements, perfiles y preservación de contexto).
- * 9. Invariante de datos: 26/26 fixtures protegidos intactos.
- *
- * Cero mutaciones destructivas en tablas productivas. Cero toque a Producción.
+ * Cobertura Completa:
+ * - REG-01 a REG-12 (Módulos 1 a 9)
+ * - Pruebas Específicas de Concurrencia y Contrato Canónico:
+ *   * Solicitudes duplicadas / simultáneas (unique_violation catch -> already_requested)
+ *   * Cupos completos y saturación de capacidad (quota_exceeded)
+ *   * Lista de espera (waitlist_waiting -> quota_exceeded)
+ *   * Verificación canónica de Inbox de notificaciones del Host (open_encounter_join_requested)
+ * - Confirmación de Invariantes PRE-LAUNCH:
+ *   * public_launch_active = false
+ *   * Accesos externos no autorizados bloqueados
+ *   * Usuarios QA autorizados operativos
+ *   * 26/26 fixtures protegidos intactos
+ *   * Cero efectos secundarios en las demás RPCs
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -97,9 +98,28 @@ async function main() {
 
   try {
     // --------------------------------------------------------------------------
-    // SETUP: Cuentas Sintéticas de QA Autorizadas (Host y Participante)
+    // VERIFICACIÓN PREVIA: Estado PRE-LAUNCH en platform_access_control
     // --------------------------------------------------------------------------
-    console.log('--- SETUP: Inicializando Cuentas Sintéticas de QA ---');
+    console.log('--- 0. Verificación Previa: Estado PRE-LAUNCH ---');
+    const { data: phaseSetting, error: errPhase } = await adminClient
+      .from('platform_access_control')
+      .select('setting_value')
+      .eq('setting_key', 'public_launch_active')
+      .single();
+
+    const { data: rpcPhase, error: errRpcPhase } = await adminClient.rpc('is_public_launch_open');
+
+    check(
+      'CHK-PRE-01',
+      'Configuración public_launch_active',
+      !errPhase && phaseSetting?.setting_value === false && !errRpcPhase && rpcPhase === false,
+      `platform_access_control setting_value: ${phaseSetting?.setting_value}, RPC is_public_launch_open(): ${rpcPhase}`
+    );
+
+    // --------------------------------------------------------------------------
+    // SETUP: Cuentas Sintéticas de QA Autorizadas (Host y Participantes)
+    // --------------------------------------------------------------------------
+    console.log('\n--- SETUP: Inicializando Cuentas Sintéticas de QA ---');
     const hostEmail = `qa-reg-host-${Date.now()}@puntoencuentro.test`;
     const hostPwd = `HostPwd!${Date.now()}`;
     const { data: hostUser, error: errHostUser } = await adminClient.auth.admin.createUser({
@@ -122,19 +142,47 @@ async function main() {
     const guestId = guestUser.user.id;
     createdUserIds.push(guestId);
 
-    // Registrar ambas cuentas en qa_authorized_users
+    const guest2Email = `qa-reg-guest2-${Date.now()}@puntoencuentro.test`;
+    const guest2Pwd = `Guest2Pwd!${Date.now()}`;
+    const { data: guest2User, error: errGuest2User } = await adminClient.auth.admin.createUser({
+      email: guest2Email,
+      password: guest2Pwd,
+      email_confirm: true,
+    });
+    if (errGuest2User || !guest2User.user) throw new Error(`Fallo crear guest2: ${errGuest2User?.message}`);
+    const guest2Id = guest2User.user.id;
+    createdUserIds.push(guest2Id);
+
+    const guest3Email = `qa-reg-guest3-${Date.now()}@puntoencuentro.test`;
+    const guest3Pwd = `Guest3Pwd!${Date.now()}`;
+    const { data: guest3User, error: errGuest3User } = await adminClient.auth.admin.createUser({
+      email: guest3Email,
+      password: guest3Pwd,
+      email_confirm: true,
+    });
+    if (errGuest3User || !guest3User.user) throw new Error(`Fallo crear guest3: ${errGuest3User?.message}`);
+    const guest3Id = guest3User.user.id;
+    createdUserIds.push(guest3Id);
+
+    // Cuenta no autorizada externa (para comprobar rechazos PRE-LAUNCH)
+    const extEmail = `qa-ext-unauth-${Date.now()}@puntoencuentro.test`;
+    const extPwd = `ExtPwd!${Date.now()}`;
+    const { data: extUser, error: errExtUser } = await adminClient.auth.admin.createUser({
+      email: extEmail,
+      password: extPwd,
+      email_confirm: true,
+    });
+    if (errExtUser || !extUser.user) throw new Error(`Fallo crear usuario externo: ${errExtUser?.message}`);
+    const extId = extUser.user.id;
+    createdUserIds.push(extId);
+
+    // Registrar host, guest, guest2, guest3 en qa_authorized_users (extId NO se registra)
     await adminClient.from('qa_authorized_users').insert([
       { user_id: hostId, role: 'qa' },
       { user_id: guestId, role: 'qa' },
+      { user_id: guest2Id, role: 'qa' },
+      { user_id: guest3Id, role: 'qa' },
     ]);
-
-    // Asegurar existencia de política rate limit para request_open_encounter en Staging
-    await adminClient.from('rate_limit_policies').upsert({
-      action: 'request_open_encounter',
-      max_requests: 12,
-      window_seconds: 3600,
-      enabled: true,
-    }, { onConflict: 'action' });
 
     // Clientes autenticados
     const hostClient = createClient(STAGING_URL, publishableKey, {
@@ -146,6 +194,21 @@ async function main() {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     await guestClient.auth.signInWithPassword({ email: guestEmail, password: guestPwd });
+
+    const guest2Client = createClient(STAGING_URL, publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await guest2Client.auth.signInWithPassword({ email: guest2Email, password: guest2Pwd });
+
+    const guest3Client = createClient(STAGING_URL, publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await guest3Client.auth.signInWithPassword({ email: guest3Email, password: guest3Pwd });
+
+    const extClient = createClient(STAGING_URL, publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await extClient.auth.signInWithPassword({ email: extEmail, password: extPwd });
 
     // Cliente Anónimo Sintético de QA
     const qaAnonClient = createClient(STAGING_URL, publishableKey, {
@@ -248,6 +311,7 @@ async function main() {
       p_public_token: createdOpenToken,
     });
     const hasLeak = tokData && ('email' in tokData || 'telefono' in tokData);
+
     check(
       'REG-06',
       'Resolución por Token Público',
@@ -256,36 +320,125 @@ async function main() {
     );
 
     // --------------------------------------------------------------------------
-    // MÓDULO 5: Solicitudes, Cupos y Lista de Espera
+    // MÓDULO 5: Solicitudes, Cupos y Lista de Espera (Canonical Contract)
     // --------------------------------------------------------------------------
     console.log('\n--- 5. Solicitudes, Cupos y Lista de Espera ---');
-    // Para poder solicitar sumarse a un encuentro abierto, el encuentro debe estar marcado como abierto (is_open: true)
-    // y aprobado por moderación (moderation_status: 'approved', max_participants: 10)
+    // Para que un encuentro abierto aceporte solicitudes:
+    // is_open: true, estado: 'activo', moderation_status: 'approved', max_participants: 1
     await adminClient
       .from('encuentros')
       .update({
         is_open: true,
+        estado: 'activo',
         moderation_status: 'approved',
-        max_participants: 5,
+        max_participants: 1,
         open_public_title: 'Encuentro Regresión Abierto',
         open_description: 'Descripción pública para pruebas',
       })
       .eq('id', createdOpenId);
 
+    // REG-07: Primera solicitud legítima por QA Guest
     const { data: resJoin, error: errJoin } = await guestClient.rpc('solicitar_sumarse_encuentro_abierto', {
       p_encuentro_id: createdOpenId,
       p_nombre: 'Tester Solicitante QA',
       p_mensaje: 'Hola, solicito sumarme para prueba de regresión.',
       p_seat_count: 1,
     });
-    console.log('DEBUG REG-07 resJoin:', JSON.stringify(resJoin), 'errJoin:', JSON.stringify(errJoin));
 
     check(
       'REG-07',
       'Solicitar Sumarse a Encuentro Abierto (QA Guest)',
-      !errJoin && resJoin?.ok === true && resJoin?.estado === 'pendiente',
-      `Solicitud registrada con estado: ${resJoin?.estado}, ID: ${resJoin?.solicitud_id}`
+      !errJoin && resJoin?.ok === true && resJoin?.estado === 'pending',
+      `Solicitud registrada con estado: ${resJoin?.estado}, Request ID: ${resJoin?.request_id || resJoin?.solicitud_id}`
     );
+
+    // PRUEBA ESPECÍFICA: Solicitud Duplicada / Concurrente por el mismo usuario
+    const { data: resDup } = await guestClient.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: createdOpenId,
+      p_nombre: 'Tester Solicitante QA Reintento',
+      p_seat_count: 1,
+    });
+    check(
+      'CHK-DUP-01',
+      'Manejo de Solicitud Duplicada',
+      resDup?.ok === false && resDup?.error === 'already_requested',
+      `Reintento rechazado controladamente: ${resDup?.error}`
+    );
+
+    // PRUEBA ESPECÍFICA: Rechazo a Usuario Externo No Autorizado (PRE-LAUNCH Guard)
+    const { data: resExtJoin } = await extClient.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: createdOpenId,
+      p_nombre: 'Usuario Externo No Autorizado',
+      p_seat_count: 1,
+    });
+    check(
+      'CHK-EXT-01',
+      'Bloqueo PRE-LAUNCH a Usuario No Autorizado',
+      resExtJoin?.ok === false && resExtJoin?.error === 'pre_launch_restricted',
+      `Acceso denegado fail-closed: ${resExtJoin?.error}`
+    );
+
+    // PRUEBA ESPECÍFICA: Saturación de Cupos y Transición a Lista de Espera
+    // Insertamos participante confirmado en 'participantes' para llenar el cupo de 1
+    const { error: errPartInsert } = await adminClient.from('participantes').insert({
+      encuentro_id: createdOpenId,
+      user_id: guestId,
+      nombre_invitado: 'Tester Solicitante QA',
+      tipo_invitacion: 'individual',
+      estado: 'confirmado',
+      seat_count: 1,
+    });
+    if (errPartInsert) console.warn('Aviso insert participante:', errPartInsert);
+
+    // Ahora guest2 intenta solicitar: como max_participants=1 y hay 1 confirmado, cupos=0 -> debe retornar quota_exceeded
+    const { data: resQuotaFull, error: errQuotaFull } = await guest2Client.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: createdOpenId,
+      p_nombre: 'Tester 2 Cupo Lleno',
+      p_seat_count: 1,
+    });
+    if (errQuotaFull) console.warn('Aviso rpc resQuotaFull:', errQuotaFull);
+
+    check(
+      'CHK-CAP-01',
+      'Cupos Completos (Redirección a Waitlist)',
+      !errQuotaFull && resQuotaFull?.ok === false && resQuotaFull?.error === 'quota_exceeded',
+      `Rechazo canónico por cupo completo: ${resQuotaFull?.error}`
+    );
+
+    // PRUEBA ESPECÍFICA: Cola de Espera Existente (waitlist_waiting bloquea entrada directa a nuevos)
+    // Ampliamos cupos a 2 para tener 1 vacante
+    await adminClient.from('encuentros').update({ max_participants: 2 }).eq('id', createdOpenId);
+
+    // Insertamos una solicitud en waitlist_waiting para simular un solicitante previo en cola
+    const { error: errWaitInsert } = await adminClient.from('solicitudes_encuentro_abierto').insert({
+      encuentro_id: createdOpenId,
+      usuario_id: guest2Id,
+      nombre_solicitante: 'Tester 2 En Espera FIFO',
+      estado: 'waitlist_waiting',
+      seat_count: 1,
+    });
+    if (errWaitInsert) console.warn('Aviso insert waitlist_waiting:', errWaitInsert);
+
+    // Ahora un nuevo solicitante guest3 intenta solicitar directo:
+    // Aunque hay 1 cupo vacante (2 max - 1 confirmado = 1), como hay cola FIFO previa (waitlist_waiting),
+    // la RPC debe rechazar con quota_exceeded para que guest3 no saltee la cola
+    const { data: resWaitlistBlock, error: errWaitlistBlock } = await guest3Client.rpc('solicitar_sumarse_encuentro_abierto', {
+      p_encuentro_id: createdOpenId,
+      p_nombre: 'Tester 3 Intentando Saltear Cola',
+      p_seat_count: 1,
+    });
+    if (errWaitlistBlock) console.warn('Aviso rpc resWaitlistBlock:', errWaitlistBlock);
+
+    check(
+      'CHK-WAIT-01',
+      'Cola de Espera Previa (FIFO Quota Protection)',
+      !errWaitlistBlock && resWaitlistBlock?.ok === false && resWaitlistBlock?.error === 'quota_exceeded',
+      `Protección FIFO de lista de espera activa: ${resWaitlistBlock?.error}`
+    );
+
+    // Limpiamos solicitudes transaccionales y participantes del encuentro
+    await adminClient.from('solicitudes_encuentro_abierto').delete().eq('encuentro_id', createdOpenId);
+    await adminClient.from('participantes').delete().eq('encuentro_id', createdOpenId);
 
     // --------------------------------------------------------------------------
     // MÓDULO 6: Cambios de Estado y Coordinación
@@ -310,21 +463,24 @@ async function main() {
     );
 
     // --------------------------------------------------------------------------
-    // MÓDULO 7: Notificaciones y Mensajería
+    // MÓDULO 7: Notificaciones y Mensajería (Inbox Canónico)
     // --------------------------------------------------------------------------
-    console.log('\n--- 7. Notificaciones y Mensajería ---');
-    // Comprobar que el Host recibió la notificación en inbox
+    console.log('\n--- 7. Notificaciones y Mensajería (Inbox Canónico) ---');
+    // Comprobar que el Host recibió la notificación canónica en inbox
     const { data: inboxNotifs, error: errInbox } = await adminClient
       .from('inbox_notifications')
-      .select('id, tipo, titulo, mensaje')
-      .eq('usuario_id', hostId)
+      .select('id, notification_type, title, body, deep_link, payload')
+      .eq('recipient_user_id', hostId)
+      .order('created_at', { ascending: false })
       .limit(5);
+
+    const canonicalNotif = inboxNotifs?.find((n) => n.notification_type === 'open_encounter_join_requested');
 
     check(
       'REG-09',
-      'Notificación en Inbox para Host',
-      !errInbox && Array.isArray(inboxNotifs) && inboxNotifs.length > 0,
-      `Host recibió ${inboxNotifs?.length ?? 0} notificación(es). Tipo: ${inboxNotifs?.[0]?.tipo}`
+      'Notificación Canónica en Inbox para Host',
+      !errInbox && !!canonicalNotif,
+      `Host recibió notificación canónica tipo: ${canonicalNotif?.notification_type}, Deep Link: ${canonicalNotif?.deep_link}`
     );
 
     // Publicar mensaje de coordinación por parte del Host
@@ -332,7 +488,6 @@ async function main() {
       p_encuentro_id: createdOpenId,
       p_contenido: 'Mensaje de coordinación funcional de prueba',
     });
-    console.log('DEBUG REG-10 resMsg:', JSON.stringify(resMsg), 'errMsg:', JSON.stringify(errMsg));
 
     check(
       'REG-10',
