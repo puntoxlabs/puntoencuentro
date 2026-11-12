@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { isPlatformPublicLaunchActive } from '@/services/platformAccessService';
 
-const ENABLE_TEST_ACCESS_GATE = true; // Set to false or remove AccessGate before public launch.
 const ACCESS_STORAGE_KEY = 'puntoencuentro_test_access_v1';
 const EXPECTED_HASH = '298f4c329ee837515da80384316468597749d103d18f0a0cec8b8ae732088b19';
 
@@ -18,6 +18,7 @@ interface AccessGateProps {
 }
 
 export const AccessGate: React.FC<AccessGateProps> = ({ children }) => {
+  // Comprobación síncrona inicial de bypass local (cero parpadeo para testers autenticados)
   const [isGranted, setIsGranted] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(ACCESS_STORAGE_KEY);
@@ -31,17 +32,34 @@ export const AccessGate: React.FC<AccessGateProps> = ({ children }) => {
     return false;
   });
   
+  const [isPublicLaunch, setIsPublicLaunch] = useState<boolean>(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // If gate is disabled, just render children immediately
-  if (!ENABLE_TEST_ACCESS_GATE) {
-    return <>{children}</>;
-  }
+  useEffect(() => {
+    // Si ya tiene credencial de pruebas en localStorage, no requiere comprobar fase de plataforma
+    if (isGranted) return;
 
-  if (isGranted) {
+    let mounted = true;
+    isPlatformPublicLaunchActive()
+      .then((isOpen) => {
+        if (!mounted) return;
+        setIsPublicLaunch(isOpen);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setIsPublicLaunch(false); // Fail-closed ante cualquier error
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isGranted]);
+
+  // Si ya tiene acceso concedido localmente o si la plataforma está oficialmente abierta al público general
+  if (isGranted || isPublicLaunch) {
     return <>{children}</>;
   }
 

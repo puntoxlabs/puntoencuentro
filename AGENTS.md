@@ -13,6 +13,7 @@ Este archivo define las invariantes esenciales que gobiernan cualquier tarea en 
 - **Migraciones inmutables:** Las migraciones ya creadas o aplicadas son históricas e inalterables. Todo cambio de esquema o función se realiza mediante una nueva migración aditiva con timestamp.
 - **Autorización server-side:** La única fuente legítima de identidad para RLS y RPCs es `auth.uid()`. Nunca confiar en parámetros de usuario o IDs enviados desde el cliente.
 - **Infraestructura existente:** Reutilizar tablas, RPCs y contextos existentes antes de proponer esquemas o abstracciones paralelas.
+- **Fixtures y QA:** La gestión, ciclo de vida e higiene de datos de prueba en Staging se rigen por la política permanente de fixtures (`.agents/rules/staging-qa-fixtures.md`), prohibiendo `DELETE` en `encuentros` y protegiendo registros legítimos.
 
 ## 3. Modo de Trabajo y Contexto
 - **Lectura focalizada:** Si el prompt especifica archivos, leer primero esos archivos. No explorar `src/`, `supabase/` ni directorios completos salvo que exista una dependencia directa no resuelta.
