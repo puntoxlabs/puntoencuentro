@@ -22,9 +22,9 @@ flowchart TD
 ## 2. Paso a Paso para Habilitar a un Evaluador Manual
 
 ### Paso 1: Acceso Perimetral (Vercel)
-El evaluador debe poder sortear la pantalla de login de Vercel en `staging.puntoencuentro.com.ar`:
-* **Opción A (Recomendada para miembros del equipo):** Iniciar sesión en Vercel con la cuenta invitada al equipo.
-* **Opción B (Para testers externos o dispositivos de prueba):** Utilizar un enlace con el token de bypass de automatización generado desde el Dashboard de Vercel o configurando la cookie `x-vercel-set-bypass-cookie` con el valor de `VERCEL_AUTOMATION_BYPASS_SECRET`.
+El evaluador debe autenticarse en la barrera perimetral de Vercel en `staging.puntoencuentro.com.ar`:
+* **Método Exclusivo de Acceso para Evaluadores:** Iniciar sesión en Vercel con la cuenta personal/corporativa autorizada e invitada al equipo.
+* **Política de Confidencialidad:** Por razones de seguridad, el secreto de bypass de automatización (`VERCEL_AUTOMATION_BYPASS_SECRET`) es de uso estrictamente reservado para herramientas internas de CI/CD y **nunca debe distribuirse a evaluadores ni registrarse en guías operativas**.
 
 ### Paso 2: Desbloqueo de Interfaz (AccessGate)
 Al cargar la aplicación en el navegador:
