@@ -174,8 +174,10 @@ git push origin main
 
 Previo a declarar el lanzamiento abierto y recibir tráfico masivo de usuarios reales:
 
-- [ ] **1. Desactivar AccessGate en Producción (preservando Staging):**
-  En `src/components/AccessGate.tsx`, asegurar que la barrera de contraseña de acceso de pruebas esté desactivada para Producción (ej. condicionando `ENABLE_TEST_ACCESS_GATE = import.meta.env.VITE_APP_ENV === 'staging'` o `window.location.hostname.includes('staging')`), de modo que `puntoencuentro.com.ar` no solicite contraseña a usuarios reales mientras `staging.puntoencuentro.com.ar` permanece protegida.
+- [ ] **1. Control de Fase PRE-LAUNCH vs PUBLIC-LAUNCH (AccessGate ya desacoplado de hostnames):**
+  `src/components/AccessGate.tsx` ya fue desacoplado de hostnames mediante la migración `20261112120000_platform_pre_launch_access_control_v1.sql` (`isPlatformPublicLaunchActive()` / RPC `public.is_public_launch_open()`), y el contrato canónico de `solicitar_sumarse_encuentro_abierto` quedó restaurado en `20261112130000_fix_solicitar_sumarse_canonical_contract.sql`.
+  - Mientras Producción permanezca en PRE-LAUNCH (`public_launch_active = false`), permanecerá protegida de forma idéntica a Staging sin hardcodear dominios en el cliente.
+  - Al autorizarse la apertura pública en Producción, cambiar de fase en backend mediante `SELECT public.set_platform_launch_phase(true, 'Apertura pública Producción');` (manteniendo `public_launch_active = false` en Staging `wougfhfwqgmxhgvjqoua`), o bien mediante `VITE_PUBLIC_LAUNCH_ACTIVE=true` únicamente en el entorno Production de Vercel si aplica.
 - [ ] **2. Publicar Páginas Legales Aprobadas:**
   Completar los datos societarios/jurisdiccionales en `docs/PROPUESTA_PAGINAS_LEGALES_V1.md` y publicar las pantallas correspondientes en la aplicación para cumplir los requisitos de Google OAuth y transparencia a usuarios.
 - [ ] **3. Verificar Configuración Real de Idiomas:**

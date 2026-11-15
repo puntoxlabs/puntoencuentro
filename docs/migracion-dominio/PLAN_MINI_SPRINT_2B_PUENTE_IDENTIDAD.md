@@ -1,6 +1,6 @@
 # Matriz de Pruebas Adversariales y Plan de Implementación del Mini-Sprint 2B (Entregables 6 y 7)
 
-**Estado del documento:** Plan ejecutable propuesto para aprobación tras el cierre del Mini-Sprint 2A. **No iniciado.**  
+**Estado del documento:** Implementado en código (`src/services/domainMigrationBridgeService.ts`, `/auth/domain-bridge`, `/migrate-receive`), aplicado en Supabase Staging (`20261107120000_domain_identity_bridge_v1.sql` y `20261108163000_fix_transfer_anonymous_participantes_schema.sql`) y probado en PGlite/unitario (`test-domain-identity-bridge.ts`, `test-domain-bridge-frontend.ts`). **Feature flags (`VITE_ENABLE_DOMAIN_MIGRATION_BRIDGE`, `VITE_ENABLE_DOMAIN_MIGRATION_MANUAL_FALLBACK`) y kill switches SQL (`cross_origin_bridge_enabled`, `cross_origin_manual_enabled`) desactivados en `false` por defecto.** Pendiente de validación E2E real entre dos orígenes y definición del dominio definitivo.
 **Referencias directas:** Contratos SQL/RPC en [`MIGRACION_IDENTIDAD_DISENO.md`](./MIGRACION_IDENTIDAD_DISENO.md) (§5) y estados UX en [`RECORRIDOS_UX_RECUPERACION_DOMINIO.md`](./RECORRIDOS_UX_RECUPERACION_DOMINIO.md).
 
 ---

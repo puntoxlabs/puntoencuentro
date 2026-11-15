@@ -72,6 +72,29 @@ const DomainBridgeFeatureGate: React.FC<{ children: React.ReactNode }> = ({ chil
   return <>{children}</>;
 };
 
+const NotFoundFallback: React.FC = () => {
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  return (
+    <ScreenContainer>
+      <AppBar title={t('app_name', 'PuntoEncuentro')} />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+        <EmptyState
+          icon={<AlertCircle size={48} />}
+          title={t('not_found.title', 'Página no encontrada')}
+          description={t('not_found.description', 'El enlace que abriste no existe o cambió de dirección.')}
+          actions={
+            <Button variant="primary" onClick={() => navigate('/', { replace: true })}>
+              {t('not_found.go_home', 'Ir al inicio')}
+            </Button>
+          }
+        />
+      </div>
+    </ScreenContainer>
+  );
+};
+
 import InternalQAOverview from '@/screens/InternalQA/index';
 import QASessions from '@/screens/InternalQA/QASessions';
 import QASessionDetail from '@/screens/InternalQA/QASessionDetail';
@@ -158,6 +181,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/internal/qa/sessions" element={<QAGate><QASessions /></QAGate>} />
       <Route path="/internal/qa/sessions/:sessionId" element={<QAGate><QASessionDetail /></QAGate>} />
       <Route path="/internal/moderation" element={<ModerationGate><InternalModerationScreen /></ModerationGate>} />
+      <Route path="*" element={<NotFoundFallback />} />
     </Routes>
   </>
 );

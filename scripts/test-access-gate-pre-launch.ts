@@ -25,6 +25,21 @@ import {
 } from '@/services/platformAccessService';
 import { supabase } from '@/lib/supabase';
 
+type RpcResponse = Promise<{ data: unknown; error: unknown }>;
+type MinimalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'clear'>;
+
+interface MutableGlobal {
+  localStorage?: MinimalStorage;
+  window?: { location: { hostname: string } };
+}
+
+interface MutableSupabase {
+  rpc: (fn: string, ...args: unknown[]) => RpcResponse;
+}
+
+const mutableGlobal = globalThis as unknown as MutableGlobal;
+const mutableSupabase = supabase as unknown as MutableSupabase;
+
 // Mock de localStorage en entorno Node/SSR
 class LocalStorageMock {
   private store: Record<string, string> = {};
@@ -47,42 +62,42 @@ class LocalStorageMock {
 }
 
 describe('AccessGate — Arquitectura PRE-LAUNCH / PUBLIC-LAUNCH', () => {
-  const origLocalStorage = (globalThis as any).localStorage;
+  const origLocalStorage = mutableGlobal.localStorage;
   let mockStorage: LocalStorageMock;
 
   beforeEach(() => {
     mockStorage = new LocalStorageMock();
-    (globalThis as any).localStorage = mockStorage;
+    mutableGlobal.localStorage = mockStorage;
     clearPlatformAccessCache();
   });
 
   afterEach(() => {
-    (globalThis as any).localStorage = origLocalStorage;
+    mutableGlobal.localStorage = origLocalStorage;
     clearPlatformAccessCache();
   });
 
   describe('1. Servicio platformAccessService (Fail-Closed y Cache)', () => {
     test('1.1. Fail-Closed: retorna false cuando is_public_launch_open devuelve false en PRE-LAUNCH', async () => {
       // Mock de supabase.rpc retornando false
-      const origRpc = supabase.rpc;
-      (supabase as any).rpc = async (fn: string) => {
+      const origRpc = mutableSupabase.rpc;
+      mutableSupabase.rpc = async (fn: string) => {
         if (fn === 'is_public_launch_open') {
           return { data: false, error: null };
         }
-        return origRpc.call(supabase, fn as any);
+        return origRpc.call(supabase, fn);
       };
 
       try {
         const isOpen = await isPlatformPublicLaunchActive();
         assert.strictEqual(isOpen, false, 'En PRE-LAUNCH debe retornar false');
       } finally {
-        (supabase as any).rpc = origRpc;
+        mutableSupabase.rpc = origRpc;
       }
     });
 
     test('1.2. Fail-Closed: retorna false ante excepción o error de conexión RPC', async () => {
-      const origRpc = supabase.rpc;
-      (supabase as any).rpc = async () => {
+      const origRpc = mutableSupabase.rpc;
+      mutableSupabase.rpc = async () => {
         return { data: null, error: { message: 'Network connection refused' } };
       };
 
@@ -90,36 +105,36 @@ describe('AccessGate — Arquitectura PRE-LAUNCH / PUBLIC-LAUNCH', () => {
         const isOpen = await isPlatformPublicLaunchActive();
         assert.strictEqual(isOpen, false, 'Ante error de RPC debe fallar cerrado (false)');
       } finally {
-        (supabase as any).rpc = origRpc;
+        mutableSupabase.rpc = origRpc;
       }
     });
 
     test('1.3. Retorna true cuando is_public_launch_open es true (PUBLIC-LAUNCH)', async () => {
-      const origRpc = supabase.rpc;
-      (supabase as any).rpc = async (fn: string) => {
+      const origRpc = mutableSupabase.rpc;
+      mutableSupabase.rpc = async (fn: string) => {
         if (fn === 'is_public_launch_open') {
           return { data: true, error: null };
         }
-        return origRpc.call(supabase, fn as any);
+        return origRpc.call(supabase, fn);
       };
 
       try {
         const isOpen = await isPlatformPublicLaunchActive();
         assert.strictEqual(isOpen, true, 'En PUBLIC-LAUNCH debe retornar true');
       } finally {
-        (supabase as any).rpc = origRpc;
+        mutableSupabase.rpc = origRpc;
       }
     });
 
     test('1.4. Cache en memoria evita llamadas RPC consecutivas repetitivas', async () => {
       let callCount = 0;
-      const origRpc = supabase.rpc;
-      (supabase as any).rpc = async (fn: string) => {
+      const origRpc = mutableSupabase.rpc;
+      mutableSupabase.rpc = async (fn: string) => {
         if (fn === 'is_public_launch_open') {
           callCount++;
           return { data: false, error: null };
         }
-        return origRpc.call(supabase, fn as any);
+        return origRpc.call(supabase, fn);
       };
 
       try {
@@ -132,7 +147,37 @@ describe('AccessGate — Arquitectura PRE-LAUNCH / PUBLIC-LAUNCH', () => {
         await isPlatformPublicLaunchActive();
         assert.strictEqual(callCount, 2, 'Tras clearPlatformAccessCache debe volver a consultar');
       } finally {
-        (supabase as any).rpc = origRpc;
+        mutableSupabase.rpc = origRpc;
+      }
+    });
+
+    test('1.5. Fail-Closed con clientOverride desconectado: retorna false sin contaminar cache', async () => {
+      const origRpc = mutableSupabase.rpc;
+      let singletonCalls = 0;
+      mutableSupabase.rpc = async (fn: string) => {
+        if (fn === 'is_public_launch_open') {
+          singletonCalls++;
+          return { data: true, error: null };
+        }
+        return origRpc.call(supabase, fn);
+      };
+
+      const deadClient = {
+        rpc: async () => {
+          throw new Error('ECONNREFUSED 127.0.0.1:59999');
+        },
+      };
+
+      try {
+        const resultFromDead = await isPlatformPublicLaunchActive(deadClient);
+        assert.strictEqual(resultFromDead, false, 'Con cliente desconectado debe fallar cerrado (false)');
+        assert.strictEqual(singletonCalls, 0, 'No debe invocar el cliente singleton cuando se pasa clientOverride');
+
+        const resultFromSingleton = await isPlatformPublicLaunchActive();
+        assert.strictEqual(resultFromSingleton, true, 'El fallo del cliente inyectado no debe contaminar el cache global');
+        assert.strictEqual(singletonCalls, 1);
+      } finally {
+        mutableSupabase.rpc = origRpc;
       }
     });
   });
@@ -199,23 +244,32 @@ describe('AccessGate — Arquitectura PRE-LAUNCH / PUBLIC-LAUNCH', () => {
         'puntoencuentro.com.ar',
         'mi-nuevo-dominio.com',
       ];
+      const origWindow = mutableGlobal.window;
 
-      for (const host of hostnames) {
-        mockStorage.clear();
-        (globalThis as any).window = { location: { hostname: host } };
+      try {
+        for (const host of hostnames) {
+          mockStorage.clear();
+          mutableGlobal.window = { location: { hostname: host } };
 
-        const html = renderToString(
-          React.createElement(
-            AccessGate,
-            null,
-            React.createElement('div', { id: 'target' }, `Host: ${host}`)
-          )
-        );
+          const html = renderToString(
+            React.createElement(
+              AccessGate,
+              null,
+              React.createElement('div', { id: 'target' }, `Host: ${host}`)
+            )
+          );
 
-        assert.ok(
-          !html.includes(`Host: ${host}`),
-          `AccessGate no debe desbloquearse automáticamente en el host: ${host}`
-        );
+          assert.ok(
+            !html.includes(`Host: ${host}`),
+            `AccessGate no debe desbloquearse automáticamente en el host: ${host}`
+          );
+        }
+      } finally {
+        if (origWindow === undefined) {
+          delete mutableGlobal.window;
+        } else {
+          mutableGlobal.window = origWindow;
+        }
       }
     });
   });

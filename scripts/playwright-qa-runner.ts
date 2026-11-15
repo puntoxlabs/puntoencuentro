@@ -15,12 +15,45 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { chromium, Browser, Page } from '@playwright/test';
+import { chromium, Browser, Page, LaunchOptions } from '@playwright/test';
 
 const DIST_DIR = path.resolve(process.cwd(), 'dist');
 const PORT = 4173;
 const LOCAL_URL = `http://127.0.0.1:${PORT}`;
 const REMOTE_STAGING_URL = 'https://staging.puntoencuentro.com.ar';
+
+function resolveChromiumLaunchOptions(): LaunchOptions {
+  const defaultExec = chromium.executablePath();
+  if (defaultExec && fs.existsSync(defaultExec)) {
+    return { headless: true };
+  }
+
+  const envExec = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (envExec && fs.existsSync(envExec)) {
+    return { headless: true, executablePath: envExec };
+  }
+
+  const localAppData = process.env.LOCALAPPDATA;
+  if (localAppData) {
+    const msPlaywrightDir = path.join(localAppData, 'ms-playwright');
+    if (fs.existsSync(msPlaywrightDir)) {
+      const dirs = fs.readdirSync(msPlaywrightDir).sort().reverse();
+      for (const dir of dirs) {
+        const candidates = [
+          path.join(msPlaywrightDir, dir, 'chrome-win64', 'chrome.exe'),
+          path.join(msPlaywrightDir, dir, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe'),
+        ];
+        const found = candidates.find((candidate) => fs.existsSync(candidate));
+        if (found) {
+          console.log(`[Browser] Usando ejecutable Chromium local disponible: ${found}`);
+          return { headless: true, executablePath: found };
+        }
+      }
+    }
+  }
+
+  return { headless: true };
+}
 
 // Servidor estático con soporte SPA para servir dist/
 function startStaticServer(): Promise<http.Server> {
@@ -36,7 +69,7 @@ function startStaticServer(): Promise<http.Server> {
   };
 
   const server = http.createServer((req, res) => {
-    let reqPath = (req.url || '/').split('?')[0];
+    const reqPath = (req.url || '/').split('?')[0];
     let filePath = path.join(DIST_DIR, reqPath === '/' ? 'index.html' : reqPath);
 
     if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
@@ -85,7 +118,8 @@ async function main() {
   console.log('==============================================================================\n');
 
   const server = await startStaticServer();
-  const browser: Browser = await chromium.launch({ headless: true });
+  const launchOptions = resolveChromiumLaunchOptions();
+  const browser: Browser = await chromium.launch(launchOptions);
 
   try {
     // --------------------------------------------------------------------------
@@ -96,7 +130,7 @@ async function main() {
     const remotePage: Page = await remoteContext.newPage();
 
     console.log(`Navegando a ${REMOTE_STAGING_URL}...`);
-    const remoteResponse = await remotePage.goto(REMOTE_STAGING_URL, { waitUntil: 'load', timeout: 15000 });
+    await remotePage.goto(REMOTE_STAGING_URL, { waitUntil: 'load', timeout: 15000 });
     const finalUrl = remotePage.url();
     const pageTitle = await remotePage.title();
 
@@ -115,8 +149,15 @@ async function main() {
     const localContext = await browser.newContext();
     const localPage: Page = await localContext.newPage();
 
-    // 2.1. Sesión limpia: debe renderizar AccessGate
+    // 2.1. Sesión limpia: debe renderizar AccessGate y declarar lang="es-AR"
     await localPage.goto(LOCAL_URL, { waitUntil: 'networkidle' });
+
+    const htmlLang = await localPage.getAttribute('html', 'lang');
+    record(
+      'Atributo Idioma HTML (es-AR)',
+      htmlLang === 'es-AR',
+      `html[lang]="${htmlLang}"`
+    );
 
     const hasTitle = (await localPage.locator('h1').textContent())?.includes('PuntoEncuentro');
     const hasSubtitle = (await localPage.locator('h2').textContent())?.includes('Acceso de pruebas');
@@ -183,11 +224,16 @@ async function main() {
 
     const viewportSize = localPage.viewportSize();
     const isMobileResponsive = viewportSize?.width === 375 && viewportSize?.height === 667;
+    const overflowMetrics = await localPage.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    const noHorizontalOverflow = overflowMetrics.scrollWidth <= overflowMetrics.clientWidth;
 
     record(
-      'Viewport Móvil Emulado (375x667)',
-      isMobileResponsive,
-      `Ancho: ${viewportSize?.width}px, Alto: ${viewportSize?.height}px ajustados correctamente`
+      'Viewport Móvil Emulado (375x667) sin Overflow Horizontal',
+      isMobileResponsive && noHorizontalOverflow,
+      `Viewport: ${viewportSize?.width}x${viewportSize?.height}px | scrollWidth=${overflowMetrics.scrollWidth}px <= clientWidth=${overflowMetrics.clientWidth}px`
     );
 
     // 2.6. Rutas Profundas y Deep Links
@@ -202,6 +248,25 @@ async function main() {
       'Preservación de Ruta Profunda (/create)',
       preservesRoute,
       `URL actual conserva ruta profunda: ${currentUrl}`
+    );
+
+    // 2.7. Ruta inexistente: debe renderizar NotFoundFallback con retorno a Inicio
+    console.log('\n--- 8. Ruta Inexistente (Fallback 404 *) ---');
+    await localPage.goto(`${LOCAL_URL}/ruta-inexistente-qa-404`, { waitUntil: 'networkidle' });
+    const notFoundText = (await localPage.textContent('body')) || '';
+    const hasNotFoundHeading = notFoundText.includes('Página no encontrada');
+    const goHomeButton = localPage.locator('button:has-text("Ir al inicio")');
+    const hasGoHomeButton = await goHomeButton.isVisible();
+    if (hasGoHomeButton) {
+      await goHomeButton.click();
+      await localPage.waitForTimeout(300);
+    }
+    const redirectedHome = new URL(localPage.url()).pathname === '/';
+
+    record(
+      'Fallback 404 (*) Renderiza Estado Claro y Navega al Inicio',
+      hasNotFoundHeading && hasGoHomeButton && redirectedHome,
+      `Título="Página no encontrada": ${hasNotFoundHeading}, Botón="Ir al inicio": ${hasGoHomeButton}, URL retorno: ${localPage.url()}`
     );
 
     await localContext.close();

@@ -30,9 +30,12 @@ feature/*
 - **Dominio:** `https://staging.puntoencuentro.com.ar`
 - **Hosting:** Vercel (Preview Deployment asociado al branch `staging`).
 - **Rama Git:** `staging`.
-- **Backend:** Supabase Staging (proyecto independiente).
+- **Backend:** Supabase Staging (`wougfhfwqgmxhgvjqoua`, proyecto independiente).
 - **Datos:** Datos de prueba/demo, validaciones QA de producto y pruebas de integración.
-- **Acceso:** Público para QA (sin Vercel login requerido en este subdominio).
+- **Acceso (Fase PRE-LAUNCH vigente — Defensa en Profundidad en 3 Capas):**
+  1. **Capa 1 (Borde):** Vercel Deployment Protection / Authentication (SSO) activa sobre `staging.puntoencuentro.com.ar` (ver política operativa en [`GUIA_ACCESO_QA_MANUAL_PRE_LANZAMIENTO.md`](./GUIA_ACCESO_QA_MANUAL_PRE_LANZAMIENTO.md)).
+  2. **Capa 2 (Frontend):** `AccessGate` consulta server-side `public.is_public_launch_open()` (`false` en PRE-LAUNCH, desacoplado de hostnames) y solicita la clave del equipo de pruebas (validada por hash SHA-256).
+  3. **Capa 3 (Base de Datos / RLS / RPC):** `public.platform_access_control` (`public_launch_active = false`) + `public.qa_authorized_users` + `public.is_qa_authorized()` restringen lecturas de Discovery y escrituras de usuarios anónimos/externos no autorizados.
 - **Indexación:** Bloqueada con `<meta name="robots" content="noindex, nofollow" />`.
 - **Identificador visual:** Pie de página muestra `STAGING · {commit} · {fecha/hora build}`.
 
@@ -58,7 +61,7 @@ feature/*
 | Entorno | Proyecto Supabase | Propósito |
 | :--- | :--- | :--- |
 | **Producción** | `aurbicjwftjhwryhyjiq` | Base de datos real de usuarios |
-| **Staging** | Proyecto Staging dedicado | Testing funcional, QA, demo data |
+| **Staging** | `wougfhfwqgmxhgvjqoua` | Testing funcional, QA, demo data |
 | **Local** | Staging o PGlite local | Desarrollo sin riesgo de alterar producción |
 
 ---

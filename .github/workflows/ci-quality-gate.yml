@@ -1,0 +1,58 @@
+name: Quality Gate (Local Verification Only)
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+  pull_request:
+    branches:
+      - staging
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, Build and Isolated Local Suites
+    runs-on: ubuntu-latest
+    env:
+      VITE_IGNORE_LOCAL_ENV_FILES: 'true'
+      VITE_SUPABASE_URL: https://example-ci-placeholder.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      VITE_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+      VITE_APP_ENV: staging
+      VITE_APP_URL: https://staging.puntoencuentro.com.ar
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies (without workspaces override)
+        run: npm ci --workspaces=false
+
+      - name: TypeScript typecheck
+        run: npx --workspaces=false tsc -b
+
+      - name: Production Vite build
+        run: npm --workspaces=false run build
+
+      - name: Run deterministic unit and PGlite SQL security suites
+        run: |
+          node scripts/run-tests.mjs ./scripts/test-access-gate-pre-launch.ts
+          node scripts/run-tests.mjs ./scripts/test-domain-migration-readiness.ts
+          node scripts/run-tests.mjs ./scripts/test-domain-bridge-frontend.ts
+          node scripts/run-tests.mjs ./scripts/test-domain-identity-bridge.ts
+          node scripts/run-tests.mjs ./scripts/test-schema-parity-guard.ts
+          node scripts/run-tests.mjs ./scripts/test-pre-staging-verification-h1-h10.ts

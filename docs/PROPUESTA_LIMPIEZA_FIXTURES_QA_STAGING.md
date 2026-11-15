@@ -15,28 +15,29 @@ Durante la investigación de **DIF-18** en Supabase Staging (`wougfhfwqgmxhgvjqo
 
 ## 2. Propuesta de Limpieza Segura (Para ejecución posterior bajo autorización)
 
-> **Regla de oro:** No ejecutar esta limpieza en la rama ni en el PR de DIF-18. Requiere autorización explícita previa.
+> **Regla de oro:** No ejecutar esta limpieza sin autorización explícita previa. Cumplir estrictamente las invariantes de [`.agents/rules/staging-qa-fixtures.md`](../.agents/rules/staging-qa-fixtures.md): **prohibido `DELETE` sobre `public.encuentros`** y **prohibido mutar los 26 fixtures protegidos de la lista blanca**.
 
-### Enfoque No Destructivo Recomendado (Soft Cleanup)
-En lugar de un `DELETE` directo en tablas relacionales que pueda disparar cascadas o violar llaves foráneas históricas, la vía más segura y limpia es la transición de estado:
+### Enfoque No Destructivo Obligatorio (Soft Cleanup)
+En lugar de un `DELETE` directo o de alterar `estado = 'cancelado'` (que rompe la auditoría e integridad referencial histórica y puede disparar efectos secundarios), la higiene no destructiva desactiva la visibilidad pública conservando `estado = 'activo'`:
 
 ```sql
--- Ejecutar exclusivamente en Staging (wougfhfwqgmxhgvjqoua)
+-- Ejecutar exclusivamente en Staging (wougfhfwqgmxhgvjqoua) bajo autorización explícita
+-- NUNCA usar DELETE en encuentros ni modificar los 26 UUIDs de la lista blanca inviolable.
 UPDATE public.encuentros
-SET 
-  estado = 'cancelado',
-  cancellation_reason = 'qa_fixture_cleanup_dif18',
-  inscriptions_closed = true,
+SET
+  is_open = false,
   updated_at = NOW()
-WHERE 
-  titulo IN ('Encuentro T24', 'Encuentro T27')
-  AND created_at < '2026-11-10 00:00:00+00';
+WHERE
+  id = ANY($1::uuid[])
+  AND NOT (id = ANY($2::uuid[])) -- Lista blanca de los 26 fixtures protegidos (fail-closed)
+  AND estado = 'activo'
+  AND is_open = true;
 ```
 
 **Por qué funciona de forma limpia:**
-1. La RPC `get_discovery_encuentros_abiertos` filtra por encuentros activos y abiertos (`e.estado = 'abierto'` / `is_open = true`), por lo que desaparecen inmediatamente de Discovery sin romper relaciones de base de datos.
-2. No requiere modificar esquemas ni migraciones complejas.
-3. Se puede orquestar con un script Node/TS (`scripts/cleanup-staging-qa-fixtures.ts`) con el guard obligatorio `assertStagingEnvironment()`.
+1. La RPC `get_discovery_encuentros_abiertos` filtra por `is_open = true` y `estado = 'activo'`, por lo que al pasar `is_open = false` desaparecen de Discovery preservando íntegramente `estado = 'activo'`, `participantes`, `solicitudes_encuentro_abierto` y claves foráneas.
+2. Protege de forma explícita e irrevocable los **26 registros protegidos** definidos en `.agents/rules/staging-qa-fixtures.md`.
+3. Se orquesta únicamente mediante scripts aprobados que invoquen `assertStagingEnvironment()` en la primera línea.
 
 ---
 
@@ -44,22 +45,27 @@ WHERE
 
 Para evitar que futuras pruebas automatizadas saturen el Discovery de Staging con tarjetas de prueba acumuladas:
 
-1. **Patrón `try / finally` obligatorio en scripts QA:**
-   Todo script de prueba o validación que inserte datos en Staging debe almacenar los IDs generados en un arreglo y eliminarlos o cancelarlos en el bloque `finally`:
+1. **Patrón `try / finally` no destructivo en scripts QA:**
+   Todo script de prueba o validación que inserte datos en Staging debe almacenar los IDs explícitos generados y desactivarlos (sin `DELETE` en `encuentros`) en el bloque `finally`, verificando que no pertenezcan a la lista blanca protegida:
    ```ts
    const createdEncounterIds: string[] = [];
    try {
      // ejecución del test...
    } finally {
      if (createdEncounterIds.length > 0) {
-       await stagingClient.from('encuentros').delete().in('id', createdEncounterIds);
+       await stagingClient
+         .from('encuentros')
+         .update({ is_open: false })
+         .in('id', createdEncounterIds);
      }
    }
    ```
 
-2. **Nomenclatura y Tagging Estandarizado:**
-   Todos los encuentros de prueba creados automáticamente deben llevar un prefijo detectable:
-   `[QA-EPHEMERAL] <titulo>` y un metadato en una columna de auditoría o descripción.
+2. **Nomenclatura y Tagging Estandarizado (según `.agents/rules/staging-qa-fixtures.md`):**
+   Todos los encuentros de prueba deben llevar su prefijo obligatorio en `titulo` y `open_public_title`:
+   - `[QA-E2E:<runId>]` para corridas automatizadas de CI/Playwright.
+   - `[QA-DYN:<suiteId>]` para pruebas transaccionales dinámicas.
+   - `[QA-TMP]` para pruebas manuales exploratorias (desactivadas manualmente tras concluir la prueba).
 
-3. **Script de Higiene Programada (Sweep):**
-   Un script `scripts/sweep-stale-qa-encounters.ts` que busque encuentros creados por usuarios QA o con prefijo `[QA-EPHEMERAL]` con más de 48 horas de vida y los archive automáticamente.
+3. **Sin Automatizaciones con Escritura Autónoma:**
+   Conforme a la política permanente de fixtures, **no se configuran cron jobs ni triggers de limpieza automática con escritura** en Staging. Toda limpieza de residuos `[QA-E2E]` / `[QA-DYN]` / `[QA-TMP]` se planifica mediante dry-run de solo lectura sobre manifiestos o UUIDs explícitos y se ejecuta únicamente con autorización humana expresa.
