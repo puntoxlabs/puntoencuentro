@@ -14,3 +14,5 @@ export { HomeCreateOrOpenInfo } from './HomeCreateOrOpenInfo';
 export { HomeIntentionsBand } from './HomeIntentionsBand';
 export { HomeAmbientBrushes } from './HomeAmbientBrushes';
 export { HomePendingInvitationsBar } from './invitations/HomePendingInvitationsBar';
+export { HomeDualPathHeroPreview } from './HomeDualPathHeroPreview';
+export type { HomeV3Variant, HomeDualPathHeroPreviewProps } from './HomeDualPathHeroPreview';

@@ -1,0 +1,599 @@
+/* HomeDualPathHeroPreview.css — Propuestas Home V3 (V3-A y V3-B) sobre ADN V2 + GSAP */
+
+.home-dual-hero {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0.25rem 0 0;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 6;
+}
+
+.home-dual-hero__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.home-dual-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.72rem;
+  background-color: rgba(241, 245, 249, 0.92);
+  color: var(--color-on-surface-variant, #4B5162);
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: var(--radius-pill, 9999px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(209, 214, 226, 0.85);
+}
+
+.home-dual-hero__title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.12;
+  color: var(--color-on-surface, #0F1322);
+  margin: 0;
+  letter-spacing: -0.035em;
+}
+
+.home-dual-hero__title-accent {
+  color: #0D9488;
+}
+
+.home-dual-hero__subtitle {
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--color-on-surface-variant, #4B5162);
+  max-width: 520px;
+  margin: 0;
+}
+
+/* ── Badges, pills y CTAs compartidos ── */
+.home-dual-card__badge-row {
+  margin-bottom: 0.4rem;
+}
+
+.home-dual-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-pill, 9999px);
+  white-space: nowrap;
+}
+
+.home-dual-card__badge--invite {
+  background-color: var(--color-primary-container, #E5EDFF);
+  color: var(--color-primary-dark, #123AA1);
+}
+
+.home-dual-card__badge--intent {
+  background-color: #CCFBF1;
+  color: #115E59;
+}
+
+.home-dual-card__title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 0.32rem;
+  color: var(--color-on-surface, #0F1322);
+  letter-spacing: -0.015em;
+}
+
+.home-dual-card__desc {
+  font-size: 0.84rem;
+  line-height: 1.38;
+  color: var(--color-on-surface-variant, #4B5162);
+  margin: 0 0 0.55rem;
+}
+
+.home-dual-examples {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  margin: 0 0 0.7rem;
+  padding: 0;
+}
+
+.home-dual-examples--inline {
+  margin: 0;
+}
+
+.home-dual-example-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-on-surface, #0F1322);
+  background-color: var(--color-surface-variant, #F0F3F9);
+  border: 1px solid rgba(209, 214, 226, 0.75);
+  padding: 0.2rem 0.52rem;
+  border-radius: var(--radius-pill, 9999px);
+  white-space: nowrap;
+}
+
+.home-dual-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  font-weight: 700;
+  font-size: 0.94rem;
+  border-radius: var(--radius-pill, 9999px);
+}
+
+.home-dual-cta--invite {
+  box-shadow: 0 4px 12px rgba(24, 76, 212, 0.22);
+}
+
+.home-dual-cta--intent {
+  border-color: rgba(13, 148, 136, 0.52);
+  color: #0F766E;
+  background-color: rgba(240, 253, 250, 0.85);
+}
+
+.home-dual-cta--intent:hover:not(:disabled) {
+  background-color: #0D9488;
+  border-color: #0D9488;
+  color: #FFFFFF;
+}
+
+.home-dual-cta--intent:disabled {
+  opacity: 0.65;
+  color: #115E59;
+  border-color: rgba(13, 148, 136, 0.32);
+  background-color: rgba(240, 253, 250, 0.55);
+}
+
+.home-dual-cta:focus-visible,
+.home-dual-intent-clear:focus-visible {
+  outline: 2px solid var(--color-primary, #184CD4);
+  outline-offset: 2px;
+}
+
+.home-dual-card__guarantee {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-success, #039855);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.home-dual-card__guarantee-icon {
+  flex-shrink: 0;
+}
+
+.home-dual-card__helper {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-on-surface-variant, #64748B);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.home-dual-hero__suggestions {
+  margin-top: 0.65rem;
+  width: 100%;
+  position: relative;
+  z-index: 6;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PROPUESTA V3-A: Camino A destacado arriba + Camino B (Tengo ganas de...) abajo
+   ══════════════════════════════════════════════════════════════════════════ */
+.home-v3a-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.home-v3a-invite-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #F3F7FF 0%, #FFFFFF 55%, #F8FAFF 100%);
+  border: 1.5px solid rgba(24, 76, 212, 0.28);
+  border-radius: 20px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 8px 22px rgba(24, 76, 212, 0.08), 0 2px 6px rgba(15, 19, 34, 0.04);
+  box-sizing: border-box;
+}
+
+.home-v3a-invite-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.home-v3a-invite-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.home-v3a-invite-card__copy .home-dual-card__desc {
+  margin-bottom: 0;
+}
+
+.home-v3a-invite-card__action {
+  width: 100%;
+}
+
+.home-v3a-invite-card__guarantee {
+  justify-content: flex-start;
+  text-align: left;
+  padding-top: 0.1rem;
+}
+
+.home-v3a-intent-block {
+  width: 100%;
+}
+
+.home-v3a-intent-block .home-intent-wrapper {
+  margin-top: 0;
+  gap: 0.5rem;
+}
+
+.home-v3a-intent-block .home-intent-card {
+  border-radius: 18px;
+  padding: 0.65rem 0.95rem 0.5rem;
+}
+
+.home-v3a-intent-block .home-intent-textarea {
+  min-height: 2.6rem;
+  font-size: 0.96rem;
+}
+
+.home-v3a-intent-block .home-intent-submit-btn {
+  height: 44px;
+  font-size: 0.96rem;
+  background-color: #0F766E;
+  box-shadow: 0 3px 10px rgba(13, 148, 136, 0.2);
+}
+
+.home-v3a-intent-block .home-intent-submit-btn:not(:disabled):hover {
+  background-color: #115E59;
+  box-shadow: 0 5px 14px rgba(13, 148, 136, 0.28);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PROPUESTA V3-B: Dos caminos diferenciados, jerarquía equilibrada
+   ══════════════════════════════════════════════════════════════════════════ */
+.home-dual-hero__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.625rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.home-dual-card {
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  padding: 0.8rem 0.95rem;
+  border: 1.5px solid var(--color-outline-variant, #D1D6E2);
+  box-shadow: 0 6px 18px rgba(15, 19, 34, 0.05);
+  box-sizing: border-box;
+}
+
+.home-dual-card--invite {
+  border-color: rgba(24, 76, 212, 0.26);
+  background: linear-gradient(180deg, #F6F9FF 0%, #FFFFFF 42%);
+}
+
+.home-dual-card--intent {
+  border-color: rgba(13, 148, 136, 0.28);
+  background: linear-gradient(180deg, #F2FFFC 0%, #FFFFFF 42%);
+}
+
+.home-dual-intent-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.home-dual-intent-field {
+  position: relative;
+  margin-bottom: 0.55rem;
+}
+
+.home-dual-intent-textarea {
+  width: 100%;
+  min-height: 3.1rem;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-outline-variant, #D1D6E2);
+  padding: 0.55rem 2rem 0.55rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.38;
+  color: var(--color-on-surface, #0F1322);
+  background-color: var(--color-surface, #FFFFFF);
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.home-dual-intent-textarea:focus-visible {
+  outline: none;
+  border-color: #0D9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.16);
+}
+
+.home-dual-intent-clear {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-variant, #F1F5F9);
+  color: var(--color-on-surface-variant, #64748B);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.home-dual-intent-clear:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.home-dual-card__footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* ── Mobile compacto (< 640px): garantiza ambos caminos arriba del fold en 375x667 ── */
+@media (max-width: 639px) {
+  .home-dual-hero__header {
+    gap: 0.18rem;
+    margin-bottom: 0.42rem;
+  }
+
+  .home-dual-hero__title {
+    font-size: 1.46rem;
+  }
+
+  .home-dual-hero__subtitle {
+    font-size: 0.79rem;
+    line-height: 1.24;
+    max-width: 335px;
+  }
+
+  .home-v3a-stack {
+    gap: 0.48rem;
+  }
+
+  .home-v3a-invite-card {
+    padding: 0.58rem 0.78rem;
+    gap: 0.28rem;
+    border-radius: 16px;
+  }
+
+  .home-v3a-invite-card__top {
+    gap: 0.28rem;
+  }
+
+  .home-v3a-invite-card__main {
+    gap: 0.36rem;
+  }
+
+  .home-v3a-intent-block .home-intent-wrapper {
+    gap: 0.38rem;
+  }
+
+  .home-v3a-intent-block .home-intent-card {
+    padding: 0.48rem 0.78rem 0.34rem;
+    border-radius: 16px;
+  }
+
+  .home-v3a-intent-block .home-intent-textarea {
+    min-height: 2.15rem;
+    font-size: 0.9rem;
+  }
+
+  .home-v3a-intent-block .home-intent-actions {
+    padding-top: 0.22rem;
+    margin-top: 0.12rem;
+  }
+
+  .home-v3a-intent-block .home-intent-tool-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .home-v3a-intent-block .home-intent-submit-btn {
+    height: 39px;
+    font-size: 0.9rem;
+  }
+
+  .home-dual-hero__grid {
+    gap: 0.46rem;
+  }
+
+  .home-dual-card {
+    padding: 0.56rem 0.78rem;
+    border-radius: 16px;
+  }
+
+  .home-dual-card__badge-row {
+    margin-bottom: 0.18rem;
+  }
+
+  .home-dual-card__badge {
+    font-size: 10.5px;
+    padding: 0.16rem 0.5rem;
+  }
+
+  .home-dual-card__title {
+    font-size: 1rem;
+    margin-bottom: 0.16rem;
+  }
+
+  .home-dual-card__desc {
+    font-size: 0.775rem;
+    line-height: 1.26;
+    margin-bottom: 0.32rem;
+  }
+
+  .home-dual-examples {
+    gap: 0.2rem;
+    margin-bottom: 0.38rem;
+  }
+
+  .home-dual-example-pill {
+    font-size: 10.5px;
+    padding: 0.13rem 0.35rem;
+    gap: 0.16rem;
+  }
+
+  .home-dual-cta {
+    min-height: 38px;
+    font-size: 0.88rem;
+    padding: 6px 14px;
+  }
+
+  .home-dual-intent-field {
+    margin-bottom: 0.32rem;
+  }
+
+  .home-dual-intent-textarea {
+    min-height: 2.3rem;
+    padding: 0.36rem 1.75rem 0.36rem 0.6rem;
+    font-size: 0.875rem;
+  }
+
+  .home-dual-card__footer {
+    gap: 0.22rem;
+  }
+
+  .home-dual-card__guarantee,
+  .home-dual-card__helper {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 385px) {
+  .home-dual-example-pill {
+    font-size: 10px;
+    padding: 0.12rem 0.28rem;
+    gap: 0.14rem;
+  }
+}
+
+/* ── Tablet y Desktop (>= 640px y >= 768px) ── */
+@media (min-width: 640px) {
+  .home-dual-hero__title {
+    font-size: 2.15rem;
+  }
+
+  .home-dual-hero__subtitle {
+    font-size: 0.96rem;
+  }
+
+  .home-v3a-invite-card {
+    padding: 1.05rem 1.25rem;
+  }
+
+  .home-v3a-invite-card__main {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .home-v3a-invite-card__copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .home-v3a-invite-card__action {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .home-v3a-cta {
+    min-width: 215px;
+  }
+
+  .home-v3a-intent-block .home-intent-textarea {
+    min-height: 3.1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .home-dual-hero__header {
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+  }
+
+  .home-dual-hero__title {
+    font-size: 2.45rem;
+  }
+
+  .home-dual-hero__subtitle {
+    font-size: 1rem;
+  }
+
+  .home-dual-hero__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .home-dual-card {
+    padding: 1.05rem 1.1rem;
+  }
+
+  .home-dual-card__title {
+    font-size: 1.18rem;
+  }
+
+  .home-dual-card__desc {
+    font-size: 0.875rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .home-dual-intent-textarea {
+    min-height: 4.5rem;
+  }
+
+  .home-dual-cta {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dual-intent-textarea,
+  .home-dual-cta {
+    transition: none;
+  }
+}

@@ -12,6 +12,7 @@ interface HomeIntentInputProps {
   isSubmitting?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  compact?: boolean;
   onFocusChange?: (isFocused: boolean) => void;
   isListeningChange?: (isListening: boolean) => void;
 }
@@ -23,6 +24,7 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
   isSubmitting = false,
   placeholder,
   disabled = false,
+  compact = false,
   onFocusChange,
   isListeningChange,
 }) => {
@@ -50,9 +52,10 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    const minHeight = compact ? 34 : 60;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, 60), 160)}px`;
-  }, [value]);
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), 160)}px`;
+  }, [value, compact]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.key === 'Enter' && !e.shiftKey) || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
@@ -117,7 +120,7 @@ export const HomeIntentInput: React.FC<HomeIntentInputProps> = ({
           onBlur={() => onFocusChange?.(false)}
           placeholder={resolvedPlaceholder}
           disabled={disabled || isSubmitting}
-          rows={2}
+          rows={compact ? 1 : 2}
           aria-label={t('home.intent_aria_label', { defaultValue: 'Tengo ganas de…' })}
           data-testid="home-intent-textarea"
         />

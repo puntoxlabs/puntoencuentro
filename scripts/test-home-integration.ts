@@ -18,13 +18,18 @@ import {
   HomeCreateOrOpenInfo,
   HomeIntentionsBand,
   HomeAmbientBrushes,
+  HomeDualPathHeroPreview,
   FLOATING_TAGS_CATALOG,
   ANIMATED_PHOTOS_CATALOG,
 } from '../src/components/home/index';
 import HomeDynamicCanvasGsap from '../src/components/home/HomeDynamicCanvasGsap';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import Home, { formatBuildTimestamp } from '../src/screens/Home';
+import Home, {
+  formatBuildTimestamp,
+  isHomeV3PreviewAllowed,
+  isLocalDevAuthFixtureAllowed,
+} from '../src/screens/Home';
 import { AuthContext } from '../src/contexts/AuthContext';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
 import { I18nextProvider } from 'react-i18next';
@@ -2569,6 +2574,190 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(html5GanasV1.includes('Gana número 4'), 'V1 debe mostrar gana 4 sin limitar');
       assert.ok(html5GanasV1.includes('Gana número 5'), 'V1 debe mostrar gana 5 sin limitar');
       assert.ok(!html5GanasV1.includes('pe-intenciones-expand-btn'), 'V1 NO debe renderizar pe-intenciones-expand-btn');
+    });
+  });
+
+  describe('16. Previews Protegidas de Home V3 (V3-A y V3-B) en Staging y Aislamiento de Producción / previewAuth', () => {
+    const visitorAuthValue = {
+      user: null,
+      session: null,
+      loading: false,
+      isTransferClaimPending: false,
+      transferClaimStatus: 'idle' as const,
+      transferClaimError: null,
+      retryTransferClaim: async () => false,
+      isAuthenticated: false,
+      isAnonymousUser: false,
+      isPermanentUser: false,
+      signInWithGoogle: async () => ({ ok: true as const, alreadyLoggedIn: false }),
+      signInWithGoogleForCoordination: async () => ({ ok: true as const, alreadyLoggedIn: false }),
+      signInWithGoogleForDiscovery: async () => ({ ok: true as const, alreadyLoggedIn: false }),
+      checkAnonymousUpgradeState: async () => null,
+      createTransferTicket: async () => ({ ok: false, error: 'not_applicable' }),
+      signOut: async () => {},
+    };
+
+    const renderHomeForTest = (
+      props: Partial<React.ComponentProps<typeof Home>> = {},
+      initialEntry = '/'
+    ) =>
+      renderToString(
+        React.createElement(
+          AuthContext.Provider,
+          { value: visitorAuthValue },
+          React.createElement(
+            I18nextProvider,
+            { i18n },
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: [initialEntry] },
+              React.createElement(NotificationsProvider, null, React.createElement(Home, props))
+            )
+          )
+        )
+      );
+
+    test('A. isHomeV3PreviewAllowed habilita Staging y Desarrollo local, y bloquea Producción / orígenes no autorizados', () => {
+      assert.equal(
+        isHomeV3PreviewAllowed({
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        true,
+        'Debe permitir V3 en origen canónico de Staging'
+      );
+      assert.equal(
+        isHomeV3PreviewAllowed({
+          appEnv: 'development',
+          origin: 'http://localhost:5173',
+          hostname: 'localhost',
+        }),
+        true,
+        'Debe permitir V3 en desarrollo local'
+      );
+      assert.equal(
+        isHomeV3PreviewAllowed({
+          appEnv: 'production',
+          origin: 'https://puntoencuentro.com.ar',
+          hostname: 'puntoencuentro.com.ar',
+        }),
+        false,
+        'Debe bloquear V3 en Producción'
+      );
+      assert.equal(
+        isHomeV3PreviewAllowed({
+          appEnv: 'staging',
+          origin: 'https://puntoencuentro.com.ar',
+          hostname: 'puntoencuentro.com.ar',
+        }),
+        false,
+        'Debe bloquear V3 si el origen es puntoencuentro.com.ar aunque appEnv sea staging'
+      );
+      assert.equal(
+        isHomeV3PreviewAllowed({
+          appEnv: 'preview',
+          origin: 'https://puntoencuentro-preview.vercel.app',
+          hostname: 'puntoencuentro-preview.vercel.app',
+        }),
+        false,
+        'No debe habilitar V3 en orígenes no autorizados'
+      );
+    });
+
+    test('B. "/" conserva Home V2 + GSAP como predeterminada en development, staging y production', () => {
+      for (const appEnv of ['development', 'staging', 'production'] as const) {
+        const html = renderHomeForTest({ appEnv }, '/');
+        assert.ok(html.includes('home-v2-variant'), `"/" en ${appEnv} debe continuar en Home V2`);
+        assert.ok(html.includes('home-hero-subtitle sr-only'), `"/" en ${appEnv} debe conservar Hero V2`);
+        assert.ok(!html.includes('home-dual-path-hero-preview'), `"/" en ${appEnv} no debe activar V3 por defecto`);
+      }
+    });
+
+    test('C. En Staging se renderizan V3-A y V3-B manteniendo Crear una invitación, Tengo ganas de… y controles vigentes', () => {
+      const htmlV3A = renderHomeForTest({ homeVariant: 'v3a', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3a');
+      assert.ok(htmlV3A.includes('home-hero-wrapper--v3a'), 'Staging debe renderizar wrapper V3-A');
+      assert.ok(htmlV3A.includes('home-v3a-invite-card'), 'V3-A debe mostrar tarjeta destacada arriba');
+      assert.ok(htmlV3A.includes('Crear una invitación'), 'V3-A debe mostrar Crear una invitación');
+      assert.ok(htmlV3A.includes('Tus invitados pueden confirmar sin registrarse.'), 'V3-A debe conservar garantía sin registro');
+      assert.ok(htmlV3A.includes('Tengo ganas de…'), 'V3-A debe conservar Tengo ganas de…');
+      assert.ok(htmlV3A.includes('Hagamos que pase'), 'V3-A debe conservar Hagamos que pase');
+
+      const htmlV3B = renderHomeForTest({ homeVariant: 'v3b', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3b');
+      assert.ok(htmlV3B.includes('home-hero-wrapper--v3b'), 'Staging debe renderizar wrapper V3-B');
+      assert.ok(htmlV3B.includes('home-dual-hero__grid'), 'V3-B debe mostrar la grilla equilibrada');
+      assert.ok(htmlV3B.includes('Crear una invitación'), 'V3-B debe mostrar Crear una invitación');
+      assert.ok(htmlV3B.includes('Tengo ganas de…'), 'V3-B debe conservar Tengo ganas de…');
+      assert.ok(htmlV3B.includes('Hagamos que pase'), 'V3-B debe conservar Hagamos que pase');
+
+      const standaloneV3A = renderToString(
+        React.createElement(HomeDualPathHeroPreview, {
+          variant: 'v3a',
+          onCreateInvitationClick: () => {},
+          onIntentSubmit: () => {},
+        })
+      );
+      assert.ok(standaloneV3A.includes('home-dual-hero--v3a'));
+    });
+
+    test('D. En Producción tanto prop homeVariant="v3a" como ?homePreview=v3a son ignorados y muestran Home V2', () => {
+      const htmlProdProp = renderHomeForTest({ homeVariant: 'v3a', appEnv: 'production' }, '/');
+      assert.ok(!htmlProdProp.includes('home-dual-path-hero-preview'), 'Producción no debe renderizar V3 por prop');
+      assert.ok(htmlProdProp.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2');
+
+      const htmlProdQuery = renderHomeForTest({ appEnv: 'production' }, '/?homePreview=v3b');
+      assert.ok(!htmlProdQuery.includes('home-dual-path-hero-preview'), 'Producción no debe activar V3 vía ?homePreview');
+      assert.ok(htmlProdQuery.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2 ante ?homePreview');
+    });
+
+    test('E. isLocalDevAuthFixtureAllowed prohíbe ?previewAuth=permanent en Staging y Producción incluso en localhost', () => {
+      assert.equal(
+        isLocalDevAuthFixtureAllowed({
+          appEnv: 'staging',
+          protocol: 'http:',
+          hostname: 'localhost',
+          origin: 'http://localhost:4189',
+        }),
+        false,
+        'Staging jamás debe habilitar previewAuth ni siquiera en localhost'
+      );
+      assert.equal(
+        isLocalDevAuthFixtureAllowed({
+          appEnv: 'staging',
+          protocol: 'https:',
+          hostname: 'staging.puntoencuentro.com.ar',
+          origin: 'https://staging.puntoencuentro.com.ar',
+        }),
+        false,
+        'Staging remoto jamás debe habilitar previewAuth'
+      );
+      assert.equal(
+        isLocalDevAuthFixtureAllowed({
+          appEnv: 'production',
+          protocol: 'http:',
+          hostname: 'localhost',
+          origin: 'http://localhost:4189',
+        }),
+        false,
+        'Producción jamás debe habilitar previewAuth'
+      );
+      assert.equal(
+        isLocalDevAuthFixtureAllowed({
+          appEnv: 'development',
+          protocol: 'http:',
+          hostname: 'localhost',
+          origin: 'http://localhost:5173',
+        }),
+        true,
+        'Desarrollo local http://localhost debe mantener disponible el fixture'
+      );
+
+      const htmlStagingFixtureAttempt = renderHomeForTest(
+        { homeVariant: 'v3a', appEnv: 'staging' },
+        '/preview/home-v3a?previewAuth=permanent'
+      );
+      assert.ok(!htmlStagingFixtureAttempt.includes('Asado de cumple en lo de Martín'), 'Staging no debe cargar encuentros fixture');
+      assert.ok(!htmlStagingFixtureAttempt.includes('home-header-avatar-initials">AG<'), 'Staging no debe simular avatar de usuario permanente');
     });
   });
 });

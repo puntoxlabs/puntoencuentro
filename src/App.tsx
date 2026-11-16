@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from '@/screens/Home';
+import Home, { isHomeV3PreviewAllowed } from '@/screens/Home';
 import PreviewHomeD from '@/screens/PreviewHomeD';
 import PreviewHomeGsap from '@/screens/PreviewHomeGsap';
 import CreateWizard from '@/screens/CreateWizard';
@@ -109,6 +109,8 @@ import { TransferClaimBanner } from '@/components/auth/TransferClaimBanner';
 const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
+  const v3PreviewAllowed = isHomeV3PreviewAllowed();
+
   React.useEffect(() => {
     const currentEnv = resolveAppEnvironment();
     const isStagingOrPreview =
@@ -140,6 +142,12 @@ const AppRoutes: React.FC = () => {
       <Route path="/solicitudes" element={<Home />} />
       <Route path="/preview/home-d" element={<PreviewHomeD />} />
       <Route path="/preview/home-gsap" element={<PreviewHomeGsap />} />
+      {v3PreviewAllowed && (
+        <>
+          <Route path="/preview/home-v3a" element={<Home homeVariant="v3a" forcedVariant="gsap" />} />
+          <Route path="/preview/home-v3b" element={<Home homeVariant="v3b" forcedVariant="gsap" />} />
+        </>
+      )}
       <Route path="/create" element={<CreateWizard />} />
       <Route path="/create/ai" element={AI_CREATION_ENABLED ? <CreateAIWizard /> : <CreateWizard />} />
       <Route path="/create/coordination" element={<CreateCoordinationWizard />} />

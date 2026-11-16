@@ -1642,4 +1642,20 @@ body:has(.login-required-sheet) .home-fab-container {
   }
 }
 
+/* ── Home V3 Preview (Dual-Path sobre ADN V2 + GSAP) ── */
+.home-hero-wrapper--gsap.home-hero-wrapper--v3 {
+  padding-top: 4.35rem;
+  padding-bottom: 2.85rem;
+  min-height: auto;
+}
+
+@media (min-width: 1024px) {
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3 {
+    padding-top: 1.75rem;
+    padding-bottom: 2.25rem;
+    min-height: 480px;
+  }
+}
+
+
 

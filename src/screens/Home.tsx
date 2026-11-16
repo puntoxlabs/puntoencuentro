@@ -43,7 +43,14 @@ import type { ThemeId } from '@/lib/themes';
 import throttle from 'lodash/throttle';
 import { CreationAccountChoiceSheet } from '@/components/ui/CreationAccountChoiceSheet';
 import { DATE_COORDINATION_ENABLED, ENABLE_DOMAIN_MIGRATION_BRIDGE } from '@/config/features';
-import { isCurrentOriginLegacy, getTargetMigrationOrigin, getBrandConfig } from '@/config/domainConfig';
+import {
+  isCurrentOriginLegacy,
+  getTargetMigrationOrigin,
+  getBrandConfig,
+  resolveAppEnvironment,
+  DEFAULT_STAGING_ORIGIN,
+  DEFAULT_PRODUCTION_ORIGIN,
+} from '@/config/domainConfig';
 import { isLocalSessionRetired } from '@/services/domainMigrationBridgeService';
 import { EncounterModeChoiceSheet } from '@/components/ui/EncounterModeChoiceSheet';
 import { useStartCoordinationEncounter } from '@/hooks/useStartCoordinationEncounter';
@@ -65,6 +72,8 @@ import {
   HomeIntentionsBand,
   HomeAmbientBrushes,
   HomePendingInvitationsBar,
+  HomeDualPathHeroPreview,
+  type HomeV3Variant,
 } from '@/components/home';
 import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
@@ -457,11 +466,96 @@ export function formatBuildTimestamp(raw: string): string {
   return raw;
 }
 
+/* ─── Guards explícitos de entorno y origen para Previews V3 y Fixture Local ── */
+const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Habilita las previews Home V3 (V3-A / V3-B) exclusivamente en Desarrollo local
+ * o en el entorno y origen autorizado de Staging (`https://staging.puntoencuentro.com.ar`).
+ * Bloqueado explícitamente en Producción.
+ */
+export function isHomeV3PreviewAllowed(options?: {
+  appEnv?: string;
+  origin?: string;
+  hostname?: string;
+}): boolean {
+  if (!options?.appEnv && typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'production') {
+    return false;
+  }
+
+  const effectiveEnv = (options?.appEnv || resolveAppEnvironment()).trim().toLowerCase();
+  if (effectiveEnv === 'production') {
+    return false;
+  }
+  if (effectiveEnv !== 'staging' && effectiveEnv !== 'development') {
+    return false;
+  }
+
+  const hasBrowser = typeof window !== 'undefined';
+  if (hasBrowser || options?.origin !== undefined || options?.hostname !== undefined) {
+    const runtimeOrigin = options?.origin ?? (hasBrowser ? window.location.origin : '');
+    const runtimeHost = (options?.hostname ?? (hasBrowser ? window.location.hostname : '')).toLowerCase();
+
+    if (runtimeOrigin === DEFAULT_PRODUCTION_ORIGIN || runtimeHost === 'puntoencuentro.com.ar') {
+      return false;
+    }
+
+    const isStagingOrigin =
+      runtimeOrigin === DEFAULT_STAGING_ORIGIN && runtimeHost === 'staging.puntoencuentro.com.ar';
+    const isLocalHost = LOCAL_DEV_HOSTNAMES.has(runtimeHost);
+
+    if (!isStagingOrigin && !isLocalHost) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Habilita el fixture visual local `?previewAuth=permanent` EXCLUSIVAMENTE en
+ * desarrollo local (`http://localhost` / `http://127.0.0.1` en `vite dev`).
+ * Prohibido de forma incondicional en builds de Staging y Producción (`import.meta.env.DEV === false`).
+ */
+export function isLocalDevAuthFixtureAllowed(options?: {
+  appEnv?: string;
+  origin?: string;
+  hostname?: string;
+  protocol?: string;
+}): boolean {
+  if (!import.meta.env.DEV) {
+    return false;
+  }
+
+  if (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__ === 'production') {
+    return false;
+  }
+
+  if (options?.appEnv) {
+    if (options.appEnv.trim().toLowerCase() !== 'development') {
+      return false;
+    }
+  } else if (resolveAppEnvironment() === 'production') {
+    return false;
+  }
+
+  const hasBrowser = typeof window !== 'undefined';
+  const runtimeOrigin = options?.origin ?? (hasBrowser ? window.location.origin : '');
+  const runtimeHost = (options?.hostname ?? (hasBrowser ? window.location.hostname : '')).toLowerCase();
+  const runtimeProtocol = (options?.protocol ?? (hasBrowser ? window.location.protocol : '')).toLowerCase();
+
+  if (runtimeOrigin === DEFAULT_STAGING_ORIGIN || runtimeOrigin === DEFAULT_PRODUCTION_ORIGIN) {
+    return false;
+  }
+
+  return runtimeProtocol === 'http:' && LOCAL_DEV_HOSTNAMES.has(runtimeHost);
+}
+
 /* ─── Pantalla principal ─────────────────────────────────────────────────── */
 export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
   enableOpenDiscovery?: boolean;
-  homeVariant?: 'v1' | 'v2';
+  homeVariant?: 'v1' | 'v2' | 'v3a' | 'v3b';
   appEnv?: string;
   isDesktop?: boolean;
 }
@@ -509,12 +603,48 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const isDesktop = typeof propIsDesktop === 'boolean' ? propIsDesktop : isDesktopState;
 
-  // Variante V2 definitiva de la Home por defecto en todos los entornos (Staging y Producción)
-  const queryHomeVariant = new URLSearchParams(
+  // Variante V2 definitiva de la Home por defecto en todos los entornos (Staging y Producción).
+  // Las propuestas V3-A / V3-B están habilitadas exclusivamente en Desarrollo local y Staging;
+  // el fixture ?previewAuth=permanent está restringido exclusivamente a desarrollo local (prohibido en Staging/Prod).
+  const searchParams = new URLSearchParams(
     location?.search || (typeof window !== 'undefined' ? window.location.search : '')
-  ).get('homeVariant');
+  );
+  const queryHomeVariant = searchParams.get('homeVariant');
+  const queryHomePreview = searchParams.get('homePreview');
+
+  const v3PreviewAllowed = isHomeV3PreviewAllowed({ appEnv: _propAppEnv });
+
+  const resolvedQueryV3: HomeV3Variant | null =
+    v3PreviewAllowed && (queryHomePreview === 'v3a' || queryHomePreview === 'v3b')
+      ? queryHomePreview
+      : v3PreviewAllowed && (queryHomeVariant === 'v3a' || queryHomeVariant === 'v3b')
+      ? queryHomeVariant
+      : null;
+
+  const v3Variant: HomeV3Variant | null =
+    v3PreviewAllowed && (propHomeVariant === 'v3a' || propHomeVariant === 'v3b')
+      ? propHomeVariant
+      : resolvedQueryV3;
 
   const isV2Variant = propHomeVariant !== 'v1' && queryHomeVariant !== 'v1';
+
+  const isLocalPermanentFixture =
+    import.meta.env.DEV &&
+    isLocalDevAuthFixtureAllowed({ appEnv: _propAppEnv }) &&
+    searchParams.get('previewAuth') === 'permanent';
+
+  const effectiveUser =
+    user ||
+    (import.meta.env.DEV && isLocalPermanentFixture
+      ? ({
+          id: 'preview-permanent-user',
+          is_anonymous: false,
+          email: 'ana.garcia@ejemplo.local',
+          user_metadata: { full_name: 'Ana García' },
+        } as unknown as NonNullable<typeof user>)
+      : null);
+
+  const effectiveIsPermanentUser = isPermanentUser || isLocalPermanentFixture;
 
   // Variante de diseño visual de la Home (GSAP definitiva por defecto)
   const [visualVariant] = useState<HomeVisualVariant>(() => {
@@ -541,7 +671,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   // Si no hay caché válido ni datos viejos para mostrar, iniciamos en loading
   const [loading, setLoading] = useState(
-    !validCache && staleOrganized.length === 0 && staleParticipated.length === 0
+    !validCache && staleOrganized.length === 0 && staleParticipated.length === 0 && !isLocalPermanentFixture
   );
   const [error, setError] = useState<string | null>(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -1323,11 +1453,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       // 2. En mobile: reconciliar elementos observados
       const container = document.querySelector('.home-screen-container') || document.body;
-      const currentTargets = Array.from(
-        container.querySelectorAll(
-          '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions'
-        )
-      );
+      const targetSelector = v3Variant
+        ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero .home-dual-card--intent, .home-dual-hero .home-v3a-intent-block, .home-dual-hero .home-suggestions-container'
+        : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
+      const currentTargets = Array.from(container.querySelectorAll(targetSelector));
       const currentTargetSet = new Set(currentTargets);
 
       // Desregistrar elementos retirados del DOM
@@ -1387,7 +1516,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       if (mutationObserver) mutationObserver.disconnect();
       window.removeEventListener('resize', handleResize);
     };
-  }, [loading, isV2Variant]);
+  }, [loading, isV2Variant, v3Variant]);
 
   const showFab =
     !loading &&
@@ -1419,12 +1548,13 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
   };
 
-  const handleIntentSubmit = () => {
-    const text = homeIntent.trim();
+  const handleIntentSubmit = (explicitText?: string) => {
+    const text = (typeof explicitText === 'string' ? explicitText : homeIntent).trim();
     if (!text || isSubmittingIntent) return;
 
-    // 1. Check if user is anonymous (requires permanent account for AI)
-    if (isAnonymousUser) {
+    // 1. Check if user requires permanent account for AI
+    const requiresPermanentCheck = v3Variant ? !effectiveIsPermanentUser : isAnonymousUser;
+    if (requiresPermanentCheck) {
       setPendingAiIntent(text);
       setIsLoginRequiredForAiOpen(true);
       return;
@@ -1474,12 +1604,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     }
   };
 
-  const isAnonymousUser = user?.is_anonymous === true;
+  const isAnonymousUser = effectiveUser?.is_anonymous === true;
 
   // Avatar helper
-  const userAvatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const userAvatarUrl = effectiveUser?.user_metadata?.avatar_url as string | undefined;
   const userInitials = (() => {
-    const name = (user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '') as string;
+    const name = (effectiveUser?.user_metadata?.full_name || effectiveUser?.user_metadata?.name || effectiveUser?.email || '') as string;
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return name.slice(0, 2).toUpperCase() || '?';
@@ -1527,6 +1657,64 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
     try {
       if (!user) {
+        if (import.meta.env.DEV && isLocalPermanentFixture) {
+          const fixtureOrganized = [
+            {
+              id: 'preview-org-1',
+              titulo: 'Asado de cumple en lo de Martín',
+              fecha: '2026-12-20',
+              hora: '13:00',
+              modalidad: 'presencial',
+              tipo_invitacion: 'general',
+              tema: 'amber',
+              estado: 'activo',
+              host_id: 'preview-permanent-user',
+              is_open: false,
+              pending_requests_count: 1,
+              creado_en: '2026-11-10T15:00:00Z',
+            },
+          ];
+          const fixtureParticipated = [
+            {
+              id: 'preview-part-1',
+              titulo: 'Café y charla en Palermo',
+              fecha: '2026-12-22',
+              hora: '18:30',
+              modalidad: 'presencial',
+              tipo_invitacion: 'general',
+              tema: 'teal',
+              estado: 'activo',
+              host_id: 'preview-other-host-1',
+              is_open: true,
+              _mi_estado: 'confirmado',
+              creado_en: '2026-11-11T12:00:00Z',
+            },
+            {
+              id: 'preview-part-past-1',
+              titulo: 'Picnic de primavera',
+              fecha: '2026-10-10',
+              hora: '16:00',
+              modalidad: 'presencial',
+              tipo_invitacion: 'general',
+              tema: 'green',
+              estado: 'activo',
+              host_id: 'preview-other-host-2',
+              is_open: false,
+              _mi_estado: 'confirmado',
+              creado_en: '2026-10-01T12:00:00Z',
+            },
+          ];
+          const fixtureCounts = {
+            'preview-org-1': { total: 8, confirmados: 6 },
+            'preview-part-1': { total: 4, confirmados: 3 },
+            'preview-part-past-1': { total: 5, confirmados: 5 },
+          };
+          setCounts(fixtureCounts);
+          setOrganizedEncuentros(fixtureOrganized);
+          setParticipatedEncuentros(fixtureParticipated);
+          setEncuentros(fixtureOrganized, fixtureParticipated);
+          return;
+        }
         setOrganizedEncuentros([]);
         setParticipatedEncuentros([]);
         setCounts({});
@@ -1599,7 +1787,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, isLocalPermanentFixture]);
 
   // Recargar cuando el usuario inicia o cierra sesión, o concluye la transferencia de recursos
   useEffect(() => {
@@ -2118,14 +2306,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       className="home-encounters-section"
     >
       <div className="pe-encounters-inner">
-        {(isV2Variant || isPermanentUser) && (
+        {(isV2Variant || effectiveIsPermanentUser) && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: isV2Variant ? 0 : 8, flexWrap: 'wrap' }}>
             {isV2Variant ? (
               <h2 className="home-user-section-title">
                 {t('your_encounters.section_title_v2', { defaultValue: 'Mi espacio' })}
               </h2>
             ) : <span />}
-            {isPermanentUser && (
+            {effectiveIsPermanentUser && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -2188,7 +2376,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         </div>
 
         {/* Barra compacta de Invitaciones Internas recibidas y pendientes (solo usuarios permanentes) */}
-        {isPermanentUser && (
+        {isPermanentUser && !isLocalPermanentFixture && (
           <HomePendingInvitationsBar
             isPermanentUser={isPermanentUser}
             userId={user?.id}
@@ -2204,7 +2392,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
                 setActiveScope(scope);
                 setIsExpandedUpcoming(false);
               }}
-              isLoggedIn={Boolean(user)}
+              isLoggedIn={Boolean(effectiveUser)}
               totalTodosCount={isV2Variant ? activeTodosCount : allUniqueTodosCount}
               totalOrganizedCount={isV2Variant ? activeOrganizedEncuentros.length : organizedEncuentros.length}
               totalParticipatedCount={isV2Variant ? activeParticipatedEncuentros.length : participatedEncuentros.length}
@@ -2261,7 +2449,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         </div>
         <div className="home-header-actions">
           {/* Campana de notificaciones (solo cuentas permanentes) */}
-          {user && !user.is_anonymous && (
+          {effectiveUser && !effectiveUser.is_anonymous && (
             <button
               type="button"
               onClick={() => setIsNotificationsOpen(true)}
@@ -2290,17 +2478,17 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           <button
             onClick={() => setIsAccountOpen(true)}
             aria-label="Cuenta"
-            className={`home-header-avatar-btn ${user ? 'home-header-avatar-btn--logged' : ''}`}
-            title={user ? 'Tu cuenta' : 'Iniciar sesión'}
+            className={`home-header-avatar-btn ${effectiveUser ? 'home-header-avatar-btn--logged' : ''}`}
+            title={effectiveUser ? 'Tu cuenta' : 'Iniciar sesión'}
           >
-            {user && userAvatarUrl && !imgError ? (
+            {effectiveUser && userAvatarUrl && !imgError ? (
               <img
                 src={userAvatarUrl}
                 alt=""
                 onError={() => setImgError(true)}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
-            ) : user ? (
+            ) : effectiveUser ? (
               <span className="home-header-avatar-initials">
                 {userInitials}
               </span>
@@ -2327,7 +2515,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             isOpen={isNavMenuOpen}
             onClose={() => setIsNavMenuOpen(false)}
             triggerRef={menuTriggerRef}
-            isPermanentUser={isPermanentUser}
+            isPermanentUser={effectiveIsPermanentUser}
             totalPendingRequests={totalHostPendingRequests}
             onSelectEncuentros={() => handleSelectPersonalTab('encuentros')}
             onSelectGanas={() => handleSelectPersonalTab('intenciones')}
@@ -2453,8 +2641,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         document.body
       )}
 
-      {/* Hero Section con Composición Centrada Envolvente V2 y Espacio Vivo Dinámico */}
-      <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}`}>
+      {/* Hero Section con Composición Centrada Envolvente V2/V3 y Espacio Vivo Dinámico */}
+      <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}${v3Variant ? ` home-hero-wrapper--v3 home-hero-wrapper--${v3Variant}` : ''}`}>
         {/* Espacio vivo de etiquetas flotantes y fotos en movimiento */}
         {effectiveVariant === 'gsap' ? (
           <React.Suspense fallback={null}>
@@ -2477,28 +2665,44 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         )}
 
         <div className="home-hero-center-column">
-          <HomeHero
-            isPausedByInput={isInputFocused || isSpeechListening || Boolean(homeIntent.trim())}
-            subtitle={isV2Variant ? 'Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.' : undefined}
-            onPhraseClick={(phrase) => {
-              setHomeIntent(phrase);
-            }}
-          />
+          {v3Variant ? (
+            <HomeDualPathHeroPreview
+              variant={v3Variant}
+              onCreateInvitationClick={handleCreateClick}
+              onIntentSubmit={(text) => handleIntentSubmit(text)}
+              intentValue={homeIntent}
+              onIntentChange={setHomeIntent}
+              suggestions={V2_SUGGESTIONS}
+              isSubmittingIntent={isSubmittingIntent}
+              onFocusChange={setIsInputFocused}
+              isListeningChange={setIsSpeechListening}
+            />
+          ) : (
+            <>
+              <HomeHero
+                isPausedByInput={isInputFocused || isSpeechListening || Boolean(homeIntent.trim())}
+                subtitle={isV2Variant ? 'Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.' : undefined}
+                onPhraseClick={(phrase) => {
+                  setHomeIntent(phrase);
+                }}
+              />
 
-          {/* Input de Intención y CTA */}
-          <HomeIntentInput
-            value={homeIntent}
-            onChange={setHomeIntent}
-            onSubmit={handleIntentSubmit}
-            isSubmitting={isSubmittingIntent}
-            onFocusChange={setIsInputFocused}
-            isListeningChange={setIsSpeechListening}
-          />
+              {/* Input de Intención y CTA */}
+              <HomeIntentInput
+                value={homeIntent}
+                onChange={setHomeIntent}
+                onSubmit={() => handleIntentSubmit()}
+                isSubmitting={isSubmittingIntent}
+                onFocusChange={setIsInputFocused}
+                isListeningChange={setIsSpeechListening}
+              />
 
-          {/* Chips de Sugerencia */}
-          <div style={{ marginTop: '0.75rem', width: '100%', position: 'relative', zIndex: 6 }}>
-            <HomeSuggestionChips suggestions={V2_SUGGESTIONS} onSelect={handleSelectSuggestion} />
-          </div>
+              {/* Chips de Sugerencia */}
+              <div style={{ marginTop: '0.75rem', width: '100%', position: 'relative', zIndex: 6 }}>
+                <HomeSuggestionChips suggestions={V2_SUGGESTIONS} onSelect={handleSelectSuggestion} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -2527,7 +2731,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {isV2Variant && isDesktop && <HomeAmbientBrushes />}
 
           {/* Para usuario logueado en V2 Mobile: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después del Hero */}
-          {isV2Variant && isPermanentUser && !isDesktop && personalActivitySection}
+          {isV2Variant && effectiveIsPermanentUser && !isDesktop && personalActivitySection}
 
           {/* ENCUENTROS ABIERTOS (Discovery Carrousel / Me sumo) */}
           <HomeOpenEncounters
@@ -2557,7 +2761,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           />
 
           {/* Para usuario logueado en V2 Desktop: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
-          {isV2Variant && isPermanentUser && isDesktop && personalActivitySection}
+          {isV2Variant && effectiveIsPermanentUser && isDesktop && personalActivitySection}
 
           {/* Banda Tengo ganas de... inmediatamente después de Me sumo (o de actividad personal en desktop logueado) en Home V2 */}
           {isV2Variant && userSectionTab !== 'intenciones' && (
@@ -2565,7 +2769,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           )}
 
           {/* Para usuario anónimo en V2 (Mobile y Desktop): Actividad personal inmediatamente después de la banda Tengo ganas de... */}
-          {isV2Variant && !isPermanentUser && personalActivitySection}
+          {isV2Variant && !effectiveIsPermanentUser && personalActivitySection}
 
           {/* CAPACIDADES PRINCIPALES (Organizar / Abrir) (Solo V1) */}
           {!isV2Variant && (
@@ -2578,7 +2782,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           )}
 
           {/* Si es visitante sin encuentros en V1: Mostrar bloque "Cómo funciona" */}
-          {!isV2Variant && !loading && rawEncuentros.length === 0 && !user && (
+          {!isV2Variant && !loading && rawEncuentros.length === 0 && !effectiveUser && (
             <HomeValueProposition />
           )}
 
@@ -2587,7 +2791,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
           {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2) */}
           {isV2Variant && (
-            <HomeCreateOrOpenInfo isAnonymous={!isPermanentUser} />
+            <HomeCreateOrOpenInfo isAnonymous={!effectiveIsPermanentUser} />
           )}
 
           {/* Panel de filtros secundarios para Tus Encuentros */}
