@@ -591,9 +591,431 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   PROPUESTA V3-C: Unificada & Responsive (V3-A Mobile/Portrait + V3-B Desktop)
+   ══════════════════════════════════════════════════════════════════════════ */
+.home-v3c-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.48rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.home-v3c-card {
+  gap: 0.35rem;
+}
+
+.home-v3c-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.home-v3c-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-v3c-card__copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-v3c-card__copy .home-dual-card__desc {
+  margin-bottom: 0;
+}
+
+.home-v3c-card__action {
+  width: 100%;
+}
+
+.home-v3c-card__guarantee {
+  justify-content: flex-start;
+  text-align: left;
+  padding-top: 0.05rem;
+}
+
+.home-v3c-intent-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.35rem;
+}
+
+.home-v3c-card__desc {
+  margin-bottom: 0.1rem;
+}
+
+.home-v3c-intent-box {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface, #FFFFFF);
+  border: 1.5px solid var(--color-outline-variant, #D1D6E2);
+  border-radius: 14px;
+  padding: 0.45rem 0.65rem 0.35rem;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.home-v3c-intent-box:focus-within {
+  border-color: #0D9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.14);
+}
+
+.home-v3c-intent-textarea {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  min-height: 2.8rem;
+  max-height: 8.75rem;
+  background: transparent;
+  resize: none;
+  font-size: 0.94rem;
+  line-height: 1.38;
+}
+
+.home-v3c-intent-textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.home-v3c-intent-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding-top: 0.25rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.72);
+}
+
+.home-v3c-intent-tools-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.home-v3c-mic-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.home-v3c-intent-hint {
+  font-size: 11px;
+  color: var(--color-outline, #94A3B8);
+  user-select: none;
+}
+
+.home-v3c-intent-clear {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-variant, #F1F5F9);
+  color: var(--color-on-surface-variant, #64748B);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.home-v3c-intent-clear:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.home-v3c-intent-clear:focus-visible {
+  outline: 2px solid #0D9488;
+  outline-offset: 2px;
+}
+
+.home-dual-cta.home-v3c-cta--intent {
+  background-color: #0F766E;
+  border: 1.5px solid #0F766E;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.22);
+}
+
+.home-dual-cta.home-v3c-cta--intent:hover:not(:disabled) {
+  background-color: #115E59;
+  border-color: #115E59;
+  color: #FFFFFF;
+  box-shadow: 0 5px 15px rgba(13, 148, 136, 0.28);
+}
+
+.home-dual-cta.home-v3c-cta--intent:disabled {
+  background-color: rgba(240, 253, 250, 0.92);
+  border-color: rgba(13, 148, 136, 0.4);
+  color: #115E59;
+  opacity: 0.85;
+  box-shadow: none;
+}
+
+.home-v3c-card__subnote {
+  font-size: 11.5px;
+  color: var(--color-on-surface-variant, #64748B);
+  line-height: 1.3;
+  text-align: center;
+  margin: 0;
+}
+
+@media (max-width: 639px) {
+  .home-dual-hero--v3c .home-dual-hero__header {
+    gap: 0.14rem;
+    margin-bottom: 0.36rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-hero__eyebrow {
+    font-size: 10px;
+    padding: 0.16rem 0.62rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-hero__title {
+    font-size: 1.42rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-hero__subtitle {
+    font-size: 0.78rem;
+    line-height: 1.22;
+    max-width: 340px;
+  }
+
+  .home-v3c-grid {
+    gap: 0.42rem;
+  }
+
+  .home-v3c-card {
+    padding: 0.5rem 0.72rem;
+    gap: 0.24rem;
+    border-radius: 16px;
+  }
+
+  .home-v3c-card__top {
+    gap: 0.22rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-card__badge {
+    font-size: 10px;
+    padding: 0.14rem 0.46rem;
+  }
+
+  .home-v3c-examples {
+    gap: 0.18rem;
+  }
+
+  .home-v3c-examples .home-dual-example-pill {
+    font-size: 9.5px;
+    padding: 0.11rem 0.28rem;
+    gap: 0.12rem;
+  }
+
+  .home-v3c-card__body {
+    gap: 0.32rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-card__title {
+    font-size: 0.98rem;
+    margin-bottom: 0.12rem;
+  }
+
+  .home-dual-hero--v3c .home-dual-card__desc {
+    font-size: 0.755rem;
+    line-height: 1.24;
+  }
+
+  .home-dual-hero--v3c .home-dual-cta {
+    min-height: 36px;
+    font-size: 0.86rem;
+    padding: 5px 14px;
+  }
+
+  .home-v3c-card__guarantee {
+    font-size: 10.5px;
+  }
+
+  .home-v3c-intent-form {
+    gap: 0.24rem;
+  }
+
+  .home-v3c-card__desc {
+    margin-bottom: 0.04rem;
+  }
+
+  .home-v3c-intent-box {
+    padding: 0.34rem 0.58rem 0.24rem;
+    border-radius: 12px;
+  }
+
+  .home-v3c-intent-textarea {
+    min-height: 2.05rem;
+    font-size: 0.875rem;
+    line-height: 1.3;
+  }
+
+  .home-v3c-intent-toolbar {
+    padding-top: 0.18rem;
+    margin-top: 0.12rem;
+  }
+
+  .home-v3c-mic-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .home-v3c-intent-hint {
+    font-size: 10px;
+  }
+
+  .home-v3c-card__footer {
+    gap: 0.2rem;
+  }
+
+  .home-v3c-card__subnote {
+    font-size: 10.5px;
+    line-height: 1.24;
+  }
+
+  .home-dual-hero--v3c .home-dual-hero__suggestions {
+    margin-top: 0.45rem;
+  }
+}
+
+/* Tablet Portrait (640px..959px): evita dos columnas estrechas y da lectura holgada a cada camino */
+@media (min-width: 640px) and (max-width: 959px) {
+  .home-v3c-grid {
+    max-width: 580px;
+    margin: 0 auto;
+    gap: 0.75rem;
+  }
+
+  .home-v3c-card {
+    padding: 1rem 1.2rem;
+    gap: 0.5rem;
+  }
+
+  .home-v3c-card__body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .home-v3c-card__copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .home-v3c-card__action {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .home-v3c-cta--invite {
+    min-width: 215px;
+  }
+
+  .home-v3c-intent-textarea {
+    min-height: 3.1rem;
+  }
+}
+
+/* Tablet Landscape y Desktop (>= 960px): grilla equilibrada de 2 columnas en corredor central GSAP */
+@media (min-width: 960px) {
+  .home-v3c-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .home-v3c-card {
+    padding: 1rem 1.1rem;
+    gap: 0.42rem;
+  }
+
+  .home-v3c-card__top {
+    justify-content: flex-start;
+    gap: 0.42rem;
+  }
+
+  .home-v3c-examples {
+    width: 100%;
+    gap: 0.28rem;
+  }
+
+  .home-v3c-card__body {
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.7rem;
+  }
+
+  .home-v3c-card__action {
+    margin-top: auto;
+  }
+
+  .home-v3c-card__guarantee {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .home-v3c-intent-form {
+    gap: 0.4rem;
+  }
+
+  .home-v3c-card__desc {
+    font-size: 0.86rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .home-v3c-intent-box {
+    margin-bottom: 0.2rem;
+  }
+
+  .home-v3c-intent-textarea {
+    min-height: 3.6rem;
+  }
+
+  .home-v3c-card__subnote {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+}
+
+/* Tablet framing GSAP para V3-C: evita pills laterales recortadas tras cards cuando el corredor es < 1220px */
+@media (min-width: 768px) and (max-width: 1219px) {
+  .home-hero-wrapper--v3c .home-dynamic-canvas--gsap .home-gsap-tag {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 959px) {
+  .home-hero-wrapper--v3c .home-gsap-mobile-frag {
+    display: block !important;
+    width: 108px;
+    height: 74px;
+    top: 12px;
+  }
+
+  .home-hero-wrapper--v3c .home-gsap-mobile-frag--left {
+    left: 16px;
+  }
+
+  .home-hero-wrapper--v3c .home-gsap-mobile-frag--right {
+    right: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-dual-intent-textarea,
-  .home-dual-cta {
+  .home-dual-cta,
+  .home-v3c-intent-box {
     transition: none;
   }
 }

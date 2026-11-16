@@ -146,6 +146,7 @@ const AppRoutes: React.FC = () => {
         <>
           <Route path="/preview/home-v3a" element={<Home homeVariant="v3a" forcedVariant="gsap" />} />
           <Route path="/preview/home-v3b" element={<Home homeVariant="v3b" forcedVariant="gsap" />} />
+          <Route path="/preview/home-v3c" element={<Home homeVariant="v3c" forcedVariant="gsap" />} />
         </>
       )}
       <Route path="/create" element={<CreateWizard />} />

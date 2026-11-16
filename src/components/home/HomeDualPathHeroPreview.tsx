@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { CalendarPlus, CheckCircle2, Sparkles, ArrowRight, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { CalendarPlus, CheckCircle2, Sparkles, ArrowRight, X, Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { HomeIntentInput } from './HomeIntentInput';
 import { HomeSuggestionChips, type SuggestionOption } from './HomeSuggestionChips';
+import { useSpeechDictation, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import './HomeDualPathHeroPreview.css';
 
-export type HomeV3Variant = 'v3a' | 'v3b';
+export type HomeV3Variant = 'v3a' | 'v3b' | 'v3c';
 
 export interface HomeDualPathHeroPreviewProps {
-  /** Propuesta visual V3: 'v3a' (Camino A destacado arriba) o 'v3b' (jerarquía equilibrada) */
+  /** Propuesta visual V3: 'v3a' (Camino A destacado arriba), 'v3b' (jerarquía equilibrada) o 'v3c' (responsive combinado) */
   variant?: HomeV3Variant;
   /** Callback conectado al flujo directo existente (handleCreateClick) */
   onCreateInvitationClick: () => void;
@@ -59,6 +60,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
   isListeningChange,
 }) => {
   const [internalIntent, setInternalIntent] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isControlled = typeof intentValue === 'string';
   const currentIntent = isControlled ? intentValue : internalIntent;
   const trimmedIntent = currentIntent.trim();
@@ -70,14 +72,46 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
     onIntentChange?.(nextValue);
   };
 
+  const {
+    isListening,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+  } = useSpeechDictation({
+    lang: getSpeechRecognitionLocale('es'),
+    onTranscriptChange: (newText) => {
+      updateIntent(newText);
+    },
+  });
+
+  useEffect(() => {
+    if (variant === 'v3c') {
+      isListeningChange?.(isListening);
+    }
+  }, [variant, isListening, isListeningChange]);
+
+  useEffect(() => {
+    if (variant !== 'v3c') return;
+    const el = textareaRef.current;
+    if (!el) return;
+    if (!currentIntent) {
+      el.style.height = '';
+      return;
+    }
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [variant, currentIntent]);
+
   const handleIntentFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!trimmedIntent || isSubmittingIntent) return;
+    if (isListening) stopListening();
     onIntentSubmit(trimmedIntent);
   };
 
   const handleDirectIntentSubmit = () => {
     if (!trimmedIntent || isSubmittingIntent) return;
+    if (isListening) stopListening();
     onIntentSubmit(trimmedIntent);
   };
 
@@ -85,9 +119,26 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
     if ((e.key === 'Enter' && !e.shiftKey) || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
       e.preventDefault();
       if (trimmedIntent && !isSubmittingIntent) {
+        if (isListening) stopListening();
         onIntentSubmit(trimmedIntent);
       }
     }
+  };
+
+  const handleMicClick = () => {
+    if (isSubmittingIntent) return;
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening(currentIntent);
+    }
+  };
+
+  const handleClearIntent = () => {
+    if (isSubmittingIntent) return;
+    if (isListening) stopListening();
+    updateIntent('');
+    textareaRef.current?.focus();
   };
 
   const handleSelectChip = (prompt: string) => {
@@ -180,6 +231,163 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
               isListeningChange={isListeningChange}
             />
           </div>
+        </div>
+      ) : variant === 'v3c' ? (
+        <div className="home-v3c-grid">
+          {/* Camino 1: Organizá con tu gente */}
+          <article
+            className="home-dual-card home-dual-card--invite home-v3c-card home-v3c-card--invite"
+            aria-labelledby="dual-path-invite-title"
+          >
+            <div className="home-v3c-card__top">
+              <span className="home-dual-card__badge home-dual-card__badge--invite">
+                <CalendarPlus size={14} aria-hidden="true" />
+                <span>Invitación privada</span>
+              </span>
+              <ul className="home-dual-examples home-dual-examples--inline home-v3c-examples" aria-label="Ejemplos de encuentros con tu gente">
+                {INVITATION_EXAMPLES.map((item) => (
+                  <li key={item.label} className="home-dual-example-pill">
+                    <span aria-hidden="true">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="home-v3c-card__body">
+              <div className="home-v3c-card__copy">
+                <h2 id="dual-path-invite-title" className="home-dual-card__title">
+                  Organizá con tu gente
+                </h2>
+                <p className="home-dual-card__desc">
+                  Cumpleaños, cenas, reuniones o salidas. Creá una invitación y compartila con quienes quieras.
+                </p>
+              </div>
+
+              <div className="home-v3c-card__action">
+                <Button
+                  type="button"
+                  variant="primary"
+                  fullWidth
+                  className="home-dual-cta home-dual-cta--invite home-v3c-cta--invite"
+                  onClick={onCreateInvitationClick}
+                  data-testid="dual-path-create-invitation-btn"
+                >
+                  <span>Crear una invitación</span>
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+
+            <p className="home-dual-card__guarantee home-v3c-card__guarantee">
+              <CheckCircle2 size={14} className="home-dual-card__guarantee-icon" aria-hidden="true" />
+              <span>Tus invitados pueden confirmar sin registrarse.</span>
+            </p>
+          </article>
+
+          {/* Camino 2: Tengo ganas de… */}
+          <article
+            className="home-dual-card home-dual-card--intent home-v3c-card home-v3c-card--intent"
+            aria-labelledby="dual-path-intent-title"
+          >
+            <form className="home-dual-intent-form home-v3c-intent-form" onSubmit={handleIntentFormSubmit}>
+              <div className="home-v3c-card__top">
+                <span className="home-dual-card__badge home-dual-card__badge--intent">
+                  <Sparkles size={14} aria-hidden="true" />
+                  <span>De una idea a un encuentro</span>
+                </span>
+              </div>
+
+              <h2 id="dual-path-intent-title" className="home-dual-card__title">
+                Tengo ganas de…
+              </h2>
+
+              <p className="home-dual-card__desc home-v3c-card__desc">
+                Contanos qué te gustaría hacer y te ayudamos a convertirlo en un encuentro.
+              </p>
+
+              <div
+                className="home-v3c-intent-box"
+                onClick={() => textareaRef.current?.focus()}
+              >
+                <label htmlFor="dual-path-intent-input" className="sr-only">
+                  Tengo ganas de…
+                </label>
+                <textarea
+                  ref={textareaRef}
+                  id="dual-path-intent-input"
+                  className="home-dual-intent-textarea home-v3c-intent-textarea"
+                  rows={2}
+                  value={currentIntent}
+                  onChange={(e) => updateIntent(e.target.value)}
+                  onKeyDown={handleTextareaKeyDown}
+                  onFocus={() => onFocusChange?.(true)}
+                  onBlur={() => onFocusChange?.(false)}
+                  placeholder="ej. jugar al pádel este sábado a las 18"
+                  aria-label="Tengo ganas de…"
+                  disabled={isSubmittingIntent}
+                  data-testid="home-intent-textarea"
+                />
+                <div className="home-v3c-intent-toolbar">
+                  <div className="home-v3c-intent-tools-left">
+                    {isSpeechSupported && (
+                      <button
+                        type="button"
+                        className={`home-intent-tool-btn home-v3c-mic-btn ${isListening ? 'home-intent-tool-btn--active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMicClick();
+                        }}
+                        title={isListening ? 'Detener dictado' : 'Dictar por voz'}
+                        aria-label={isListening ? 'Detener dictado' : 'Dictar por voz'}
+                        disabled={isSubmittingIntent}
+                        data-testid="v3c-voice-dictation-btn"
+                      >
+                        {isListening ? <Square size={14} /> : <Mic size={16} />}
+                      </button>
+                    )}
+                    <span className="home-v3c-intent-hint">
+                      {isListening ? 'Escuchando…' : 'Enter para enviar'}
+                    </span>
+                  </div>
+
+                  {currentIntent && (
+                    <button
+                      type="button"
+                      className="home-v3c-intent-clear"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClearIntent();
+                      }}
+                      aria-label="Borrar texto"
+                      title="Borrar texto"
+                      disabled={isSubmittingIntent}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="home-dual-card__footer home-v3c-card__footer">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  fullWidth
+                  className="home-dual-cta home-dual-cta--intent home-v3c-cta--intent"
+                  disabled={!trimmedIntent || isSubmittingIntent}
+                  data-testid="dual-path-intent-submit-btn"
+                >
+                  <span>{isSubmittingIntent ? 'Preparando encuentro…' : 'Hagamos que pase'}</span>
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Button>
+
+                <p className="home-dual-card__helper home-v3c-card__subnote">
+                  Si te falta gente, también podés permitir que otras personas soliciten sumarse.
+                </p>
+              </div>
+            </form>
+          </article>
         </div>
       ) : (
         <div className="home-dual-hero__grid">

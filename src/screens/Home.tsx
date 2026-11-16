@@ -555,7 +555,7 @@ export function isLocalDevAuthFixtureAllowed(options?: {
 export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
   enableOpenDiscovery?: boolean;
-  homeVariant?: 'v1' | 'v2' | 'v3a' | 'v3b';
+  homeVariant?: 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c';
   appEnv?: string;
   isDesktop?: boolean;
 }
@@ -615,14 +615,14 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const v3PreviewAllowed = isHomeV3PreviewAllowed({ appEnv: _propAppEnv });
 
   const resolvedQueryV3: HomeV3Variant | null =
-    v3PreviewAllowed && (queryHomePreview === 'v3a' || queryHomePreview === 'v3b')
+    v3PreviewAllowed && (queryHomePreview === 'v3a' || queryHomePreview === 'v3b' || queryHomePreview === 'v3c')
       ? queryHomePreview
-      : v3PreviewAllowed && (queryHomeVariant === 'v3a' || queryHomeVariant === 'v3b')
+      : v3PreviewAllowed && (queryHomeVariant === 'v3a' || queryHomeVariant === 'v3b' || queryHomeVariant === 'v3c')
       ? queryHomeVariant
       : null;
 
   const v3Variant: HomeV3Variant | null =
-    v3PreviewAllowed && (propHomeVariant === 'v3a' || propHomeVariant === 'v3b')
+    v3PreviewAllowed && (propHomeVariant === 'v3a' || propHomeVariant === 'v3b' || propHomeVariant === 'v3c')
       ? propHomeVariant
       : resolvedQueryV3;
 
@@ -1454,7 +1454,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       // 2. En mobile: reconciliar elementos observados
       const container = document.querySelector('.home-screen-container') || document.body;
       const targetSelector = v3Variant
-        ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero .home-dual-card--intent, .home-dual-hero .home-v3a-intent-block, .home-dual-hero .home-suggestions-container'
+        ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
         : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
       const currentTargets = Array.from(container.querySelectorAll(targetSelector));
       const currentTargetSet = new Set(currentTargets);

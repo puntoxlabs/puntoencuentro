@@ -2577,7 +2577,7 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
     });
   });
 
-  describe('16. Previews Protegidas de Home V3 (V3-A y V3-B) en Staging y Aislamiento de Producción / previewAuth', () => {
+  describe('16. Previews Protegidas de Home V3 (V3-A, V3-B y V3-C) en Staging y Aislamiento de Producción / previewAuth', () => {
     const visitorAuthValue = {
       user: null,
       session: null,
@@ -2698,16 +2698,69 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         })
       );
       assert.ok(standaloneV3A.includes('home-dual-hero--v3a'));
+
+      const htmlV3C = renderHomeForTest({ homeVariant: 'v3c', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3c');
+      assert.ok(htmlV3C.includes('home-hero-wrapper--v3c'), 'Staging debe renderizar wrapper V3-C');
+      assert.ok(htmlV3C.includes('home-dual-hero--v3c'), 'Staging debe renderizar hero V3-C');
+      assert.ok(htmlV3C.includes('home-v3c-grid'), 'V3-C debe usar grilla responsive unificada');
+
+      const standaloneV3C = renderToString(
+        React.createElement(HomeDualPathHeroPreview, {
+          variant: 'v3c',
+          onCreateInvitationClick: () => {},
+          onIntentSubmit: () => {},
+        })
+      );
+      const standaloneV3CText = standaloneV3C.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      assert.ok(standaloneV3CText.includes('¿Qué querés hacer?'), 'V3-C debe incluir título general');
+      assert.ok(
+        standaloneV3CText.includes('Organizá algo con tu gente o encontrá con quién compartir un plan.'),
+        'V3-C debe incluir subtítulo aprobado'
+      );
+      assert.ok(standaloneV3CText.includes('Organizá con tu gente'), 'V3-C debe incluir título de Camino 1');
+      assert.ok(
+        standaloneV3CText.includes('Cumpleaños, cenas, reuniones o salidas. Creá una invitación y compartila con quienes quieras.'),
+        'V3-C debe incluir descripción aprobada de Camino 1'
+      );
+      assert.ok(standaloneV3CText.includes('Crear una invitación'), 'V3-C debe incluir CTA Crear una invitación');
+      assert.ok(
+        standaloneV3CText.includes('Tus invitados pueden confirmar sin registrarse.'),
+        'V3-C debe incluir mensaje de confirmación sin registro'
+      );
+      assert.ok(standaloneV3CText.includes('De una idea a un encuentro'), 'V3-C debe usar etiqueta De una idea a un encuentro');
+      assert.ok(standaloneV3CText.includes('Tengo ganas de…'), 'V3-C debe incluir título Tengo ganas de…');
+      assert.ok(
+        standaloneV3CText.includes('Contanos qué te gustaría hacer y te ayudamos a convertirlo en un encuentro.'),
+        'V3-C debe incluir descripción principal aprobada de Camino 2'
+      );
+      assert.ok(
+        standaloneV3CText.includes('Si te falta gente, también podés permitir que otras personas soliciten sumarse.'),
+        'V3-C debe incluir mensaje complementario de solicitudes de Camino 2'
+      );
+      assert.ok(standaloneV3CText.includes('Hagamos que pase'), 'V3-C debe incluir CTA Hagamos que pase');
+      assert.ok(!standaloneV3CText.includes('abrir lugares en tus zonas'), 'V3-C no debe usar "abrir lugares en tus zonas"');
+      assert.ok(!standaloneV3CText.includes('Idea o plan abierto'), 'V3-C no debe usar "Idea o plan abierto"');
+
+      const appTsxContent = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
+      assert.ok(appTsxContent.includes('/preview/home-v3c'), 'App.tsx debe registrar /preview/home-v3c dentro de v3PreviewAllowed');
     });
 
-    test('D. En Producción tanto prop homeVariant="v3a" como ?homePreview=v3a son ignorados y muestran Home V2', () => {
+    test('D. En Producción prop homeVariant="v3a|v3c" y ?homePreview=v3b|v3c son ignorados y muestran Home V2', () => {
       const htmlProdProp = renderHomeForTest({ homeVariant: 'v3a', appEnv: 'production' }, '/');
       assert.ok(!htmlProdProp.includes('home-dual-path-hero-preview'), 'Producción no debe renderizar V3 por prop');
       assert.ok(htmlProdProp.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2');
 
+      const htmlProdV3cProp = renderHomeForTest({ homeVariant: 'v3c', appEnv: 'production' }, '/preview/home-v3c');
+      assert.ok(!htmlProdV3cProp.includes('home-dual-path-hero-preview'), 'Producción no debe renderizar V3-C por prop');
+      assert.ok(htmlProdV3cProp.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2 ante v3c');
+
       const htmlProdQuery = renderHomeForTest({ appEnv: 'production' }, '/?homePreview=v3b');
-      assert.ok(!htmlProdQuery.includes('home-dual-path-hero-preview'), 'Producción no debe activar V3 vía ?homePreview');
+      assert.ok(!htmlProdQuery.includes('home-dual-path-hero-preview'), 'Producción no debe activar V3 vía ?homePreview=v3b');
       assert.ok(htmlProdQuery.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2 ante ?homePreview');
+
+      const htmlProdV3cQuery = renderHomeForTest({ appEnv: 'production' }, '/?homePreview=v3c');
+      assert.ok(!htmlProdV3cQuery.includes('home-dual-path-hero-preview'), 'Producción no debe activar V3-C vía ?homePreview=v3c');
+      assert.ok(htmlProdV3cQuery.includes('home-hero-subtitle sr-only'), 'Producción debe conservar Hero V2 ante ?homePreview=v3c');
     });
 
     test('E. isLocalDevAuthFixtureAllowed prohíbe ?previewAuth=permanent en Staging y Producción incluso en localhost', () => {
