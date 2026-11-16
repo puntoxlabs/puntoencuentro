@@ -563,6 +563,11 @@
   scroll-margin-top: calc(75px + env(safe-area-inset-top, 0px));
 }
 
+.home-v3c-variant #home-personal-activity-section,
+.home-v3c-variant #home-discovery-section {
+  scroll-margin-top: calc(88px + env(safe-area-inset-top, 0px));
+}
+
 .home-header-icon-btn {
   background: transparent;
   border: none;
@@ -687,6 +692,32 @@
   margin-bottom: 10px;
   max-width: 320px;
   line-height: 1.35;
+}
+
+/* Estado vacío optimizado exclusivamente para Home V3-C (especialmente móvil) */
+.home-empty--v3c {
+  padding: 10px 12px 8px;
+}
+.home-empty--v3c .home-empty-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+.home-empty--v3c .home-empty-title {
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+.home-empty--v3c .home-empty-desc {
+  font-size: 0.79rem;
+  margin-bottom: 6px;
+  max-width: 310px;
+  line-height: 1.32;
+}
+.home-empty-cta--v3c {
+  border-radius: 9999px;
+  border-color: rgba(24, 76, 212, 0.28);
+  color: var(--color-primary-dark, #123AA1);
 }
 .home-empty-past {
   text-align: center;
@@ -1639,6 +1670,13 @@ body:has(.login-required-sheet) .home-fab-container {
   .home-live-match-banner__actions {
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+/* Reserva inferior en móvil V3-C para que #home-personal-activity-section salga del área del FAB al llegar al pie */
+@media (max-width: 767px) {
+  .home-screen-container.home-v2-variant.home-v3c-variant {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 12px));
   }
 }
 

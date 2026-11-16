@@ -101,3 +101,30 @@
   flex-shrink: 0;
   opacity: 0.75;
 }
+
+/* Variante compacta V3-C: evita redundancia con Hero dual-path y conserva opciones útiles */
+.home-create-or-open-info.home-create-or-open-info--v3c-compact {
+  margin: 0.9rem auto 0.65rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.75);
+  box-shadow: none;
+  gap: 0;
+}
+
+.home-create-or-open-info__compact-text {
+  margin: 0;
+  font-size: 0.79rem;
+  line-height: 1.38;
+  color: var(--color-on-surface-variant, #64748b);
+  text-align: center;
+  word-break: break-word;
+}
+
+@media (min-width: 768px) {
+  .home-create-or-open-info.home-create-or-open-info--v3c-compact {
+    margin: 1rem auto 1.25rem;
+    padding: 0.7rem 1.15rem;
+  }
+}

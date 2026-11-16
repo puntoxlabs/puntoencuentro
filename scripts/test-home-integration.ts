@@ -2812,6 +2812,77 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!htmlStagingFixtureAttempt.includes('Asado de cumple en lo de Martín'), 'Staging no debe cargar encuentros fixture');
       assert.ok(!htmlStagingFixtureAttempt.includes('home-header-avatar-initials">AG<'), 'Staging no debe simular avatar de usuario permanente');
     });
+
+    test('F. Pulido V3-C: suprime banda redundante, compacta info inferior y estado vacío, mejora microcopy y ajusta scroll/FAB solo en V3-C', () => {
+      // 1. Banda secundaria (home-intentions-band) presente en V2, V3-A y V3-B, pero oculta en V3-C
+      const htmlV2 = renderHomeForTest({ homeVariant: 'v2', forcedVariant: 'gsap', appEnv: 'staging' }, '/');
+      const htmlV3A = renderHomeForTest({ homeVariant: 'v3a', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3a');
+      const htmlV3B = renderHomeForTest({ homeVariant: 'v3b', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3b');
+      const htmlV3C = renderHomeForTest({ homeVariant: 'v3c', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v3c');
+
+      assert.ok(htmlV2.includes('home-intentions-band'), 'Home V2 debe mantener HomeIntentionsBand');
+      assert.ok(htmlV3A.includes('home-intentions-band'), 'Home V3-A debe mantener HomeIntentionsBand');
+      assert.ok(htmlV3B.includes('home-intentions-band'), 'Home V3-B debe mantener HomeIntentionsBand');
+      assert.ok(!htmlV3C.includes('home-intentions-band'), 'Home V3-C NO debe renderizar la banda secundaria redundante HomeIntentionsBand');
+
+      // 2. Bloque inferior HomeCreateOrOpenInfo: compacto en V3-C sin "Abrí lugares en tus zonas"; completo en V2, V3-A y V3-B
+      assert.ok(htmlV2.includes('Crear o abrir un encuentro') && !htmlV2.includes('home-create-or-open-info--v3c-compact'), 'V2 mantiene bloque inferior completo');
+      assert.ok(htmlV3A.includes('Crear o abrir un encuentro') && !htmlV3A.includes('home-create-or-open-info--v3c-compact'), 'V3-A mantiene bloque inferior completo');
+      assert.ok(htmlV3B.includes('Crear o abrir un encuentro') && !htmlV3B.includes('home-create-or-open-info--v3c-compact'), 'V3-B mantiene bloque inferior completo');
+
+      assert.ok(htmlV3C.includes('home-create-or-open-info--v3c-compact'), 'V3-C debe renderizar HomeCreateOrOpenInfo en variante compacta');
+      assert.ok(!htmlV3C.includes('Crear o abrir un encuentro'), 'V3-C no debe repetir el bloque extenso Crear o abrir un encuentro');
+      assert.ok(!htmlV3C.includes('Abrí lugares en tus zonas'), 'V3-C no debe mostrar "Abrí lugares en tus zonas"');
+      assert.ok(
+        htmlV3C.includes('podés proponer varias fechas para votar') &&
+          htmlV3C.includes('podés permitir que otras personas soliciten sumarse a tu encuentro'),
+        'V3-C debe conservar información útil sobre votación de fechas y solicitudes'
+      );
+
+      // 3. Microcopy del campo de intención en V3-C (sin "Enter para enviar") manteniendo HomeIntentInput en V2/V3-A intacto
+      const standaloneV3C = renderToString(
+        React.createElement(HomeDualPathHeroPreview, {
+          variant: 'v3c',
+          onCreateInvitationClick: () => {},
+          onIntentSubmit: () => {},
+        })
+      );
+      assert.ok(!standaloneV3C.includes('Enter para enviar'), 'V3-C no debe mostrar el microcopy desktop-centric "Enter para enviar"');
+      assert.ok(
+        standaloneV3C.includes('También podés dictarla') || standaloneV3C.includes('Escribí tu idea'),
+        'V3-C debe mostrar microcopy contextual natural para móvil y desktop'
+      );
+
+      const standaloneIntentInput = renderToString(
+        React.createElement(HomeIntentInput, {
+          value: '',
+          onChange: () => {},
+          onSubmit: () => {},
+        })
+      );
+      assert.ok(standaloneIntentInput.includes('Enter para enviar'), 'HomeIntentInput compartido para V2 y V3-A debe permanecer intacto');
+
+      // 4. Reglas estructurales de estado vacío compacto, scroll-margin-top y FAB contextual V3-C
+      const homeTsxContent = readFileSync(resolve(process.cwd(), 'src/screens/Home.tsx'), 'utf8').replace(/\r\n/g, '\n');
+      const homeCssContent = readFileSync(resolve(process.cwd(), 'src/screens/Home.css'), 'utf8');
+
+      assert.ok(homeTsxContent.includes('home-v3c-variant'), 'Home.tsx debe identificar contenedor con home-v3c-variant exclusivamente para V3-C');
+      assert.ok(homeTsxContent.includes('home-empty--v3c'), 'Home.tsx debe aplicar estado vacío compacto home-empty--v3c en V3-C');
+      assert.ok(
+        homeTsxContent.includes("'.home-dual-hero, #home-discovery-section, #home-personal-activity-section'"),
+        'Home.tsx debe definir observador FAB dedicado para V3-C sin alterar V2 ni V3-A/B'
+      );
+      assert.ok(
+        homeTsxContent.includes("personalActivityRef.current ||\n        document.getElementById('home-personal-activity-section')") &&
+          homeTsxContent.includes('headerHeight - 14'),
+        'scrollToPersonalSection debe compensar la altura del header sticky para evitar recorte de "Mi espacio"'
+      );
+      assert.ok(
+        homeCssContent.includes('scroll-margin-top: calc(88px + env(safe-area-inset-top, 0px));'),
+        'Home.css debe configurar scroll-margin-top >= 88px para proteger títulos bajo el header sticky en V3-C'
+      );
+      assert.ok(homeCssContent.includes('.home-empty--v3c'), 'Home.css debe definir estilos compactos para .home-empty--v3c');
+    });
   });
 });
 

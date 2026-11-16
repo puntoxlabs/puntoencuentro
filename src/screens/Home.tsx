@@ -790,19 +790,25 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     setMatchedHighlightIds([]);
   }, []);
 
-  const scrollToPersonalSection = () => {
-    const personalSection = document.querySelector('.home-encounters-section') || document.querySelector('.pe-intenciones-section');
-    if (personalSection) {
-      const prefersReducedMotion =
-        typeof window !== 'undefined' &&
-        window.matchMedia &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      personalSection.scrollIntoView({
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
-        block: 'start',
-      });
-    }
-  };
+  const scrollToPersonalSection = useCallback(() => {
+    setTimeout(() => {
+      const el =
+        personalActivityRef.current ||
+        document.getElementById('home-personal-activity-section') ||
+        document.querySelector('.home-encounters-section');
+      if (el && typeof window !== 'undefined') {
+        const header = document.querySelector('.home-header');
+        const headerHeight = header ? header.getBoundingClientRect().height : 74;
+        const targetY = el.getBoundingClientRect().top + window.scrollY - headerHeight - 14;
+        const prefersReducedMotion =
+          window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({
+          top: Math.max(0, targetY),
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+      }
+    }, 60);
+  }, []);
 
   const handleOpenIntentionFlow = () => {
     setUserSectionTab('intenciones');
@@ -1453,9 +1459,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       // 2. En mobile: reconciliar elementos observados
       const container = document.querySelector('.home-screen-container') || document.body;
-      const targetSelector = v3Variant
-        ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
-        : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
+      const targetSelector =
+        v3Variant === 'v3c'
+          ? '.home-dual-hero, #home-discovery-section, #home-personal-activity-section'
+          : v3Variant
+          ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
+          : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
       const currentTargets = Array.from(container.querySelectorAll(targetSelector));
       const currentTargetSet = new Set(currentTargets);
 
@@ -2118,10 +2127,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
     if (rawEncuentros.length === 0) {
       const isOrganizo = activeScope === 'organizo';
+      const isV3C = v3Variant === 'v3c';
       return (
-        <div className={`home-empty${isV2Variant ? ' home-empty--compact' : ''}`}>
+        <div className={`home-empty${isV2Variant ? ' home-empty--compact' : ''}${isV3C ? ' home-empty--v3c' : ''}`}>
           <div className="home-empty-icon">
-            <Calendar size={isV2Variant ? 32 : 40} color="var(--color-primary)" />
+            <Calendar size={isV3C ? 20 : isV2Variant ? 32 : 40} color="var(--color-primary)" />
           </div>
           <h2 className="home-empty-title">
             {isOrganizo
@@ -2132,13 +2142,18 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           </h2>
           <p className="home-empty-desc">
             {isOrganizo || activeScope === 'todos'
-              ? 'Creá uno nuevo para coordinar con otros o sumate a un plan abierto.'
+              ? isV3C
+                ? 'Cuando crees una invitación o confirmes un encuentro, aparecerá acá.'
+                : 'Creá uno nuevo para coordinar con otros o sumate a un plan abierto.'
               : 'Cuando confirmes asistencia, aparecerán acá.'}
           </p>
           <Button
             variant={isV2Variant ? 'outline' : 'primary'}
+            className={isV3C ? 'home-empty-cta--v3c' : undefined}
             style={
-              isV2Variant
+              isV3C
+                ? { minWidth: 148, maxWidth: 196, height: 34, fontSize: 13, fontWeight: 600, marginTop: 4, alignSelf: 'center' }
+                : isV2Variant
                 ? { minWidth: 170, maxWidth: 220, height: 40, fontSize: 14, fontWeight: 600, marginTop: 8, alignSelf: 'center' }
                 : { minWidth: 200, maxWidth: 260, height: 48, fontSize: 15, fontWeight: 700, marginTop: 14, alignSelf: 'center' }
             }
@@ -2431,7 +2446,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   return (
     <ScreenContainer
       style={{ background: 'var(--color-background)' }}
-      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}`}
+      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}${v3Variant === 'v3c' ? ' home-v3c-variant' : ''}`}
     >
       <header className="home-header">
         <div className="home-header-brand" onClick={handleTap} aria-label="PuntoEncuentro">
@@ -2763,8 +2778,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {/* Para usuario logueado en V2 Desktop: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
           {isV2Variant && effectiveIsPermanentUser && isDesktop && personalActivitySection}
 
-          {/* Banda Tengo ganas de... inmediatamente después de Me sumo (o de actividad personal en desktop logueado) en Home V2 */}
-          {isV2Variant && userSectionTab !== 'intenciones' && (
+          {/* Banda Tengo ganas de... inmediatamente después de Me sumo (ocultada únicamente en V3-C por ya estar en el Hero) */}
+          {isV2Variant && v3Variant !== 'v3c' && userSectionTab !== 'intenciones' && (
             <HomeIntentionsBand onExpressIntent={handleOpenIntentionFlow} />
           )}
 
@@ -2789,9 +2804,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {/* TUS ENCUENTROS & INTENCIONES para V1 */}
           {!isV2Variant && personalActivitySection}
 
-          {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2) */}
+          {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2, simplificada en V3-C) */}
           {isV2Variant && (
-            <HomeCreateOrOpenInfo isAnonymous={!effectiveIsPermanentUser} />
+            <HomeCreateOrOpenInfo
+              isAnonymous={!effectiveIsPermanentUser}
+              compactV3C={v3Variant === 'v3c'}
+            />
           )}
 
           {/* Panel de filtros secundarios para Tus Encuentros */}

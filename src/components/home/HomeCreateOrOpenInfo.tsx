@@ -6,13 +6,29 @@ import './HomeCreateOrOpenInfo.css';
 interface HomeCreateOrOpenInfoProps {
   isAnonymous?: boolean;
   className?: string;
+  compactV3C?: boolean;
 }
 
 export const HomeCreateOrOpenInfo: React.FC<HomeCreateOrOpenInfoProps> = ({
   isAnonymous = false,
   className = '',
+  compactV3C = false,
 }) => {
   const { t } = useTranslation();
+
+  if (compactV3C) {
+    return (
+      <section
+        className={`home-create-or-open-info home-create-or-open-info--v3c-compact ${className}`.trim()}
+        aria-label="Información adicional sobre tus encuentros"
+        data-testid="home-create-or-open-info-v3c-compact"
+      >
+        <p className="home-create-or-open-info__compact-text">
+          ¿Todavía no definieron el día? Al crear una invitación podés proponer varias fechas para votar. Y si te falta gente, podés permitir que otras personas soliciten sumarse a tu encuentro.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section

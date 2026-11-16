@@ -346,8 +346,12 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
                         {isListening ? <Square size={14} /> : <Mic size={16} />}
                       </button>
                     )}
-                    <span className="home-v3c-intent-hint">
-                      {isListening ? 'Escuchando…' : 'Enter para enviar'}
+                    <span className="home-v3c-intent-hint" aria-live="polite">
+                      {isListening
+                        ? 'Escuchando…'
+                        : isSpeechSupported
+                        ? 'También podés dictarla'
+                        : 'Escribí tu idea'}
                     </span>
                   </div>
 
