@@ -469,10 +469,20 @@ export function formatBuildTimestamp(raw: string): string {
 /* ─── Guards explícitos de entorno y origen para Previews V3 y Fixture Local ── */
 const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
+export type EffectiveHomeVariant = 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c';
+
 /**
- * Habilita las previews Home V3 (V3-A / V3-B) exclusivamente en Desarrollo local
- * o en el entorno y origen autorizado de Staging (`https://staging.puntoencuentro.com.ar`).
- * Bloqueado explícitamente en Producción.
+ * Variante predeterminada de Home en el entorno Staging autorizado cuando no existe
+ * una selección explícita por prop o query string.
+ * Para realizar un rollback inmediato a Home V2 + GSAP en Staging sin restaurar archivos,
+ * cambiar únicamente esta constante a 'v2'.
+ */
+export const STAGING_DEFAULT_HOME_VARIANT: 'v3c' | 'v2' = 'v3c';
+
+/**
+ * Habilita las previews Home V3 (V3-A / V3-B / V3-C) y el backup /preview/home-v2
+ * exclusivamente en Desarrollo local o en el entorno y origen autorizado de Staging
+ * (`https://staging.puntoencuentro.com.ar`). Bloqueado explícitamente en Producción.
  */
 export function isHomeV3PreviewAllowed(options?: {
   appEnv?: string;
@@ -510,6 +520,69 @@ export function isHomeV3PreviewAllowed(options?: {
   }
 
   return true;
+}
+
+/**
+ * Habilita la promoción automática de Home V3-C como variante predeterminada
+ * exclusivamente en Staging (entorno 'staging' y origen autorizado, jamás en Producción).
+ */
+export function isStagingDefaultV3CAllowed(options?: {
+  appEnv?: string;
+  origin?: string;
+  hostname?: string;
+}): boolean {
+  if (!isHomeV3PreviewAllowed(options)) {
+    return false;
+  }
+  const effectiveEnv = (options?.appEnv || resolveAppEnvironment()).trim().toLowerCase();
+  return effectiveEnv === 'staging';
+}
+
+/**
+ * Resuelve de forma explícita la variante efectiva de Home respetando overrides válidos
+ * y restringiendo la activación automática de V3-C únicamente a Staging.
+ */
+export function resolveEffectiveHomeVariant(params: {
+  propHomeVariant?: EffectiveHomeVariant;
+  queryHomeVariant?: string | null;
+  queryHomePreview?: string | null;
+  appEnv?: string;
+  origin?: string;
+  hostname?: string;
+}): EffectiveHomeVariant {
+  const { propHomeVariant, queryHomeVariant, queryHomePreview, appEnv, origin, hostname } = params;
+
+  // 1. Acceso explícito a V1 (prop o query ?homeVariant=v1)
+  if (propHomeVariant === 'v1' || queryHomeVariant === 'v1') {
+    return 'v1';
+  }
+
+  // 2. Acceso explícito o rollback a V2 (/preview/home-v2 o ?homeVariant=v2 / ?homePreview=v2)
+  if (propHomeVariant === 'v2' || queryHomeVariant === 'v2' || queryHomePreview === 'v2') {
+    return 'v2';
+  }
+
+  const v3Allowed = isHomeV3PreviewAllowed({ appEnv, origin, hostname });
+
+  // 3. Selección explícita de V3 por prop (/preview/home-v3a|v3b|v3c)
+  if (v3Allowed && (propHomeVariant === 'v3a' || propHomeVariant === 'v3b' || propHomeVariant === 'v3c')) {
+    return propHomeVariant;
+  }
+
+  // 4. Selección explícita de V3 por query (?homePreview=v3a|v3b|v3c o ?homeVariant=v3a|v3b|v3c)
+  if (v3Allowed && (queryHomePreview === 'v3a' || queryHomePreview === 'v3b' || queryHomePreview === 'v3c')) {
+    return queryHomePreview;
+  }
+  if (v3Allowed && (queryHomeVariant === 'v3a' || queryHomeVariant === 'v3b' || queryHomeVariant === 'v3c')) {
+    return queryHomeVariant;
+  }
+
+  // 5. Predeterminado automático: V3-C únicamente en Staging autorizado; Producción y local conservan V2
+  if (isStagingDefaultV3CAllowed({ appEnv, origin, hostname })) {
+    return STAGING_DEFAULT_HOME_VARIANT;
+  }
+
+  return 'v2';
 }
 
 /**
@@ -603,28 +676,27 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
   const isDesktop = typeof propIsDesktop === 'boolean' ? propIsDesktop : isDesktopState;
 
-  // Variante V2 definitiva de la Home por defecto en todos los entornos (Staging y Producción).
-  // Las propuestas V3-A / V3-B están habilitadas exclusivamente en Desarrollo local y Staging;
-  // el fixture ?previewAuth=permanent está restringido exclusivamente a desarrollo local (prohibido en Staging/Prod).
+  // Resolución explícita de variante de Home:
+  // - Producción conserva Home V2 + GSAP como predeterminada.
+  // - Staging promueve Home V3-C (STAGING_DEFAULT_HOME_VARIANT) manteniendo /preview/home-v2 y ?homeVariant=v1.
+  // - ?previewAuth=permanent sigue restringido exclusivamente a desarrollo local (prohibido en Staging/Prod).
   const searchParams = new URLSearchParams(
     location?.search || (typeof window !== 'undefined' ? window.location.search : '')
   );
   const queryHomeVariant = searchParams.get('homeVariant');
   const queryHomePreview = searchParams.get('homePreview');
 
-  const v3PreviewAllowed = isHomeV3PreviewAllowed({ appEnv: _propAppEnv });
-
-  const resolvedQueryV3: HomeV3Variant | null =
-    v3PreviewAllowed && (queryHomePreview === 'v3a' || queryHomePreview === 'v3b' || queryHomePreview === 'v3c')
-      ? queryHomePreview
-      : v3PreviewAllowed && (queryHomeVariant === 'v3a' || queryHomeVariant === 'v3b' || queryHomeVariant === 'v3c')
-      ? queryHomeVariant
-      : null;
+  const effectiveHomeVariant = resolveEffectiveHomeVariant({
+    propHomeVariant,
+    queryHomeVariant,
+    queryHomePreview,
+    appEnv: _propAppEnv,
+  });
 
   const v3Variant: HomeV3Variant | null =
-    v3PreviewAllowed && (propHomeVariant === 'v3a' || propHomeVariant === 'v3b' || propHomeVariant === 'v3c')
-      ? propHomeVariant
-      : resolvedQueryV3;
+    effectiveHomeVariant === 'v3a' || effectiveHomeVariant === 'v3b' || effectiveHomeVariant === 'v3c'
+      ? effectiveHomeVariant
+      : null;
 
   const isV2Variant = propHomeVariant !== 'v1' && queryHomeVariant !== 'v1';
 

@@ -28,7 +28,10 @@ import { resolve } from 'node:path';
 import Home, {
   formatBuildTimestamp,
   isHomeV3PreviewAllowed,
+  isStagingDefaultV3CAllowed,
   isLocalDevAuthFixtureAllowed,
+  resolveEffectiveHomeVariant,
+  STAGING_DEFAULT_HOME_VARIANT,
 } from '../src/screens/Home';
 import { AuthContext } from '../src/contexts/AuthContext';
 import { NotificationsProvider } from '../src/contexts/NotificationsContext';
@@ -803,18 +806,32 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 producción');
     });
 
-    test('E. En entorno no productivo (appEnv === "staging" o local), Home V2 es la experiencia activa por defecto', () => {
-      const html = renderToString(
+    test('E. En Staging "/" promueve V3-C manteniendo V2 en /preview/home-v2 y en desarrollo local', () => {
+      const htmlStagingDefault = renderToString(
         React.createElement(
           MemoryRouter,
           { initialEntries: ['/'] },
           React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
         )
       );
-      // Debe activar V2 en staging
-      assert.ok(html.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'), 'Debe activar copy V2 en staging');
-      assert.ok(html.includes('home-v2-variant'), 'Debe aplicar clase home-v2-variant en staging');
-      assert.ok(!html.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento en V2 staging');
+      assert.ok(htmlStagingDefault.includes('home-v2-variant'), 'Debe mantener estructura base home-v2-variant en staging');
+      assert.ok(htmlStagingDefault.includes('home-v3c-variant'), 'Staging "/" debe promover V3-C como predeterminada');
+      assert.ok(htmlStagingDefault.includes('Organizá con tu gente'), 'Staging "/" debe mostrar Camino 1 de V3-C');
+      assert.ok(!htmlStagingDefault.includes('>Lanzamiento<'), 'NO debe mostrar badges de Lanzamiento V1 en staging');
+
+      const htmlStagingV2Fallback = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/preview/home-v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
+        )
+      );
+      assert.ok(
+        htmlStagingV2Fallback.includes('Decinos qué querés hacer. Organizalo con los tuyos o encontrá con quién hacerlo.'),
+        '/preview/home-v2 en staging debe conservar Home V2 + GSAP'
+      );
+      assert.ok(htmlStagingV2Fallback.includes('home-v2-variant'), '/preview/home-v2 debe mantener clase home-v2-variant');
+      assert.ok(!htmlStagingV2Fallback.includes('home-v3c-variant'), '/preview/home-v2 no debe activar V3-C');
     });
 
     test('F. Override técnico: ?homeVariant=v1 permite retornar a Home V1 tanto en staging como en producción', () => {
@@ -1757,12 +1774,12 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'El header en V2 debe protegerse contra compresión de viewport con flex-shrink: 0'
       );
 
-      // 2. Render SSR: confirma orden estricto de elementos en el DOM (Header precede al Hero)
+      // 2. Render SSR: confirma orden estricto de elementos en el DOM en V2 (/preview/home-v2) y en Staging default (V3-C)
       const htmlMobileV2 = renderToString(
         React.createElement(
           MemoryRouter,
-          { initialEntries: ['/'] },
-          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+          { initialEntries: ['/preview/home-v2'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { homeVariant: 'v2', appEnv: 'staging' }))
         )
       );
 
@@ -1771,10 +1788,22 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       const heroPos = htmlMobileV2.indexOf('home-hero-wrapper');
       const intentPos = htmlMobileV2.indexOf('home-intent-card');
 
-      assert.ok(headerPos !== -1, 'El header debe existir en el DOM');
+      assert.ok(headerPos !== -1 && logoPos !== -1, 'El header y logo deben existir en el DOM V2');
       // Orden en el flujo de bloque: Header < Hero Wrapper < Input Card
-      assert.ok(headerPos < heroPos, 'El header debe preceder al Hero wrapper en el árbol DOM');
-      assert.ok(heroPos < intentPos, 'El Hero wrapper debe preceder a la tarjeta de intención');
+      assert.ok(headerPos < heroPos, 'El header debe preceder al Hero wrapper en el árbol DOM V2');
+      assert.ok(heroPos < intentPos, 'El Hero wrapper debe preceder a la tarjeta de intención V2');
+
+      const htmlMobileStagingDefault = renderToString(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(NotificationsProvider, null, React.createElement(Home, { appEnv: 'staging' }))
+        )
+      );
+      const headerPosV3c = htmlMobileStagingDefault.indexOf('class="home-header"');
+      const heroPosV3c = htmlMobileStagingDefault.indexOf('home-hero-wrapper--v3c');
+      const intentPosV3c = htmlMobileStagingDefault.indexOf('home-v3c-intent-box');
+      assert.ok(headerPosV3c !== -1 && headerPosV3c < heroPosV3c && heroPosV3c < intentPosV3c, 'Staging "/" (V3-C) debe mantener Header < Hero < Input');
     });
 
     test('T. Flujo Tengo ganas de...: Auto-submit post-OAuth idempotente, single-use y recuperación de error', () => {
@@ -2670,12 +2699,20 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
     });
 
-    test('B. "/" conserva Home V2 + GSAP como predeterminada en development, staging y production', () => {
-      for (const appEnv of ['development', 'staging', 'production'] as const) {
+    test('B. Staging muestra V3-C por defecto en "/" mientras Producción y local preservan V2 + GSAP sin activar V3 automáticamente', () => {
+      const htmlStaging = renderHomeForTest({ appEnv: 'staging' }, '/');
+      assert.ok(htmlStaging.includes('home-v2-variant'), 'Staging debe mantener wrapper base V2 para secciones compartidas');
+      assert.ok(htmlStaging.includes('home-v3c-variant'), 'Staging "/" debe promover V3-C por defecto');
+      assert.ok(htmlStaging.includes('home-hero-wrapper--v3c'), 'Staging "/" debe renderizar Hero V3-C');
+      assert.ok(htmlStaging.includes('data-testid="discovery-v3c-subtitle"'), 'Staging "/" debe mostrar subtítulo V3-C en Discovery');
+      assert.ok(htmlStaging.includes('data-testid="mi-espacio-v3c-subtitle"'), 'Staging "/" debe mostrar subtítulo V3-C en Mi espacio');
+
+      for (const appEnv of ['development', 'production'] as const) {
         const html = renderHomeForTest({ appEnv }, '/');
-        assert.ok(html.includes('home-v2-variant'), `"/" en ${appEnv} debe continuar en Home V2`);
+        assert.ok(html.includes('home-v2-variant'), `"/" en ${appEnv} debe conservar Home V2`);
         assert.ok(html.includes('home-hero-subtitle sr-only'), `"/" en ${appEnv} debe conservar Hero V2`);
         assert.ok(!html.includes('home-dual-path-hero-preview'), `"/" en ${appEnv} no debe activar V3 por defecto`);
+        assert.ok(!html.includes('home-v3c-variant'), `"/" en ${appEnv} no debe activar V3-C por defecto`);
       }
     });
 
@@ -2997,6 +3034,139 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(
         inspCss.includes('@media (prefers-reduced-motion: reduce)'),
         'CSS del estado vacío debe respetar prefers-reduced-motion'
+      );
+    });
+
+    test('H. Adopción V3-C como predeterminada en Staging, backup /preview/home-v2, preservación de rutas (/solicitudes, /e/:id, ?homeVariant=v1) y blindaje de Producción', () => {
+      assert.equal(STAGING_DEFAULT_HOME_VARIANT, 'v3c', 'Constante de rollback rápido debe estar configurada en v3c');
+
+      // 1. Guards explícitos de Staging vs Producción
+      assert.equal(
+        isStagingDefaultV3CAllowed({
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        true,
+        'Staging autorizado debe permitir V3-C por defecto'
+      );
+      assert.equal(
+        isStagingDefaultV3CAllowed({
+          appEnv: 'production',
+          origin: 'https://puntoencuentro.com.ar',
+          hostname: 'puntoencuentro.com.ar',
+        }),
+        false,
+        'Producción jamás debe promover V3-C por defecto'
+      );
+      assert.equal(
+        isStagingDefaultV3CAllowed({
+          appEnv: 'staging',
+          origin: 'https://puntoencuentro.com.ar',
+          hostname: 'puntoencuentro.com.ar',
+        }),
+        false,
+        'Incluso si appEnv fuera staging, el origen de Producción debe bloquear V3-C automáticamente'
+      );
+      assert.equal(
+        isStagingDefaultV3CAllowed({
+          appEnv: 'development',
+          origin: 'http://localhost:5173',
+          hostname: 'localhost',
+        }),
+        false,
+        'Desarrollo local conserva V2 como default salvo preview explícita'
+      );
+
+      // 2. Resolución explícita de variantes y precedencia de overrides
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        'v3c',
+        'Staging "/" debe resolver a v3c'
+      );
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          propHomeVariant: 'v2',
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        'v2',
+        '/preview/home-v2 en Staging debe resolver explícitamente a v2'
+      );
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          queryHomePreview: 'v2',
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        'v2',
+        '?homePreview=v2 en Staging no debe ser pisado por el default v3c'
+      );
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          queryHomeVariant: 'v1',
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        'v1',
+        '?homeVariant=v1 en Staging debe conservar acceso a Home V1'
+      );
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          propHomeVariant: 'v3a',
+          appEnv: 'staging',
+          origin: 'https://staging.puntoencuentro.com.ar',
+          hostname: 'staging.puntoencuentro.com.ar',
+        }),
+        'v3a',
+        '/preview/home-v3a en Staging mantiene prioridad'
+      );
+      assert.equal(
+        resolveEffectiveHomeVariant({
+          propHomeVariant: 'v3c',
+          queryHomePreview: 'v3c',
+          appEnv: 'production',
+          origin: 'https://puntoencuentro.com.ar',
+          hostname: 'puntoencuentro.com.ar',
+        }),
+        'v2',
+        'Producción debe ignorar v3c y retornar v2 aunque reciba prop o query'
+      );
+
+      // 3. Renderizado de /preview/home-v2 en Staging (V2 + GSAP completa sin V3-C)
+      const htmlV2Backup = renderHomeForTest({ homeVariant: 'v2', forcedVariant: 'gsap', appEnv: 'staging' }, '/preview/home-v2');
+      assert.ok(htmlV2Backup.includes('home-v2-variant'), '/preview/home-v2 conserva home-v2-variant');
+      assert.ok(htmlV2Backup.includes('home-hero-subtitle sr-only'), '/preview/home-v2 renderiza Hero V2');
+      assert.ok(htmlV2Backup.includes('home-intentions-band'), '/preview/home-v2 conserva banda secundaria');
+      assert.ok(htmlV2Backup.includes('Crear o abrir un encuentro'), '/preview/home-v2 conserva bloque completo Crear o abrir');
+      assert.ok(!htmlV2Backup.includes('home-dual-path-hero-preview'), '/preview/home-v2 no debe mostrar Hero V3');
+      assert.ok(!htmlV2Backup.includes('home-v3c-variant'), '/preview/home-v2 no debe activar clase home-v3c-variant');
+
+      // 4. Registro de ruta protegida /preview/home-v2 en App.tsx y preservación de /solicitudes y /e/:id
+      const appTsxContent = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
+      assert.ok(
+        appTsxContent.includes('/preview/home-v2') &&
+          appTsxContent.includes('homeVariant="v2"'),
+        'App.tsx debe exponer /preview/home-v2 protegido bajo v3PreviewAllowed'
+      );
+      assert.ok(
+        appTsxContent.includes('path="/e/:id"') && appTsxContent.includes('path="/solicitudes"'),
+        'App.tsx debe preservar los contratos de rutas /e/:id y /solicitudes'
+      );
+
+      const htmlSolicitudes = renderHomeForTest({ appEnv: 'staging' }, '/solicitudes');
+      assert.ok(htmlSolicitudes.includes('home-v3c-variant'), '/solicitudes en Staging utiliza V3-C sin romper ruta');
+      assert.ok(
+        htmlSolicitudes.includes('aria-selected="true" class="home-user-tab home-user-tab--active">Mis solicitudes') ||
+          (htmlSolicitudes.includes('Mis solicitudes') && htmlSolicitudes.includes('home-user-tab--active')),
+        '/solicitudes en Staging mantiene selección inicial de tab Mis solicitudes'
       );
     });
   });
