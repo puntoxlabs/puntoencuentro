@@ -56,6 +56,8 @@ export interface HomeOpenEncountersProps {
   isDemoMode?: boolean;
   /** Título personalizado para la sección de intenciones (por defecto "Ganas de…") */
   intentionsTitle?: string;
+  /** Subtítulo explicativo breve debajo del título de Discovery (exclusivo V3-C) */
+  sectionSubtitle?: string;
   /** Si está activa la variante V2 (desktop carrusel con flechas, orden por fecha ascendente) */
   isV2Variant?: boolean;
   /** IDs de encuentros devueltos por matching inmediato que deben resaltarse temporalmente */
@@ -109,6 +111,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   onSelectIdea,
   isLoading: propLoading,
   intentionsTitle,
+  sectionSubtitle,
   isV2Variant = false,
   highlightEncounterIds,
   onClearHighlight,
@@ -1201,6 +1204,29 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   // Error general: ambas fuentes fallaron
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
+  const discoveryTitleGroup = (
+    <div className="pe-discovery-title-group">
+      <h2 className="pe-discovery-title">
+        {isV2Variant
+          ? t('open_encounters.section_title_v2', { defaultValue: '¿A qué me sumo?' })
+          : t('open_encounters.section_title', { defaultValue: 'Encuentros abiertos' })}
+      </h2>
+      <button
+        type="button"
+        className="pe-discovery-badge pe-discovery-badge--interactive"
+        onClick={handleOpenZoneModal}
+        title="Elegir zonas de interés"
+        data-testid="discovery-zone-badge"
+      >
+        <MapPin size={11} aria-hidden="true" />
+        <span>
+          {t('open_encounters.subtitle_zones', { defaultValue: 'En tus zonas' })}
+          {effectiveZones.length > 0 ? ` (${effectiveZones.length})` : ''}
+        </span>
+      </button>
+    </div>
+  );
+
   return (
     <section
       id="home-discovery-section"
@@ -1209,26 +1235,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
     >
       {/* Cabecera de la Sección */}
       <div className="pe-discovery-header">
-        <div className="pe-discovery-title-group">
-          <h2 className="pe-discovery-title">
-            {isV2Variant
-              ? t('open_encounters.section_title_v2', { defaultValue: '¿A qué me sumo?' })
-              : t('open_encounters.section_title', { defaultValue: 'Encuentros abiertos' })}
-          </h2>
-          <button
-            type="button"
-            className="pe-discovery-badge pe-discovery-badge--interactive"
-            onClick={handleOpenZoneModal}
-            title="Elegir zonas de interés"
-            data-testid="discovery-zone-badge"
-          >
-            <MapPin size={11} aria-hidden="true" />
-            <span>
-              {t('open_encounters.subtitle_zones', { defaultValue: 'En tus zonas' })}
-              {effectiveZones.length > 0 ? ` (${effectiveZones.length})` : ''}
-            </span>
-          </button>
-        </div>
+        {sectionSubtitle ? (
+          <div className="pe-discovery-heading-col">
+            {discoveryTitleGroup}
+            <p className="pe-discovery-section-subtitle" data-testid="discovery-v3c-subtitle">
+              {sectionSubtitle}
+            </p>
+          </div>
+        ) : (
+          discoveryTitleGroup
+        )}
 
         <div className="pe-discovery-header-actions">
           <button

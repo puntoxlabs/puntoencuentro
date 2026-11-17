@@ -2352,6 +2352,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             )}
           </div>
         )}
+        {v3Variant === 'v3c' && (
+          <p className="home-user-section-subtitle" data-testid="mi-espacio-v3c-subtitle">
+            Tus encuentros, tus ganas y tus solicitudes, todo en un lugar.
+          </p>
+        )}
         <div className="home-user-tabs" role="tablist" aria-label="Secciones de usuario">
           <button
             type="button"
@@ -2753,6 +2758,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             isV2Variant={isV2Variant}
             onOpenCreate={handleCreateClick}
             intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title') : undefined}
+            sectionSubtitle={
+              v3Variant === 'v3c'
+                ? 'Descubrí encuentros de otras personas y solicitá sumarte a los que te interesen.'
+                : undefined
+            }
             highlightEncounterIds={matchedHighlightIds}
             onClearHighlight={handleClearHighlight}
             refreshTrigger={discoveryRefreshTrigger}

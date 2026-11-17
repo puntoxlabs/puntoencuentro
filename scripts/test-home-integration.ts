@@ -2719,23 +2719,27 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       );
       assert.ok(standaloneV3CText.includes('Organizá con tu gente'), 'V3-C debe incluir título de Camino 1');
       assert.ok(
-        standaloneV3CText.includes('Cumpleaños, cenas, reuniones o salidas. Creá una invitación y compartila con quienes quieras.'),
-        'V3-C debe incluir descripción aprobada de Camino 1'
+        standaloneV3CText.includes('Creá invitaciones para cumpleaños, reuniones, cenas y salidas.'),
+        'V3-C debe incluir descripción simplificada de Camino 1'
       );
       assert.ok(standaloneV3CText.includes('Crear una invitación'), 'V3-C debe incluir CTA Crear una invitación');
       assert.ok(
-        standaloneV3CText.includes('Tus invitados pueden confirmar sin registrarse.'),
-        'V3-C debe incluir mensaje de confirmación sin registro'
+        standaloneV3CText.includes('Tus invitados confirman sin registrarse.'),
+        'V3-C debe incluir mensaje conciso de confirmación sin registro'
       );
-      assert.ok(standaloneV3CText.includes('De una idea a un encuentro'), 'V3-C debe usar etiqueta De una idea a un encuentro');
+      assert.ok(standaloneV3CText.includes('De una idea a un encuentro'), 'V3-C debe conservar badge para desktop');
       assert.ok(standaloneV3CText.includes('Tengo ganas de…'), 'V3-C debe incluir título Tengo ganas de…');
       assert.ok(
-        standaloneV3CText.includes('Contanos qué te gustaría hacer y te ayudamos a convertirlo en un encuentro.'),
-        'V3-C debe incluir descripción principal aprobada de Camino 2'
+        standaloneV3CText.includes('Contanos tu idea y te ayudamos a organizarla.'),
+        'V3-C debe incluir descripción simplificada de Camino 2'
+      );
+      assert.ok(
+        standaloneV3C.includes('Ej. jugar al pádel este sábado…'),
+        'V3-C debe usar placeholder breve aprobado en Camino 2'
       );
       assert.ok(
         standaloneV3CText.includes('Si te falta gente, también podés permitir que otras personas soliciten sumarse.'),
-        'V3-C debe incluir mensaje complementario de solicitudes de Camino 2'
+        'V3-C debe conservar subnote desktop de Camino 2'
       );
       assert.ok(standaloneV3CText.includes('Hagamos que pase'), 'V3-C debe incluir CTA Hagamos que pase');
       assert.ok(!standaloneV3CText.includes('abrir lugares en tus zonas'), 'V3-C no debe usar "abrir lugares en tus zonas"');
@@ -2882,6 +2886,42 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
         'Home.css debe configurar scroll-margin-top >= 88px para proteger títulos bajo el header sticky en V3-C'
       );
       assert.ok(homeCssContent.includes('.home-empty--v3c'), 'Home.css debe definir estilos compactos para .home-empty--v3c');
+
+      // 5. Subtítulos breves de sección y simplificación mobile-first exclusivos en V3-C
+      assert.ok(
+        htmlV3C.includes('data-testid="discovery-v3c-subtitle"') &&
+          htmlV3C.includes('Descubrí encuentros de otras personas y solicitá sumarte a los que te interesen.'),
+        'V3-C debe mostrar explicación breve debajo de "¿A qué me sumo?"'
+      );
+      assert.ok(
+        htmlV3C.includes('data-testid="mi-espacio-v3c-subtitle"') &&
+          htmlV3C.includes('Tus encuentros, tus ganas y tus solicitudes, todo en un lugar.'),
+        'V3-C debe mostrar explicación breve debajo de "Mi espacio"'
+      );
+      for (const [label, html] of [
+        ['V2', htmlV2],
+        ['V3-A', htmlV3A],
+        ['V3-B', htmlV3B],
+      ]) {
+        assert.ok(!html.includes('data-testid="discovery-v3c-subtitle"'), `${label} no debe incluir subtítulo de Discovery de V3-C`);
+        assert.ok(!html.includes('data-testid="mi-espacio-v3c-subtitle"'), `${label} no debe incluir subtítulo de Mi espacio de V3-C`);
+      }
+
+      const heroPreviewCss = readFileSync(
+        resolve(process.cwd(), 'src/components/home/HomeDualPathHeroPreview.css'),
+        'utf8'
+      );
+      assert.ok(
+        heroPreviewCss.includes('.home-dual-hero--v3c .home-suggestions-list') &&
+          heroPreviewCss.includes('flex-wrap: nowrap;') &&
+          heroPreviewCss.includes('overflow-x: auto;'),
+        'HomeDualPathHeroPreview.css debe disponer los chips V3-C en una sola fila horizontal en móvil'
+      );
+      assert.ok(
+        heroPreviewCss.includes('.home-v3c-card__top {\n    display: none;\n  }') ||
+          heroPreviewCss.includes('.home-v3c-card__top {\r\n    display: none;\r\n  }'),
+        'HomeDualPathHeroPreview.css debe ocultar badges y pills repetitivas .home-v3c-card__top en móvil V3-C'
+      );
     });
   });
 });

@@ -260,7 +260,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
                   Organizá con tu gente
                 </h2>
                 <p className="home-dual-card__desc">
-                  Cumpleaños, cenas, reuniones o salidas. Creá una invitación y compartila con quienes quieras.
+                  Creá invitaciones para cumpleaños, reuniones, cenas y salidas.
                 </p>
               </div>
 
@@ -281,7 +281,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
 
             <p className="home-dual-card__guarantee home-v3c-card__guarantee">
               <CheckCircle2 size={14} className="home-dual-card__guarantee-icon" aria-hidden="true" />
-              <span>Tus invitados pueden confirmar sin registrarse.</span>
+              <span>Tus invitados confirman sin registrarse.</span>
             </p>
           </article>
 
@@ -303,7 +303,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
               </h2>
 
               <p className="home-dual-card__desc home-v3c-card__desc">
-                Contanos qué te gustaría hacer y te ayudamos a convertirlo en un encuentro.
+                Contanos tu idea y te ayudamos a organizarla.
               </p>
 
               <div
@@ -323,7 +323,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
                   onKeyDown={handleTextareaKeyDown}
                   onFocus={() => onFocusChange?.(true)}
                   onBlur={() => onFocusChange?.(false)}
-                  placeholder="ej. jugar al pádel este sábado a las 18"
+                  placeholder="Ej. jugar al pádel este sábado…"
                   aria-label="Tengo ganas de…"
                   disabled={isSubmittingIntent}
                   data-testid="home-intent-textarea"

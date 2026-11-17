@@ -111,6 +111,30 @@
   color: #065f46;
 }
 
+.pe-discovery-heading-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.pe-discovery-section-subtitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  line-height: 1.35;
+  color: var(--color-on-surface-variant, #475569);
+  max-width: 62ch;
+}
+
+@media (max-width: 639px) {
+  .home-v3c-variant .pe-discovery-section--v2 {
+    margin-top: 0.65rem;
+    padding-top: 1.05rem;
+  }
+}
+
 .pe-discovery-header-actions {
   display: flex;
   align-items: center;
@@ -240,10 +264,19 @@
     gap: 10px 16px;
   }
 
+  .pe-discovery-heading-col {
+    width: auto;
+    flex: 1 1 320px;
+  }
+
   .pe-discovery-title-group {
     width: auto;
     flex: 1 1 auto;
     justify-content: flex-start;
+  }
+
+  .pe-discovery-heading-col .pe-discovery-title-group {
+    flex: 0 0 auto;
   }
 
   .pe-discovery-header-actions {
