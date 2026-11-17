@@ -1,0 +1,967 @@
+/* HomeV3d.css — Variante experimental aislada Home V3-D (Mobile Comfort)
+ *
+ * Alcance estricto:
+ * - Solo aplica cuando están presentes .home-v3d-variant, .home-hero-wrapper--v3d,
+ *   .home-dual-hero--v3d, .pe-discovery-section--v3d o .pe-inspirational-container--v3d.
+ * - No modifica ni interfiere con V1, V2, V3-A, V3-B ni V3-C.
+ * - Conserva fotografías decorativas GSAP sin agrandarlas.
+ */
+
+/* ── 1. Header, Safe Areas y Pie en V3-D ── */
+.home-screen-container.home-v2-variant.home-v3d-variant {
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 12px));
+}
+
+.home-v3d-variant #home-personal-activity-section,
+.home-v3d-variant #home-discovery-section {
+  scroll-margin-top: calc(92px + env(safe-area-inset-top, 0px));
+}
+
+.home-v3d-variant .home-header-icon-btn,
+.home-v3d-variant .home-header-avatar-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.home-v3d-variant .home-build-info {
+  font-size: 0.75rem;
+  color: #475569;
+  padding-bottom: 16px;
+}
+
+/* ── 2. Hero Wrapper y Contención GSAP (en móvil <640px elimina banda decorativa redundante) ── */
+@media (max-width: 639px) {
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d {
+    padding-top: 1.05rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .home-hero-wrapper--v3d .home-gsap-mobile-frag,
+  .home-hero-wrapper--v3d .home-dynamic-canvas--gsap .home-gsap-tag {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1219px) {
+  .home-hero-wrapper--v3d .home-dynamic-canvas--gsap .home-gsap-tag {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 959px) {
+  .home-hero-wrapper--v3d .home-gsap-mobile-frag {
+    display: block !important;
+    width: 108px;
+    height: 74px;
+    top: 12px;
+  }
+
+  .home-hero-wrapper--v3d .home-gsap-mobile-frag--left {
+    left: 16px;
+  }
+
+  .home-hero-wrapper--v3d .home-gsap-mobile-frag--right {
+    right: 16px;
+  }
+}
+
+/* ── 3. Hero Dual-Path V3-D: Tipografía, Espaciado y Objetivos Táctiles ── */
+.home-dual-hero--v3d {
+  padding-top: 0;
+}
+
+.home-dual-hero--v3d .home-v3d-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem; /* 12px */
+  align-items: stretch;
+  width: 100%;
+}
+
+.home-dual-hero--v3d .home-v3d-card {
+  gap: 0.375rem;
+  border-radius: 18px;
+  padding: 0.875rem 1rem;
+}
+
+.home-dual-hero--v3d .home-v3d-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.home-dual-hero--v3d .home-v3d-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-dual-hero--v3d .home-v3d-card__copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-dual-hero--v3d .home-v3d-card__copy .home-dual-card__desc {
+  margin-bottom: 0;
+}
+
+.home-dual-hero--v3d .home-v3d-card__action {
+  width: 100%;
+}
+
+.home-dual-hero--v3d .home-dual-card__title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.25;
+  margin-bottom: 0.25rem;
+}
+
+.home-dual-hero--v3d .home-dual-card__desc {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+  margin-bottom: 0.2rem;
+}
+
+.home-dual-hero--v3d .home-dual-cta {
+  min-height: 48px;
+  height: auto;
+  font-size: 1rem; /* 16px */
+  line-height: 1.25;
+  padding: 10px 18px;
+}
+
+.home-dual-hero--v3d .home-dual-cta.home-v3d-cta--intent {
+  background-color: #0F766E;
+  border: 1.5px solid #0F766E;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.22);
+}
+
+.home-dual-hero--v3d .home-dual-cta.home-v3d-cta--intent:hover:not(:disabled) {
+  background-color: #115E59;
+  border-color: #115E59;
+  color: #FFFFFF;
+  box-shadow: 0 5px 15px rgba(13, 148, 136, 0.28);
+}
+
+.home-dual-hero--v3d .home-dual-cta.home-v3d-cta--intent:disabled {
+  background-color: rgba(240, 253, 250, 0.96);
+  border-color: rgba(13, 148, 136, 0.45);
+  color: #115E59;
+  opacity: 0.9;
+  box-shadow: none;
+}
+
+.home-dual-hero--v3d .home-v3d-card__guarantee {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.38;
+  color: #047857; /* WCAG AA >= 5.4:1 */
+  padding-top: 0.15rem;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.5rem;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-box {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface, #FFFFFF);
+  border: 1.5px solid var(--color-outline-variant, #CBD5E1);
+  border-radius: 14px;
+  padding: 0.625rem 0.875rem 0.25rem;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.home-dual-hero--v3d .home-v3d-intent-box:focus-within {
+  border-color: #0D9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.16);
+}
+
+.home-dual-hero--v3d .home-v3d-intent-textarea {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  min-height: 2.75rem; /* 44px de área táctil directa */
+  max-height: 9.5rem;
+  background: transparent;
+  resize: none;
+  font-size: 1rem; /* 16px mínimo real: evita auto-zoom en iOS */
+  line-height: 1.45;
+  color: var(--color-on-surface, #0F1322);
+}
+
+.home-dual-hero--v3d .home-v3d-intent-textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  margin-top: 0.2rem;
+  min-height: 44px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.home-dual-hero--v3d .home-v3d-intent-tools-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.home-dual-hero--v3d .home-v3d-mic-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: #F1F5F9;
+  color: #334155;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+}
+
+.home-dual-hero--v3d .home-v3d-mic-btn:hover {
+  background-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.home-dual-hero--v3d .home-v3d-mic-btn.home-intent-tool-btn--active {
+  background-color: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #B91C1C;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-hint {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.35;
+  color: #475569; /* WCAG AA >= 7:1 */
+  user-select: none;
+}
+
+/* Botón Borrar con área táctil real de 44×44px y pastilla visual contenida de 28×28px */
+.home-dual-hero--v3d .home-v3d-intent-clear {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-clear-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-clear:hover .home-v3d-intent-clear-dot {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.home-dual-hero--v3d .home-v3d-intent-clear:focus-visible {
+  outline: 2px solid #0D9488;
+  outline-offset: 2px;
+}
+
+.home-dual-hero--v3d .home-v3d-card__footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.home-dual-hero--v3d .home-v3d-card__subnote {
+  font-size: 0.8125rem;
+  color: #475569;
+  line-height: 1.35;
+  text-align: center;
+  margin: 0;
+}
+
+/* Mobile (< 640px) */
+@media (max-width: 639px) {
+  .home-dual-hero--v3d {
+    padding-top: 0;
+  }
+
+  .home-dual-hero--v3d .home-dual-hero__header {
+    gap: 0.28rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .home-dual-hero--v3d .home-dual-hero__eyebrow {
+    display: none;
+  }
+
+  .home-dual-hero--v3d .home-dual-hero__title {
+    font-size: clamp(1.625rem, 6.5vw, 1.875rem); /* 26–28px en 320–430px */
+    line-height: 1.15;
+  }
+
+  .home-dual-hero--v3d .home-dual-hero__subtitle {
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.4;
+    color: #334155;
+    max-width: 350px;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__top {
+    display: none;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__subnote {
+    display: none;
+  }
+
+  .home-dual-hero--v3d .home-dual-hero__suggestions {
+    margin-top: 0.55rem;
+  }
+
+  .home-dual-hero--v3d .home-suggestions-container {
+    margin-top: 0;
+  }
+
+  .home-dual-hero--v3d .home-suggestions-list {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 0.25rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 0.5rem;
+    padding: 0.25rem 2rem 0.25rem 0.25rem;
+    margin: 0 -0.25rem;
+    width: calc(100% + 0.5rem);
+    -webkit-mask-image: linear-gradient(90deg, #000000 0%, #000000 calc(100% - 30px), rgba(0, 0, 0, 0.24) calc(100% - 8px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000000 0%, #000000 calc(100% - 30px), rgba(0, 0, 0, 0.24) calc(100% - 8px), transparent 100%);
+  }
+
+  .home-dual-hero--v3d .home-suggestions-list::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .home-dual-hero--v3d .home-v3d-card {
+    padding: 0.875rem;
+  }
+}
+
+/* Especificidad reforzada para que HomeDynamicCanvasGsap.css (lazy) no pise los chips de V3-D */
+.home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-suggestion-chip {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  scroll-margin-inline: 0.4rem;
+  white-space: nowrap;
+  min-height: 44px;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 0.5rem 0.875rem;
+  gap: 0.4rem;
+  color: #334155;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+}
+
+.home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-suggestion-chip:focus-visible {
+  outline: 2px solid var(--color-primary, #184CD4);
+  outline-offset: 2px;
+}
+
+.home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-suggestion-icon {
+  font-size: 1rem;
+}
+
+/* Tablet Portrait (640px..959px) */
+@media (min-width: 640px) and (max-width: 959px) {
+  .home-dual-hero--v3d .home-v3d-grid {
+    max-width: 580px;
+    margin: 0 auto;
+    gap: 0.875rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card {
+    padding: 1.1rem 1.25rem;
+    gap: 0.55rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__action {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .home-dual-hero--v3d .home-v3d-cta--invite {
+    min-width: 220px;
+  }
+}
+
+/* Tablet Landscape y Desktop (>= 960px) */
+@media (min-width: 960px) {
+  .home-dual-hero--v3d .home-v3d-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card {
+    padding: 1.1rem 1.15rem;
+    gap: 0.5rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__top {
+    justify-content: flex-start;
+    gap: 0.42rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-examples {
+    width: 100%;
+    gap: 0.28rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__body {
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__action {
+    margin-top: auto;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__guarantee {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .home-dual-hero--v3d .home-v3d-intent-textarea {
+    min-height: 3.6rem;
+  }
+}
+
+/* ── 4. Discovery V3-D (Comfort, Contraste AA y Simplificación Contextual) ── */
+.pe-discovery-section.pe-discovery-section--v2.pe-discovery-section--v3d {
+  margin-top: 0.9rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1.65rem;
+}
+
+.pe-discovery-section--v3d .pe-discovery-track {
+  padding: 6px 8px 10px 0;
+}
+
+.pe-discovery-section--v3d .pe-v3d-carousel-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.pe-discovery-section--v3d .pe-v3d-carousel-arrow {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  border-color: #CBD5E1;
+  color: #1E293B;
+}
+
+@media (min-width: 768px) {
+  .pe-discovery-section--v3d .pe-v3d-carousel-nav {
+    display: none;
+  }
+
+  .pe-discovery-section.pe-discovery-section--v2.pe-discovery-section--v3d {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.85rem;
+  }
+}
+
+.pe-discovery-section--v3d .pe-discovery-empty-desc,
+.pe-discovery-section--v3d .pe-discovery-secondary-subtitle,
+.pe-discovery-section--v3d .pe-discovery-virtual-zones-banner {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+}
+
+.pe-discovery-section--v3d .pe-discovery-title {
+  font-size: 1.375rem; /* 22px */
+  line-height: 1.25;
+}
+
+.pe-discovery-section--v3d .pe-discovery-section-subtitle {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+}
+
+.pe-discovery-section--v3d .pe-discovery-badge {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 0.875rem; /* 14px */
+  color: #334155;
+  gap: 6px;
+}
+
+.pe-discovery-section--v3d .pe-discovery-header-actions {
+  gap: 10px;
+}
+
+.pe-discovery-section--v3d .pe-discovery-filter-btn,
+.pe-discovery-section--v3d .pe-discovery-avisame-btn,
+.pe-discovery-section--v3d .pe-discovery-see-all-btn {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 0.875rem; /* 14px */
+  gap: 6px;
+}
+
+.pe-discovery-section--v3d .pe-discovery-see-all-btn {
+  color: #047857;
+}
+
+.pe-discovery-section--v3d .pe-discovery-empty-btn {
+  min-height: 48px;
+  padding: 10px 18px;
+  font-size: 0.9375rem; /* 15px */
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-discovery-section--v3d .pe-discovery-virtual-zones-cta {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+}
+
+/* Tarjetas de encuentros abiertos en V3-D: lectura sin recortes ni bajo contraste */
+.home-v3d-variant .pe-open-card {
+  height: auto;
+  min-height: 172px;
+  padding: 16px;
+  gap: 10px;
+}
+
+.home-v3d-variant .pe-open-card__title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
+
+.home-v3d-variant .pe-open-card__meta-item {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.38;
+  color: #334155;
+}
+
+.home-v3d-variant .pe-open-card__zone {
+  color: #0369A1; /* AA >= 5.9:1 */
+}
+
+.home-v3d-variant .pe-open-card__badge {
+  font-size: 0.8125rem; /* 13px */
+  padding: 4px 10px;
+}
+
+.home-v3d-variant .pe-open-card__badge--single {
+  color: #B91C1C;
+}
+
+.home-v3d-variant .pe-open-card__badge--remaining {
+  color: #92400E;
+}
+
+.home-v3d-variant .pe-open-card__badge--count {
+  color: #065F46;
+}
+
+.home-v3d-variant .pe-open-card__badge--full {
+  color: #334155;
+}
+
+.home-v3d-variant .pe-open-card__confirmed,
+.home-v3d-variant .pe-open-card__action-hint {
+  font-size: 0.875rem; /* 14px */
+}
+
+.home-v3d-variant .pe-open-card__confirmed {
+  color: #475569;
+}
+
+.home-v3d-variant .pe-open-card__action-hint {
+  color: #047857;
+}
+
+/* Estado vacío / inspirador en V3-D (especificidad 0,3,0 para superar --v3c-compact en CSS hijo) */
+.pe-inspirational-container.pe-inspirational-container--v3d {
+  padding: 1.15rem 1rem 1.25rem;
+  border-radius: 18px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.3;
+  color: #0F172A;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-desc {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155; /* AA >= 9:1 */
+  margin-top: 6px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-zone-prompt {
+  padding: 12px 14px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-zone-prompt-text {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.38;
+  color: #1E293B;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-zone-btn {
+  min-height: 48px;
+  font-size: 0.9375rem; /* 15px */
+  padding: 10px 18px;
+  font-weight: 700;
+  color: #0F172A;
+  border-color: #94A3B8;
+  background-color: #FFFFFF;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-notice {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.38;
+  padding: 6px 12px;
+  margin-top: 12px;
+  color: #065F46;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 0.9rem 0 0.7rem;
+}
+
+@media (min-width: 540px) {
+  .pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card {
+  padding: 14px;
+  min-height: 112px;
+  border-radius: 16px;
+  gap: 5px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-top {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-emoji {
+  font-size: 1.35rem;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-badge {
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.25;
+  padding: 3px 8px;
+  color: #065F46;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.28;
+  margin: 2px 0;
+  color: #0F172A;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-desc {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-footer {
+  padding-top: 6px;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-card-action {
+  font-size: 0.875rem; /* 14px */
+  color: #047857;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-toggle-btn {
+  min-height: 44px;
+  padding: 8px 18px;
+  font-size: 0.875rem; /* 14px */
+  color: #065F46;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-actions {
+  gap: 10px;
+  margin-top: 0.75rem;
+}
+
+.pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-actions .pe-discovery-empty-btn {
+  min-height: 48px;
+  padding: 10px 18px;
+  font-size: 0.9375rem; /* 15px */
+}
+
+@media (max-width: 479px) {
+  .pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-zone-btn,
+  .pe-inspirational-container.pe-inspirational-container--v3d .pe-inspirational-actions .pe-discovery-empty-btn {
+    width: 100%;
+  }
+}
+
+/* ── 5. Mi espacio V3-D ── */
+.home-v3d-variant .home-user-section-title {
+  font-size: 1.375rem; /* 22px */
+  line-height: 1.25;
+}
+
+.home-v3d-variant .home-user-section-subtitle {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+  margin: 2px 0 10px;
+}
+
+.home-v3d-variant .pe-fav-access-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  color: #334155;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.home-v3d-variant .home-user-tabs {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  gap: 8px;
+  padding: 4px 0.75rem 10px;
+}
+
+.home-v3d-variant .home-user-tab {
+  min-height: 44px;
+  padding: 8px 13px;
+  font-size: 0.875rem; /* 14px */
+  color: #334155;
+}
+
+.home-v3d-variant .home-user-tab--active {
+  color: #FFFFFF;
+}
+
+.home-v3d-variant .pe-toolbar-summary-count {
+  font-size: 0.875rem; /* 14px */
+  color: #475569;
+}
+
+.home-v3d-variant .pe-segmented-btn {
+  min-height: 44px;
+  font-size: 0.875rem; /* 14px */
+  color: #334155;
+}
+
+.home-v3d-variant .pe-segmented-badge {
+  font-size: 0.75rem;
+  color: #334155;
+}
+
+.home-v3d-variant .pe-filter-btn--icon-only {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.home-v3d-variant .home-card-list {
+  gap: 14px; /* 12–16px */
+}
+
+.home-v3d-variant .home-card,
+.home-v3d-variant .home-card--past {
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.home-v3d-variant .home-card-title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.28;
+}
+
+.home-v3d-variant .home-card-date,
+.home-v3d-variant .home-card-date--past {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.4;
+  color: #334155;
+}
+
+.home-v3d-variant .home-card-footer {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.home-v3d-variant .status-chip {
+  font-size: 0.8125rem; /* 13px */
+  padding: 5px 11px;
+  color: #334155;
+}
+
+.home-v3d-variant .badge {
+  font-size: 0.75rem; /* 12px */
+  height: 26px;
+  padding: 0 11px;
+}
+
+.home-v3d-variant .badge-active,
+.home-v3d-variant .badge-confirmed,
+.home-v3d-variant .home-card-status--success {
+  color: #047857;
+}
+
+.home-v3d-variant .home-card-status {
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.home-v3d-variant .home-encounters-switch-temporal-btn,
+.home-v3d-variant .home-encounters-expand-btn {
+  min-height: 44px;
+  font-size: 0.9375rem;
+  color: #334155;
+}
+
+.home-empty--v3d {
+  padding: 18px 16px 14px;
+}
+
+.home-empty--v3d .home-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.home-empty--v3d .home-empty-title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+
+.home-empty--v3d .home-empty-desc {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.42;
+  color: #334155;
+  margin-bottom: 14px;
+  max-width: 340px;
+}
+
+.home-empty-cta--v3d {
+  min-height: 48px;
+  min-width: 200px;
+  padding: 10px 22px;
+  font-size: 1rem; /* 16px */
+  font-weight: 700;
+  border-radius: 9999px;
+}
+
+.home-v3d-variant .home-create-or-open-info__compact-text {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.4;
+  color: #334155;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-dual-hero--v3d .home-v3d-intent-box,
+  .home-dual-hero--v3d .home-v3d-intent-clear-dot,
+  .home-dual-hero--v3d .home-dual-cta {
+    transition: none;
+  }
+
+  .home-dual-hero--v3d .home-suggestions-list {
+    scroll-behavior: auto;
+  }
+}

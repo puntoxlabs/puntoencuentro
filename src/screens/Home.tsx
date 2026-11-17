@@ -469,7 +469,7 @@ export function formatBuildTimestamp(raw: string): string {
 /* ─── Guards explícitos de entorno y origen para Previews V3 y Fixture Local ── */
 const LOCAL_DEV_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-export type EffectiveHomeVariant = 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c';
+export type EffectiveHomeVariant = 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c' | 'v3d';
 
 /**
  * Variante predeterminada de Home en el entorno Staging autorizado cuando no existe
@@ -539,6 +539,22 @@ export function isStagingDefaultV3CAllowed(options?: {
 }
 
 /**
+ * Habilita la preview experimental Home V3-D (`/preview/home-v3d`) exclusivamente
+ * en desarrollo local o en el entorno y origen autorizado de Staging
+ * (`https://staging.puntoencuentro.com.ar`).
+ * Utiliza la misma política de seguridad que `isHomeV3PreviewAllowed()`:
+ * bloqueada incondicionalmente en Producción y en orígenes no autorizados,
+ * y nunca activada como Home predeterminada.
+ */
+export function isHomeV3dPreviewAllowed(options?: {
+  appEnv?: string;
+  origin?: string;
+  hostname?: string;
+}): boolean {
+  return isHomeV3PreviewAllowed(options);
+}
+
+/**
  * Resuelve de forma explícita la variante efectiva de Home respetando overrides válidos
  * y restringiendo la activación automática de V3-C únicamente a Staging.
  */
@@ -560,6 +576,15 @@ export function resolveEffectiveHomeVariant(params: {
   // 2. Acceso explícito o rollback a V2 (/preview/home-v2 o ?homeVariant=v2 / ?homePreview=v2)
   if (propHomeVariant === 'v2' || queryHomeVariant === 'v2' || queryHomePreview === 'v2') {
     return 'v2';
+  }
+
+  // 2b. Preview experimental V3-D: habilitada en desarrollo local y Staging autorizado (jamás en Producción)
+  const v3dAllowed = isHomeV3dPreviewAllowed({ appEnv, origin, hostname });
+  if (
+    v3dAllowed &&
+    (propHomeVariant === 'v3d' || queryHomePreview === 'v3d' || queryHomeVariant === 'v3d')
+  ) {
+    return 'v3d';
   }
 
   const v3Allowed = isHomeV3PreviewAllowed({ appEnv, origin, hostname });
@@ -628,7 +653,7 @@ export function isLocalDevAuthFixtureAllowed(options?: {
 export interface HomeProps {
   forcedVariant?: HomeVisualVariant;
   enableOpenDiscovery?: boolean;
-  homeVariant?: 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c';
+  homeVariant?: 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c' | 'v3d';
   appEnv?: string;
   isDesktop?: boolean;
 }
@@ -694,7 +719,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   });
 
   const v3Variant: HomeV3Variant | null =
-    effectiveHomeVariant === 'v3a' || effectiveHomeVariant === 'v3b' || effectiveHomeVariant === 'v3c'
+    effectiveHomeVariant === 'v3a' ||
+    effectiveHomeVariant === 'v3b' ||
+    effectiveHomeVariant === 'v3c' ||
+    effectiveHomeVariant === 'v3d'
       ? effectiveHomeVariant
       : null;
 
@@ -1532,7 +1560,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       // 2. En mobile: reconciliar elementos observados
       const container = document.querySelector('.home-screen-container') || document.body;
       const targetSelector =
-        v3Variant === 'v3c'
+        v3Variant === 'v3c' || v3Variant === 'v3d'
           ? '.home-dual-hero, #home-discovery-section, #home-personal-activity-section'
           : v3Variant
           ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
@@ -2200,8 +2228,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     if (rawEncuentros.length === 0) {
       const isOrganizo = activeScope === 'organizo';
       const isV3C = v3Variant === 'v3c';
+      const isV3D = v3Variant === 'v3d';
       return (
-        <div className={`home-empty${isV2Variant ? ' home-empty--compact' : ''}${isV3C ? ' home-empty--v3c' : ''}`}>
+        <div className={`home-empty${isV2Variant ? ' home-empty--compact' : ''}${isV3C ? ' home-empty--v3c' : ''}${isV3D ? ' home-empty--v3d' : ''}`}>
           <div className="home-empty-icon">
             <Calendar size={isV3C ? 20 : isV2Variant ? 32 : 40} color="var(--color-primary)" />
           </div>
@@ -2214,16 +2243,18 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           </h2>
           <p className="home-empty-desc">
             {isOrganizo || activeScope === 'todos'
-              ? isV3C
+              ? isV3C || isV3D
                 ? 'Cuando crees una invitación o confirmes un encuentro, aparecerá acá.'
                 : 'Creá uno nuevo para coordinar con otros o sumate a un plan abierto.'
               : 'Cuando confirmes asistencia, aparecerán acá.'}
           </p>
           <Button
             variant={isV2Variant ? 'outline' : 'primary'}
-            className={isV3C ? 'home-empty-cta--v3c' : undefined}
+            className={isV3D ? 'home-empty-cta--v3d' : isV3C ? 'home-empty-cta--v3c' : undefined}
             style={
-              isV3C
+              isV3D
+                ? { minWidth: 200, minHeight: 48, fontSize: 16, fontWeight: 700, marginTop: 4, alignSelf: 'center' }
+                : isV3C
                 ? { minWidth: 148, maxWidth: 196, height: 34, fontSize: 13, fontWeight: 600, marginTop: 4, alignSelf: 'center' }
                 : isV2Variant
                 ? { minWidth: 170, maxWidth: 220, height: 40, fontSize: 14, fontWeight: 600, marginTop: 8, alignSelf: 'center' }
@@ -2424,8 +2455,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             )}
           </div>
         )}
-        {v3Variant === 'v3c' && (
-          <p className="home-user-section-subtitle" data-testid="mi-espacio-v3c-subtitle">
+        {(v3Variant === 'v3c' || v3Variant === 'v3d') && (
+          <p className="home-user-section-subtitle" data-testid={v3Variant === 'v3d' ? 'mi-espacio-v3d-subtitle' : 'mi-espacio-v3c-subtitle'}>
             Tus encuentros, ganas y solicitudes.
           </p>
         )}
@@ -2478,23 +2509,25 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
         {userSectionTab === 'encuentros' ? (
           <>
-            <HomeEncountersToolbar
-              activeScope={activeScope}
-              onScopeChange={(scope) => {
-                setActiveScope(scope);
-                setIsExpandedUpcoming(false);
-              }}
-              isLoggedIn={Boolean(effectiveUser)}
-              totalTodosCount={isV2Variant ? activeTodosCount : allUniqueTodosCount}
-              totalOrganizedCount={isV2Variant ? activeOrganizedEncuentros.length : organizedEncuentros.length}
-              totalParticipatedCount={isV2Variant ? activeParticipatedEncuentros.length : participatedEncuentros.length}
-              totalProximosCount={totalProximos}
-              totalPasadosCount={totalPasados}
-              activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
-              onOpenFilters={() => setIsSecondaryFilterOpen(true)}
-              hideTitle={isV2Variant}
-              isV2Variant={isV2Variant}
-            />
+            {!(v3Variant === 'v3d' && allUniqueTodosCount === 0 && countActiveSecondaryFilters(secondaryFilters) === 0) && (
+              <HomeEncountersToolbar
+                activeScope={activeScope}
+                onScopeChange={(scope) => {
+                  setActiveScope(scope);
+                  setIsExpandedUpcoming(false);
+                }}
+                isLoggedIn={Boolean(effectiveUser)}
+                totalTodosCount={isV2Variant ? activeTodosCount : allUniqueTodosCount}
+                totalOrganizedCount={isV2Variant ? activeOrganizedEncuentros.length : organizedEncuentros.length}
+                totalParticipatedCount={isV2Variant ? activeParticipatedEncuentros.length : participatedEncuentros.length}
+                totalProximosCount={totalProximos}
+                totalPasadosCount={totalPasados}
+                activeFilterCount={countActiveSecondaryFilters(secondaryFilters)}
+                onOpenFilters={() => setIsSecondaryFilterOpen(true)}
+                hideTitle={isV2Variant}
+                isV2Variant={isV2Variant}
+              />
+            )}
 
             <div className="pe-gsap-encounters-container">
               {renderGsapContent()}
@@ -2523,7 +2556,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   return (
     <ScreenContainer
       style={{ background: 'var(--color-background)' }}
-      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}${v3Variant === 'v3c' ? ' home-v3c-variant' : ''}`}
+      className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}${v3Variant === 'v3c' ? ' home-v3c-variant' : ''}${v3Variant === 'v3d' ? ' home-v3d-variant' : ''}`}
     >
       <header className="home-header">
         <div className="home-header-brand" onClick={handleTap} aria-label="PuntoEncuentro">
@@ -2831,11 +2864,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             onOpenCreate={handleCreateClick}
             intentionsTitle={isV2Variant ? t('open_encounters.personal_intentions_title') : undefined}
             sectionSubtitle={
-              v3Variant === 'v3c'
+              v3Variant === 'v3c' || v3Variant === 'v3d'
                 ? 'Encontrá encuentros y solicitá sumarte.'
                 : undefined
             }
-            compactV3C={v3Variant === 'v3c'}
+            compactV3C={v3Variant === 'v3c' || v3Variant === 'v3d'}
+            variantV3D={v3Variant === 'v3d'}
             highlightEncounterIds={matchedHighlightIds}
             onClearHighlight={handleClearHighlight}
             refreshTrigger={discoveryRefreshTrigger}
@@ -2861,8 +2895,8 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {/* Para usuario logueado en V2 Desktop: Actividad personal (Tus encuentros & Mis ganas) inmediatamente después de Me sumo */}
           {isV2Variant && effectiveIsPermanentUser && isDesktop && personalActivitySection}
 
-          {/* Banda Tengo ganas de... inmediatamente después de Me sumo (ocultada únicamente en V3-C por ya estar en el Hero) */}
-          {isV2Variant && v3Variant !== 'v3c' && userSectionTab !== 'intenciones' && (
+          {/* Banda Tengo ganas de... inmediatamente después de Me sumo (ocultada únicamente en V3-C/V3-D por ya estar en el Hero) */}
+          {isV2Variant && v3Variant !== 'v3c' && v3Variant !== 'v3d' && userSectionTab !== 'intenciones' && (
             <HomeIntentionsBand onExpressIntent={handleOpenIntentionFlow} />
           )}
 
@@ -2887,11 +2921,11 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           {/* TUS ENCUENTROS & INTENCIONES para V1 */}
           {!isV2Variant && personalActivitySection}
 
-          {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2, simplificada en V3-C) */}
+          {/* PIEZA INFORMATIVA COMPACTA CREAR / ABRIR (Solo V2, simplificada en V3-C/V3-D) */}
           {isV2Variant && (
             <HomeCreateOrOpenInfo
               isAnonymous={!effectiveIsPermanentUser}
-              compactV3C={v3Variant === 'v3c'}
+              compactV3C={v3Variant === 'v3c' || v3Variant === 'v3d'}
             />
           )}
 

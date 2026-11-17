@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home, { isHomeV3PreviewAllowed } from '@/screens/Home';
+import Home, { isHomeV3PreviewAllowed, isHomeV3dPreviewAllowed } from '@/screens/Home';
 import PreviewHomeD from '@/screens/PreviewHomeD';
 import PreviewHomeGsap from '@/screens/PreviewHomeGsap';
 import CreateWizard from '@/screens/CreateWizard';
@@ -110,6 +110,7 @@ const AppRoutes: React.FC = () => {
   usePostAuthRedirect();
 
   const v3PreviewAllowed = isHomeV3PreviewAllowed();
+  const v3dPreviewAllowed = isHomeV3dPreviewAllowed();
 
   React.useEffect(() => {
     const currentEnv = resolveAppEnvironment();
@@ -149,6 +150,9 @@ const AppRoutes: React.FC = () => {
           <Route path="/preview/home-v3b" element={<Home homeVariant="v3b" forcedVariant="gsap" />} />
           <Route path="/preview/home-v3c" element={<Home homeVariant="v3c" forcedVariant="gsap" />} />
         </>
+      )}
+      {v3dPreviewAllowed && (
+        <Route path="/preview/home-v3d" element={<Home homeVariant="v3d" forcedVariant="gsap" />} />
       )}
       <Route path="/create" element={<CreateWizard />} />
       <Route path="/create/ai" element={AI_CREATION_ENABLED ? <CreateAIWizard /> : <CreateWizard />} />

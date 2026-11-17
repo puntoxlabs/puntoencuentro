@@ -58,8 +58,10 @@ export interface HomeOpenEncountersProps {
   intentionsTitle?: string;
   /** Subtítulo explicativo breve debajo del título de Discovery (exclusivo V3-C) */
   sectionSubtitle?: string;
-  /** Activa el estado vacío compacto en móvil (exclusivo V3-C) */
+  /** Activa el estado vacío compacto en móvil (exclusivo V3-C / V3-D) */
   compactV3C?: boolean;
+  /** Variante experimental local V3-D (Mobile Comfort y simplificación contextual) */
+  variantV3D?: boolean;
   /** Si está activa la variante V2 (desktop carrusel con flechas, orden por fecha ascendente) */
   isV2Variant?: boolean;
   /** IDs de encuentros devueltos por matching inmediato que deben resaltarse temporalmente */
@@ -115,6 +117,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   intentionsTitle,
   sectionSubtitle,
   compactV3C = false,
+  variantV3D = false,
   isV2Variant = false,
   highlightEncounterIds,
   onClearHighlight,
@@ -997,6 +1000,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           onOpenAvisame={() => handleOpenAvisame('create')}
           onConfigureZones={handleOpenZoneModal}
           compactV3C={compactV3C}
+          variantV3D={variantV3D}
         />
       );
     }
@@ -1061,8 +1065,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         }}
         onScroll={() => pauseAutoAdvance(10000)}
       >
-        {/* Retorno contextual mobile V2 al primer encuentro */}
-        {isV2Variant && hasOverflow && canScrollLeft && (
+        {/* Retorno contextual mobile V2/V3-C al primer encuentro (omitido en V3-D para evitar solapamiento sobre cards) */}
+        {!variantV3D && isV2Variant && hasOverflow && canScrollLeft && (
           <button
             type="button"
             className="pe-discovery-carousel-mobile-indicator pe-discovery-carousel-mobile-indicator--left"
@@ -1097,8 +1101,8 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           ))}
         </div>
 
-        {/* Indicador / affordance mobile V2 hacia la derecha */}
-        {isV2Variant && hasOverflow && canScrollRight && (
+        {/* Indicador / affordance mobile V2/V3-C hacia la derecha (omitido en V3-D) */}
+        {!variantV3D && isV2Variant && hasOverflow && canScrollRight && (
           <button
             type="button"
             className="pe-discovery-carousel-mobile-indicator"
@@ -1110,6 +1114,41 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           </button>
         )}
       </div>
+
+      {/* Controles táctiles dedicados fuera de tarjetas para mobile en V3-D */}
+      {variantV3D && isV2Variant && hasOverflow && (
+        <div className="pe-v3d-carousel-nav" aria-label="Navegación del carrusel">
+          {canScrollLeft && (
+            <button
+              type="button"
+              className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--first pe-v3d-carousel-arrow"
+              onClick={handleScrollToFirst}
+              aria-label={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+              title={t('open_encounters.carousel_first', { defaultValue: 'Volver al primer encuentro' })}
+            >
+              <ChevronsLeft size={18} aria-hidden="true" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--prev pe-v3d-carousel-arrow"
+            onClick={handleScrollPrev}
+            disabled={!canScrollLeft}
+            aria-label={t('open_encounters.carousel_prev', { defaultValue: 'Encuentros anteriores' })}
+          >
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="pe-discovery-carousel-arrow pe-discovery-carousel-arrow--next pe-v3d-carousel-arrow"
+            onClick={handleScrollNext}
+            disabled={!canScrollRight}
+            aria-label={t('open_encounters.carousel_next', { defaultValue: 'Encuentros siguientes' })}
+          >
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -1208,6 +1247,18 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   // Error general: ambas fuentes fallaron
   const isGeneralError = Boolean(hookError && !propEncounters && !propIntentions);
 
+  // Simplificación contextual en Discovery V3-D (Estado A sin zonas, Estado B sin encuentros, Estado C con encuentros)
+  const isDiscoveryFetching =
+    propLoading !== undefined
+      ? propLoading
+      : (propEncounters === undefined && hookEncountersOverride === undefined && !noZonesConfigured && hookLoading);
+  const discoveryHasNoZones = noZonesConfigured
+    ? true
+    : propEncounters === undefined && userZones.length === 0 && effectiveZones.length === 0;
+  const showAvailableFilterBtn = !variantV3D || visibleEncounters.length > 0;
+  const showHeaderAvisameBtn =
+    !variantV3D || isDiscoveryFetching || visibleEncounters.length > 0;
+
   const discoveryTitleGroup = (
     <div className="pe-discovery-title-group">
       <h2 className="pe-discovery-title">
@@ -1222,10 +1273,16 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         title="Elegir zonas de interés"
         data-testid="discovery-zone-badge"
       >
-        <MapPin size={11} aria-hidden="true" />
+        <MapPin size={variantV3D ? 14 : 11} aria-hidden="true" />
         <span>
-          {t('open_encounters.subtitle_zones', { defaultValue: 'En tus zonas' })}
-          {effectiveZones.length > 0 ? ` (${effectiveZones.length})` : ''}
+          {variantV3D && discoveryHasNoZones
+            ? t('open_encounters.choose_zones_short', { defaultValue: 'Elegir zonas' })
+            : (
+              <>
+                {t('open_encounters.subtitle_zones', { defaultValue: 'En tus zonas' })}
+                {effectiveZones.length > 0 ? ` (${effectiveZones.length})` : ''}
+              </>
+            )}
         </span>
       </button>
     </div>
@@ -1234,7 +1291,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   return (
     <section
       id="home-discovery-section"
-      className={`pe-discovery-section${isV2Variant ? ' pe-discovery-section--v2' : ''}`}
+      className={`pe-discovery-section${isV2Variant ? ' pe-discovery-section--v2' : ''}${variantV3D ? ' pe-discovery-section--v3d' : ''}`}
       aria-label="Encuentros abiertos y planes para sumarte"
     >
       {/* Cabecera de la Sección */}
@@ -1242,7 +1299,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
         {sectionSubtitle ? (
           <div className="pe-discovery-heading-col">
             {discoveryTitleGroup}
-            <p className="pe-discovery-section-subtitle" data-testid="discovery-v3c-subtitle">
+            <p className="pe-discovery-section-subtitle" data-testid={variantV3D ? 'discovery-v3d-subtitle' : 'discovery-v3c-subtitle'}>
               {sectionSubtitle}
             </p>
           </div>
@@ -1250,29 +1307,34 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           discoveryTitleGroup
         )}
 
+        {(showAvailableFilterBtn || showHeaderAvisameBtn || displayedEncounters.length > 0 || (isV2Variant && hasOverflow)) && (
         <div className="pe-discovery-header-actions">
-          <button
-            type="button"
-            className={`pe-discovery-filter-btn ${onlyAvailableFilter ? 'pe-discovery-filter-btn--active' : ''}`}
-            onClick={() => setOnlyAvailableFilter((prev) => !prev)}
-            aria-pressed={onlyAvailableFilter}
-            title={t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}
-            data-testid="discovery-filter-btn"
-          >
-            <span>{t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}</span>
-          </button>
+          {showAvailableFilterBtn && (
+            <button
+              type="button"
+              className={`pe-discovery-filter-btn ${onlyAvailableFilter ? 'pe-discovery-filter-btn--active' : ''}`}
+              onClick={() => setOnlyAvailableFilter((prev) => !prev)}
+              aria-pressed={onlyAvailableFilter}
+              title={t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}
+              data-testid="discovery-filter-btn"
+            >
+              <span>{t('open_encounters.filter_available', { defaultValue: 'Solo con lugares disponibles' })}</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            className="pe-discovery-avisame-btn"
-            onClick={() => handleOpenAvisame('create')}
-            aria-label={t('avisame.action_btn', { defaultValue: 'Avisame' })}
-            title={t('avisame.action_tooltip', { defaultValue: 'Avisame cuando aparezca un encuentro' })}
-            data-testid="discovery-avisame-btn"
-          >
-            <Bell size={13} aria-hidden="true" />
-            <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
-          </button>
+          {showHeaderAvisameBtn && (
+            <button
+              type="button"
+              className="pe-discovery-avisame-btn"
+              onClick={() => handleOpenAvisame('create')}
+              aria-label={t('avisame.action_btn', { defaultValue: 'Avisame' })}
+              title={t('avisame.action_tooltip', { defaultValue: 'Avisame cuando aparezca un encuentro' })}
+              data-testid="discovery-avisame-btn"
+            >
+              <Bell size={variantV3D ? 15 : 13} aria-hidden="true" />
+              <span>{t('avisame.action_btn', { defaultValue: 'Avisame' })}</span>
+            </button>
+          )}
 
           {displayedEncounters.length > 0 && (
             <button
@@ -1321,6 +1383,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Selector Segmentado: [ Todo ] [ Encuentros ] [ Ganas de… ] (Solo V1) */}

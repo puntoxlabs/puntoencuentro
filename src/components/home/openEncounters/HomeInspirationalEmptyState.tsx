@@ -55,6 +55,8 @@ export interface HomeInspirationalEmptyStateProps {
   onConfigureZones?: () => void;
   /** En móvil V3-C compacta el bloque vacío mostrando 2 ideas iniciales y un toggle "Ver más ideas" */
   compactV3C?: boolean;
+  /** Variante experimental local V3-D (Mobile Comfort) */
+  variantV3D?: boolean;
 }
 
 export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStateProps> = ({
@@ -64,13 +66,14 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
   onOpenAvisame,
   onConfigureZones,
   compactV3C = false,
+  variantV3D = false,
 }) => {
   const { t } = useTranslation();
   const [showAllIdeas, setShowAllIdeas] = useState(false);
 
   return (
     <div
-      className={`pe-inspirational-container${compactV3C ? ' pe-inspirational-container--v3c-compact' : ''}${compactV3C && showAllIdeas ? ' pe-inspirational-container--expanded' : ''}`}
+      className={`pe-inspirational-container${compactV3C ? ' pe-inspirational-container--v3c-compact' : ''}${variantV3D ? ' pe-inspirational-container--v3d' : ''}${compactV3C && showAllIdeas ? ' pe-inspirational-container--expanded' : ''}`}
       data-testid="inspirational-empty-state"
       role="region"
       aria-label="Ideas inspiradoras para organizar encuentros"

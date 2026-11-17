@@ -5,8 +5,9 @@ import { HomeIntentInput } from './HomeIntentInput';
 import { HomeSuggestionChips, type SuggestionOption } from './HomeSuggestionChips';
 import { useSpeechDictation, getSpeechRecognitionLocale } from '@/hooks/useSpeechDictation';
 import './HomeDualPathHeroPreview.css';
+import './HomeV3d.css';
 
-export type HomeV3Variant = 'v3a' | 'v3b' | 'v3c';
+export type HomeV3Variant = 'v3a' | 'v3b' | 'v3c' | 'v3d';
 
 export interface HomeDualPathHeroPreviewProps {
   /** Propuesta visual V3: 'v3a' (Camino A destacado arriba), 'v3b' (jerarquía equilibrada) o 'v3c' (responsive combinado) */
@@ -85,13 +86,13 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
   });
 
   useEffect(() => {
-    if (variant === 'v3c') {
+    if (variant === 'v3c' || variant === 'v3d') {
       isListeningChange?.(isListening);
     }
   }, [variant, isListening, isListeningChange]);
 
   useEffect(() => {
-    if (variant !== 'v3c') return;
+    if (variant !== 'v3c' && variant !== 'v3d') return;
     const el = textareaRef.current;
     if (!el) return;
     if (!currentIntent) {
@@ -99,7 +100,7 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
       return;
     }
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 152)}px`;
   }, [variant, currentIntent]);
 
   const handleIntentFormSubmit = (e: React.FormEvent) => {
@@ -162,7 +163,9 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
         </h1>
 
         <p className="home-dual-hero__subtitle">
-          Organizá algo con tu gente o encontrá con quién compartir un plan.
+          {variant === 'v3d'
+            ? 'Organizá con tu gente o sumate a un plan.'
+            : 'Organizá algo con tu gente o encontrá con quién compartir un plan.'}
         </p>
       </div>
 
@@ -232,167 +235,182 @@ export const HomeDualPathHeroPreview: React.FC<HomeDualPathHeroPreviewProps> = (
             />
           </div>
         </div>
-      ) : variant === 'v3c' ? (
-        <div className="home-v3c-grid">
-          {/* Camino 1: Organizá con tu gente */}
-          <article
-            className="home-dual-card home-dual-card--invite home-v3c-card home-v3c-card--invite"
-            aria-labelledby="dual-path-invite-title"
-          >
-            <div className="home-v3c-card__top">
-              <span className="home-dual-card__badge home-dual-card__badge--invite">
-                <CalendarPlus size={14} aria-hidden="true" />
-                <span>Invitación privada</span>
-              </span>
-              <ul className="home-dual-examples home-dual-examples--inline home-v3c-examples" aria-label="Ejemplos de encuentros con tu gente">
-                {INVITATION_EXAMPLES.map((item) => (
-                  <li key={item.label} className="home-dual-example-pill">
-                    <span aria-hidden="true">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="home-v3c-card__body">
-              <div className="home-v3c-card__copy">
-                <h2 id="dual-path-invite-title" className="home-dual-card__title">
-                  Organizá con tu gente
-                </h2>
-                <p className="home-dual-card__desc">
-                  Creá invitaciones para cumpleaños, reuniones, cenas y salidas.
-                </p>
-              </div>
-
-              <div className="home-v3c-card__action">
-                <Button
-                  type="button"
-                  variant="primary"
-                  fullWidth
-                  className="home-dual-cta home-dual-cta--invite home-v3c-cta--invite"
-                  onClick={onCreateInvitationClick}
-                  data-testid="dual-path-create-invitation-btn"
-                >
-                  <span>Crear una invitación</span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-
-            <p className="home-dual-card__guarantee home-v3c-card__guarantee">
-              <CheckCircle2 size={14} className="home-dual-card__guarantee-icon" aria-hidden="true" />
-              <span>Tus invitados confirman sin registrarse.</span>
-            </p>
-          </article>
-
-          {/* Camino 2: Tengo ganas de… */}
-          <article
-            className="home-dual-card home-dual-card--intent home-v3c-card home-v3c-card--intent"
-            aria-labelledby="dual-path-intent-title"
-          >
-            <form className="home-dual-intent-form home-v3c-intent-form" onSubmit={handleIntentFormSubmit}>
-              <div className="home-v3c-card__top">
-                <span className="home-dual-card__badge home-dual-card__badge--intent">
-                  <Sparkles size={14} aria-hidden="true" />
-                  <span>De una idea a un encuentro</span>
-                </span>
-              </div>
-
-              <h2 id="dual-path-intent-title" className="home-dual-card__title">
-                Tengo ganas de…
-              </h2>
-
-              <p className="home-dual-card__desc home-v3c-card__desc">
-                Contanos tu idea y te ayudamos a organizarla.
-              </p>
-
-              <div
-                className="home-v3c-intent-box"
-                onClick={() => textareaRef.current?.focus()}
+      ) : variant === 'v3c' || variant === 'v3d' ? (
+        (() => {
+          const p = variant === 'v3d' ? 'v3d' : 'v3c';
+          return (
+            <div className={`home-${p}-grid`}>
+              {/* Camino 1: Organizá con tu gente */}
+              <article
+                className={`home-dual-card home-dual-card--invite home-${p}-card home-${p}-card--invite`}
+                aria-labelledby="dual-path-invite-title"
               >
-                <label htmlFor="dual-path-intent-input" className="sr-only">
-                  Tengo ganas de…
-                </label>
-                <textarea
-                  ref={textareaRef}
-                  id="dual-path-intent-input"
-                  className="home-dual-intent-textarea home-v3c-intent-textarea"
-                  rows={2}
-                  value={currentIntent}
-                  onChange={(e) => updateIntent(e.target.value)}
-                  onKeyDown={handleTextareaKeyDown}
-                  onFocus={() => onFocusChange?.(true)}
-                  onBlur={() => onFocusChange?.(false)}
-                  placeholder="Ej. jugar al pádel este sábado…"
-                  aria-label="Tengo ganas de…"
-                  disabled={isSubmittingIntent}
-                  data-testid="home-intent-textarea"
-                />
-                <div className="home-v3c-intent-toolbar">
-                  <div className="home-v3c-intent-tools-left">
-                    {isSpeechSupported && (
-                      <button
-                        type="button"
-                        className={`home-intent-tool-btn home-v3c-mic-btn ${isListening ? 'home-intent-tool-btn--active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMicClick();
-                        }}
-                        title={isListening ? 'Detener dictado' : 'Dictar por voz'}
-                        aria-label={isListening ? 'Detener dictado' : 'Dictar por voz'}
-                        disabled={isSubmittingIntent}
-                        data-testid="v3c-voice-dictation-btn"
-                      >
-                        {isListening ? <Square size={14} /> : <Mic size={16} />}
-                      </button>
-                    )}
-                    <span className="home-v3c-intent-hint" aria-live="polite">
-                      {isListening
-                        ? 'Escuchando…'
-                        : isSpeechSupported
-                        ? 'También podés dictarla'
-                        : 'Escribí tu idea'}
+                <div className={`home-${p}-card__top`}>
+                  <span className="home-dual-card__badge home-dual-card__badge--invite">
+                    <CalendarPlus size={14} aria-hidden="true" />
+                    <span>Invitación privada</span>
+                  </span>
+                  <ul className={`home-dual-examples home-dual-examples--inline home-${p}-examples`} aria-label="Ejemplos de encuentros con tu gente">
+                    {INVITATION_EXAMPLES.map((item) => (
+                      <li key={item.label} className="home-dual-example-pill">
+                        <span aria-hidden="true">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className={`home-${p}-card__body`}>
+                  <div className={`home-${p}-card__copy`}>
+                    <h2 id="dual-path-invite-title" className="home-dual-card__title">
+                      Organizá con tu gente
+                    </h2>
+                    <p className="home-dual-card__desc">
+                      {variant === 'v3d'
+                        ? 'Cumpleaños, cenas, asados o salidas.'
+                        : 'Creá invitaciones para cumpleaños, reuniones, cenas y salidas.'}
+                    </p>
+                  </div>
+
+                  <div className={`home-${p}-card__action`}>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      fullWidth
+                      className={`home-dual-cta home-dual-cta--invite home-${p}-cta--invite`}
+                      onClick={onCreateInvitationClick}
+                      data-testid="dual-path-create-invitation-btn"
+                    >
+                      <span>Crear una invitación</span>
+                      <ArrowRight size={17} aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+
+                <p className={`home-dual-card__guarantee home-${p}-card__guarantee`}>
+                  <CheckCircle2 size={14} className="home-dual-card__guarantee-icon" aria-hidden="true" />
+                  <span>Tus invitados confirman sin registrarse.</span>
+                </p>
+              </article>
+
+              {/* Camino 2: Tengo ganas de… */}
+              <article
+                className={`home-dual-card home-dual-card--intent home-${p}-card home-${p}-card--intent`}
+                aria-labelledby="dual-path-intent-title"
+              >
+                <form className={`home-dual-intent-form home-${p}-intent-form`} onSubmit={handleIntentFormSubmit}>
+                  <div className={`home-${p}-card__top`}>
+                    <span className="home-dual-card__badge home-dual-card__badge--intent">
+                      <Sparkles size={14} aria-hidden="true" />
+                      <span>De una idea a un encuentro</span>
                     </span>
                   </div>
 
-                  {currentIntent && (
-                    <button
-                      type="button"
-                      className="home-v3c-intent-clear"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleClearIntent();
-                      }}
-                      aria-label="Borrar texto"
-                      title="Borrar texto"
+                  <h2 id="dual-path-intent-title" className="home-dual-card__title">
+                    Tengo ganas de…
+                  </h2>
+
+                  <p className={`home-dual-card__desc home-${p}-card__desc`}>
+                    {variant === 'v3d'
+                      ? 'Contanos tu idea y la armamos juntos.'
+                      : 'Contanos tu idea y te ayudamos a organizarla.'}
+                  </p>
+
+                  <div
+                    className={`home-${p}-intent-box`}
+                    onClick={() => textareaRef.current?.focus()}
+                  >
+                    <label htmlFor="dual-path-intent-input" className="sr-only">
+                      Tengo ganas de…
+                    </label>
+                    <textarea
+                      ref={textareaRef}
+                      id="dual-path-intent-input"
+                      className={`home-dual-intent-textarea home-${p}-intent-textarea`}
+                      rows={variant === 'v3d' ? 1 : 2}
+                      value={currentIntent}
+                      onChange={(e) => updateIntent(e.target.value)}
+                      onKeyDown={handleTextareaKeyDown}
+                      onFocus={() => onFocusChange?.(true)}
+                      onBlur={() => onFocusChange?.(false)}
+                      placeholder="Ej. jugar al pádel este sábado…"
+                      aria-label="Tengo ganas de…"
                       disabled={isSubmittingIntent}
+                      data-testid="home-intent-textarea"
+                    />
+                    <div className={`home-${p}-intent-toolbar`}>
+                      <div className={`home-${p}-intent-tools-left`}>
+                        {isSpeechSupported && (
+                          <button
+                            type="button"
+                            className={`home-intent-tool-btn home-${p}-mic-btn ${isListening ? 'home-intent-tool-btn--active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMicClick();
+                            }}
+                            title={isListening ? 'Detener dictado' : 'Dictar por voz'}
+                            aria-label={isListening ? 'Detener dictado' : 'Dictar por voz'}
+                            disabled={isSubmittingIntent}
+                            data-testid={`${p}-voice-dictation-btn`}
+                          >
+                            {isListening ? <Square size={14} /> : <Mic size={variant === 'v3d' ? 18 : 16} />}
+                          </button>
+                        )}
+                        <span className={`home-${p}-intent-hint`} aria-live="polite">
+                          {isListening
+                            ? 'Escuchando…'
+                            : isSpeechSupported
+                            ? 'También podés dictarla'
+                            : 'Escribí tu idea'}
+                        </span>
+                      </div>
+
+                      {currentIntent && (
+                        <button
+                          type="button"
+                          className={`home-${p}-intent-clear`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClearIntent();
+                          }}
+                          aria-label="Borrar texto"
+                          title="Borrar texto"
+                          disabled={isSubmittingIntent}
+                        >
+                          {variant === 'v3d' ? (
+                            <span className="home-v3d-intent-clear-dot" aria-hidden="true">
+                              <X size={15} />
+                            </span>
+                          ) : (
+                            <X size={14} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={`home-dual-card__footer home-${p}-card__footer`}>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      fullWidth
+                      className={`home-dual-cta home-dual-cta--intent home-${p}-cta--intent`}
+                      disabled={!trimmedIntent || isSubmittingIntent}
+                      data-testid="dual-path-intent-submit-btn"
                     >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
+                      <span>{isSubmittingIntent ? 'Preparando encuentro…' : 'Hagamos que pase'}</span>
+                      <ArrowRight size={17} aria-hidden="true" />
+                    </Button>
 
-              <div className="home-dual-card__footer home-v3c-card__footer">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  fullWidth
-                  className="home-dual-cta home-dual-cta--intent home-v3c-cta--intent"
-                  disabled={!trimmedIntent || isSubmittingIntent}
-                  data-testid="dual-path-intent-submit-btn"
-                >
-                  <span>{isSubmittingIntent ? 'Preparando encuentro…' : 'Hagamos que pase'}</span>
-                  <ArrowRight size={17} aria-hidden="true" />
-                </Button>
-
-                <p className="home-dual-card__helper home-v3c-card__subnote">
-                  Si te falta gente, también podés permitir que otras personas soliciten sumarse.
-                </p>
-              </div>
-            </form>
-          </article>
-        </div>
+                    <p className={`home-dual-card__helper home-${p}-card__subnote`}>
+                      Si te falta gente, también podés permitir que otras personas soliciten sumarse.
+                    </p>
+                  </div>
+                </form>
+              </article>
+            </div>
+          );
+        })()
       ) : (
         <div className="home-dual-hero__grid">
           {/* Camino A: Organizar con mi gente */}
