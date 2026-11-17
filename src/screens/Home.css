@@ -1681,10 +1681,10 @@ body:has(.login-required-sheet) .home-fab-container {
 }
 
 .home-user-section-subtitle {
-  margin: 2px 0 8px;
+  margin: 1px 0 6px;
   font-size: 0.8125rem;
   font-weight: 450;
-  line-height: 1.35;
+  line-height: 1.32;
   color: var(--color-on-surface-variant, #475569);
   max-width: 62ch;
 }

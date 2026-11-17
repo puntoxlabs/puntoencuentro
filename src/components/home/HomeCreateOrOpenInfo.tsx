@@ -24,7 +24,7 @@ export const HomeCreateOrOpenInfo: React.FC<HomeCreateOrOpenInfoProps> = ({
         data-testid="home-create-or-open-info-v3c-compact"
       >
         <p className="home-create-or-open-info__compact-text">
-          ¿Todavía no definieron el día? Al crear una invitación podés proponer varias fechas para votar. Y si te falta gente, podés permitir que otras personas soliciten sumarse a tu encuentro.
+          Podés coordinar fechas y sumar participantes a tus encuentros.
         </p>
       </section>
     );

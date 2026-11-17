@@ -102,29 +102,29 @@
   opacity: 0.75;
 }
 
-/* Variante compacta V3-C: evita redundancia con Hero dual-path y conserva opciones útiles */
+/* Variante compacta V3-C: nota mínima discreta al pie, sin tarjeta recargada */
 .home-create-or-open-info.home-create-or-open-info--v3c-compact {
-  margin: 0.9rem auto 0.65rem;
-  padding: 0.65rem 0.9rem;
-  border-radius: 12px;
-  background: rgba(248, 250, 252, 0.78);
-  border: 1px solid rgba(226, 232, 240, 0.75);
+  margin: 0.45rem auto 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0;
+  background: transparent;
+  border: none;
   box-shadow: none;
   gap: 0;
 }
 
 .home-create-or-open-info__compact-text {
   margin: 0;
-  font-size: 0.79rem;
-  line-height: 1.38;
-  color: var(--color-on-surface-variant, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.34;
+  color: var(--color-on-surface-variant, #475569);
   text-align: center;
   word-break: break-word;
 }
 
 @media (min-width: 768px) {
   .home-create-or-open-info.home-create-or-open-info--v3c-compact {
-    margin: 1rem auto 1.25rem;
-    padding: 0.7rem 1.15rem;
+    margin: 0.75rem auto 0.9rem;
+    padding: 0.35rem 1rem;
   }
 }

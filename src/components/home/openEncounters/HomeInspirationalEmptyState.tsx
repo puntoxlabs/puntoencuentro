@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sparkles, Bell, MapPin, ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import './HomeInspirationalEmptyState.css';
@@ -53,6 +53,8 @@ export interface HomeInspirationalEmptyStateProps {
   onOpenCreate?: () => void;
   onOpenAvisame?: () => void;
   onConfigureZones?: () => void;
+  /** En móvil V3-C compacta el bloque vacío mostrando 2 ideas iniciales y un toggle "Ver más ideas" */
+  compactV3C?: boolean;
 }
 
 export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStateProps> = ({
@@ -61,12 +63,14 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
   onOpenCreate,
   onOpenAvisame,
   onConfigureZones,
+  compactV3C = false,
 }) => {
   const { t } = useTranslation();
+  const [showAllIdeas, setShowAllIdeas] = useState(false);
 
   return (
     <div
-      className="pe-inspirational-container"
+      className={`pe-inspirational-container${compactV3C ? ' pe-inspirational-container--v3c-compact' : ''}${compactV3C && showAllIdeas ? ' pe-inspirational-container--expanded' : ''}`}
       data-testid="inspirational-empty-state"
       role="region"
       aria-label="Ideas inspiradoras para organizar encuentros"
@@ -120,15 +124,16 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
         </div>
       </div>
 
-      {/* Cuadrícula de 4 Tarjetas Inspiradoras */}
+      {/* Cuadrícula de tarjetas inspiradoras (2 iniciales en móvil V3-C, 4 al expandir o en desktop) */}
       <div className="pe-inspirational-grid" role="list">
-        {INSPIRATIONAL_IDEAS.map((idea) => {
+        {INSPIRATIONAL_IDEAS.map((idea, index) => {
           const cardAria = `${idea.badge}: ${idea.title}. ${idea.description}. Elegir esta idea para Tengo ganas de…`;
+          const isExtraMobile = compactV3C && index >= 2;
           return (
             <button
               key={idea.id}
               type="button"
-              className="pe-inspirational-card"
+              className={`pe-inspirational-card${isExtraMobile ? ' pe-inspirational-card--v3c-extra' : ''}`}
               onClick={() => onSelectIdea(idea)}
               aria-label={cardAria}
               role="listitem"
@@ -156,6 +161,20 @@ export const HomeInspirationalEmptyState: React.FC<HomeInspirationalEmptyStatePr
           );
         })}
       </div>
+
+      {compactV3C && INSPIRATIONAL_IDEAS.length > 2 && (
+        <div className="pe-inspirational-toggle-wrapper">
+          <button
+            type="button"
+            className="pe-inspirational-toggle-btn"
+            onClick={() => setShowAllIdeas((prev) => !prev)}
+            aria-expanded={showAllIdeas}
+            data-testid="inspirational-toggle-ideas-btn"
+          >
+            <span>{showAllIdeas ? 'Ver menos' : 'Ver más ideas'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Acciones Complementarias (Crear, Avisame, Cambiar Zonas) */}
       <div className="pe-inspirational-actions">

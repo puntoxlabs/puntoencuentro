@@ -58,6 +58,8 @@ export interface HomeOpenEncountersProps {
   intentionsTitle?: string;
   /** Subtítulo explicativo breve debajo del título de Discovery (exclusivo V3-C) */
   sectionSubtitle?: string;
+  /** Activa el estado vacío compacto en móvil (exclusivo V3-C) */
+  compactV3C?: boolean;
   /** Si está activa la variante V2 (desktop carrusel con flechas, orden por fecha ascendente) */
   isV2Variant?: boolean;
   /** IDs de encuentros devueltos por matching inmediato que deben resaltarse temporalmente */
@@ -112,6 +114,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
   isLoading: propLoading,
   intentionsTitle,
   sectionSubtitle,
+  compactV3C = false,
   isV2Variant = false,
   highlightEncounterIds,
   onClearHighlight,
@@ -993,6 +996,7 @@ export const HomeOpenEncounters: React.FC<HomeOpenEncountersProps> = ({
           onOpenCreate={onOpenCreate}
           onOpenAvisame={() => handleOpenAvisame('create')}
           onConfigureZones={handleOpenZoneModal}
+          compactV3C={compactV3C}
         />
       );
     }

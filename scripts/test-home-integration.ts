@@ -38,7 +38,12 @@ import ptJson from '../src/i18n/locales/pt.json';
 
 import { useAiWizardStore } from '../src/store/aiWizardStore';
 import { aiService } from '../src/services/aiService';
-import { HomeOpenEncounters, getCardScrollTargets } from '../src/components/home/openEncounters/HomeOpenEncounters';
+import {
+  HomeOpenEncounters,
+  HomeInspirationalEmptyState,
+  INSPIRATIONAL_IDEAS,
+  getCardScrollTargets,
+} from '../src/components/home/openEncounters/HomeOpenEncounters';
 import { HomeOpenEncounterCard } from '../src/components/home/openEncounters/HomeOpenEncounterCard';
 import { HomeOpenEncounterDetailSheet } from '../src/components/home/openEncounters/HomeOpenEncounterDetailSheet';
 import { OPEN_ENCOUNTERS_DEMO } from '../src/components/home/openEncounters/demoData';
@@ -2838,9 +2843,8 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(!htmlV3C.includes('Crear o abrir un encuentro'), 'V3-C no debe repetir el bloque extenso Crear o abrir un encuentro');
       assert.ok(!htmlV3C.includes('Abrí lugares en tus zonas'), 'V3-C no debe mostrar "Abrí lugares en tus zonas"');
       assert.ok(
-        htmlV3C.includes('podés proponer varias fechas para votar') &&
-          htmlV3C.includes('podés permitir que otras personas soliciten sumarse a tu encuentro'),
-        'V3-C debe conservar información útil sobre votación de fechas y solicitudes'
+        htmlV3C.includes('Podés coordinar fechas y sumar participantes a tus encuentros.'),
+        'V3-C debe mostrar la nota mínima aprobada al pie'
       );
 
       // 3. Microcopy del campo de intención en V3-C (sin "Enter para enviar") manteniendo HomeIntentInput en V2/V3-A intacto
@@ -2890,13 +2894,13 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       // 5. Subtítulos breves de sección y simplificación mobile-first exclusivos en V3-C
       assert.ok(
         htmlV3C.includes('data-testid="discovery-v3c-subtitle"') &&
-          htmlV3C.includes('Descubrí encuentros de otras personas y solicitá sumarte a los que te interesen.'),
-        'V3-C debe mostrar explicación breve debajo de "¿A qué me sumo?"'
+          htmlV3C.includes('Encontrá encuentros y solicitá sumarte.'),
+        'V3-C debe mostrar explicación breve de 1 línea debajo de "¿A qué me sumo?"'
       );
       assert.ok(
         htmlV3C.includes('data-testid="mi-espacio-v3c-subtitle"') &&
-          htmlV3C.includes('Tus encuentros, tus ganas y tus solicitudes, todo en un lugar.'),
-        'V3-C debe mostrar explicación breve debajo de "Mi espacio"'
+          htmlV3C.includes('Tus encuentros, ganas y solicitudes.'),
+        'V3-C debe mostrar explicación breve de 1 línea debajo de "Mi espacio"'
       );
       for (const [label, html] of [
         ['V2', htmlV2],
@@ -2914,13 +2918,85 @@ describe('Nueva Home Mobile-First — Suite de Pruebas de Integración y Compone
       assert.ok(
         heroPreviewCss.includes('.home-dual-hero--v3c .home-suggestions-list') &&
           heroPreviewCss.includes('flex-wrap: nowrap;') &&
-          heroPreviewCss.includes('overflow-x: auto;'),
-        'HomeDualPathHeroPreview.css debe disponer los chips V3-C en una sola fila horizontal en móvil'
+          heroPreviewCss.includes('overflow-x: auto;') &&
+          heroPreviewCss.includes('scroll-snap-type: x proximity;') &&
+          heroPreviewCss.includes('mask-image:'),
+        'HomeDualPathHeroPreview.css debe disponer chips V3-C en 1 fila horizontal con scroll-snap y degradado de continuidad'
       );
       assert.ok(
         heroPreviewCss.includes('.home-v3c-card__top {\n    display: none;\n  }') ||
           heroPreviewCss.includes('.home-v3c-card__top {\r\n    display: none;\r\n  }'),
         'HomeDualPathHeroPreview.css debe ocultar badges y pills repetitivas .home-v3c-card__top en móvil V3-C'
+      );
+    });
+
+    test('G. Discovery vacío compacto en V3-C, preservación de 4 ideas/estados de zona y no-regresión de V2/V3-A/V3-B', () => {
+      // Estado vacío compacto V3-C vs estándar (V2 / V3-A / V3-B)
+      const compactZonesHtml = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(HomeInspirationalEmptyState, {
+            noZonesConfigured: false,
+            compactV3C: true,
+            onSelectIdea: () => {},
+            onOpenCreate: () => {},
+            onOpenAvisame: () => {},
+            onConfigureZones: () => {},
+          })
+        )
+      );
+      assert.ok(compactZonesHtml.includes('pe-inspirational-container--v3c-compact'), 'Modo compacto V3-C debe aplicar clase dedicada');
+      assert.ok(compactZonesHtml.includes('data-testid="inspirational-toggle-ideas-btn"'), 'Modo compacto V3-C debe incluir botón Ver más ideas');
+      assert.ok(compactZonesHtml.includes('Ver más ideas') && compactZonesHtml.includes('aria-expanded="false"'), 'Botón inicial debe iniciar contraído');
+      assert.ok(compactZonesHtml.includes('Ideas para organizar • No son encuentros publicados'), 'Debe distinguir ideas de encuentros reales');
+      assert.ok(compactZonesHtml.includes('Abrir un encuentro') && compactZonesHtml.includes('Avisame si aparece uno'), 'Debe conservar ambas acciones primarias');
+      for (const idea of INSPIRATIONAL_IDEAS) {
+        assert.ok(compactZonesHtml.includes(`data-testid="inspirational-card-${idea.id}"`), `Debe preservar la idea ${idea.id} y su nodo en DOM`);
+      }
+
+      // Estado sin zonas configuradas sigue distinguiendo configuración de zonas
+      const compactNoZonesHtml = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(HomeInspirationalEmptyState, {
+            noZonesConfigured: true,
+            compactV3C: true,
+            onSelectIdea: () => {},
+            onConfigureZones: () => {},
+          })
+        )
+      );
+      assert.ok(compactNoZonesHtml.includes('data-testid="inspirational-zone-prompt"'), 'Sin zonas debe mantener invitación a configurar zonas');
+      assert.ok(compactNoZonesHtml.includes('Configurar zonas'), 'Sin zonas debe ofrecer CTA Configurar zonas');
+
+      // Estándar (compactV3C = false): V2, V3-A y V3-B intactos sin botón ni clase compacta
+      const standardHtml = renderToString(
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(HomeInspirationalEmptyState, {
+            noZonesConfigured: false,
+            compactV3C: false,
+            onSelectIdea: () => {},
+          })
+        )
+      );
+      assert.ok(!standardHtml.includes('pe-inspirational-container--v3c-compact'), 'Modo estándar V2/V3-A/B no debe activar compacto V3-C');
+      assert.ok(!standardHtml.includes('inspirational-toggle-ideas-btn'), 'Modo estándar V2/V3-A/B no debe renderizar Ver más ideas');
+
+      const inspCss = readFileSync(
+        resolve(process.cwd(), 'src/components/home/openEncounters/HomeInspirationalEmptyState.css'),
+        'utf8'
+      );
+      assert.ok(
+        inspCss.includes('.pe-inspirational-container--v3c-compact:not(.pe-inspirational-container--expanded) .pe-inspirational-card--v3c-extra'),
+        'CSS debe ocultar ideas 3 y 4 únicamente cuando está contraído en móvil V3-C'
+      );
+      assert.ok(
+        inspCss.includes('@media (prefers-reduced-motion: reduce)'),
+        'CSS del estado vacío debe respetar prefers-reduced-motion'
       );
     });
   });

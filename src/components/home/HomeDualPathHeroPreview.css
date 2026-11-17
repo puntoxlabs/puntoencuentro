@@ -873,7 +873,7 @@
     display: none;
   }
 
-  /* Chips de sugerencia en una sola fila horizontal deslizable para no empujar Discovery hacia abajo */
+  /* Chips de sugerencia en una sola fila horizontal deslizable con snap y degradado sutil de continuidad */
   .home-dual-hero--v3c .home-dual-hero__suggestions {
     margin-top: 0.36rem;
   }
@@ -888,12 +888,16 @@
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 0.25rem;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    gap: 0.36rem;
-    padding: 0.12rem 0.25rem;
+    gap: 0.38rem;
+    padding: 0.14rem 1.85rem 0.14rem 0.25rem;
     margin: 0 -0.25rem;
     width: calc(100% + 0.5rem);
+    -webkit-mask-image: linear-gradient(90deg, #000000 0%, #000000 calc(100% - 30px), rgba(0, 0, 0, 0.24) calc(100% - 8px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000000 0%, #000000 calc(100% - 30px), rgba(0, 0, 0, 0.24) calc(100% - 8px), transparent 100%);
   }
 
   .home-dual-hero--v3c .home-suggestions-list::-webkit-scrollbar {
@@ -902,11 +906,18 @@
 
   .home-dual-hero--v3c .home-suggestion-chip {
     flex-shrink: 0;
+    scroll-snap-align: start;
+    scroll-margin-inline: 0.4rem;
     white-space: nowrap;
     min-height: 32px;
     font-size: 0.75rem;
     padding: 0.3rem 0.66rem;
     gap: 0.3rem;
+  }
+
+  .home-dual-hero--v3c .home-suggestion-chip:focus-visible {
+    outline: 2px solid var(--color-primary, #184CD4);
+    outline-offset: 2px;
   }
 
   .home-dual-hero--v3c .home-suggestion-icon {
@@ -1068,5 +1079,9 @@
   .home-dual-cta,
   .home-v3c-intent-box {
     transition: none;
+  }
+
+  .home-dual-hero--v3c .home-suggestions-list {
+    scroll-behavior: auto;
   }
 }
