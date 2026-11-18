@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Isotipo de Conotros">
+  <title>Conotros</title>
+  <g id="isotipo-co">
+    <path id="isotipo-c" d="M 96.11 107.41 A 54 54 0 1 1 94.97 19.77 A 12.25 12.25 0 0 1 80.92 39.84 A 29.5 29.5 0 1 0 78.8 89.52 A 2.2 2.2 0 0 1 82.01 90.79 A 18.55 18.55 0 0 0 95.33 103.51 A 2.2 2.2 0 0 1 96.11 107.41 Z" fill="#19345C"/>
+    <path id="isotipo-o" d="M 109.55 34.99 A 54 54 0 0 1 110.29 91.81 A 12.25 12.25 0 0 1 89.29 79.19 A 29.5 29.5 0 0 0 90.49 51.02 A 2.2 2.2 0 0 1 91.99 47.9 A 18.55 18.55 0 0 0 105.6 35.5 A 2.2 2.2 0 0 1 109.55 34.99 Z" fill="#0D9488"/>
+  </g>
+</svg>

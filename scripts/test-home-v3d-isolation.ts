@@ -333,6 +333,11 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(htmlAuthEmpty.includes('v3d-desktop-hero-brushes'), 'V3-D incluye capa de pinceladas laterales del Hero para desktop');
     assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--left'));
     assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--right'));
+    assert.ok(htmlAuthEmpty.includes('/brand/conotros-logo-header.svg'), 'V3-D debe cargar conotros-logo-header.svg');
+    assert.ok(htmlAuthEmpty.includes('/brand/conotros-logo-header-mobile.svg'), 'V3-D debe cargar conotros-logo-header-mobile.svg');
+    assert.ok(htmlAuthEmpty.includes('aria-label="Conotros"'), 'V3-D debe exponer aria-label="Conotros" en encabezado');
+    assert.ok(htmlAuthEmpty.includes('alt="Conotros"'), 'V3-D debe exponer alt="Conotros" en logotipo');
+    assert.ok(!htmlAuthEmpty.includes('/brand/logo-header.svg'), 'V3-D no debe cargar el logo-header de PuntoEncuentro');
 
     const htmlV3c = renderToString(
       React.createElement(
@@ -354,6 +359,33 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
       )
     );
     assert.ok(!htmlV3c.includes('v3d-desktop-hero-brushes'), 'V3-C no debe incluir pinceladas laterales de Hero V3-D');
+    assert.ok(htmlV3c.includes('/brand/logo-header.svg'), 'V3-C debe conservar logo-header.svg de PuntoEncuentro');
+    assert.ok(htmlV3c.includes('/brand/logo-header-mobile.svg'), 'V3-C debe conservar logo-header-mobile.svg de PuntoEncuentro');
+    assert.ok(htmlV3c.includes('aria-label="PuntoEncuentro"'), 'V3-C debe conservar aria-label="PuntoEncuentro"');
+    assert.ok(htmlV3c.includes('alt="PuntoEncuentro"'), 'V3-C debe conservar alt="PuntoEncuentro"');
+    assert.ok(!htmlV3c.includes('conotros-logo-header'), 'V3-C no debe incluir recursos de Conotros');
+
+    const htmlV2 = renderToString(
+      React.createElement(
+        AuthContext.Provider,
+        { value: visitorAuthValue },
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/preview/home-v2'] },
+            React.createElement(
+              NotificationsProvider,
+              null,
+              React.createElement(Home, { homeVariant: 'v2', forcedVariant: 'gsap', appEnv: 'development' })
+            )
+          )
+        )
+      )
+    );
+    assert.ok(htmlV2.includes('/brand/logo-header.svg'), 'V2 debe conservar logo-header.svg de PuntoEncuentro');
+    assert.ok(!htmlV2.includes('conotros-logo-header'), 'V2 no debe incluir recursos de Conotros');
 
     assert.ok(htmlAuthEmpty.includes('Mis encuentros'));
     assert.ok(htmlAuthEmpty.includes('Mis ganas'));

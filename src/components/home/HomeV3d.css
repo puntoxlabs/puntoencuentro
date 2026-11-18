@@ -25,6 +25,14 @@
   min-height: 44px;
 }
 
+@media (max-width: 480px) {
+  .home-v3d-variant .home-header-logo-img {
+    height: 31px;
+    width: auto;
+    max-width: min(140px, calc(100vw - 170px));
+  }
+}
+
 .home-v3d-variant .home-build-info {
   font-size: 0.75rem;
   color: #475569;

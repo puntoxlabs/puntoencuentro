@@ -2560,18 +2560,32 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
       className={`home-screen-container${isGsapPreview ? ' home-gsap-layout' : ''}${isV2Variant ? ' home-v2-variant' : ''}${v3Variant === 'v3c' ? ' home-v3c-variant' : ''}${v3Variant === 'v3d' ? ' home-v3d-variant' : ''}`}
     >
       <header className="home-header">
-        <div className="home-header-brand" onClick={handleTap} aria-label="PuntoEncuentro">
+        <div
+          className="home-header-brand"
+          onClick={handleTap}
+          aria-label={v3Variant === 'v3d' ? 'Conotros' : 'PuntoEncuentro'}
+        >
           <picture className="home-header-logo-picture">
-            <source media="(max-width: 480px)" srcSet="/brand/logo-header-mobile.svg" width="165" height="30" />
+            <source
+              media="(max-width: 480px)"
+              srcSet={v3Variant === 'v3d' ? '/brand/conotros-logo-header-mobile.svg' : '/brand/logo-header-mobile.svg'}
+              width={v3Variant === 'v3d' ? '110' : '165'}
+              height={v3Variant === 'v3d' ? '31' : '30'}
+            />
             <img
-              src="/brand/logo-header.svg"
-              alt="PuntoEncuentro"
+              src={v3Variant === 'v3d' ? '/brand/conotros-logo-header.svg' : '/brand/logo-header.svg'}
+              alt={v3Variant === 'v3d' ? 'Conotros' : 'PuntoEncuentro'}
               className="home-header-logo-img"
-              width="175"
+              width={v3Variant === 'v3d' ? '124' : '175'}
               height="36"
             />
           </picture>
-          <span className="home-header-logo-text sr-only">PuntoEncuentro</span>
+          <span
+            className="home-header-logo-text sr-only"
+            aria-hidden={v3Variant === 'v3d' ? 'true' : undefined}
+          >
+            {v3Variant === 'v3d' ? 'Conotros' : 'PuntoEncuentro'}
+          </span>
         </div>
         <div className="home-header-actions">
           {/* Campana de notificaciones (solo cuentas permanentes) */}
