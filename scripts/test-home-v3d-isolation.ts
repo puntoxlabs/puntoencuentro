@@ -333,6 +333,10 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(htmlAuthEmpty.includes('v3d-desktop-hero-brushes'), 'V3-D incluye capa de pinceladas laterales del Hero para desktop');
     assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--left'));
     assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--right'));
+    assert.ok(htmlAuthEmpty.includes('v3d-desktop-personal-brushes'), 'V3-D incluye capa de pinceladas laterales de Mi espacio para desktop');
+    assert.ok(htmlAuthEmpty.includes('home-v3d-personal-brush--left'));
+    assert.ok(htmlAuthEmpty.includes('home-v3d-personal-brush--right'));
+    assert.ok(htmlAuthEmpty.includes('home-encounters-section--v3d-empty'), 'V3-D aplica modificador de estado vacío en Mi espacio cuando hay 0 encuentros');
     assert.ok(htmlAuthEmpty.includes('/brand/conotros-logo-header.svg'), 'V3-D debe cargar conotros-logo-header.svg');
     assert.ok(htmlAuthEmpty.includes('/brand/conotros-logo-header-mobile.svg'), 'V3-D debe cargar conotros-logo-header-mobile.svg');
     assert.ok(htmlAuthEmpty.includes('aria-label="Conotros"'), 'V3-D debe exponer aria-label="Conotros" en encabezado');
@@ -359,6 +363,8 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
       )
     );
     assert.ok(!htmlV3c.includes('v3d-desktop-hero-brushes'), 'V3-C no debe incluir pinceladas laterales de Hero V3-D');
+    assert.ok(!htmlV3c.includes('v3d-desktop-personal-brushes'), 'V3-C no debe incluir pinceladas laterales de Mi espacio V3-D');
+    assert.ok(!htmlV3c.includes('home-encounters-section--v3d-empty'), 'V3-C no debe incluir modificador de estado vacío de Mi espacio V3-D');
     assert.ok(htmlV3c.includes('/brand/logo-header.svg'), 'V3-C debe conservar logo-header.svg de PuntoEncuentro');
     assert.ok(htmlV3c.includes('/brand/logo-header-mobile.svg'), 'V3-C debe conservar logo-header-mobile.svg de PuntoEncuentro');
     assert.ok(htmlV3c.includes('aria-label="PuntoEncuentro"'), 'V3-C debe conservar aria-label="PuntoEncuentro"');
@@ -403,6 +409,9 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(v3dCss.includes('.home-v3d-hero-brushes {\n  display: none;\n}') || v3dCss.includes('.home-v3d-hero-brushes'), 'Pinceladas Hero V3-D ocultas por defecto fuera de desktop');
     assert.ok(v3dCss.includes('.home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d .home-v3d-hero-brush--left'));
     assert.ok(v3dCss.includes('.home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d .home-v3d-hero-brush--right'));
+    assert.ok(v3dCss.includes('.home-v3d-personal-brushes'), 'Pinceladas de Mi espacio V3-D ocultas por defecto fuera de desktop');
+    assert.ok(v3dCss.includes('.home-v3d-variant .home-encounters-section .home-v3d-personal-brush--left'));
+    assert.ok(v3dCss.includes('.home-v3d-variant .home-encounters-section .home-v3d-personal-brush--right'));
     assert.ok(v3dCss.includes('#D2F3EC'));
 
     const hintSource = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3dScrollHint.tsx'), 'utf8');

@@ -111,11 +111,60 @@ export interface HomeAmbientBrushesProps {
   /**
    * - 'sections' (default): capa ambiental post-Hero de Home V2/V3 Desktop.
    * - 'hero-v3d': par de pinceladas decorativas bajo los bloques fotográficos laterales del Hero V3-D Desktop.
+   * - 'mi-espacio-v3d': par de pinceladas ambientales laterales que extienden el sistema visual hacia «Mi espacio» en V3-D Desktop.
    */
-  variant?: 'sections' | 'hero-v3d';
+  variant?: 'sections' | 'hero-v3d' | 'mi-espacio-v3d';
 }
 
 export const HomeAmbientBrushes: React.FC<HomeAmbientBrushesProps> = ({ variant = 'sections' }) => {
+  if (variant === 'mi-espacio-v3d') {
+    return (
+      <div
+        className="home-v3d-personal-brushes"
+        aria-hidden="true"
+        data-testid="v3d-desktop-personal-brushes"
+      >
+        {/* Flanco izquierdo de Mi espacio: extensión orgánica bajo la pincelada izquierda existente (reutiliza trazo D y gradiente F) */}
+        <svg
+          className="home-v3d-personal-brush home-v3d-personal-brush--left"
+          viewBox="-130 524 584 142"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+          focusable="false"
+          aria-hidden="true"
+        >
+          <BrushDefs prefix="pe-v3d-personal-brush-left" />
+          <path
+            d={BRUSH_PATHS.d}
+            fill="url(#pe-v3d-personal-brush-left-grad-f)"
+            filter="url(#pe-v3d-personal-brush-left-soften)"
+            className="pe-brush-path pe-brush-path--v3d-personal-left"
+          />
+        </svg>
+
+        {/* Flanco derecho de Mi espacio: extensión orgánica bajo la pincelada derecha existente (reutiliza trazo E y gradiente B) */}
+        <svg
+          className="home-v3d-personal-brush home-v3d-personal-brush--right"
+          viewBox="1488 650 562 96"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+          focusable="false"
+          aria-hidden="true"
+        >
+          <BrushDefs prefix="pe-v3d-personal-brush-right" />
+          <path
+            d={BRUSH_PATHS.e}
+            fill="url(#pe-v3d-personal-brush-right-grad-b)"
+            filter="url(#pe-v3d-personal-brush-right-soften)"
+            className="pe-brush-path pe-brush-path--v3d-personal-right"
+          />
+        </svg>
+      </div>
+    );
+  }
+
   if (variant === 'hero-v3d') {
     return (
       <div

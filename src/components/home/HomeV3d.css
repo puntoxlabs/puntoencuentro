@@ -1042,6 +1042,199 @@
   color: #334155;
 }
 
+/* ── 6. Refinamiento de «Mi espacio» y Pinceladas Ambientales Laterales en Home V3-D Desktop (>= 1024px) ── */
+.home-v3d-personal-brushes {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  /* Eliminar en desktop la reserva inferior de 84px pensada solo para controles flotantes móviles */
+  .home-screen-container.home-v2-variant.home-v3d-variant {
+    padding-bottom: 18px;
+  }
+
+  /* Evitar duplicación visual excesiva: ocultar suavemente el FAB cuando el estado vacío de Mi espacio (con su propio CTA "+ Crear encuentro") está en pantalla */
+  .home-v3d-variant .home-fab-container.home-fab-container--hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(10px) scale(0.94) !important;
+  }
+
+  /* Contenedor principal de Mi espacio en desktop: ritmo vertical integrado con Discovery */
+  .home-v3d-variant .home-encounters-section {
+    position: relative;
+    max-width: min(900px, calc(100vw - 184px));
+    margin-top: 1.15rem;
+    margin-bottom: 0.5rem;
+    padding-top: 1.15rem;
+    border-top: 1px solid rgba(203, 213, 225, 0.65);
+  }
+
+  /* Cuando el usuario no tiene encuentros programados, usar un ancho máximo más contenido (760px) y acoplar la nota complementaria inferior */
+  .home-v3d-variant .home-encounters-section.home-encounters-section--v3d-empty {
+    max-width: 760px;
+    margin-bottom: 0;
+  }
+
+  /* Pinceladas ambientales adicionales a izquierda y derecha de Mi espacio */
+  .home-v3d-variant .home-encounters-section .home-v3d-personal-brushes {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100vw;
+    max-width: 100vw;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .home-v3d-variant .home-encounters-section .home-v3d-personal-brush {
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    overflow: visible;
+  }
+
+  .home-v3d-variant .home-encounters-section .home-v3d-personal-brush--left {
+    right: calc(50% + min(450px, calc(50vw - 92px)) + 14px);
+    left: auto;
+    bottom: 8px;
+    width: calc(50vw - min(450px, calc(50vw - 92px)) - 14px + 36px);
+    height: clamp(74px, 8.8vh, 96px);
+    opacity: 0.88;
+  }
+
+  .home-v3d-variant .home-encounters-section .home-v3d-personal-brush--right {
+    left: calc(50% + min(450px, calc(50vw - 92px)) + 14px);
+    right: auto;
+    bottom: 24px;
+    width: calc(50vw - min(450px, calc(50vw - 92px)) - 14px + 36px);
+    height: clamp(72px, 8.5vh, 92px);
+    opacity: 0.88;
+  }
+
+  /* Alineación exacta del bloque interior de Mi espacio (encabezado, pestañas y contenido) */
+  .home-v3d-variant .pe-encounters-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .home-v3d-variant .home-user-section-title {
+    padding: 0;
+    margin: 0;
+  }
+
+  .home-v3d-variant .home-user-section-subtitle {
+    padding: 0;
+    margin: 3px 0 10px;
+  }
+
+  .home-v3d-variant .home-user-tabs {
+    padding: 0;
+    margin-bottom: 12px;
+  }
+
+  .home-v3d-variant .home-user-tab-panel {
+    padding: 0;
+    margin-top: 0.5rem;
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container {
+    padding: 0;
+    overflow: visible;
+  }
+
+  /* Contenedor visual discreto para el estado vacío de Mis encuentros (exclusivo cuando no hay encuentros) */
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d {
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(203, 213, 225, 0.75);
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.025);
+    padding: 20px 28px 14px;
+    margin: 0;
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d .home-empty-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d .home-empty-title {
+    font-size: 1.0625rem; /* 17px */
+    line-height: 1.28;
+    margin-bottom: 4px;
+    color: #0F172A;
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d .home-empty-desc {
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.42;
+    color: #475569;
+    max-width: 520px;
+    margin-bottom: 12px;
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d .home-empty-cta--v3d {
+    min-height: 44px;
+    min-width: 192px;
+    padding: 8px 22px;
+    font-size: 0.9375rem; /* 15px */
+    background-color: #FFFFFF;
+    border: 1.5px solid rgba(24, 76, 212, 0.34);
+    color: #184CD4;
+    box-shadow: 0 1px 2px rgba(24, 76, 212, 0.06);
+  }
+
+  .home-v3d-variant .pe-gsap-encounters-container .home-empty.home-empty--v3d .home-empty-cta--v3d:hover {
+    background-color: #F8FAFC;
+    border-color: rgba(24, 76, 212, 0.52);
+  }
+
+  /* Texto complementario integrado como zócalo inferior de la tarjeta cuando Mi espacio está vacío */
+  .home-v3d-variant #home-personal-activity-section.home-encounters-section--v3d-empty + .home-create-or-open-info.home-create-or-open-info--v3c-compact {
+    max-width: 760px;
+    margin: 0 auto 6px;
+    padding: 9px 28px 11px;
+    background: rgba(248, 250, 252, 0.88);
+    border: 1px solid rgba(203, 213, 225, 0.75);
+    border-top: 1px solid rgba(226, 232, 240, 0.85);
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.025);
+  }
+
+  /* Texto complementario compacto cuando Mi espacio tiene encuentros o está en otra pestaña */
+  .home-v3d-variant .home-create-or-open-info.home-create-or-open-info--v3c-compact {
+    max-width: 920px;
+    margin: 6px auto 4px;
+    padding: 4px 16px;
+  }
+
+  .home-v3d-variant .home-create-or-open-info__compact-text {
+    font-size: 0.8125rem; /* 13px */
+    line-height: 1.38;
+    color: #475569;
+  }
+
+  /* Información de última compilación integrada visualmente al pie sin banda opaca ni espacio muerto */
+  .home-v3d-variant .home-build-info {
+    background: transparent;
+    margin-top: 2px;
+    padding: 2px 16px 10px;
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.35;
+    color: #64748B;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-dual-hero--v3d .home-v3d-intent-box,
   .home-dual-hero--v3d .home-v3d-intent-clear-dot,

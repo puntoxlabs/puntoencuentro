@@ -1496,7 +1496,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     };
 
     const getFabZoneRootMargin = () => {
-      // Zona de interferencia calibrada a la franja inferior donde flota el FAB
+      if (window.innerWidth >= 1024 && v3Variant === 'v3d') {
+        return '0px';
+      }
+      // Zona de interferencia calibrada a la franja inferior donde flota el FAB en mobile
       const fabZoneHeight = 72;
       const topMargin = -(Math.max(window.innerHeight - fabZoneHeight, 0));
       return `${topMargin}px 0px 0px 0px`;
@@ -1512,11 +1515,12 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         intersectingElements.clear();
       }
 
+      const isV3dDesktopContext = window.innerWidth >= 1024 && v3Variant === 'v3d';
       currentRootMargin = getFabZoneRootMargin();
       observer = new IntersectionObserver(
         (entries) => {
-          // En desktop (>=768px), el FAB permanece siempre visible en gutter sin supresión
-          if (window.innerWidth >= 768) {
+          // En desktop (>=768px), sólo V3-D desktop (>=1024px) suprime el FAB cuando el estado vacío con CTA propio está en pantalla
+          if (window.innerWidth >= 768 && !(window.innerWidth >= 1024 && v3Variant === 'v3d')) {
             if (intersectingElements.size > 0) intersectingElements.clear();
             updateSuppression(false);
             return;
@@ -1533,7 +1537,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         },
         {
           rootMargin: currentRootMargin,
-          threshold: 0,
+          threshold: isV3dDesktopContext ? 0.15 : 0,
         }
       );
     };
@@ -1541,8 +1545,10 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
     const reconcileTargets = () => {
       if (typeof document === 'undefined') return;
 
-      // 1. En desktop: limpiar observador y asegurar que no haya supresión activa
-      if (window.innerWidth >= 768) {
+      const isV3dDesktopContext = window.innerWidth >= 1024 && v3Variant === 'v3d';
+
+      // 1. En desktop fuera de V3-D (>=1024px): limpiar observador y asegurar que no haya supresión activa
+      if (window.innerWidth >= 768 && !isV3dDesktopContext) {
         if (observer) {
           observer.disconnect();
           observedElements.clear();
@@ -1552,20 +1558,21 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         return;
       }
 
-      // Recrear observador si cambió la altura del viewport para recalibrar rootMargin
+      // Recrear observador si cambió la altura/modo del viewport para recalibrar rootMargin
       const neededMargin = getFabZoneRootMargin();
       if (!observer || currentRootMargin !== neededMargin) {
         createObserver();
       }
 
-      // 2. En mobile: reconciliar elementos observados
+      // 2. Reconciliar elementos observados (en V3-D desktop solo observa el estado vacío .home-empty--v3d)
       const container = document.querySelector('.home-screen-container') || document.body;
-      const targetSelector =
-        v3Variant === 'v3c' || v3Variant === 'v3d'
-          ? '.home-dual-hero, #home-discovery-section, #home-personal-activity-section'
-          : v3Variant
-          ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
-          : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
+      const targetSelector = isV3dDesktopContext
+        ? '#home-personal-activity-section .home-empty--v3d'
+        : v3Variant === 'v3c' || v3Variant === 'v3d'
+        ? '.home-dual-hero, #home-discovery-section, #home-personal-activity-section'
+        : v3Variant
+        ? '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions, .home-dual-hero, .home-intentions-band, .home-encounters-section .home-empty, .home-encounters-footer-actions-v2, .pe-intenciones-empty, .pe-solicitudes-empty, .pe-discovery-footer'
+        : '.pe-inspirational-grid, .pe-inspirational-actions, .home-create-or-open-info, .pe-discovery-empty-actions';
       const currentTargets = Array.from(container.querySelectorAll(targetSelector));
       const currentTargetSet = new Set(currentTargets);
 
@@ -2418,12 +2425,21 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isGuestListsOpen, setIsGuestListsOpen] = useState(false);
 
+  const isV3dPersonalEmptyState =
+    v3Variant === 'v3d' &&
+    !error &&
+    userSectionTab === 'encuentros' &&
+    rawEncuentros.length === 0 &&
+    countActiveSecondaryFilters(secondaryFilters) === 0;
+
   const personalActivitySection = (
     <div
       ref={personalActivityRef}
       id="home-personal-activity-section"
-      className="home-encounters-section"
+      className={`home-encounters-section${isV3dPersonalEmptyState ? ' home-encounters-section--v3d-empty' : ''}`}
     >
+      {/* Extensión lateral del sistema de pinceladas ambientales hacia Mi espacio (exclusiva V3-D Desktop) */}
+      {v3Variant === 'v3d' && <HomeAmbientBrushes variant="mi-espacio-v3d" />}
       <div className="pe-encounters-inner">
         {(isV2Variant || effectiveIsPermanentUser) && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: isV2Variant ? 0 : 8, flexWrap: 'wrap' }}>
