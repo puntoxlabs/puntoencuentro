@@ -14,6 +14,7 @@ import Home, {
   STAGING_DEFAULT_HOME_VARIANT,
 } from '../src/screens/Home';
 import { HomeDualPathHeroPreview } from '../src/components/home/index';
+import { selectSafeHintPlacement } from '../src/components/home/homeV3dScrollHintPlacement';
 import { HomeOpenEncounters, INSPIRATIONAL_IDEAS } from '../src/components/home/openEncounters/HomeOpenEncounters';
 import { OPEN_ENCOUNTERS_DEMO } from '../src/components/home/openEncounters/demoData';
 import { AuthContext } from '../src/contexts/AuthContext';
@@ -332,7 +333,7 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(htmlAuthEmpty.includes('Mis encuentros'));
     assert.ok(htmlAuthEmpty.includes('Mis ganas'));
     assert.ok(htmlAuthEmpty.includes('Mis solicitudes'));
-    assert.ok(htmlAuthEmpty.includes('v3d-discovery-scroll-cue'), 'V3-D debe incluir indicador discreto Explorá encuentros');
+    assert.ok(!htmlAuthEmpty.includes('v3d-discovery-scroll-cue'), 'El antiguo CTA bajo el Hero debe retirarse solo de V3-D');
     assert.ok(!htmlAuthEmpty.includes('pe-toolbar-container'), 'Con 0 encuentros debe simplificar toolbar secundaria');
 
     const v3dCss = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3d.css'), 'utf8');
@@ -341,7 +342,34 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     const mobile767Block = v3dCss.match(/@media \(max-width:\s*767px\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
     assert.ok(mobile639Block.includes('.home-gsap-mobile-frag'), 'V3-D móvil oculta fotos laterales');
     assert.ok(!mobile639Block.includes('.home-gsap-tag') && !mobile767Block.includes('display: none'), 'V3-D móvil no debe ocultar etiquetas GSAP');
-    assert.ok(v3dCss.includes('.home-v3d-discovery-cue'));
+    assert.ok(!v3dCss.includes('.home-v3d-discovery-cue'), 'No conservar estilos del botón anterior de Discovery');
     assert.ok(v3dCss.includes('#D2F3EC'));
+
+    const hintSource = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3dScrollHint.tsx'), 'utf8');
+    assert.ok(hintSource.includes('Deslizá para explorar'));
+    assert.ok(hintSource.includes('createPortal('));
+    assert.ok(hintSource.includes('ChevronsDown'));
+    assert.ok(!hintSource.includes("from 'gsap'"), 'El scroll hint no debe acoplarse a GSAP');
+  });
+
+  test('7. HomeV3dScrollHint calcula ubicación segura sin obstruir controles ni safe areas', () => {
+    const open = selectSafeHintPlacement({ width: 390, height: 844, minBottom: 14 }, []);
+    assert.ok(open);
+    assert.equal(open.bottom, 14);
+    assert.equal(open.align, 'center');
+
+    // Si la derecha inferior está ocupada por botón de Discovery, busca centro/izquierda libre antes de ocultar
+    const shifted = selectSafeHintPlacement(
+      { width: 390, height: 844, minBottom: 14 },
+      [{ left: 238, right: 370, top: 778, bottom: 822 }],
+    );
+    assert.ok(shifted);
+    assert.equal(shifted.align, 'left');
+
+    // Si toda la altura móvil disponible está ocupada por UI, retorna null para proteger interacciones
+    const fullBlockers = [
+      { left: 0, right: 390, top: 72, bottom: 844 },
+    ];
+    assert.equal(selectSafeHintPlacement({ width: 390, height: 844 }, fullBlockers), null);
   });
 });

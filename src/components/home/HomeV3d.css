@@ -34,8 +34,8 @@
 /* ── 2. Hero Wrapper y Contención GSAP (V3-D móvil: oculta fotos laterales, preserva coreografía de etiquetas) ── */
 @media (max-width: 639px) {
   .home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d {
-    padding-top: 3.35rem;
-    padding-bottom: 3.25rem;
+    padding-top: 2.95rem;
+    padding-bottom: 3.15rem;
   }
 
   .home-hero-wrapper--v3d .home-gsap-mobile-frag {
@@ -160,56 +160,6 @@
   opacity: 1;
   box-shadow: none;
   cursor: not-allowed;
-}
-
-/* Indicador discreto de continuidad hacia Discovery (debajo del Hero V3-D, fuera de Zona C GSAP) */
-.home-v3d-discovery-cue-wrap {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  margin: 4px auto 2px;
-  padding: 0 16px;
-  box-sizing: border-box;
-  position: relative;
-  z-index: 5;
-}
-
-.home-v3d-discovery-cue {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 8px 18px;
-  border-radius: 9999px;
-  background-color: #F8FAFC;
-  border: 1px solid #CBD5E1;
-  color: #334155;
-  font-family: inherit;
-  font-size: 0.875rem; /* 14px */
-  font-weight: 600;
-  line-height: 1.25;
-  cursor: pointer;
-  touch-action: manipulation;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
-}
-
-.home-v3d-discovery-cue:hover {
-  background-color: #EEF2F6;
-  border-color: #94A3B8;
-  color: #0F172A;
-}
-
-.home-v3d-discovery-cue:focus-visible {
-  outline: 2px solid #0F766E;
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-v3d-discovery-cue {
-    transition: none;
-  }
 }
 
 .home-dual-hero--v3d .home-v3d-card__guarantee {
@@ -371,8 +321,25 @@
   }
 
   .home-dual-hero--v3d .home-dual-hero__header {
-    gap: 0.28rem;
-    margin-bottom: 0.55rem;
+    gap: 0.22rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-grid {
+    gap: 0.45rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card {
+    padding: 0.5625rem 0.95rem;
+    gap: 0.25rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-card__body {
+    gap: 0.3rem;
+  }
+
+  .home-dual-hero--v3d .home-v3d-intent-box {
+    padding: 0.4rem 0.875rem 0.15rem;
   }
 
   .home-dual-hero--v3d .home-dual-hero__eyebrow {
@@ -386,7 +353,7 @@
 
   .home-dual-hero--v3d .home-dual-hero__subtitle {
     font-size: 0.9375rem; /* 15px */
-    line-height: 1.4;
+    line-height: 1.36;
     color: #334155;
     max-width: 350px;
   }
@@ -399,8 +366,9 @@
     display: none;
   }
 
+  /* Reserva franja segura sobre el fold en 360×640 y 375×667 para scroll hint sin tapar chips ni CTA */
   .home-dual-hero--v3d .home-dual-hero__suggestions {
-    margin-top: 0.55rem;
+    margin-top: 3.1rem;
   }
 
   .home-dual-hero--v3d .home-suggestions-container {
@@ -544,9 +512,19 @@
 
 /* ── 4. Discovery V3-D (Comfort, Contraste AA y Simplificación Contextual) ── */
 .pe-discovery-section.pe-discovery-section--v2.pe-discovery-section--v3d {
-  margin-top: 0.5rem;
+  margin-top: 3.85rem;
   padding-top: 1.2rem;
   padding-bottom: 1.65rem;
+}
+
+.home-v3d-variant .home-encounters-section {
+  margin-top: 3.25rem;
+}
+
+@media (min-width: 768px) {
+  .home-v3d-variant .home-encounters-section {
+    margin-top: 1rem;
+  }
 }
 
 .pe-discovery-section--v3d .pe-discovery-track {

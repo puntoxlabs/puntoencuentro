@@ -1,0 +1,55 @@
+/* Home V3-D solamente: orientación visible en el viewport, sin modificar GSAP ni el layout. */
+.home-v3d-scroll-hint {
+  position: fixed;
+  top: var(--home-v3d-hint-top, auto);
+  left: var(--home-v3d-hint-left, 50%);
+  z-index: 25; /* Debajo de header sticky (z-index: 30), FAB (90) y hojas modales */
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 196px;
+  max-width: calc(100vw - 28px);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: 1px solid #CBD5E1;
+  background: rgba(248, 250, 252, 0.96);
+  color: #1E293B;
+  font-family: var(--font-family, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-v3d-scroll-hint:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 3px;
+}
+
+.home-v3d-scroll-hint__chevrons {
+  flex-shrink: 0;
+  animation: home-v3d-hint-gently-down 1s ease-in-out 0.2s 3 both;
+}
+
+@keyframes home-v3d-hint-gently-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+@media (min-width: 768px) {
+  .home-v3d-scroll-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-v3d-scroll-hint__chevrons {
+    animation: none;
+  }
+}

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Calendar, Plus, User, Bell, Sparkles, Bookmark, BookUser, Menu, ArrowDown } from 'lucide-react';
+import { Calendar, Plus, User, Bell, Sparkles, Bookmark, BookUser, Menu } from 'lucide-react';
 import { AccountSheet } from '@/components/ui/AccountSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
@@ -79,6 +79,7 @@ import { AiLimitReachedSheet } from '@/components/home/AiLimitReachedSheet';
 import type { HomeVisualVariant } from '@/components/home';
 import { V2_SUGGESTIONS } from '@/components/home/HomeSuggestionChips';
 import { HomeOpenEncounters } from '@/components/home/openEncounters/HomeOpenEncounters';
+import { HomeV3dScrollHint } from '@/components/home/HomeV3dScrollHint';
 import { HomeEncountersToolbar } from '@/components/home/yourEncounters/HomeEncountersToolbar';
 import {
   HomeEncountersFilterSheet,
@@ -2831,22 +2832,6 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
         </div>
       </div>
 
-      {/* Señal discreta y accesible de continuidad hacia Discovery (exclusiva de V3-D) */}
-      {v3Variant === 'v3d' && (
-        <div className="home-v3d-discovery-cue-wrap">
-          <button
-            type="button"
-            id="home-v3d-discovery-cue"
-            className="home-v3d-discovery-cue"
-            onClick={handleSelectDiscovery}
-            data-testid="v3d-discovery-scroll-cue"
-          >
-            <span>Explorá encuentros</span>
-            <ArrowDown size={15} aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
       {/* Card de reanudación de borrador activo */}
       {hasActiveDraft && (
         <div style={{ marginTop: '0.75rem', width: '100%', maxWidth: '680px', margin: '0.75rem auto 0' }}>
@@ -3180,6 +3165,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
           startFixedEncounter();
         }}
       />
+
+      {/* Indicador contextual de viewport para deslizar o navegar a Discovery (exclusivo V3-D móvil) */}
+      {v3Variant === 'v3d' && <HomeV3dScrollHint onExplore={handleSelectDiscovery} />}
 
       {/* FAB Botón Crear Contextual (Mobile + Desktop, con adaptación contextual anti-colisión DIF-18-Q) */}
       {showFab && (
