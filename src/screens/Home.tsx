@@ -2769,6 +2769,9 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
 
       {/* Hero Section con Composición Centrada Envolvente V2/V3 y Espacio Vivo Dinámico */}
       <div className={`home-hero-wrapper home-hero-wrapper--${effectiveVariant}${v3Variant ? ` home-hero-wrapper--v3 home-hero-wrapper--${v3Variant}` : ''}`}>
+        {/* Pinceladas ambientales bajo los bloques fotográficos laterales (exclusivas de Home V3-D Desktop) */}
+        {v3Variant === 'v3d' && <HomeAmbientBrushes variant="hero-v3d" />}
+
         {/* Espacio vivo de etiquetas flotantes y fotos en movimiento */}
         {effectiveVariant === 'gsap' ? (
           <React.Suspense fallback={null}>

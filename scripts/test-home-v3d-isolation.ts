@@ -330,6 +330,31 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     );
     assert.ok(htmlAuthEmpty.includes('home-v3d-variant'));
     assert.ok(!htmlAuthEmpty.includes('home-v3c-variant'));
+    assert.ok(htmlAuthEmpty.includes('v3d-desktop-hero-brushes'), 'V3-D incluye capa de pinceladas laterales del Hero para desktop');
+    assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--left'));
+    assert.ok(htmlAuthEmpty.includes('home-v3d-hero-brush--right'));
+
+    const htmlV3c = renderToString(
+      React.createElement(
+        AuthContext.Provider,
+        { value: visitorAuthValue },
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            React.createElement(
+              NotificationsProvider,
+              null,
+              React.createElement(Home, { homeVariant: 'v3c', forcedVariant: 'gsap', appEnv: 'development' })
+            )
+          )
+        )
+      )
+    );
+    assert.ok(!htmlV3c.includes('v3d-desktop-hero-brushes'), 'V3-C no debe incluir pinceladas laterales de Hero V3-D');
+
     assert.ok(htmlAuthEmpty.includes('Mis encuentros'));
     assert.ok(htmlAuthEmpty.includes('Mis ganas'));
     assert.ok(htmlAuthEmpty.includes('Mis solicitudes'));
@@ -343,6 +368,9 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(mobile639Block.includes('.home-gsap-mobile-frag'), 'V3-D móvil oculta fotos laterales');
     assert.ok(!mobile639Block.includes('.home-gsap-tag') && !mobile767Block.includes('display: none'), 'V3-D móvil no debe ocultar etiquetas GSAP');
     assert.ok(!v3dCss.includes('.home-v3d-discovery-cue'), 'No conservar estilos del botón anterior de Discovery');
+    assert.ok(v3dCss.includes('.home-v3d-hero-brushes {\n  display: none;\n}') || v3dCss.includes('.home-v3d-hero-brushes'), 'Pinceladas Hero V3-D ocultas por defecto fuera de desktop');
+    assert.ok(v3dCss.includes('.home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d .home-v3d-hero-brush--left'));
+    assert.ok(v3dCss.includes('.home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d .home-v3d-hero-brush--right'));
     assert.ok(v3dCss.includes('#D2F3EC'));
 
     const hintSource = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3dScrollHint.tsx'), 'utf8');
