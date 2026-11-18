@@ -332,6 +332,16 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(htmlAuthEmpty.includes('Mis encuentros'));
     assert.ok(htmlAuthEmpty.includes('Mis ganas'));
     assert.ok(htmlAuthEmpty.includes('Mis solicitudes'));
+    assert.ok(htmlAuthEmpty.includes('v3d-discovery-scroll-cue'), 'V3-D debe incluir indicador discreto Explorá encuentros');
     assert.ok(!htmlAuthEmpty.includes('pe-toolbar-container'), 'Con 0 encuentros debe simplificar toolbar secundaria');
+
+    const v3dCss = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3d.css'), 'utf8');
+    assert.ok(v3dCss.includes('.home-gsap-mobile-frag'), 'V3-D oculta fragmentos fotográficos móviles');
+    const mobile639Block = v3dCss.match(/@media \(max-width:\s*639px\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    const mobile767Block = v3dCss.match(/@media \(max-width:\s*767px\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    assert.ok(mobile639Block.includes('.home-gsap-mobile-frag'), 'V3-D móvil oculta fotos laterales');
+    assert.ok(!mobile639Block.includes('.home-gsap-tag') && !mobile767Block.includes('display: none'), 'V3-D móvil no debe ocultar etiquetas GSAP');
+    assert.ok(v3dCss.includes('.home-v3d-discovery-cue'));
+    assert.ok(v3dCss.includes('#D2F3EC'));
   });
 });

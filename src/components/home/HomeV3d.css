@@ -31,16 +31,21 @@
   padding-bottom: 16px;
 }
 
-/* ── 2. Hero Wrapper y Contención GSAP (en móvil <640px elimina banda decorativa redundante) ── */
+/* ── 2. Hero Wrapper y Contención GSAP (V3-D móvil: oculta fotos laterales, preserva coreografía de etiquetas) ── */
 @media (max-width: 639px) {
   .home-hero-wrapper--gsap.home-hero-wrapper--v3.home-hero-wrapper--v3d {
-    padding-top: 1.05rem;
-    padding-bottom: 0.75rem;
+    padding-top: 3.35rem;
+    padding-bottom: 3.25rem;
   }
 
-  .home-hero-wrapper--v3d .home-gsap-mobile-frag,
-  .home-hero-wrapper--v3d .home-dynamic-canvas--gsap .home-gsap-tag {
+  .home-hero-wrapper--v3d .home-gsap-mobile-frag {
     display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-gsap-tag {
+    max-width: min(calc(100% - 16px), 16.25rem);
   }
 }
 
@@ -149,11 +154,62 @@
 }
 
 .home-dual-hero--v3d .home-dual-cta.home-v3d-cta--intent:disabled {
-  background-color: rgba(240, 253, 250, 0.96);
-  border-color: rgba(13, 148, 136, 0.45);
+  background-color: #D2F3EC;
+  border-color: #5FA89E;
   color: #115E59;
-  opacity: 0.9;
+  opacity: 1;
   box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Indicador discreto de continuidad hacia Discovery (debajo del Hero V3-D, fuera de Zona C GSAP) */
+.home-v3d-discovery-cue-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 4px auto 2px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 5;
+}
+
+.home-v3d-discovery-cue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  background-color: #F8FAFC;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+  font-family: inherit;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.home-v3d-discovery-cue:hover {
+  background-color: #EEF2F6;
+  border-color: #94A3B8;
+  color: #0F172A;
+}
+
+.home-v3d-discovery-cue:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-v3d-discovery-cue {
+    transition: none;
+  }
 }
 
 .home-dual-hero--v3d .home-v3d-card__guarantee {
@@ -488,8 +544,8 @@
 
 /* ── 4. Discovery V3-D (Comfort, Contraste AA y Simplificación Contextual) ── */
 .pe-discovery-section.pe-discovery-section--v2.pe-discovery-section--v3d {
-  margin-top: 0.9rem;
-  padding-top: 1.25rem;
+  margin-top: 0.5rem;
+  padding-top: 1.2rem;
   padding-bottom: 1.65rem;
 }
 
@@ -963,5 +1019,12 @@
 
   .home-dual-hero--v3d .home-suggestions-list {
     scroll-behavior: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 767px) {
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-gsap-tag.home-floating-tag--stitch:nth-child(3) {
+    opacity: 0 !important;
+    visibility: hidden !important;
   }
 }

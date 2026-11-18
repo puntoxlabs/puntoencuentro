@@ -205,7 +205,9 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const masterTlRef = useRef<gsap.core.Timeline | null>(null);
+  const lastV3dSizeRef = useRef<{ w: number; h: number } | null>(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [v3dLayoutTick, setV3dLayoutTick] = useState(0);
   const [debugState, setDebugState] = useState<{
     enabled: boolean;
     vvWidth?: number;
@@ -273,6 +275,23 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
     const handleResize = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
+        const currentEl = containerRef.current;
+        if (currentEl && typeof window !== 'undefined') {
+          const isV3dMobile = Boolean(currentEl.closest('.home-hero-wrapper--v3d')) && window.innerWidth < 768;
+          if (isV3dMobile) {
+            const cRect = currentEl.getBoundingClientRect();
+            const curW = Math.round(cRect.width);
+            const curH = Math.round(cRect.height);
+            const prev = lastV3dSizeRef.current;
+            if (!prev) {
+              lastV3dSizeRef.current = { w: curW, h: curH };
+            } else if (Math.abs(curW - prev.w) > 8 || Math.abs(curH - prev.h) > 8) {
+              lastV3dSizeRef.current = { w: curW, h: curH };
+              setV3dLayoutTick((n) => n + 1);
+            }
+          }
+        }
+
         if (debugState.enabled && typeof window !== 'undefined') {
           const vv = window.visualViewport;
           const cRect = containerRef.current?.getBoundingClientRect();
@@ -337,9 +356,48 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
     () => {
       if (!layoutReady) return;
       const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const rootEl = containerRef.current;
+      const isV3dHero = Boolean(rootEl?.closest('.home-hero-wrapper--v3d'));
 
       // ── MODO REDUCED MOTION ──
       if (isReduced) {
+        if (isV3dHero && rootEl && window.innerWidth < 768) {
+          const cRect = rootEl.getBoundingClientRect();
+          const cWidth = cRect.width || window.innerWidth;
+          const cHeight = cRect.height || 660;
+          const titleEl = rootEl.closest('.home-hero-wrapper')?.querySelector('#home-dual-hero-heading, .home-hero-title');
+          const chipsEl = document.querySelector('.home-suggestions-container');
+          const titleRelTop = titleEl ? Math.round(titleEl.getBoundingClientRect().top - cRect.top) : 54;
+          const chipsRelBottom = chipsEl ? Math.round(chipsEl.getBoundingClientRect().bottom - cRect.top) : (cHeight - 52);
+          const pizzaW = Math.min(Math.round((rootEl.querySelector('#gt-pizza') as HTMLElement | null)?.getBoundingClientRect().width || 168), Math.max(120, cWidth - 16));
+          const padelW = Math.min(Math.round((rootEl.querySelector('#gt-padel') as HTMLElement | null)?.getBoundingClientRect().width || 168), Math.max(120, cWidth - 16));
+          const pizzaH = Math.round((rootEl.querySelector('#gt-pizza') as HTMLElement | null)?.getBoundingClientRect().height || 34);
+          const padelH = Math.round((rootEl.querySelector('#gt-padel') as HTMLElement | null)?.getBoundingClientRect().height || 32);
+          const zoneAYStatic = Math.max(8, Math.min(20, Math.round(titleRelTop - pizzaH - 6)));
+          const zoneCYStatic = Math.min(cHeight - padelH - 6, Math.round(chipsRelBottom + 10));
+
+          gsap.set('.home-gsap-tag', { visibility: 'hidden', opacity: 0 });
+          gsap.set('#gt-pizza', {
+            visibility: 'visible',
+            opacity: 0.88,
+            left: Math.max(8, Math.round((cWidth - pizzaW) / 2)),
+            top: zoneAYStatic,
+            x: 0,
+            y: 0,
+            scale: 1,
+          });
+          gsap.set('#gt-padel', {
+            visibility: 'visible',
+            opacity: 0.88,
+            left: Math.max(8, Math.round((cWidth - padelW) / 2)),
+            top: zoneCYStatic,
+            x: 0,
+            y: 0,
+            scale: 0.96,
+          });
+          return;
+        }
+
         // En reduced motion: no ejecutar timeline continua. Ubicar estáticamente 3 actores clave
         gsap.set('.home-gsap-tag', { visibility: 'hidden', opacity: 0 });
         gsap.set('#gt-pizza', {
@@ -1088,15 +1146,41 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         const eyebrowRelTop = eyebrowRect ? (eyebrowRect.top - containerRect.top) : 92;
         const chipsRelBottom = chipsRect ? (chipsRect.bottom - containerRect.top) : (containerHeight - 72);
 
-        // Zone A (Cornisa Superior): entre top 16px y 24px, resguardada arriba del eyebrow
-        const zoneAY = Math.max(16, Math.min(24, Math.round(eyebrowRelTop - 46)));
+        const photoLeftVisible = Boolean(photoLeftRect && photoLeftRect.width > 0 && photoLeftRect.height > 0);
+        const photoRightVisible = Boolean(photoRightRect && photoRightRect.width > 0 && photoRightRect.height > 0);
 
-        // Zone C (Flanco Inferior): bajo chips funcionales con 12px de aire limpio
-        const zoneCY = Math.min(containerHeight - 50, Math.round(chipsRelBottom + 12));
+        const titleEl = container.closest('.home-hero-wrapper')?.querySelector('#home-dual-hero-heading, .home-hero-title');
+        const titleRect = titleEl ? titleEl.getBoundingClientRect() : null;
+        const titleRelTop = titleRect ? Math.round(titleRect.top - containerRect.top) : 54;
+
+        const measureV3dTagRect = (tagId: string) => {
+          const el = container.querySelector(tagId) as HTMLElement | null;
+          const r = el ? el.getBoundingClientRect() : null;
+          return {
+            w: r && r.width > 0 ? Math.round(r.width) : 168,
+            h: r && r.height > 0 ? Math.round(r.height) : 34,
+          };
+        };
+
+        // Zone A (Cornisa Superior): en V3-D referencia el H1 real del Hero (eyebrow oculto en móvil)
+        const maxZoneAH = Math.max(measureV3dTagRect('#gt-pizza').h, measureV3dTagRect('#gt-bici').h);
+        const zoneAY = isV3dHero
+          ? Math.max(8, Math.min(20, Math.round(titleRelTop - maxZoneAH - 7)))
+          : Math.max(16, Math.min(24, Math.round(eyebrowRelTop - 46)));
+
+        // Zone C (Flanco Inferior): bajo chips funcionales y completamente por encima del cue de Discovery
+        const maxZoneCH = Math.max(measureV3dTagRect('#gt-futbol').h, measureV3dTagRect('#gt-padel').h);
+        const zoneCY = isV3dHero
+          ? Math.max(Math.round(chipsRelBottom + 9), Math.min(containerHeight - maxZoneCH - 5, Math.round(chipsRelBottom + 10)))
+          : Math.min(containerHeight - 50, Math.round(chipsRelBottom + 12));
 
         // Cornisa bounds relativos al container (considerando amplitud de balanceo de las fotos de +/-4px)
-        const photoLeftEnd = photoLeftRect ? Math.round(photoLeftRect.right - containerRect.left + 4) : 76;
-        const photoRightStart = photoRightRect ? Math.round(photoRightRect.left - containerRect.left - 4) : Math.round(containerWidth - 76);
+        const photoLeftEnd = photoLeftVisible && photoLeftRect
+          ? Math.round(photoLeftRect.right - containerRect.left + 4)
+          : (isV3dHero ? 8 : 76);
+        const photoRightStart = photoRightVisible && photoRightRect
+          ? Math.round(photoRightRect.left - containerRect.left - 4)
+          : Math.round(containerWidth - (isV3dHero ? 8 : 76));
         const tagAWidthApprox = 160;
         const cornisaCenter = Math.round((photoLeftEnd + photoRightStart) / 2);
         let centerA_X = Math.round(cornisaCenter - tagAWidthApprox / 2);
@@ -1118,6 +1202,28 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         const slotC2_x1 = Math.min(maxC_X, centerC_X + 10);
         const slotC2_x2 = Math.max(minC_X, centerC_X - 10);
 
+        const getZoneACenterX = (tagId: string) => {
+          if (!isV3dHero) return centerA_X;
+          const { w } = measureV3dTagRect(tagId);
+          const minSafe = photoLeftVisible ? photoLeftEnd + 6 : 10;
+          const maxSafe = Math.max(minSafe, (photoRightVisible ? photoRightStart - 6 : containerWidth - 10) - w);
+          const centered = Math.round((minSafe + maxSafe) / 2);
+          return Math.max(minSafe, Math.min(maxSafe, centered));
+        };
+
+        const getZoneCSlots = (tagId: string, reverse: boolean, fallbackX1: number, fallbackX2: number) => {
+          if (!isV3dHero) return { x1: fallbackX1, x2: fallbackX2, wrapMid: fallbackX1 + 10 };
+          const { w } = measureV3dTagRect(tagId);
+          const minSafe = 8;
+          const maxSafe = Math.max(minSafe, containerWidth - w - 8);
+          const centered = Math.round((containerWidth - w) / 2);
+          const left = Math.max(minSafe, Math.min(maxSafe, centered - 10));
+          const right = Math.max(minSafe, Math.min(maxSafe, centered + 10));
+          return reverse
+            ? { x1: right, x2: left, wrapMid: right }
+            : { x1: left, x2: right, wrapMid: right };
+        };
+
         if (debugState.enabled && typeof window !== 'undefined') {
           const vv = window.visualViewport;
           setDebugState((prev) => ({
@@ -1136,26 +1242,30 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         const mobileMasterTl = gsap.timeline({ repeat: -1 });
         masterTlRef.current = mobileMasterTl;
 
-        // Micro-respiración de fragmentos fotográficos mobile (independientes y desfasados)
-        const mobPhotoLeftTl = gsap.timeline({ repeat: -1, yoyo: true });
-        mobPhotoLeftTl.to('.home-gsap-mobile-frag--left', {
-          rotation: -1.6,
-          x: 3.5,
-          y: 2,
-          scale: 1.02,
-          duration: 7.2,
-          ease: 'sine.inOut',
-        });
+        // Micro-respiración de fragmentos fotográficos mobile (solo si están visibles)
+        if (!isV3dHero || photoLeftVisible) {
+          const mobPhotoLeftTl = gsap.timeline({ repeat: -1, yoyo: true });
+          mobPhotoLeftTl.to('.home-gsap-mobile-frag--left', {
+            rotation: -1.6,
+            x: 3.5,
+            y: 2,
+            scale: 1.02,
+            duration: 7.2,
+            ease: 'sine.inOut',
+          });
+        }
 
-        const mobPhotoRightTl = gsap.timeline({ repeat: -1, yoyo: true });
-        mobPhotoRightTl.to('.home-gsap-mobile-frag--right', {
-          rotation: 1.6,
-          x: -3.5,
-          y: -2,
-          scale: 1.02,
-          duration: 8.0,
-          ease: 'sine.inOut',
-        });
+        if (!isV3dHero || photoRightVisible) {
+          const mobPhotoRightTl = gsap.timeline({ repeat: -1, yoyo: true });
+          mobPhotoRightTl.to('.home-gsap-mobile-frag--right', {
+            rotation: 1.6,
+            x: -3.5,
+            y: -2,
+            scale: 1.02,
+            duration: 8.0,
+            ease: 'sine.inOut',
+          });
+        }
 
         gsap.set('.home-gsap-tag', { visibility: 'hidden', opacity: 0, scale: 0.92 });
 
@@ -1357,59 +1467,64 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
             .set(tagId, { visibility: 'hidden' });
         };
 
+        const cumpleSlots = getZoneCSlots('#gt-cumple', true, slotC2_x1, slotC2_x2);
+        const padelSlots = getZoneCSlots('#gt-padel', false, slotC1_x1, slotC1_x2);
+        const futbolSlots = getZoneCSlots('#gt-futbol', true, slotC2_x1, slotC2_x2);
+        const cafeSlots = getZoneCSlots('#gt-cafe', false, slotC1_x1, slotC1_x2);
+
         // ── COREOGRAFÍA CONTINUA 24s MOBILE (Sostenida: 1-2 tags, 0 gaps, 0 colisiones) ──
         // Para que desde el segundo 0 haya 2 tags visibles (uno en Zone A y uno en Zone C):
         // En t=0: gt-cumple (Zone C) está finalizando su ciclo (0s a 3.5s) mientras gt-pizza (Zone A) entra (0s a 6.5s)
         mobileMasterTl.add(
-          createWrapTailTl('#gt-cumple', slotC2_x1 + 10, slotC2_x2, zoneCY, 0.2, -0.4),
+          createWrapTailTl('#gt-cumple', isV3dHero ? cumpleSlots.wrapMid : (slotC2_x1 + 10), cumpleSlots.x2, zoneCY, 0.2, -0.4),
           0
         );
 
         // 1. Zone A: Pizza (Coral / Ribbon / Large) - t=0.0s a 6.5s
         mobileMasterTl.add(
-          createZoneATagTl('#gt-pizza', 'ribbon', centerA_X, zoneAY, -1.2, 0.4),
+          createZoneATagTl('#gt-pizza', 'ribbon', getZoneACenterX('#gt-pizza'), zoneAY, -1.2, 0.4),
           0
         );
 
         // 2. Zone C: Pádel (Sky / Ticket / Medium) - t=3.0s a 8.1s
         mobileMasterTl.add(
-          createZoneCTagTl('#gt-padel', 'ticket', slotC1_x1, slotC1_x2, zoneCY, 0.8, -0.3),
+          createZoneCTagTl('#gt-padel', 'ticket', padelSlots.x1, padelSlots.x2, zoneCY, 0.8, -0.3),
           3.0
         );
 
         // 3. Zone A: Mates (Warm / Curved-tape / Medium) - t=6.0s a 12.5s
         mobileMasterTl.add(
-          createZoneATagTl('#gt-mates', 'curved-tape', centerA_X, zoneAY, 1.0, -0.4),
+          createZoneATagTl('#gt-mates', 'curved-tape', getZoneACenterX('#gt-mates'), zoneAY, 1.0, -0.4),
           6.0
         );
 
         // 4. Zone C: Fútbol (Teal / Blob / Large) - t=9.0s a 14.1s
         mobileMasterTl.add(
-          createZoneCTagTl('#gt-futbol', 'blob', slotC2_x1, slotC2_x2, zoneCY, -0.8, 0.4),
+          createZoneCTagTl('#gt-futbol', 'blob', futbolSlots.x1, futbolSlots.x2, zoneCY, -0.8, 0.4),
           9.0
         );
 
         // 5. Zone A: Caminar (Mint / Pill / Medium) - t=12.0s a 18.5s
         mobileMasterTl.add(
-          createZoneATagTl('#gt-caminar', 'pill', centerA_X, zoneAY, -0.6, 0.3),
+          createZoneATagTl('#gt-caminar', 'pill', getZoneACenterX('#gt-caminar'), zoneAY, -0.6, 0.3),
           12.0
         );
 
         // 6. Zone C: Café (Yellow / Asymmetric / Medium) - t=15.0s a 20.1s
         mobileMasterTl.add(
-          createZoneCTagTl('#gt-cafe', 'asymmetric', slotC1_x1, slotC1_x2, zoneCY, 0.6, -0.2),
+          createZoneCTagTl('#gt-cafe', 'asymmetric', cafeSlots.x1, cafeSlots.x2, zoneCY, 0.6, -0.2),
           15.0
         );
 
         // 7. Zone A: Bici (Mint / Ribbon / Large) - t=18.0s a 24.5s
         mobileMasterTl.add(
-          createZoneATagTl('#gt-bici', 'ribbon', centerA_X, zoneAY, 0.8, -0.3),
+          createZoneATagTl('#gt-bici', 'ribbon', getZoneACenterX('#gt-bici'), zoneAY, 0.8, -0.3),
           18.0
         );
 
         // 8. Zone C: Cumple (Rose / Asymmetric / Medium) - t=21.0s a 26.1s (conecta con el wrap en t=0)
         mobileMasterTl.add(
-          createZoneCTagTl('#gt-cumple', 'asymmetric', slotC2_x1, slotC2_x2, zoneCY, -0.6, 0.2),
+          createZoneCTagTl('#gt-cumple', 'asymmetric', cumpleSlots.x1, cumpleSlots.x2, zoneCY, -0.6, 0.2),
           21.0
         );
       });
@@ -1418,7 +1533,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         mm.revert();
       };
     },
-    { scope: containerRef, dependencies: [layoutReady] }
+    { scope: containerRef, dependencies: [layoutReady, v3dLayoutTick] }
   );
 
   return (
