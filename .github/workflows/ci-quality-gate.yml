@@ -56,3 +56,6 @@ jobs:
           node scripts/run-tests.mjs ./scripts/test-domain-identity-bridge.ts
           node scripts/run-tests.mjs ./scripts/test-schema-parity-guard.ts
           node scripts/run-tests.mjs ./scripts/test-pre-staging-verification-h1-h10.ts
+          node scripts/run-tests.mjs ./scripts/test-home-v3d-isolation.ts
+          node scripts/run-tests.mjs ./scripts/test-home-card-navigation.ts
+          node scripts/run-tests.mjs ./scripts/test-mi-espacio-mobile.ts
