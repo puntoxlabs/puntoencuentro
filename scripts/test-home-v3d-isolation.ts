@@ -412,7 +412,22 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     assert.ok(v3dCss.includes('.home-v3d-personal-brushes'), 'Pinceladas de Mi espacio V3-D ocultas por defecto fuera de desktop');
     assert.ok(v3dCss.includes('.home-v3d-variant .home-encounters-section .home-v3d-personal-brush--left'));
     assert.ok(v3dCss.includes('.home-v3d-variant .home-encounters-section .home-v3d-personal-brush--right'));
+    assert.ok(v3dCss.includes('height: 42px;'), 'Logotipo Conotros en V3-D desktop (>=1024px) escalado a 42px de alto');
+    assert.ok(v3dCss.includes('height: 31px;'), 'Logotipo Conotros en V3-D móvil (<=480px) conserva 31px de alto');
     assert.ok(v3dCss.includes('#D2F3EC'));
+
+    const hintCss = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3dScrollHint.css'), 'utf8');
+    assert.ok(hintCss.includes('#FFF8E8'), 'Scroll hint V3-D utiliza fondo marfil cálido #FFF8E8');
+    assert.ok(hintCss.includes('#E7D4A3'), 'Scroll hint V3-D utiliza borde cálido #E7D4A3');
+    assert.ok(hintCss.includes('#334155'), 'Scroll hint V3-D utiliza texto #334155');
+    assert.ok(hintCss.includes('#8A6D24'), 'Scroll hint V3-D utiliza chevrons #8A6D24');
+
+    const gsapSource = readFileSync(resolve(process.cwd(), 'src/components/home/HomeDynamicCanvasGsap.tsx'), 'utf8');
+    assert.ok(gsapSource.includes("id: 'gt-reunion'"), 'Catálogo GSAP incluye novena etiqueta móvil #gt-reunion');
+    assert.ok(gsapSource.includes("text: 'Reunión de trabajo'"), 'Catálogo GSAP incluye texto Reunión de trabajo');
+    assert.ok(gsapSource.includes("emoji: '💼'"), 'Catálogo GSAP incluye emoji 💼');
+    assert.ok(gsapSource.includes('v3dOnly: true'), 'Etiqueta Reunión de trabajo marcada como exclusiva de V3-D');
+    assert.ok(gsapSource.includes("createZoneATagTl('#gt-reunion', 'pill'"), 'Etiqueta #gt-reunion reutiliza coreografía Pill en Zone A');
 
     const hintSource = readFileSync(resolve(process.cwd(), 'src/components/home/HomeV3dScrollHint.tsx'), 'utf8');
     assert.ok(hintSource.includes('Deslizá para explorar'));

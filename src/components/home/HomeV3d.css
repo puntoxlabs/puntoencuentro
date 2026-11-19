@@ -33,6 +33,13 @@
   }
 }
 
+@media (min-width: 1024px) {
+  .home-v3d-variant .home-header-logo-img {
+    height: 42px;
+    width: auto;
+  }
+}
+
 .home-v3d-variant .home-build-info {
   font-size: 0.75rem;
   color: #475569;
@@ -52,7 +59,12 @@
 }
 
 @media (max-width: 767px) {
-  .home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-gsap-tag {
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d .home-gsap-tag,
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d #gt-pizza,
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d #gt-mates,
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d #gt-caminar,
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d #gt-bici,
+  .home-hero-wrapper--gsap.home-hero-wrapper--v3d #gt-reunion {
     max-width: min(calc(100% - 16px), 16.25rem);
   }
 }

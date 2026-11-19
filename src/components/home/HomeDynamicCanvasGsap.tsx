@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -10,11 +11,12 @@ export interface GsapTagItem {
   id: string;
   text: string;
   emoji: string;
-  semanticGroup: 'pizza' | 'padel' | 'mates' | 'futbol' | 'cafe' | 'caminar' | 'bici' | 'cena' | 'playa' | 'cumple' | 'asado';
+  semanticGroup: 'pizza' | 'padel' | 'mates' | 'futbol' | 'cafe' | 'caminar' | 'bici' | 'cena' | 'playa' | 'cumple' | 'asado' | 'reunion';
   colorTheme: 'coral' | 'mint' | 'sky' | 'lavender' | 'warm' | 'yellow' | 'teal' | 'rose';
   shapeVariant: 'pill' | 'ribbon' | 'ticket' | 'blob' | 'curved-tape' | 'asymmetric';
   sizeTier: 'large' | 'medium' | 'small';
   isOpenEncounter?: boolean;
+  v3dOnly?: boolean;
 }
 
 export const GSAP_TAGS_CATALOG: GsapTagItem[] = [
@@ -132,6 +134,17 @@ export const GSAP_TAGS_CATALOG: GsapTagItem[] = [
     shapeVariant: 'curved-tape',
     sizeTier: 'medium',
   },
+  // 12. Reunión de trabajo en Pill (Profesional / Equipos - Sky, exclusivo V3-D móvil)
+  {
+    id: 'gt-reunion',
+    text: 'Reunión de trabajo',
+    emoji: '💼',
+    semanticGroup: 'reunion',
+    colorTheme: 'sky',
+    shapeVariant: 'pill',
+    sizeTier: 'medium',
+    v3dOnly: true,
+  },
 ];
 
 export interface GsapPhotoItem {
@@ -197,11 +210,13 @@ export const GSAP_PHOTOS_CATALOG: GsapPhotoItem[] = [
 interface HomeDynamicCanvasGsapProps {
   isInputFocused?: boolean;
   onTagClick?: (tagText: string) => void;
+  isV3d?: boolean;
 }
 
 export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
   isInputFocused = false,
   onTagClick,
+  isV3d = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const masterTlRef = useRef<gsap.core.Timeline | null>(null);
@@ -217,19 +232,19 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
     zoneCY?: number;
     containerWidth?: number;
     containerHeight?: number;
-  }>({ enabled: false });
-
-  // Detección de ?debugMotion=1 para diagnóstico en /preview/home-gsap
-  useEffect(() => {
+  }>(() => {
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         if (params.get('debugMotion') === '1') {
-          setDebugState((prev) => ({ ...prev, enabled: true }));
+          return { enabled: true };
         }
       }
-    } catch {}
-  }, []);
+    } catch {
+      // Ignore URLSearchParams errors in SSR
+    }
+    return { enabled: false };
+  });
 
   // Estabilización de layout: esperar fonts y layout antes de disparar GSAP
   useEffect(() => {
@@ -1163,7 +1178,11 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
         };
 
         // Zone A (Cornisa Superior): en V3-D referencia el H1 real del Hero (eyebrow oculto en móvil)
-        const maxZoneAH = Math.max(measureV3dTagRect('#gt-pizza').h, measureV3dTagRect('#gt-bici').h);
+        const maxZoneAH = Math.max(
+          measureV3dTagRect('#gt-pizza').h,
+          measureV3dTagRect('#gt-bici').h,
+          isV3dHero ? measureV3dTagRect('#gt-reunion').h : 0
+        );
         const zoneAY = isV3dHero
           ? Math.max(8, Math.min(20, Math.round(titleRelTop - maxZoneAH - 7)))
           : Math.max(16, Math.min(24, Math.round(eyebrowRelTop - 46)));
@@ -1527,6 +1546,14 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
           createZoneCTagTl('#gt-cumple', 'asymmetric', cumpleSlots.x1, cumpleSlots.x2, zoneCY, -0.6, 0.2),
           21.0
         );
+
+        // 9. Zone A (exclusivo Home V3-D móvil): Reunión de trabajo (Sky / Pill / Medium) - t=24.5s a 31.0s
+        if (isV3dHero) {
+          mobileMasterTl.add(
+            createZoneATagTl('#gt-reunion', 'pill', getZoneACenterX('#gt-reunion'), zoneAY, -0.6, 0.3),
+            24.5
+          );
+        }
       });
 
       return () => {
@@ -1628,7 +1655,7 @@ export const HomeDynamicCanvasGsap: React.FC<HomeDynamicCanvasGsapProps> = ({
 
       {/* ── CAPA DE ETIQUETAS DINÁMICAS (Animadas por GSAP) ── */}
       <div className="home-gsap-tags-layer">
-        {GSAP_TAGS_CATALOG.map((tag) => (
+        {GSAP_TAGS_CATALOG.filter((tag) => !tag.v3dOnly || isV3d).map((tag) => (
           <div
             key={tag.id}
             id={tag.id}

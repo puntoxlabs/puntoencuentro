@@ -13,15 +13,15 @@
   max-width: calc(100vw - 28px);
   padding: 8px 14px;
   border-radius: 9999px;
-  border: 1px solid #CBD5E1;
-  background: rgba(248, 250, 252, 0.96);
-  color: #1E293B;
+  border: 1px solid #E7D4A3;
+  background: #FFF8E8;
+  color: #334155;
   font-family: var(--font-family, sans-serif);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.25;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -34,6 +34,7 @@
 
 .home-v3d-scroll-hint__chevrons {
   flex-shrink: 0;
+  color: #8A6D24;
   animation: home-v3d-hint-gently-down 1s ease-in-out 0.2s 3 both;
 }
 

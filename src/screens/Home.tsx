@@ -2808,6 +2808,7 @@ const Home: React.FC<HomeProps> = ({ forcedVariant, enableOpenDiscovery, homeVar
             <HomeDynamicCanvasGsap
               isInputFocused={isInputFocused}
               onTagClick={(tagText) => setHomeIntent(tagText)}
+              isV3d={v3Variant === 'v3d'}
             />
           </React.Suspense>
         ) : (
