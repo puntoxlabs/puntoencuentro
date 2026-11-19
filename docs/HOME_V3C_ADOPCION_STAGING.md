@@ -1,20 +1,22 @@
-# Adopción de Home V3-C como Home Principal de Staging
+# Adopción y Promoción de Home Principal de Staging (Actualizado a Home V3-D)
 
 ## 1. Resumen ejecutivo
 
-Se promovió **Home V3-C Responsive** como experiencia predeterminada de `/` exclusivamente en el entorno **Staging** (`https://staging.puntoencuentro.com.ar/`), habilitando al mismo tiempo la ruta protegida `/preview/home-v2` como acceso directo y respaldo operativo hacia **Home V2 + GSAP**.
+Tras la validación visual y funcional completa del **Sprint Final de Refinamiento de Home V3-D (`Mobile Comfort`)**, se promovió **Home V3-D** como experiencia predeterminada de `/` exclusivamente en el entorno **Staging** (`https://staging.puntoencuentro.com.ar/`), reemplazando la selección automática previa de Home V3-C y conservando `/preview/home-v3c` (Home V3-C) y `/preview/home-v2` (Home V2 + GSAP) como respaldos directos y comparativos en Staging.
 
-- **Producción (`https://puntoencuentro.com.ar` / rama `main`, commit `34d1d72eceecd8daf5bbc32c38e3f7d98013ac23`):** no fue modificada; conserva **Home V2 + GSAP** como predeterminada y mantiene bloqueadas todas las rutas `/preview/home-v2`, `/preview/home-v3a`, `/preview/home-v3b` y `/preview/home-v3c`.
+- **Producción (`https://puntoencuentro.com.ar` / rama `main`, commit `34d1d72eceecd8daf5bbc32c38e3f7d98013ac23`):** no fue modificada; conserva **Home V2 + GSAP** como predeterminada y mantiene bloqueadas todas las rutas `/preview/home-v2`, `/preview/home-v3a`, `/preview/home-v3b`, `/preview/home-v3c` y `/preview/home-v3d`.
+- **Delimitación de marca Conotros:** el logotipo `Conotros` se aplica exclusivamente al encabezado de **Home V3-D**. No se realizó migración global de marca (`getBrandConfig()`, `document.title`, favicon, PWA manifest, SEO/OG, Auth/OAuth y variantes V3-C/V2 conservan `PuntoEncuentro`).
 - **Seguridad e infraestructura:** sin cambios en Vercel, variables de entorno, DNS, Supabase, RPC, RLS, OAuth, Web Push, `AccessGate` (`public_launch_active = false`), `cross_origin_bridge_enabled = false` ni switches de lanzamiento.
 
 ---
 
 ## 2. Decisión de producto
 
-Tras completar los mini-sprints previos de diseño responsive dual-path, optimización mobile-first del Hero ([HOME_V3C_OPTIMIZACION_UX_MOBILE.md](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/docs/HOME_V3C_OPTIMIZACION_UX_MOBILE.md)) y compactación final de Discovery y Mi espacio ([HOME_V3C_DISCOVERY_MI_ESPACIO_FINAL.md](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/docs/HOME_V3C_DISCOVERY_MI_ESPACIO_FINAL.md)):
+Tras completar la optimización mobile-first, la restauración de la coreografía GSAP con la novena etiqueta móvil `💼 Reunión de trabajo`, el indicador contextual marfil `Deslizá para explorar`, las pinceladas ambientales desktop (Hero + «Mi espacio»), la reorganización del estado vacío de «Mi espacio» y el ajuste del logotipo Conotros en desktop (`42 px`) ([HOME_V3D_AUDITORIA_Y_COMPARATIVA_UX.md](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/docs/HOME_V3D_AUDITORIA_Y_COMPARATIVA_UX.md)):
 
-- Se aprueba Home V3-C como Home principal **exclusivamente en Staging** para iniciar el **QA funcional integral**.
-- Se mantiene intacta la propuesta dual-path aprobada (**Organizá con tu gente** sin registro para invitados + **Tengo ganas de…** con texto y voz), Discovery y Mi espacio, sin introducir rediseños adicionales.
+- Se promueve **Home V3-D (`Mobile Comfort`)** como Home predeterminada en `/` **exclusivamente en Staging** para continuar el **QA funcional integral**.
+- Se conserva **Home V3-C** accesible en `/preview/home-v3c` (y `/?homePreview=v3c` / `/?homeVariant=v3c`) como respaldo inmediato.
+- Se conserva **Home V2 + GSAP** accesible en `/preview/home-v2` (y `/?homePreview=v2` / `/?homeVariant=v2`) como respaldo adicional.
 - Esta promoción habilita el QA funcional en Staging y **no** constituye lanzamiento público ni autorización para Producción.
 
 ---
@@ -23,8 +25,8 @@ Tras completar los mini-sprints previos de diseño responsive dual-path, optimiz
 
 La resolución de variante en [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) se centralizó en funciones puras exportadas y auditables:
 
-1. **`STAGING_DEFAULT_HOME_VARIANT` (`'v3c' | 'v2' = 'v3c'`):** constante única que gobierna qué variante asume Staging cuando no hay override explícito.
-2. **`isHomeV3PreviewAllowed(options)`:** continúa autorizando rutas de preview y selección V3 únicamente cuando:
+1. **`STAGING_DEFAULT_HOME_VARIANT` (`'v3d' | 'v3c' | 'v2' = 'v3d'`):** constante única que gobierna qué variante asume Staging cuando no hay override explícito.
+2. **`isHomeV3PreviewAllowed(options)` y `isHomeV3dPreviewAllowed(options)`:** continúan autorizando rutas de preview y selección V3 únicamente cuando:
    - El entorno efectivo (`__APP_ENV__` / `resolveAppEnvironment()`) es `'staging'` o `'development'` (nunca `'production'`).
    - El origen/host en navegador corresponde exactamente a `https://staging.puntoencuentro.com.ar` (`staging.puntoencuentro.com.ar`) o a `localhost` / `127.0.0.1` / `[::1]` en desarrollo local (jamás `https://puntoencuentro.com.ar`).
 3. **`isStagingDefaultV3CAllowed(options)`:** exige simultáneamente `isHomeV3PreviewAllowed(options) === true` **y** `effectiveEnv === 'staging'`. De este modo:
@@ -33,22 +35,23 @@ La resolución de variante en [src/screens/Home.tsx](file:///c:/Users/Minar/Docu
 4. **`resolveEffectiveHomeVariant(params)`:** orden estricto de precedencia sin anular selecciones válidas:
    1. `?homeVariant=v1` o `propHomeVariant="v1"` → `'v1'`
    2. `/preview/home-v2` (`propHomeVariant="v2"`), `?homeVariant=v2` o `?homePreview=v2` → `'v2'`
-   3. `v3Allowed && propHomeVariant` en `v3a | v3b | v3c` → esa variante V3
+   2b. `v3dAllowed` y (`/preview/home-v3d`, `?homePreview=v3d` o `?homeVariant=v3d`) → `'v3d'`
+   3. `v3Allowed && propHomeVariant` en `v3a | v3b | v3c` (`/preview/home-v3a|v3b|v3c`) → esa variante V3
    4. `v3Allowed && queryHomePreview / queryHomeVariant` en `v3a | v3b | v3c` → esa variante V3
-   5. `isStagingDefaultV3CAllowed()` → `STAGING_DEFAULT_HOME_VARIANT` (`'v3c'`)
+   5. `isStagingDefaultV3CAllowed()` → `STAGING_DEFAULT_HOME_VARIANT` (`'v3d'`)
    6. Fallback universal por defecto → `'v2'`
-5. **`isV2Variant`:** se conserva intacto (`propHomeVariant !== 'v1' && queryHomeVariant !== 'v1'`), ya que Home V3-C reutiliza la estructura modular, Discovery, Mi espacio y recorridos funcionales de V2.
+5. **`isV2Variant`:** se conserva intacto (`propHomeVariant !== 'v1' && queryHomeVariant !== 'v1'`), ya que Home V3-D y V3-C reutilizan la estructura modular, Discovery, Mi espacio y recorridos funcionales de V2.
 
 ---
 
-## 4. Cambios realizados
+## 4. Cambios realizados en la promoción de V3-D
 
 | Archivo | Cambio realizado |
 |---|---|
-| [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) | Agregados `EffectiveHomeVariant`, `STAGING_DEFAULT_HOME_VARIANT = 'v3c'`, `isStagingDefaultV3CAllowed()` y `resolveEffectiveHomeVariant()`, conectados al cálculo de `effectiveHomeVariant` y `v3Variant`. |
-| [src/App.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/App.tsx) | Registrada la ruta protegida `<Route path="/preview/home-v2" element={<Home homeVariant="v2" forcedVariant="gsap" />} />` dentro del guard `{v3PreviewAllowed && (...)}`, manteniendo intactas `/`, `/e/:id`, `/solicitudes` y demás rutas de aplicación. |
-| [scripts/test-home-integration.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-integration.ts) | Actualizados los tests `15.S`, `16.B` y `16.E` al nuevo comportamiento predeterminado de Staging (`v3c`), y añadido el test **`16.H`** cubriendo guards Staging/Producción, precedencia de `/preview/home-v2`, `?homePreview=v2`, `?homeVariant=v1`, rutas `/solicitudes` y `/e/:id` y bloqueo de Producción. |
-| [docs/HOME_V3C_ADOPCION_STAGING.md](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/docs/HOME_V3C_ADOPCION_STAGING.md) | Documentación de arquitectura, pruebas, rollback y checklist para iniciar QA funcional en Staging. |
+| [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) | Actualizada la constante `STAGING_DEFAULT_HOME_VARIANT: 'v3d' \| 'v3c' \| 'v2' = 'v3d'` para promover V3-D como variante predeterminada en `/` de Staging conservando rollback de 1 línea a `'v3c'` o `'v2'`. |
+| [scripts/test-home-v3d-isolation.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-v3d-isolation.ts) | Actualizada la matriz de resolución de variantes verificando que `/` en Staging resuelve a `'v3d'`, `/preview/home-v3c` y `?homePreview=v3c` resuelven a `'v3c'`, `/preview/home-v2` resuelve a `'v2'`, y Producción conserva `'v2'` bloqueando `'v3d'` y `'v3c'`. |
+| [scripts/test-home-integration.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-integration.ts) | Actualizados los tests `15.E`, `15.S`, `16.B` y `16.H` verificando V3-D como predeterminada en `/` y `/solicitudes` de Staging, V3-C como respaldo en `/preview/home-v3c`, V2 como respaldo en `/preview/home-v2` y blindaje de Producción. |
+| [docs/HOME_V3C_ADOPCION_STAGING.md](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/docs/HOME_V3C_ADOPCION_STAGING.md) | Actualizada la tabla de rutas, arquitectura de selección y procedimiento de rollback hacia V3-C o V2. |
 
 ---
 
@@ -56,14 +59,17 @@ La resolución de variante en [src/screens/Home.tsx](file:///c:/Users/Minar/Docu
 
 | Ruta | Staging (`staging.puntoencuentro.com.ar`) | Producción (`puntoencuentro.com.ar`) | Local (`localhost` dev) |
 |---|---|---|---|
-| `/` | **Home V3-C** (predeterminada) | **Home V2 + GSAP** (predeterminada) | Home V2 + GSAP (default) |
-| `/preview/home-v2` | **Home V2 + GSAP** (backup utilizable) | Bloqueada (`Página no encontrada`) | Home V2 + GSAP |
+| `/` | **Home V3-D** (predeterminada) | **Home V2 + GSAP** (predeterminada) | Home V2 + GSAP (default en `development`, V3-D en `staging`) |
+| `/preview/home-v3d` | **Home V3-D** (preview explícita compatible) | Bloqueada (`Página no encontrada`) | Home V3-D |
+| `/preview/home-v3c` | **Home V3-C** (respaldo y comparación) | Bloqueada (`Página no encontrada`) | Home V3-C |
+| `/preview/home-v2` | **Home V2 + GSAP** (respaldo operativo) | Bloqueada (`Página no encontrada`) | Home V2 + GSAP |
 | `/preview/home-v3a` | Home V3-A | Bloqueada (`Página no encontrada`) | Home V3-A |
 | `/preview/home-v3b` | Home V3-B | Bloqueada (`Página no encontrada`) | Home V3-B |
-| `/preview/home-v3c` | Home V3-C | Bloqueada (`Página no encontrada`) | Home V3-C |
+| `/?homePreview=v3c` / `/?homeVariant=v3c` | Home V3-C | Ignorado → Home V2 + GSAP | Home V3-C |
+| `/?homePreview=v2` / `/?homeVariant=v2` | Home V2 + GSAP | Home V2 + GSAP | Home V2 + GSAP |
 | `/?homeVariant=v1` | Home V1 (override técnico) | Home V1 (override técnico) | Home V1 |
-| `/e/:id` | Deep link encuentro + Home V3-C | Deep link encuentro + Home V2 | Deep link encuentro |
-| `/solicitudes` | Home V3-C en pestaña *Mis solicitudes* | Home V2 en pestaña *Mis solicitudes* | Home en pestaña *Mis solicitudes* |
+| `/e/:id` | Deep link encuentro + Home V3-D | Deep link encuentro + Home V2 | Deep link encuentro |
+| `/solicitudes` | Home V3-D en pestaña *Mis solicitudes* | Home V2 en pestaña *Mis solicitudes* | Home en pestaña *Mis solicitudes* |
 
 ---
 
@@ -109,24 +115,32 @@ Todas las compuertas siguientes se ejecutaron y aprobaron íntegramente tras las
 
 ## 9. Procedimiento de rollback
 
-Para revertir temporalmente `/` en Staging a **Home V2 + GSAP** sin restaurar todos los archivos ni revertir los avances de V3-C:
+Para revertir temporalmente `/` en Staging a **Home V3-C** o a **Home V2 + GSAP** sin restaurar ni eliminar los archivos de Home V3-D:
 
-### Opción rápida (cambio de 1 línea — mantiene `/preview/home-v3c` disponible para comparar)
-1. Abrir [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) y localizar `STAGING_DEFAULT_HOME_VARIANT` (línea ~481):
+### Opción A — Rollback inmediato de `/` en Staging a Home V3-C (cambio de 1 línea)
+1. Abrir [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) y cambiar `STAGING_DEFAULT_HOME_VARIANT` (línea ~482):
    ```ts
-   export const STAGING_DEFAULT_HOME_VARIANT: 'v3c' | 'v2' = 'v2';
+   export const STAGING_DEFAULT_HOME_VARIANT: 'v3d' | 'v3c' | 'v2' = 'v3c';
    ```
-2. Actualizar en [scripts/test-home-integration.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-integration.ts) la aserción de `STAGING_DEFAULT_HOME_VARIANT` y las expectativas de `/` en Staging de `'v3c'` a `'v2'`.
+2. Actualizar en [scripts/test-home-v3d-isolation.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-v3d-isolation.ts) y [scripts/test-home-integration.ts](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/scripts/test-home-integration.ts) las aserciones de `STAGING_DEFAULT_HOME_VARIANT` y de `/` en Staging de `'v3d'` a `'v3c'`.
 3. Verificar localmente antes de publicar:
    - `.\node_modules\.bin\tsc.cmd -b`
+   - `node scripts/run-tests.mjs ./scripts/test-home-v3d-isolation.ts`
    - `node scripts/run-tests.mjs ./scripts/test-home-integration.ts`
-   - `node scripts/run-tests.mjs ./scripts/test-quick-nav-menu.ts`
-   - Build de Staging (`VITE_APP_ENV=staging`) y comprobar `/` muestra Hero V2 (`home-hero-subtitle sr-only`) mientras `/preview/home-v3c` sigue disponible con V3-C.
-4. Commitear en `staging` (identificando el SHA del commit de adopción con `git log -5 --oneline staging`) y ejecutar `git push origin staging`.
+   - Build de Staging (`.\node_modules\.bin\vite.cmd build --mode staging`) y comprobar que `/` vuelve a mostrar Home V3-C (`home-v3c-variant`), mientras `/preview/home-v3d` conserva Home V3-D y `/preview/home-v2` conserva Home V2 + GSAP.
+4. Commitear en `staging` y ejecutar `git push origin staging`.
 
-### Opción alternativa (revertir el commit completo)
-- Localizar el SHA del commit con `git log --grep="promote v3c as staging default" -n 1 --oneline staging`.
-- Ejecutar `git revert <SHA>` sobre `staging`, repetir `tsc -b` + `test-home-integration.ts` + `test-quick-nav-menu.ts` y pushear a `origin/staging`. *(Nota: esta opción también retira la ruta `/preview/home-v2`, mientras `backup/home-v2-gsap-8048777` conserva siempre la fotografía histórica exacta de V2).*
+### Opción B — Rollback inmediato de `/` en Staging a Home V2 + GSAP (cambio de 1 línea)
+1. Abrir [src/screens/Home.tsx](file:///c:/Users/Minar/Documents/Proyectos/PuntoEncuentro/src/screens/Home.tsx) y cambiar `STAGING_DEFAULT_HOME_VARIANT` (línea ~482):
+   ```ts
+   export const STAGING_DEFAULT_HOME_VARIANT: 'v3d' | 'v3c' | 'v2' = 'v2';
+   ```
+2. Actualizar las aserciones correspondientes en `scripts/test-home-v3d-isolation.ts` y `scripts/test-home-integration.ts` a `'v2'`.
+3. Ejecutar `tsc -b`, `test-home-v3d-isolation.ts`, `test-home-integration.ts`, `vite build --mode staging` y publicar en `origin/staging`. (`/preview/home-v3d` y `/preview/home-v3c` seguirán disponibles como rutas de preview protegidas).
+
+### Opción C — Revertir el commit de promoción de V3-D
+- Localizar el SHA del commit de promoción con `git log --grep="promote v3d as staging default" -n 1 --oneline staging`.
+- Ejecutar `git revert <SHA>` sobre `staging`, repetir `tsc -b` + `test-home-v3d-isolation.ts` + `test-home-integration.ts` y pushear a `origin/staging`.
 
 ---
 

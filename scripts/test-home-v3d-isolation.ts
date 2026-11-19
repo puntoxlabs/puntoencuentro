@@ -49,7 +49,7 @@ const permanentAuthValue = {
 
 describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () => {
   test('1. isHomeV3dPreviewAllowed habilita desarrollo local y Staging autorizado, y bloquea Producción u orígenes no autorizados', () => {
-    assert.equal(STAGING_DEFAULT_HOME_VARIANT, 'v3c', 'El default de Staging debe seguir siendo v3c');
+    assert.equal(STAGING_DEFAULT_HOME_VARIANT, 'v3d', 'El default de Staging debe ser v3d tras la promoción controlada');
 
     assert.equal(
       isHomeV3dPreviewAllowed({
@@ -105,8 +105,8 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
     );
   });
 
-  test('2. Matriz de variantes: local dev, Staging autorizado (default v3c, /preview/home-v3d -> v3d) y Producción (v2 bloqueando v3d)', () => {
-    // Desarrollo local: default v2, V3-D explícita -> v3d
+  test('2. Matriz de variantes: local dev (default v2), Staging autorizado (default v3d, /preview/home-v3c -> v3c, /preview/home-v2 -> v2) y Producción (v2 bloqueando v3d y v3c)', () => {
+    // Desarrollo local: default v2, V3-D explícita -> v3d, V3-C explícita -> v3c
     assert.equal(
       resolveEffectiveHomeVariant({
         appEnv: 'development',
@@ -124,16 +124,25 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
       }),
       'v3d'
     );
+    assert.equal(
+      resolveEffectiveHomeVariant({
+        propHomeVariant: 'v3c',
+        appEnv: 'development',
+        origin: 'http://localhost:5173',
+        hostname: 'localhost',
+      }),
+      'v3c'
+    );
 
-    // Staging autorizado: "/" permanece v3c; prop y query v3d habilitan v3d; v3c/v2/v1 preservados
+    // Staging autorizado: "/" predeterminado es v3d; prop y query v3c/v2/v1/v3a/v3b preservan respaldos y comparativas
     assert.equal(
       resolveEffectiveHomeVariant({
         appEnv: 'staging',
         origin: 'https://staging.puntoencuentro.com.ar',
         hostname: 'staging.puntoencuentro.com.ar',
       }),
-      'v3c',
-      'Staging sin selección explícita debe seguir mostrando V3-C'
+      'v3d',
+      'Staging sin selección explícita debe mostrar V3-D como Home predeterminada'
     );
     assert.equal(
       resolveEffectiveHomeVariant({
@@ -161,6 +170,34 @@ describe('Home V3-D — Aislamiento, Guards y Simplificación Contextual', () =>
         hostname: 'staging.puntoencuentro.com.ar',
       }),
       'v3d'
+    );
+    assert.equal(
+      resolveEffectiveHomeVariant({
+        propHomeVariant: 'v3c',
+        appEnv: 'staging',
+        origin: 'https://staging.puntoencuentro.com.ar',
+        hostname: 'staging.puntoencuentro.com.ar',
+      }),
+      'v3c',
+      'Staging en /preview/home-v3c debe cargar V3-C como respaldo'
+    );
+    assert.equal(
+      resolveEffectiveHomeVariant({
+        queryHomePreview: 'v3c',
+        appEnv: 'staging',
+        origin: 'https://staging.puntoencuentro.com.ar',
+        hostname: 'staging.puntoencuentro.com.ar',
+      }),
+      'v3c'
+    );
+    assert.equal(
+      resolveEffectiveHomeVariant({
+        queryHomeVariant: 'v3c',
+        appEnv: 'staging',
+        origin: 'https://staging.puntoencuentro.com.ar',
+        hostname: 'staging.puntoencuentro.com.ar',
+      }),
+      'v3c'
     );
     assert.equal(
       resolveEffectiveHomeVariant({

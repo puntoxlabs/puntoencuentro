@@ -475,10 +475,11 @@ export type EffectiveHomeVariant = 'v1' | 'v2' | 'v3a' | 'v3b' | 'v3c' | 'v3d';
 /**
  * Variante predeterminada de Home en el entorno Staging autorizado cuando no existe
  * una selección explícita por prop o query string.
- * Para realizar un rollback inmediato a Home V2 + GSAP en Staging sin restaurar archivos,
- * cambiar únicamente esta constante a 'v2'.
+ * Para realizar un rollback inmediato en Staging sin restaurar archivos:
+ * - Cambiar a 'v3c' para volver a Home V3-C.
+ * - Cambiar a 'v2' para volver a Home V2 + GSAP.
  */
-export const STAGING_DEFAULT_HOME_VARIANT: 'v3c' | 'v2' = 'v3c';
+export const STAGING_DEFAULT_HOME_VARIANT: 'v3d' | 'v3c' | 'v2' = 'v3d';
 
 /**
  * Habilita las previews Home V3 (V3-A / V3-B / V3-C) y el backup /preview/home-v2
@@ -524,8 +525,8 @@ export function isHomeV3PreviewAllowed(options?: {
 }
 
 /**
- * Habilita la promoción automática de Home V3-C como variante predeterminada
- * exclusivamente en Staging (entorno 'staging' y origen autorizado, jamás en Producción).
+ * Habilita la promoción automática de la variante predeterminada de Staging (`STAGING_DEFAULT_HOME_VARIANT`,
+ * actualmente Home V3-D) exclusivamente en Staging (entorno 'staging' y origen autorizado, jamás en Producción).
  */
 export function isStagingDefaultV3CAllowed(options?: {
   appEnv?: string;
@@ -540,12 +541,11 @@ export function isStagingDefaultV3CAllowed(options?: {
 }
 
 /**
- * Habilita la preview experimental Home V3-D (`/preview/home-v3d`) exclusivamente
+ * Habilita Home V3-D (`/preview/home-v3d` y variante predeterminada de Staging) exclusivamente
  * en desarrollo local o en el entorno y origen autorizado de Staging
  * (`https://staging.puntoencuentro.com.ar`).
  * Utiliza la misma política de seguridad que `isHomeV3PreviewAllowed()`:
- * bloqueada incondicionalmente en Producción y en orígenes no autorizados,
- * y nunca activada como Home predeterminada.
+ * bloqueada incondicionalmente en Producción y en orígenes no autorizados.
  */
 export function isHomeV3dPreviewAllowed(options?: {
   appEnv?: string;
@@ -557,7 +557,7 @@ export function isHomeV3dPreviewAllowed(options?: {
 
 /**
  * Resuelve de forma explícita la variante efectiva de Home respetando overrides válidos
- * y restringiendo la activación automática de V3-C únicamente a Staging.
+ * y restringiendo la activación automática de `STAGING_DEFAULT_HOME_VARIANT` (V3-D) únicamente a Staging.
  */
 export function resolveEffectiveHomeVariant(params: {
   propHomeVariant?: EffectiveHomeVariant;
@@ -603,7 +603,7 @@ export function resolveEffectiveHomeVariant(params: {
     return queryHomeVariant;
   }
 
-  // 5. Predeterminado automático: V3-C únicamente en Staging autorizado; Producción y local conservan V2
+  // 5. Predeterminado automático: STAGING_DEFAULT_HOME_VARIANT (V3-D) únicamente en Staging autorizado; Producción y local conservan V2
   if (isStagingDefaultV3CAllowed({ appEnv, origin, hostname })) {
     return STAGING_DEFAULT_HOME_VARIANT;
   }
